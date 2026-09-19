@@ -118,30 +118,66 @@ recollez-le depuis la première ligne `create table` jusqu'au dernier `grant`.
 
 ## Étape 3 — Vérifier, sans quitter la page
 
-Toujours dans **SQL Editor**, effacez ce que vous venez de coller, mettez ces
-trois lignes à la place et cliquez **Run** :
+Toujours dans **SQL Editor**, effacez ce que vous venez de coller et lancez ces
+quatre requêtes **une par une** — l'éditeur n'affiche que le résultat de la
+dernière, donc tout coller d'un bloc ne montrerait rien d'utile.
+
+**1. Écrire une partie de test**
 
 ```sql
 select public.marque_points_put('test_marque_points', '{"id":"test_marque_points","ok":true}'::jsonb);
-select public.marque_points_get('test_marque_points');
-select public.marque_points_delete('test_marque_points');
 ```
 
-L'éditeur n'affiche que le résultat de la **dernière** requête, alors lancez-les
-une par une si vous voulez tout voir. Ce qui compte : la deuxième doit renvoyer
+Résultat attendu : **`NULL`**. C'est normal — cette fonction ne renvoie rien
+(`returns void`), et l'éditeur affiche `NULL` pour dire « exécutée, rien à
+signaler ». Une fonction absente donnerait une erreur rouge, pas un `NULL`.
+
+**2. La relire** — la seule requête qui compte vraiment
+
+```sql
+select public.marque_points_get('test_marque_points');
+```
+
+Résultat attendu :
 
 ```
 {"id": "test_marque_points", "ok": true}
 ```
 
-Les espaces après les deux-points sont normaux — Postgres réécrit le JSON à sa
-façon. Si la requête renvoie `null` ou une case vide, l'écriture n'a pas
-fonctionné : reprenez l'étape 2.
+Les espaces après les deux-points sont normaux : Postgres réécrit le JSON à sa
+façon. **Si vous voyez ça, votre base est prête.** Si vous voyez `NULL`,
+l'écriture n'a pas fonctionné : reprenez l'étape 2.
 
-> Ce bloc SQL et ces trois requêtes ont été exécutés tels quels sur un
-> PostgreSQL 16, avec les mêmes rôles que chez Supabase. La table s'est révélée
-> inaccessible en lecture comme en écriture pour le rôle public, les deux
-> garde-fous se sont déclenchés, et seules les fonctions ont fonctionné.
+**3. La supprimer**
+
+```sql
+select public.marque_points_delete('test_marque_points');
+```
+
+Résultat attendu : **`NULL`**, pour la même raison qu'à la première requête.
+
+**4. Vérifier qu'elle a disparu**
+
+```sql
+select public.marque_points_get('test_marque_points');
+```
+
+Résultat attendu : **`NULL`** — et cette fois, ce `NULL` est la preuve que la
+suppression a fonctionné.
+
+En résumé :
+
+| Requête | Attendu | Ce que ça veut dire |
+| --- | --- | --- |
+| `put` | `NULL` | la fonction ne renvoie rien, c'est normal |
+| `get` après écriture | le JSON | **tout fonctionne** |
+| `delete` | `NULL` | la fonction ne renvoie rien, c'est normal |
+| `get` après suppression | `NULL` | la partie a bien été effacée |
+
+> Ce bloc SQL et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16,
+> avec les mêmes rôles que chez Supabase. La table s'est révélée inaccessible en
+> lecture comme en écriture pour le rôle public, les deux garde-fous se sont
+> déclenchés, et seules les fonctions ont fonctionné.
 
 ## Étape 4 — Copier les deux valeurs
 
