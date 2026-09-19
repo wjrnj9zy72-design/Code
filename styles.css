@@ -82,14 +82,20 @@ a { color: inherit; }
 /* --------------------------------------------------------------- app bar --- */
 .app-bar {
   position: sticky;
-  top: 0;
+  /* Clears the status bar when the page runs edge to edge on a phone;
+     env() falls back to 0px everywhere else. */
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
+  /* The plain colour first: a Safari without color-mix() would otherwise
+     leave this sticky bar transparent over the scrolling page. */
+  background: var(--surface);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
@@ -376,3 +382,84 @@ table.scores .meta-cell { color: var(--muted); }
   .app-bar__brand small { display: none; }
   .score-row { grid-template-columns: 1fr 88px; }
 }
+
+/* ---------------------------------------------------------------- dialog --- */
+.dialog {
+  width: min(560px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop { background: rgb(0 0 0 / 45%); }
+
+.dialog textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+/* --------------------------------------------------------- card counter --- */
+.score-row--counter { grid-template-columns: 1fr auto 96px; }
+
+.counter-button {
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.counter-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.counter-readout strong { font-size: 1.35rem; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 8px;
+}
+
+.card-button {
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  min-height: 56px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.card-button:hover { border-color: var(--accent); }
+
+.card-button--picked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.card-button small { font-size: 0.7rem; font-weight: 600; opacity: 0.85; }
+
+.button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.dialog--ask { width: min(420px, calc(100vw - 32px)); }
+
+/* The warning text is built with line breaks, which must survive. */
+.ask-message { white-space: pre-line; }

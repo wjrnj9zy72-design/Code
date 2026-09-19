@@ -1,9 +1,13 @@
 /** UI layer: hash router, views, event wiring. */
 
-import { PRESETS, getPreset, presetConfig } from './games.js';
+import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
 import { createGame, addRound, updateRound, removeRound, setFinished, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
+import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
+import { connectStore } from './cloud.js';
+import { createRemote, pickNewer, shareLink } from './remote.js';
+import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
 const view = document.getElementById('view');
@@ -17,6 +21,12 @@ const state = {
   newPresetId: null,
   newConfig: null,
   newName: '',
+  // Set once the host's document store answers; null means this browser only.
+  store: null,
+  // The shared database, when this copy of the app is configured for one.
+  remote: createRemote(remoteConfig()),
+  // Polling while a shared game is on screen.
+  poll: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -70,10 +80,27 @@ function flash(message, kind = 'info') {
 
 /* ------------------------------------------------------------- persisting --- */
 
-function persist() {
+/**
+ * Keep the local copy, and hand the changed game to the store when there is
+ * one. Writing per game rather than per list keeps one write to one document,
+ * which is what the store asks for.
+ */
+function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok) flash(t('home.storageWarning'), 'error');
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed) {
+    // A failure here must never cost the player their round: the local copy is
+    // already written, and the next change pushes again.
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
   return ok;
+}
+
+function forget(id) {
+  saveGames(state.games);
+  if (state.store) void state.store.remove(id);
+  if (state.remote) state.remote.remove(id).catch(() => {});
 }
 
 function getGame(id) {
@@ -82,7 +109,7 @@ function getGame(id) {
 
 function replaceGame(next) {
   state.games = state.games.map((game) => (game.id === next.id ? next : game));
-  persist();
+  persist(next);
 }
 
 /* ----------------------------------------------------------------- router --- */
@@ -170,7 +197,9 @@ function homeView() {
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
-      <p class="muted small">${escapeHtml(t('home.dataHint'))}</p>
+      <p class="muted small">${escapeHtml(
+        t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
+      )}</p>
     </section>`;
 }
 
@@ -213,10 +242,16 @@ function newGameView() {
       <label>
         ${escapeHtml(t('new.game'))}
         <select id="preset">
-          ${PRESETS.map(
-            (item) =>
-              `<option value="${item.id}" ${item.id === presetId ? 'selected' : ''}>${escapeHtml(presetLabel(item))}</option>`,
-          ).join('')}
+          ${PRESET_GROUPS.map((group) => {
+            const games = PRESETS.filter((item) => item.group === group);
+            if (!games.length) return '';
+            return `<optgroup label="${escapeHtml(t(`group.${group}`))}">${games
+              .map(
+                (item) =>
+                  `<option value="${item.id}" ${item.id === presetId ? 'selected' : ''}>${escapeHtml(presetLabel(item))}</option>`,
+              )
+              .join('')}</optgroup>`;
+          }).join('')}
         </select>
       </label>
       <p class="notes">${escapeHtml(t(preset.notesKey))}</p>
@@ -292,9 +327,15 @@ function roundFormHtml(game) {
   const rows = game.players
     .map((player) => {
       const value = editing && Number.isFinite(editing.scores[player.id]) ? editing.scores[player.id] : '';
+      const counter = preset?.helper
+        ? `<button type="button" class="button button--small counter-button"
+                   data-helper="${escapeHtml(player.id)}" title="${escapeHtml(t('helper.open'))}"
+                   aria-label="${escapeHtml(t('helper.title', { name: player.name }))}">🂠</button>`
+        : '';
       return `
-        <div class="score-row">
+        <div class="score-row ${preset?.helper ? 'score-row--counter' : ''}">
           <label class="score-row__name" for="score-${escapeHtml(player.id)}">${escapeHtml(player.name)}</label>
+          ${counter}
           <input type="number" step="1" inputmode="numeric" id="score-${escapeHtml(player.id)}"
                  data-score="${escapeHtml(player.id)}" value="${value}" />
         </div>`;
@@ -453,6 +494,11 @@ function gameView(game) {
           ? `<button type="button" class="button button--small" id="undo">${escapeHtml(t('action.undo'))}</button>`
           : ''
       }
+      ${
+        state.remote
+          ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
+          : ''
+      }
       <button type="button" class="button button--small" id="toggle-finish">
         ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
       </button>
@@ -508,7 +554,52 @@ function describeIssue(issue) {
   return t(`error.${issue.code}`, { player: issue.player });
 }
 
-function submitRound(game) {
+/**
+ * Ask a yes/no question.
+ *
+ * Not the browser's own confirm dialog: a sandboxed page — the app embedded
+ * in another site — is refused browser modals, and the call then returns
+ * false without ever asking, so every action behind one silently does
+ * nothing. A `<dialog>` is ordinary DOM and works everywhere.
+ */
+function ask(message, { confirmLabel, danger = false } = {}) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dialog dialog--ask';
+    dialog.innerHTML = `
+      <div class="stack">
+        <p class="ask-message"></p>
+        <div class="row">
+          <button type="button" class="button ${danger ? 'button--danger' : 'button--primary'}"
+                  data-answer="yes"></button>
+          <button type="button" class="button" data-answer="no"></button>
+        </div>
+      </div>`;
+    dialog.querySelector('.ask-message').textContent = message;
+    dialog.querySelector('[data-answer="yes"]').textContent = confirmLabel || t('action.save');
+    dialog.querySelector('[data-answer="no"]').textContent = t('action.cancel');
+
+    let settled = false;
+    const finish = (answer) => {
+      if (settled) return;
+      settled = true;
+      resolve(answer);
+      dialog.close();
+      dialog.remove();
+    };
+
+    dialog.querySelector('[data-answer="yes"]').addEventListener('click', () => finish(true));
+    dialog.querySelector('[data-answer="no"]').addEventListener('click', () => finish(false));
+    // Escape, or a close from anywhere else, means no.
+    dialog.addEventListener('close', () => finish(false));
+
+    document.body.append(dialog);
+    dialog.showModal();
+    dialog.querySelector('[data-answer="no"]').focus();
+  });
+}
+
+async function submitRound(game) {
   const scores = readScores(game);
   const result = validateRound(game, scores);
 
@@ -524,7 +615,8 @@ function submitRound(game) {
   if (issues) issues.hidden = true;
   if (result.warnings.length) {
     const message = `${result.warnings.map(describeIssue).join('\n')}\n\n${t('game.confirmWarnings')}`;
-    if (!confirm(message)) return;
+    const accepted = await ask(message, { confirmLabel: t('action.save') });
+    if (!accepted) return;
   }
 
   const meta = view.querySelector('#round-meta')?.value || null;
@@ -539,18 +631,80 @@ function submitRound(game) {
   render();
 }
 
-function bindHome() {
-  view.querySelector('#export')?.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify({ version: 1, games: state.games }, null, 2)], {
-      type: 'application/json',
+/**
+ * Some hosts (a sandboxed page, for instance) silently ignore a download a
+ * page starts by itself. Where that is the case the build sets
+ * MARQUE_POINTS_EXPORT_MODE = 'copy' and the data is shown to be copied
+ * instead, so the button never looks like it did nothing.
+ */
+const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
+
+function exportGames() {
+  const json = JSON.stringify({ version: 1, games: state.games }, null, 2);
+  if (EXPORT_MODE === 'copy') {
+    showExportDialog(json);
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `marque-points-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function showExportDialog(json) {
+  showCopyDialog({ title: t('export.title'), hint: t('export.hint'), text: json });
+}
+
+function showCopyDialog({ title, hint, text: content }) {
+  let dialog = document.getElementById('export-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'export-dialog';
+    dialog.className = 'dialog';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2 id="export-title"></h2>
+        <p class="muted small" id="export-hint"></p>
+        <textarea id="export-text" readonly rows="8"></textarea>
+        <div class="row">
+          <button type="button" class="button button--primary" id="export-copy"></button>
+          <button type="button" class="button" id="export-close"></button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+
+    dialog.querySelector('#export-close').addEventListener('click', () => dialog.close());
+    dialog.querySelector('#export-copy').addEventListener('click', async (event) => {
+      // Hold on to the button: currentTarget is null once the handler awaits.
+      const button = event.currentTarget;
+      const text = dialog.querySelector('#export-text');
+      text.select();
+
+      // Where the clipboard is blocked the promise can also simply never
+      // settle, so the button answers on its own after a moment rather than
+      // looking dead. The text is selected either way.
+      const copied = await Promise.race([
+        Promise.resolve(navigator.clipboard?.writeText(text.value)).then(() => true, () => false),
+        new Promise((done) => setTimeout(() => done(false), 600)),
+      ]);
+      button.textContent = copied ? t('export.copied') : t('export.copyByHand');
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `marque-points-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  });
+  }
+
+  dialog.querySelector('#export-title').textContent = title;
+  dialog.querySelector('#export-hint').textContent = hint;
+  const text = dialog.querySelector('#export-text');
+  text.value = content;
+  text.setAttribute('aria-label', title);
+  dialog.querySelector('#export-copy').textContent = t('action.copy');
+  dialog.querySelector('#export-close').textContent = t('action.close');
+  dialog.showModal();
+}
+
+function bindHome() {
+  view.querySelector('#export')?.addEventListener('click', exportGames);
 
   const fileInput = view.querySelector('#import-file');
   view.querySelector('#import')?.addEventListener('click', () => fileInput?.click());
@@ -564,7 +718,8 @@ function bindHome() {
       const known = new Set(state.games.map((game) => game.id));
       const fresh = incoming.filter((game) => !known.has(game.id));
       state.games = [...state.games, ...fresh];
-      persist();
+      saveGames(state.games);
+      if (state.store) for (const game of fresh) void state.store.save(game);
       flash(t('home.importDone', { count: fresh.length }));
     } catch {
       flash(t('home.importFailed'), 'error');
@@ -667,7 +822,7 @@ function bindNewGame() {
       name: view.querySelector('#game-name').value,
     });
     state.games = [...state.games, game];
-    persist();
+    persist(game);
 
     newGameNames = ['', '', ''];
     state.newPresetId = null;
@@ -677,12 +832,134 @@ function bindNewGame() {
   });
 }
 
+/** What the open card counter holds, while it is open. */
+let counterEntry = emptyHelperEntry();
+
+function renderCounter(helper, player) {
+  const dialog = document.getElementById('counter-dialog');
+  const total = helperTotal(helper, counterEntry);
+
+  dialog.querySelector('#counter-title').textContent = t('helper.title', { name: player.name });
+  dialog.querySelector('#counter-total').textContent = t('helper.total', { total });
+  dialog.querySelector('#counter-count').textContent = t('helper.cards', {
+    count: counterEntry.cards.length,
+  });
+
+  dialog.querySelector('#counter-values').innerHTML = helper.values
+    .map((value) => {
+      const count = cardCount(counterEntry, value);
+      const label = helper.labels?.[value] ?? value;
+      return `
+        <button type="button" class="card-button ${count ? 'card-button--picked' : ''}"
+                data-card="${value}">
+          <span>${escapeHtml(String(label))}</span>
+          ${count > 1 ? `<small>×${count}</small>` : ''}
+        </button>`;
+    })
+    .join('');
+
+  dialog.querySelector('#counter-toggles').innerHTML = (helper.toggles || [])
+    .map(
+      (item) => `
+        <label class="checkbox">
+          <input type="checkbox" data-switch="${escapeHtml(item.key)}"
+                 ${counterEntry.toggles[item.key] ? 'checked' : ''} />
+          ${escapeHtml(t(item.labelKey))}
+        </label>`,
+    )
+    .join('');
+
+  dialog.querySelector('#counter-undo').disabled = counterEntry.cards.length === 0;
+  dialog.querySelector('#counter-apply').disabled = isEmptyEntry(counterEntry);
+}
+
+function openCounter(game, playerId) {
+  const helper = getPreset(game.presetId)?.helper;
+  const player = game.players.find((item) => item.id === playerId);
+  if (!helper || !player) return;
+
+  let dialog = document.getElementById('counter-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'counter-dialog';
+    dialog.className = 'dialog';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2 id="counter-title"></h2>
+        <p class="muted small" id="counter-hint"></p>
+        <div class="counter-readout">
+          <strong id="counter-total"></strong>
+          <span class="muted small" id="counter-count"></span>
+        </div>
+        <div class="card-grid" id="counter-values"></div>
+        <div class="stack" id="counter-toggles"></div>
+        <div class="row">
+          <button type="button" class="button button--primary" id="counter-apply"></button>
+          <button type="button" class="button button--small" id="counter-undo"></button>
+          <button type="button" class="button button--small" id="counter-clear"></button>
+          <button type="button" class="button button--small button--ghost" id="counter-close"></button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+  }
+
+  // The listeners close over this round's game and player, so they are rebound
+  // every time the counter opens.
+  const fresh = dialog.cloneNode(true);
+  dialog.replaceWith(fresh);
+  dialog = fresh;
+
+  counterEntry = emptyHelperEntry();
+
+  dialog.querySelector('#counter-hint').textContent = helper.hintKey ? t(helper.hintKey) : '';
+  dialog.querySelector('#counter-apply').textContent = t('helper.apply');
+  dialog.querySelector('#counter-undo').textContent = t('helper.undo');
+  dialog.querySelector('#counter-clear').textContent = t('helper.clear');
+  dialog.querySelector('#counter-close').textContent = t('action.close');
+
+  dialog.querySelector('#counter-values').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-card]');
+    if (!button) return;
+    counterEntry = tapCard(helper, counterEntry, Number(button.dataset.card));
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-toggles').addEventListener('change', (event) => {
+    const box = event.target.closest('[data-switch]');
+    if (!box) return;
+    counterEntry = toggleSwitch(counterEntry, box.dataset.switch);
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-undo').addEventListener('click', () => {
+    counterEntry = undoCard(counterEntry);
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-clear').addEventListener('click', () => {
+    counterEntry = emptyHelperEntry();
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-close').addEventListener('click', () => dialog.close());
+
+  dialog.querySelector('#counter-apply').addEventListener('click', () => {
+    const input = view.querySelector(`[data-score="${player.id}"]`);
+    if (input) input.value = String(helperTotal(helper, counterEntry));
+    dialog.close();
+    refreshSumLine(game);
+  });
+
+  renderCounter(helper, player);
+  dialog.showModal();
+}
+
 function bindGame(game) {
   const form = view.querySelector('#round-form');
 
   form?.addEventListener('submit', (event) => {
     event.preventDefault();
-    submitRound(game);
+    void submitRound(game);
   });
 
   form?.addEventListener('input', () => refreshSumLine(game));
@@ -698,6 +975,10 @@ function bindGame(game) {
     });
   });
 
+  view.querySelectorAll('[data-helper]').forEach((button) => {
+    button.addEventListener('click', () => openCounter(game, button.dataset.helper));
+  });
+
   view.querySelector('#complete')?.addEventListener('click', (event) => {
     const { playerId, value } = event.currentTarget.dataset;
     const input = view.querySelector(`[data-score="${playerId}"]`);
@@ -710,9 +991,10 @@ function bindGame(game) {
     render();
   });
 
-  view.querySelector('#delete-round')?.addEventListener('click', () => {
-    if (!confirm(t('game.confirmDeleteRound'))) return;
-    replaceGame(removeRound(game, state.editingRoundId));
+  view.querySelector('#delete-round')?.addEventListener('click', async () => {
+    const roundId = state.editingRoundId;
+    if (!(await ask(t('game.confirmDeleteRound'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    replaceGame(removeRound(game, roundId));
     state.editingRoundId = null;
     render();
   });
@@ -733,12 +1015,21 @@ function bindGame(game) {
     });
   });
 
-  view.querySelector('#undo')?.addEventListener('click', () => {
+  view.querySelector('#undo')?.addEventListener('click', async () => {
     const last = game.rounds[game.rounds.length - 1];
-    if (!last || !confirm(t('game.confirmDeleteRound'))) return;
+    if (!last) return;
+    if (!(await ask(t('game.confirmDeleteRound'), { confirmLabel: t('action.delete'), danger: true }))) return;
     state.editingRoundId = null;
     replaceGame(removeRound(game, last.id));
     render();
+  });
+
+  view.querySelector('#share')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: t('share.title'),
+      hint: t('share.hint'),
+      text: shareLink(location, game.id),
+    });
   });
 
   view.querySelector('#toggle-finish')?.addEventListener('click', () => {
@@ -746,10 +1037,10 @@ function bindGame(game) {
     render();
   });
 
-  view.querySelector('#delete-game')?.addEventListener('click', () => {
-    if (!confirm(t('game.confirmDeleteGame'))) return;
+  view.querySelector('#delete-game')?.addEventListener('click', async () => {
+    if (!(await ask(t('game.confirmDeleteGame'), { confirmLabel: t('action.delete'), danger: true }))) return;
     state.games = state.games.filter((item) => item.id !== game.id);
-    persist();
+    forget(game.id);
     navigate('#/');
   });
 }
@@ -801,26 +1092,121 @@ function bindChrome() {
 function render() {
   const current = route();
   if (current.name === 'new') {
+    stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
   } else if (current.name === 'game') {
     const game = getGame(current.id);
     if (!game) {
+      // Perhaps it is a game someone shared: ask the database before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('share.loading'))}</p>`;
+        pullGame(current.id).then((found) => {
+          if (found) render();
+          else if (route().id === current.id) navigate('#/');
+        });
+        return;
+      }
       navigate('#/');
       return;
     }
+    watchGame(game.id);
     if (state.editingRoundId && !game.rounds.some((round) => round.id === state.editingRoundId)) {
       state.editingRoundId = null;
     }
     view.innerHTML = gameView(game);
     bindGame(game);
   } else {
+    stopWatching();
     view.innerHTML = homeView();
     bindHome();
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
+  });
+}
+
+/**
+ * Pull one game from the shared database and take it if it is newer than what
+ * this browser holds — which is how a link to a game opens that game for
+ * someone who has never seen it.
+ */
+async function pullGame(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  if (!isValidGame(stored)) return false;
+
+  const local = getGame(id);
+  if (pickNewer(local, stored) !== 'remote') return false;
+
+  state.games = local
+    ? state.games.map((game) => (game.id === id ? stored : game))
+    : [...state.games, stored];
+  saveGames(state.games);
+  return true;
+}
+
+/** While a game is on screen, watch for rounds someone else has entered. */
+function watchGame(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return; // never redraw under someone's fingers
+    if (await pullGame(id)) render();
+  }, 5000);
+}
+
+function stopWatching() {
+  if (state.poll) clearInterval(state.poll);
+  state.poll = null;
+}
+
+/** A list's identity for comparison: which games, and how recently each changed. */
+function signature(games) {
+  return games
+    .map((game) => `${game.id}:${game.updatedAt}`)
+    .sort()
+    .join('|');
+}
+
+/** Someone is typing, or a dialog is open: a bad moment to redraw the view. */
+function isBusy() {
+  if (document.querySelector('dialog[open]')) return true;
+  const active = document.activeElement;
+  return Boolean(
+    active && active.closest?.('#view') && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName),
+  );
+}
+
+/**
+ * Ask the host for a document store. It answers late or not at all, so the
+ * app is already running by the time this resolves.
+ */
+function connectToStore() {
+  connectStore({
+    getLocalGames: () => state.games,
+    onGames: (games) => {
+      if (signature(games) === signature(state.games)) return;
+      state.games = games;
+      saveGames(games);
+      // Redrawing under someone's fingers would throw away what they are
+      // typing; the next render picks the change up anyway.
+      if (!isBusy()) render();
+    },
+    onLost: () => {
+      state.store = null;
+      if (!isBusy()) render();
+    },
+  }).then((store) => {
+    if (!store) return;
+    state.store = store;
+    if (!isBusy()) render();
   });
 }
 
@@ -833,3 +1219,4 @@ window.addEventListener('hashchange', () => {
   render();
 });
 render();
+connectToStore();

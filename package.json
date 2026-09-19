@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Score keeper for Papayoo and other card games. No dependencies, no build step.",
+  "description": "Score keeper for Papayoo and other card games. No dependencies; ships as a single self-contained HTML file.",
   "scripts": {
     "start": "node tools/serve.js",
+    "bundle": "node tools/bundle.js",
     "test": "node --test"
   }
 }

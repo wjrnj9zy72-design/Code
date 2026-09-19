@@ -19,6 +19,13 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
+- **Parties partagées** : branchée sur une base (voir
+  [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
+  La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
+  ajouter des manches — chaque écran se rafraîchit tout seul.
+- **Compter les cartes au doigt** : pour les jeux dont le score est une pile de
+  cartes, un compteur s'ouvre depuis la manche en cours. On touche les cartes
+  ramassées, il fait la somme et reporte le score — plus d'addition de tête.
 - **Correction** : on clique sur une ligne du tableau pour modifier ou supprimer
   une manche, et *Annuler la dernière manche* défait la saisie précédente.
 - **Ça marche sur téléphone**, hors ligne, en français ou en anglais, en thème
@@ -26,6 +33,8 @@ manches, elle tient le classement.
   exportables en JSON pour sauvegarder ou changer d'appareil.
 
 ## Jeux fournis
+
+### Jeux de cartes
 
 | Jeu | Vainqueur | Fin de partie | Total par manche |
 | --- | --- | --- | --- |
@@ -37,15 +46,74 @@ manches, elle tient le classement.
 | 6 qui prend ! | plus petit score | 66 points | libre |
 | Uno | plus grand score | 500 points | libre |
 | Rami / Rummy | plus grand score | 500 points | libre |
-| Yams / Yahtzee | plus grand score | à la demande | libre |
 | Mille Bornes | plus grand score | 5000 points | libre |
+| Skull King | plus grand score | 10 manches | libre, négatifs autorisés |
+| Wizard | plus grand score | 60 ÷ nb de joueurs | libre, négatifs autorisés |
+| Canasta | plus grand score | 5000 points | libre, négatifs autorisés |
+| Scopa | plus grand score | 11 points | libre |
+| Cabo / Dutch | plus petit score | 100 points | libre, négatifs autorisés |
+
+### Tuiles, lettres et dominos
+
+| Jeu | Vainqueur | Fin de partie | Total par manche |
+| --- | --- | --- | --- |
+| Rummikub | plus grand score | à la demande | 0 (somme nulle) |
+| Dominos | plus grand score | 100 points | libre |
+| Scrabble | plus grand score | à la demande | libre (une manche = un coup) |
+
+### Dés, extérieur, et le reste
+
+| Jeu | Vainqueur | Fin de partie | Total par manche |
+| --- | --- | --- | --- |
+| Yams / Yahtzee | plus grand score | à la demande | libre |
+| Pétanque (par équipes) | plus grand score | 13 points | libre (une manche = une mène) |
+| Mölkky | plus grand score | 50 points | libre, négatifs autorisés (le retour à 25) |
 | Jeu personnalisé | au choix | au choix | au choix |
 
 Chaque réglage reste modifiable au moment de créer la partie : les variantes de
 table sont la règle, pas l'exception. Un total de manche inattendu est un
 **avertissement**, jamais un blocage.
 
-## Lancer l'appli
+### Le compteur de cartes
+
+Cinq jeux se comptent pièce par pièce plutôt qu'en additionnant de tête. Le
+bouton 🂠 à côté de chaque joueur ouvre un compteur adapté au jeu :
+
+| Jeu | Ce qu'on touche | Interrupteurs |
+| --- | --- | --- |
+| Papayoo | les Payoos ramassés, 1 à 20 (une seule fois chacun) | le Papayoo, +40 |
+| Skyjo | chaque carte restante devant soi, de -2 à 12 | score doublé |
+| Hearts / Cœurs | ♥, une fois par cœur ramassé | dame de pique, +13 |
+| 6 qui prend ! | la valeur en têtes de bœuf de chaque carte, 1 / 2 / 3 / 5 / 7 | — |
+| Rummikub | les tuiles restées sur le chevalet, joker compris | — |
+
+*Annuler la dernière* corrige une erreur de doigt, *Reporter le score* écrit le
+total dans la manche. Le compteur est une calculatrice : seul le total est
+enregistré, pas le détail des cartes.
+
+Les autres jeux gardent la saisie directe, parce que leur score ne se compte pas
+en tapant des cartes : le Tarot se calcule à partir du contrat et des bouts, la
+belote mêle les plis et les annonces, Uno et le Rami dépendent des cartes qui
+restent en main.
+
+## Utiliser l'appli
+
+### Le plus simple : un seul fichier
+
+[`dist/marque-points.html`](dist/marque-points.html) contient l'appli entière —
+HTML, CSS et JavaScript réunis. Téléchargez-le, ouvrez-le par double-clic : pas
+de serveur, pas d'installation, et ça marche hors ligne. C'est aussi le format à
+envoyer aux autres joueurs, ou à garder sur le téléphone.
+
+Il est reconstruit avec :
+
+```bash
+npm run bundle   # → dist/marque-points.html
+```
+
+Un test vérifie que le fichier livré correspond bien aux sources.
+
+### Pour développer : le dossier servi en HTTP
 
 ```bash
 npm start            # http://localhost:8080
@@ -59,8 +127,11 @@ PORT=3000 npm start  # autre port
 python3 -m http.server 8080
 ```
 
-Passer par `http://` est nécessaire : les modules ES ne se chargent pas depuis
-un fichier ouvert en `file://`.
+Passer par `http://` est ici nécessaire : les modules ES séparés ne se chargent
+pas depuis un `file://` — c'est précisément ce que le fichier unique résout.
+
+Pour jouer avec le téléphone pendant que l'ordinateur sert l'appli, ouvrez
+`http://<ip-locale-de-l-ordinateur>:8080` depuis le même réseau Wi-Fi.
 
 ## Tests
 
@@ -70,20 +141,31 @@ npm test
 
 Les tests (`node --test`, sans dépendance) couvrent le moteur de score :
 totaux, classement et ex æquo, fins de partie, validation d'une manche,
-complétion automatique, et cohérence des presets et des traductions.
+complétion automatique, compteurs de cartes (dont la vérification qu'une
+manche entière de Papayoo comptée carte par carte fait bien 250), cohérence
+des presets et des traductions, et fraîcheur des fichiers livrés dans
+`dist/`.
 
 ## Organisation du code
 
 ```
 index.html        coquille de la page
 styles.css        thème clair/sombre, mise en page mobile d'abord
-src/games.js      définition des jeux (presets)
+src/games.js      définition des jeux (presets) et de leurs compteurs
+src/helpers.js    arithmétique du compteur de cartes
 src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)
+src/cloud.js      magasin de documents de l'hôte, et fusion des deux copies
+src/remote.js     base de parties partagées (HTTP simple, sans bibliothèque)
+src/config.js     l'adresse de cette base, à remplir pour activer le partage
+tools/check-remote.js  vérifie que la base est correctement configurée
+docs/DEPLOIEMENT.md    mise en ligne pas à pas
 src/i18n.js       traductions fr / en
 src/app.js        routeur, vues et interactions
 tools/serve.js    serveur statique de développement
+tools/bundle.js   construction du fichier unique autonome
+dist/             le fichier unique, livré dans le dépôt
 tests/            tests unitaires
 ```
 
@@ -105,6 +187,7 @@ l'interface n'est nécessaire :
   allowNegative: false,
   entrantLabel: 'player',  // 'player' | 'team'
   meta: null,              // champ facultatif par manche (cf. Papayoo)
+  helper: null,            // compteur de cartes facultatif (cf. src/helpers.js)
   notesKey: 'notes.president',
 }
 ```
@@ -114,14 +197,37 @@ Ajoutez ensuite la clé `notes.president` dans les deux dictionnaires de
 
 ## Données
 
-Tout est stocké dans le `localStorage` du navigateur : rien n'est envoyé nulle
-part, et rien n'est partagé entre appareils. Le bouton *Exporter* produit un
-fichier JSON réimportable.
+L'appli enregistre ses parties à deux endroits selon l'hôte qui la sert :
+
+- **Toujours** dans le `localStorage` du navigateur. C'est la seule copie pour
+  le fichier autonome et pour le dossier servi en local : rien ne sort de
+  l'appareil, et rien n'est partagé entre appareils.
+- **En plus**, quand l'hôte propose un magasin de documents (`src/cloud.js`),
+  les parties y sont écrites et relues. Elles survivent alors à un effacement
+  des données du navigateur et suivent l'utilisateur d'un appareil à l'autre.
+
+Le magasin arrive tard, ou jamais : l'appli s'affiche d'abord à partir de sa
+copie locale, puis se branche dessus si elle le peut. À la connexion, les deux
+listes sont fusionnées par identifiant, la version la plus récemment modifiée
+l'emportant, et ce que le magasin n'avait pas lui est envoyé. La section
+*Données* de l'accueil dit où les parties sont enregistrées.
+
+Le bouton *Exporter* reste le filet de sécurité : il produit un JSON
+réimportable (ou, là où l'hôte interdit les téléchargements, le même texte à
+copier).
+
+- **Et, si elle est configurée** (`src/config.js`), dans une base partagée que
+  vous hébergez. C'est ce qui permet le bouton *Partager* : le lien d'une partie
+  l'ouvre chez quelqu'un d'autre. Laissée vide, l'appli n'envoie rien nulle part.
+  La marche à suivre est dans [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), y
+  compris ce que ce partage implique.
 
 ---
 
 **In English** — a dependency-free score keeper for Papayoo and other card
 games. Enter each round, it keeps totals, standings and end-of-game detection,
 and it knows each game's scoring rules (including that a Papayoo deal hands out
-exactly 250 penalty points). `npm start` to run, `npm test` for the tests. The
-interface switches between French and English from the top-right button.
+exactly 250 penalty points). Open `dist/marque-points.html` — one self-contained
+file, no server, works offline — or run `npm start` to serve the sources.
+`npm test` runs the tests. The interface switches between French and English
+from the top-right button.

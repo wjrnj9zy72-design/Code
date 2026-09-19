@@ -223,3 +223,14 @@ test('isValidGame rejects junk coming back from storage or an import', () => {
   assert.equal(isValidGame({ id: 'g1', players: [{ id: 'p', name: 1 }], rounds: [], config: {} }), false);
   assert.equal(isValidGame({ id: 'g1', players: [], rounds: [], config: {} }), true);
 });
+
+test('a game id is unguessable, because a share link is made of it', () => {
+  const ids = new Set();
+  for (let i = 0; i < 200; i += 1) {
+    const { id } = createGame({ presetId: 'papayoo', names: ['A', 'B', 'C'] });
+    assert.ok(id.startsWith('g_'), id);
+    assert.ok(id.length >= 24, `too short to be a secret: ${id}`);
+    assert.equal(ids.has(id), false, `collision: ${id}`);
+    ids.add(id);
+  }
+});

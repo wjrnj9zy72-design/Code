@@ -32,8 +32,65 @@ export const STRINGS = {
     'home.winner': 'Vainqueur : {name}',
     'home.winners': 'Vainqueurs : {name}',
     'home.data': 'Données',
-    'home.dataHint':
-      'Tout est enregistré dans ce navigateur uniquement. Exportez pour sauvegarder ou changer d’appareil.',
+    'home.storedLocal':
+      'Vos parties sont enregistrées dans ce navigateur uniquement. Exportez-les pour les sauvegarder ou changer d’appareil.',
+    'home.storedCloud':
+      'Vos parties sont enregistrées sur votre compte Claude : elles survivent à ce navigateur et vous suivent d’un appareil à l’autre.',
+    'helper.open': 'Compter les cartes',
+    'helper.title': '{name} — compter les cartes',
+    'helper.total': 'Total : {total}',
+    'helper.cards': '{count} carte(s)',
+    'helper.undo': 'Annuler la dernière',
+    'helper.clear': 'Tout effacer',
+    'helper.apply': 'Reporter le score',
+    'helper.papayoo.hint':
+      'Touchez chaque Payoo ramassé dans vos plis. Le Papayoo est le 7 de la couleur tirée en début de manche.',
+    'helper.papayoo.card': 'Papayoo (40)',
+    'helper.hearts.hint': 'Touchez ♥ une fois par cœur ramassé.',
+    'helper.hearts.queen': 'Dame de pique (13)',
+    'helper.skyjo.hint':
+      'Touchez chaque carte restante devant vous. Une colonne de trois cartes identiques est retirée du jeu : ne la comptez pas.',
+    'helper.skyjo.doubled': 'Score doublé (a fermé sans être le plus bas)',
+    'helper.sixquiprend.hint': 'Touchez la valeur en têtes de bœuf de chaque carte ramassée.',
+    'group.cards': 'Jeux de cartes',
+    'group.tiles': 'Tuiles, lettres et dominos',
+    'group.dice': 'Jeux de dés',
+    'group.outdoor': 'Jeux d’extérieur',
+    'group.other': 'Autre',
+    'helper.rummikub.hint':
+      'Touchez chaque tuile restée sur votre chevalet. Le joker vaut 30. Le gagnant marque la somme des autres, en positif.',
+    'notes.skullking':
+      'Dix manches. Un contrat tenu rapporte 20 points par pli annoncé, un contrat manqué coûte 10 points par pli d’écart : les scores négatifs font partie du jeu.',
+    'notes.wizard':
+      'Le nombre de manches vaut 60 divisé par le nombre de joueurs — 20 à trois, 15 à quatre, 12 à cinq, 10 à six. Ajustez-le ci-dessous.',
+    'notes.canasta': 'Première équipe ou joueur à 5000 points. Les manches perdues peuvent être négatives.',
+    'notes.scopa': 'Un point par lot : cartes, deniers, le sette bello, la primiera, plus les scopas. Partie en 11 points (ou 21 selon la variante).',
+    'notes.cabo':
+      'La partie s’arrête quand quelqu’un atteint 100 points, et le plus petit total gagne. Certaines variantes ont des cartes négatives : elles sont autorisées ici.',
+    'notes.rummikub':
+      'Le perdant compte ses tuiles restantes en négatif, le gagnant marque la somme des autres : une manche s’équilibre donc à zéro.',
+    'notes.dominos': 'Le gagnant d’une manche marque les points restés dans les mains adverses. Partie en 100 points.',
+    'notes.scrabble':
+      'Une manche par tour de jeu : saisissez le score de chaque coup, l’appli tient le cumul. Terminez la partie à la main quand la pioche est épuisée.',
+    'notes.petanque': 'Une manche par mène : elle rapporte de 1 à 6 points à une seule équipe. Partie en 13 points.',
+    'notes.molkky':
+      'Il faut atteindre 50 points exactement : dépasser ramène à 25. Saisissez alors le retrait en négatif, c’est autorisé.',
+    'action.share': 'Partager la partie',
+    'share.title': 'Lien vers cette partie',
+    'share.hint':
+      'Envoyez ce lien : il ouvre cette partie, avec ses scores, chez la personne qui le reçoit — et elle peut y ajouter des manches.',
+    'share.loading': 'Ouverture de la partie…',
+    'share.pushFailed':
+      'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
+    'home.storedShared':
+      'Vos parties sont enregistrées dans ce navigateur et dans la base partagée : le bouton Partager donne un lien qui ouvre la partie chez quelqu’un d’autre.',
+    'action.copy': 'Copier',
+    'action.close': 'Fermer',
+    'export.title': 'Vos parties, en texte',
+    'export.hint':
+      'Copiez ce texte et gardez-le où vous voulez. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
+    'export.copied': 'Copié !',
+    'export.copyByHand': 'Texte sélectionné — copiez-le',
     'home.importDone': '{count} partie(s) importée(s).',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
@@ -143,8 +200,65 @@ export const STRINGS = {
     'home.winner': 'Winner: {name}',
     'home.winners': 'Winners: {name}',
     'home.data': 'Data',
-    'home.dataHint':
-      'Everything is stored in this browser only. Export to back up or move to another device.',
+    'home.storedLocal':
+      'Your games are stored in this browser only. Export them to back up or move to another device.',
+    'home.storedCloud':
+      'Your games are stored on your Claude account: they outlive this browser and follow you from one device to the next.',
+    'helper.open': 'Count the cards',
+    'helper.title': '{name} — count the cards',
+    'helper.total': 'Total: {total}',
+    'helper.cards': '{count} card(s)',
+    'helper.undo': 'Undo last',
+    'helper.clear': 'Clear all',
+    'helper.apply': 'Use this score',
+    'helper.papayoo.hint':
+      'Tap each Payoo you took in your tricks. The Papayoo is the 7 of the suit drawn at the start of the round.',
+    'helper.papayoo.card': 'Papayoo (40)',
+    'helper.hearts.hint': 'Tap ♥ once per heart you took.',
+    'helper.hearts.queen': 'Queen of spades (13)',
+    'helper.skyjo.hint':
+      'Tap each card still in front of you. A column of three identical cards is removed from play — do not count it.',
+    'helper.skyjo.doubled': 'Score doubled (closed without being lowest)',
+    'helper.sixquiprend.hint': 'Tap the bull-head value of each card you took.',
+    'group.cards': 'Card games',
+    'group.tiles': 'Tiles, letters and dominoes',
+    'group.dice': 'Dice games',
+    'group.outdoor': 'Outdoor games',
+    'group.other': 'Other',
+    'helper.rummikub.hint':
+      'Tap each tile left on your rack. The joker is worth 30. The winner scores the others\u2019 total, as a positive.',
+    'notes.skullking':
+      'Ten rounds. A bid met scores 20 points per trick bid; a bid missed costs 10 points per trick off — negative scores are part of the game.',
+    'notes.wizard':
+      'The number of rounds is 60 divided by the number of players — 20 at three, 15 at four, 12 at five, 10 at six. Adjust it below.',
+    'notes.canasta': 'First to 5000 points. A lost round can be negative.',
+    'notes.scopa': 'One point each for cards, coins, the sette bello and the primiera, plus every scopa. Game to 11 (or 21, depending on the variant).',
+    'notes.cabo':
+      'The game stops when someone reaches 100, and the lowest total wins. Some variants have negative cards: they are allowed here.',
+    'notes.rummikub':
+      'The loser counts the tiles left on their rack as a negative, and the winner scores the others\u2019 total — so a round adds up to zero.',
+    'notes.dominos': 'The winner of a round scores the pips left in the other hands. Game to 100.',
+    'notes.scrabble':
+      'One round per turn: enter each play\u2019s score and the app keeps the running total. Finish the game by hand when the bag is empty.',
+    'notes.petanque': 'One round per end, worth 1 to 6 points to a single team. Game to 13.',
+    'notes.molkky':
+      'You must reach exactly 50: going over sends you back to 25. Enter that drop as a negative, which is allowed.',
+    'action.share': 'Share this game',
+    'share.title': 'Link to this game',
+    'share.hint':
+      'Send this link: it opens this game, with its scores, for whoever receives it — and they can add rounds to it.',
+    'share.loading': 'Opening the game…',
+    'share.pushFailed':
+      'Game saved here, but not sent to the others. It will go up with the next change.',
+    'home.storedShared':
+      'Your games are stored in this browser and in the shared database: the Share button gives a link that opens the game for someone else.',
+    'action.copy': 'Copy',
+    'action.close': 'Close',
+    'export.title': 'Your games, as text',
+    'export.hint':
+      'Copy this text and keep it wherever you like. To bring it back into the app later, save it as a .json file and use Import.',
+    'export.copied': 'Copied!',
+    'export.copyByHand': 'Text selected — copy it',
     'home.importDone': 'Imported {count} game(s).',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':

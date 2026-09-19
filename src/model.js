@@ -2,8 +2,17 @@
 
 import { getPreset, presetConfig } from './games.js';
 
-export function uid(prefix = 'id') {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+/**
+ * An identifier. A game's id is also what a share link carries, so it has to
+ * be unguessable: whoever knows it can open the game. randomUUID is used where
+ * the browser offers it (it needs a secure context), with a weaker but still
+ * random fallback elsewhere.
+ */
+function uid(prefix = 'id') {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `${prefix}_${uuid}`;
+  const random = () => Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now().toString(36)}_${random()}${random()}`;
 }
 
 /**
@@ -73,20 +82,11 @@ export function removeRound(game, roundId) {
   };
 }
 
-export function renamePlayer(game, playerId, name) {
-  const players = game.players.map((player) =>
-    player.id === playerId ? { ...player, name: name.trim() || player.name } : player,
-  );
-  return { ...game, players, updatedAt: Date.now() };
-}
 
 export function setFinished(game, finished) {
   return { ...game, finishedAt: finished ? Date.now() : null, updatedAt: Date.now() };
 }
 
-export function setConfig(game, patch) {
-  return { ...game, config: { ...game.config, ...patch }, updatedAt: Date.now() };
-}
 
 /** Defensive read of anything coming back from storage or an import file. */
 export function isValidGame(value) {

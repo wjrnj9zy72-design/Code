@@ -13,7 +13,16 @@
  *               Checked as a warning only: most games have variants that break it.
  *   entrantLabel what we are scoring: 'player' or 'team'.
  *   meta        one optional per-round field (e.g. which suit was the Papayoo).
+ *   helper      an optional card counter for the round form; see src/helpers.js.
+ *   group       how the game is filed in the picker: cards, tiles, dice,
+ *               outdoor, other.
  */
+
+/** Skyjo's deck runs from -2 to 12. */
+const SKYJO_VALUES = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/** The twenty Payoos, each worth its face value. */
+const PAYOOS = Array.from({ length: 20 }, (_, index) => index + 1);
 
 /** Suits used by Papayoo's per-round special card. */
 const SUITS = [
@@ -36,6 +45,13 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: { key: 'papayooSuit', labelKey: 'meta.papayooSuit', options: SUITS },
+    helper: {
+      mode: 'toggle',
+      values: PAYOOS,
+      hintKey: 'helper.papayoo.hint',
+      toggles: [{ key: 'papayoo', labelKey: 'helper.papayoo.card', add: 40 }],
+    },
+    group: 'cards',
     notesKey: 'notes.papayoo',
   },
   {
@@ -50,6 +66,14 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: [1],
+      labels: { 1: '♥' },
+      hintKey: 'helper.hearts.hint',
+      toggles: [{ key: 'queen', labelKey: 'helper.hearts.queen', add: 13 }],
+    },
+    group: 'cards',
     notesKey: 'notes.hearts',
   },
   {
@@ -64,6 +88,7 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'team',
     meta: null,
+    group: 'cards',
     notesKey: 'notes.belote',
   },
   {
@@ -78,6 +103,7 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    group: 'cards',
     notesKey: 'notes.tarot',
   },
   {
@@ -92,6 +118,13 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: SKYJO_VALUES,
+      hintKey: 'helper.skyjo.hint',
+      toggles: [{ key: 'doubled', labelKey: 'helper.skyjo.doubled', multiply: 2 }],
+    },
+    group: 'cards',
     notesKey: 'notes.skyjo',
   },
   {
@@ -106,6 +139,13 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: [1, 2, 3, 5, 7],
+      hintKey: 'helper.sixquiprend.hint',
+      toggles: [],
+    },
+    group: 'cards',
     notesKey: 'notes.sixquiprend',
   },
   {
@@ -120,6 +160,7 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    group: 'cards',
     notesKey: 'notes.uno',
   },
   {
@@ -134,6 +175,7 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    group: 'cards',
     notesKey: 'notes.rummy',
   },
   {
@@ -148,6 +190,7 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    group: 'dice',
     notesKey: 'notes.yams',
   },
   {
@@ -162,7 +205,165 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    group: 'cards',
     notesKey: 'notes.millebornes',
+  },
+  {
+    id: 'skullking',
+    name: 'Skull King',
+    players: [2, 8],
+    direction: 'high',
+    endMode: 'rounds',
+    target: null,
+    rounds: 10,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.skullking',
+  },
+  {
+    id: 'wizard',
+    name: 'Wizard',
+    players: [3, 6],
+    direction: 'high',
+    endMode: 'rounds',
+    target: null,
+    rounds: 15,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.wizard',
+  },
+  {
+    id: 'canasta',
+    name: 'Canasta',
+    players: [2, 6],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 5000,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.canasta',
+  },
+  {
+    id: 'scopa',
+    name: 'Scopa',
+    players: [2, 4],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 11,
+    rounds: null,
+    roundSum: null,
+    allowNegative: false,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.scopa',
+  },
+  {
+    id: 'cabo',
+    name: 'Cabo / Dutch',
+    players: [2, 6],
+    direction: 'low',
+    endMode: 'threshold',
+    target: 100,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.cabo',
+  },
+  {
+    id: 'rummikub',
+    name: 'Rummikub',
+    players: [2, 4],
+    direction: 'high',
+    endMode: 'manual',
+    target: null,
+    rounds: null,
+    roundSum: 0,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    helper: {
+      mode: 'count',
+      values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 30],
+      labels: { 30: 'Joker' },
+      hintKey: 'helper.rummikub.hint',
+      toggles: [],
+    },
+    group: 'tiles',
+    notesKey: 'notes.rummikub',
+  },
+  {
+    id: 'dominos',
+    name: 'Dominos',
+    players: [2, 4],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 100,
+    rounds: null,
+    roundSum: null,
+    allowNegative: false,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'tiles',
+    notesKey: 'notes.dominos',
+  },
+  {
+    id: 'scrabble',
+    name: 'Scrabble',
+    players: [2, 4],
+    direction: 'high',
+    endMode: 'manual',
+    target: null,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'tiles',
+    notesKey: 'notes.scrabble',
+  },
+  {
+    id: 'petanque',
+    name: 'Pétanque',
+    players: [2, 2],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 13,
+    rounds: null,
+    roundSum: null,
+    allowNegative: false,
+    entrantLabel: 'team',
+    meta: null,
+    group: 'outdoor',
+    notesKey: 'notes.petanque',
+  },
+  {
+    id: 'molkky',
+    name: 'Mölkky',
+    players: [2, 8],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 50,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'outdoor',
+    notesKey: 'notes.molkky',
   },
   {
     id: 'custom',
@@ -176,6 +377,7 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    group: 'other',
     notesKey: 'notes.custom',
   },
 ];
@@ -196,3 +398,6 @@ export function presetConfig(preset) {
     entrantLabel: preset.entrantLabel,
   };
 }
+
+/** The order the picker files games in. */
+export const PRESET_GROUPS = ['cards', 'tiles', 'dice', 'outdoor', 'other'];
