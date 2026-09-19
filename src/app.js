@@ -5,6 +5,7 @@ import { createGame, addRound, updateRound, removeRound, setFinished, isValidGam
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
+import { connectStore } from './cloud.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
 const view = document.getElementById('view');
@@ -18,6 +19,8 @@ const state = {
   newPresetId: null,
   newConfig: null,
   newName: '',
+  // Set once the host's document store answers; null means this browser only.
+  store: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -71,10 +74,21 @@ function flash(message, kind = 'info') {
 
 /* ------------------------------------------------------------- persisting --- */
 
-function persist() {
+/**
+ * Keep the local copy, and hand the changed game to the store when there is
+ * one. Writing per game rather than per list keeps one write to one document,
+ * which is what the store asks for.
+ */
+function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok) flash(t('home.storageWarning'), 'error');
+  if (!ok && !state.store) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
   return ok;
+}
+
+function forget(id) {
+  saveGames(state.games);
+  if (state.store) void state.store.remove(id);
 }
 
 function getGame(id) {
@@ -83,7 +97,7 @@ function getGame(id) {
 
 function replaceGame(next) {
   state.games = state.games.map((game) => (game.id === next.id ? next : game));
-  persist();
+  persist(next);
 }
 
 /* ----------------------------------------------------------------- router --- */
@@ -171,7 +185,7 @@ function homeView() {
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
-      <p class="muted small">${escapeHtml(t('home.dataHint'))}</p>
+      <p class="muted small">${escapeHtml(t(state.store ? 'home.storedCloud' : 'home.storedLocal'))}</p>
     </section>`;
 }
 
@@ -627,7 +641,8 @@ function bindHome() {
       const known = new Set(state.games.map((game) => game.id));
       const fresh = incoming.filter((game) => !known.has(game.id));
       state.games = [...state.games, ...fresh];
-      persist();
+      saveGames(state.games);
+      if (state.store) for (const game of fresh) void state.store.save(game);
       flash(t('home.importDone', { count: fresh.length }));
     } catch {
       flash(t('home.importFailed'), 'error');
@@ -730,7 +745,7 @@ function bindNewGame() {
       name: view.querySelector('#game-name').value,
     });
     state.games = [...state.games, game];
-    persist();
+    persist(game);
 
     newGameNames = ['', '', ''];
     state.newPresetId = null;
@@ -938,7 +953,7 @@ function bindGame(game) {
   view.querySelector('#delete-game')?.addEventListener('click', () => {
     if (!confirm(t('game.confirmDeleteGame'))) return;
     state.games = state.games.filter((item) => item.id !== game.id);
-    persist();
+    forget(game.id);
     navigate('#/');
   });
 }
@@ -1013,6 +1028,49 @@ function render() {
   });
 }
 
+/** A list's identity for comparison: which games, and how recently each changed. */
+function signature(games) {
+  return games
+    .map((game) => `${game.id}:${game.updatedAt}`)
+    .sort()
+    .join('|');
+}
+
+/** Someone is typing, or a dialog is open: a bad moment to redraw the view. */
+function isBusy() {
+  if (document.querySelector('dialog[open]')) return true;
+  const active = document.activeElement;
+  return Boolean(
+    active && active.closest?.('#view') && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName),
+  );
+}
+
+/**
+ * Ask the host for a document store. It answers late or not at all, so the
+ * app is already running by the time this resolves.
+ */
+function connectToStore() {
+  connectStore({
+    getLocalGames: () => state.games,
+    onGames: (games) => {
+      if (signature(games) === signature(state.games)) return;
+      state.games = games;
+      saveGames(games);
+      // Redrawing under someone's fingers would throw away what they are
+      // typing; the next render picks the change up anyway.
+      if (!isBusy()) render();
+    },
+    onLost: () => {
+      state.store = null;
+      if (!isBusy()) render();
+    },
+  }).then((store) => {
+    if (!store) return;
+    state.store = store;
+    if (!isBusy()) render();
+  });
+}
+
 setLanguage(state.prefs.lang || detectLanguage());
 applyStaticText();
 applyTheme();
@@ -1022,3 +1080,4 @@ window.addEventListener('hashchange', () => {
   render();
 });
 render();
+connectToStore();

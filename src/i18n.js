@@ -32,8 +32,10 @@ export const STRINGS = {
     'home.winner': 'Vainqueur : {name}',
     'home.winners': 'Vainqueurs : {name}',
     'home.data': 'Données',
-    'home.dataHint':
-      'Tout est enregistré dans ce navigateur uniquement. Exportez pour sauvegarder ou changer d’appareil.',
+    'home.storedLocal':
+      'Vos parties sont enregistrées dans ce navigateur uniquement. Exportez-les pour les sauvegarder ou changer d’appareil.',
+    'home.storedCloud':
+      'Vos parties sont enregistrées sur votre compte Claude : elles survivent à ce navigateur et vous suivent d’un appareil à l’autre.',
     'helper.open': 'Compter les cartes',
     'helper.title': '{name} — compter les cartes',
     'helper.total': 'Total : {total}',
@@ -166,8 +168,10 @@ export const STRINGS = {
     'home.winner': 'Winner: {name}',
     'home.winners': 'Winners: {name}',
     'home.data': 'Data',
-    'home.dataHint':
-      'Everything is stored in this browser only. Export to back up or move to another device.',
+    'home.storedLocal':
+      'Your games are stored in this browser only. Export them to back up or move to another device.',
+    'home.storedCloud':
+      'Your games are stored on your Claude account: they outlive this browser and follow you from one device to the next.',
     'helper.open': 'Count the cards',
     'helper.title': '{name} — count the cards',
     'helper.total': 'Total: {total}',

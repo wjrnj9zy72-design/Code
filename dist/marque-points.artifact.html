@@ -514,8 +514,10 @@ const STRINGS = {
     'home.winner': 'Vainqueur : {name}',
     'home.winners': 'Vainqueurs : {name}',
     'home.data': 'Données',
-    'home.dataHint':
-      'Tout est enregistré dans ce navigateur uniquement. Exportez pour sauvegarder ou changer d’appareil.',
+    'home.storedLocal':
+      'Vos parties sont enregistrées dans ce navigateur uniquement. Exportez-les pour les sauvegarder ou changer d’appareil.',
+    'home.storedCloud':
+      'Vos parties sont enregistrées sur votre compte Claude : elles survivent à ce navigateur et vous suivent d’un appareil à l’autre.',
     'helper.open': 'Compter les cartes',
     'helper.title': '{name} — compter les cartes',
     'helper.total': 'Total : {total}',
@@ -648,8 +650,10 @@ const STRINGS = {
     'home.winner': 'Winner: {name}',
     'home.winners': 'Winners: {name}',
     'home.data': 'Data',
-    'home.dataHint':
-      'Everything is stored in this browser only. Export to back up or move to another device.',
+    'home.storedLocal':
+      'Your games are stored in this browser only. Export them to back up or move to another device.',
+    'home.storedCloud':
+      'Your games are stored on your Claude account: they outlive this browser and follow you from one device to the next.',
     'helper.open': 'Count the cards',
     'helper.title': '{name} — count the cards',
     'helper.total': 'Total: {total}',
@@ -1408,8 +1412,111 @@ function savePrefs(prefs) {
   return write(PREFS_KEY, prefs);
 }
 
+  // ---- src/cloud.js ----------------------------------------------------
+/**
+ * Storing games outside the browser.
+ *
+ * The browser's own storage is fine until it is cleared, or until you pick up
+ * the other phone — so where the page is served by a host that offers a
+ * document store, the games live there instead and the browser keeps a copy.
+ *
+ * The page must work without it: the store is offered by the host, arrives
+ * late, and may never arrive at all (a file opened from the disk, a viewer
+ * that declines). So nothing here is on the critical path — the app renders
+ * from its local copy first and this lights up afterwards.
+ */
+
+
+/** Where a game is stored. Path grammar: an odd number of segments. */
+const COLLECTION = 'games';
+
+/**
+ * Merge what this browser holds with what the store holds.
+ * The newer `updatedAt` wins, and anything the store has not got yet — or
+ * holds an older copy of — comes back in `toPush`.
+ */
+function reconcile(local, remote) {
+  const byId = new Map();
+  for (const game of remote) if (isValidGame(game)) byId.set(game.id, game);
+
+  const toPush = [];
+  for (const game of local) {
+    if (!isValidGame(game)) continue;
+    const stored = byId.get(game.id);
+    if (!stored || (game.updatedAt || 0) > (stored.updatedAt || 0)) {
+      byId.set(game.id, game);
+      toPush.push(game);
+    }
+  }
+
+  const games = [...byId.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return { games, toPush };
+}
+
+/**
+ * Connect to the host's store, if there is one.
+ *
+ * Resolves a small writer — { save, remove, stop } — or null when the page
+ * runs anywhere else. `onGames` is called with the merged list on the first
+ * snapshot and on every later change, including ones made on another device.
+ */
+async function connectStore({ getLocalGames, onGames, onLost }) {
+  const host = globalThis.claude;
+  if (!host || typeof host.use !== 'function') return null;
+
+  let db = null;
+  try {
+    db = await host.use('db');
+  } catch {
+    return null;
+  }
+  if (!db) return null;
+
+  const collection = db.collection(COLLECTION);
+  let firstSnapshot = true;
+
+  const save = async (game) => {
+    if (!isValidGame(game)) return;
+    try {
+      await collection.doc(game.id).set(game);
+    } catch (error) {
+      // A refused or failed write leaves the local copy in place; the next
+      // reconcile pushes it again.
+      if (error?.code === 'revoked') onLost?.();
+    }
+  };
+
+  const remove = async (id) => {
+    try {
+      await collection.doc(id).delete();
+    } catch (error) {
+      if (error?.code === 'revoked') onLost?.();
+    }
+  };
+
+  // One subscription for the whole collection, registered once.
+  const stop = collection.onSnapshot(
+    (snapshot) => {
+      const remote = snapshot.docs.map((document) => document.data()).filter(isValidGame);
+      const { games, toPush } = reconcile(getLocalGames(), remote);
+      onGames(games);
+
+      if (firstSnapshot) {
+        firstSnapshot = false;
+        // Hand the store whatever this browser had and it did not, one write
+        // at a time, and only on this first pass.
+        void toPush.reduce((chain, game) => chain.then(() => save(game)), Promise.resolve());
+      }
+    },
+    () => onLost?.(),
+  );
+
+  return { save, remove, stop };
+}
+
   // ---- src/app.js ------------------------------------------------------
 /** UI layer: hash router, views, event wiring. */
+
 
 
 
@@ -1428,6 +1535,8 @@ const state = {
   newPresetId: null,
   newConfig: null,
   newName: '',
+  // Set once the host's document store answers; null means this browser only.
+  store: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -1481,10 +1590,21 @@ function flash(message, kind = 'info') {
 
 /* ------------------------------------------------------------- persisting --- */
 
-function persist() {
+/**
+ * Keep the local copy, and hand the changed game to the store when there is
+ * one. Writing per game rather than per list keeps one write to one document,
+ * which is what the store asks for.
+ */
+function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok) flash(t('home.storageWarning'), 'error');
+  if (!ok && !state.store) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
   return ok;
+}
+
+function forget(id) {
+  saveGames(state.games);
+  if (state.store) void state.store.remove(id);
 }
 
 function getGame(id) {
@@ -1493,7 +1613,7 @@ function getGame(id) {
 
 function replaceGame(next) {
   state.games = state.games.map((game) => (game.id === next.id ? next : game));
-  persist();
+  persist(next);
 }
 
 /* ----------------------------------------------------------------- router --- */
@@ -1581,7 +1701,7 @@ function homeView() {
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
-      <p class="muted small">${escapeHtml(t('home.dataHint'))}</p>
+      <p class="muted small">${escapeHtml(t(state.store ? 'home.storedCloud' : 'home.storedLocal'))}</p>
     </section>`;
 }
 
@@ -2037,7 +2157,8 @@ function bindHome() {
       const known = new Set(state.games.map((game) => game.id));
       const fresh = incoming.filter((game) => !known.has(game.id));
       state.games = [...state.games, ...fresh];
-      persist();
+      saveGames(state.games);
+      if (state.store) for (const game of fresh) void state.store.save(game);
       flash(t('home.importDone', { count: fresh.length }));
     } catch {
       flash(t('home.importFailed'), 'error');
@@ -2140,7 +2261,7 @@ function bindNewGame() {
       name: view.querySelector('#game-name').value,
     });
     state.games = [...state.games, game];
-    persist();
+    persist(game);
 
     newGameNames = ['', '', ''];
     state.newPresetId = null;
@@ -2348,7 +2469,7 @@ function bindGame(game) {
   view.querySelector('#delete-game')?.addEventListener('click', () => {
     if (!confirm(t('game.confirmDeleteGame'))) return;
     state.games = state.games.filter((item) => item.id !== game.id);
-    persist();
+    forget(game.id);
     navigate('#/');
   });
 }
@@ -2423,6 +2544,49 @@ function render() {
   });
 }
 
+/** A list's identity for comparison: which games, and how recently each changed. */
+function signature(games) {
+  return games
+    .map((game) => `${game.id}:${game.updatedAt}`)
+    .sort()
+    .join('|');
+}
+
+/** Someone is typing, or a dialog is open: a bad moment to redraw the view. */
+function isBusy() {
+  if (document.querySelector('dialog[open]')) return true;
+  const active = document.activeElement;
+  return Boolean(
+    active && active.closest?.('#view') && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName),
+  );
+}
+
+/**
+ * Ask the host for a document store. It answers late or not at all, so the
+ * app is already running by the time this resolves.
+ */
+function connectToStore() {
+  connectStore({
+    getLocalGames: () => state.games,
+    onGames: (games) => {
+      if (signature(games) === signature(state.games)) return;
+      state.games = games;
+      saveGames(games);
+      // Redrawing under someone's fingers would throw away what they are
+      // typing; the next render picks the change up anyway.
+      if (!isBusy()) render();
+    },
+    onLost: () => {
+      state.store = null;
+      if (!isBusy()) render();
+    },
+  }).then((store) => {
+    if (!store) return;
+    state.store = store;
+    if (!isBusy()) render();
+  });
+}
+
 setLanguage(state.prefs.lang || detectLanguage());
 applyStaticText();
 applyTheme();
@@ -2432,5 +2596,6 @@ window.addEventListener('hashchange', () => {
   render();
 });
 render();
+connectToStore();
 })();
     </script>

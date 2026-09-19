@@ -129,6 +129,7 @@ src/helpers.js    arithmétique du compteur de cartes
 src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)
+src/cloud.js      magasin de documents de l'hôte, et fusion des deux copies
 src/i18n.js       traductions fr / en
 src/app.js        routeur, vues et interactions
 tools/serve.js    serveur statique de développement
@@ -165,9 +166,24 @@ Ajoutez ensuite la clé `notes.president` dans les deux dictionnaires de
 
 ## Données
 
-Tout est stocké dans le `localStorage` du navigateur : rien n'est envoyé nulle
-part, et rien n'est partagé entre appareils. Le bouton *Exporter* produit un
-fichier JSON réimportable.
+L'appli enregistre ses parties à deux endroits selon l'hôte qui la sert :
+
+- **Toujours** dans le `localStorage` du navigateur. C'est la seule copie pour
+  le fichier autonome et pour le dossier servi en local : rien ne sort de
+  l'appareil, et rien n'est partagé entre appareils.
+- **En plus**, quand l'hôte propose un magasin de documents (`src/cloud.js`),
+  les parties y sont écrites et relues. Elles survivent alors à un effacement
+  des données du navigateur et suivent l'utilisateur d'un appareil à l'autre.
+
+Le magasin arrive tard, ou jamais : l'appli s'affiche d'abord à partir de sa
+copie locale, puis se branche dessus si elle le peut. À la connexion, les deux
+listes sont fusionnées par identifiant, la version la plus récemment modifiée
+l'emportant, et ce que le magasin n'avait pas lui est envoyé. La section
+*Données* de l'accueil dit où les parties sont enregistrées.
+
+Le bouton *Exporter* reste le filet de sécurité : il produit un JSON
+réimportable (ou, là où l'hôte interdit les téléchargements, le même texte à
+copier).
 
 ---
 
