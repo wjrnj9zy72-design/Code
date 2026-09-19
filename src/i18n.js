@@ -34,6 +34,13 @@ export const STRINGS = {
     'home.data': 'Données',
     'home.dataHint':
       'Tout est enregistré dans ce navigateur uniquement. Exportez pour sauvegarder ou changer d’appareil.',
+    'action.copy': 'Copier',
+    'action.close': 'Fermer',
+    'export.title': 'Vos parties, en texte',
+    'export.hint':
+      'Copiez ce texte et gardez-le où vous voulez. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
+    'export.copied': 'Copié !',
+    'export.copyByHand': 'Texte sélectionné — copiez-le',
     'home.importDone': '{count} partie(s) importée(s).',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
@@ -145,6 +152,13 @@ export const STRINGS = {
     'home.data': 'Data',
     'home.dataHint':
       'Everything is stored in this browser only. Export to back up or move to another device.',
+    'action.copy': 'Copy',
+    'action.close': 'Close',
+    'export.title': 'Your games, as text',
+    'export.hint':
+      'Copy this text and keep it wherever you like. To bring it back into the app later, save it as a .json file and use Import.',
+    'export.copied': 'Copied!',
+    'export.copyByHand': 'Text selected — copy it',
     'home.importDone': 'Imported {count} game(s).',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':

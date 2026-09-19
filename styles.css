@@ -82,7 +82,9 @@ a { color: inherit; }
 /* --------------------------------------------------------------- app bar --- */
 .app-bar {
   position: sticky;
-  top: 0;
+  /* Clears the status bar when the page runs edge to edge on a phone;
+     env() falls back to 0px everywhere else. */
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   display: flex;
   align-items: center;
@@ -375,4 +377,21 @@ table.scores .meta-cell { color: var(--muted); }
 @media (max-width: 420px) {
   .app-bar__brand small { display: none; }
   .score-row { grid-template-columns: 1fr 88px; }
+}
+
+/* ---------------------------------------------------------------- dialog --- */
+.dialog {
+  width: min(560px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop { background: rgb(0 0 0 / 45%); }
+
+.dialog textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
 }

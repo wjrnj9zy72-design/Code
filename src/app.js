@@ -539,18 +539,74 @@ function submitRound(game) {
   render();
 }
 
-function bindHome() {
-  view.querySelector('#export')?.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify({ version: 1, games: state.games }, null, 2)], {
-      type: 'application/json',
+/**
+ * Some hosts (a sandboxed page, for instance) silently ignore a download a
+ * page starts by itself. Where that is the case the build sets
+ * MARQUE_POINTS_EXPORT_MODE = 'copy' and the data is shown to be copied
+ * instead, so the button never looks like it did nothing.
+ */
+const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
+
+function exportGames() {
+  const json = JSON.stringify({ version: 1, games: state.games }, null, 2);
+  if (EXPORT_MODE === 'copy') {
+    showExportDialog(json);
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `marque-points-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function showExportDialog(json) {
+  let dialog = document.getElementById('export-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'export-dialog';
+    dialog.className = 'dialog';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2 id="export-title"></h2>
+        <p class="muted small" id="export-hint"></p>
+        <textarea id="export-text" readonly rows="8"></textarea>
+        <div class="row">
+          <button type="button" class="button button--primary" id="export-copy"></button>
+          <button type="button" class="button" id="export-close"></button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+
+    dialog.querySelector('#export-close').addEventListener('click', () => dialog.close());
+    dialog.querySelector('#export-copy').addEventListener('click', async (event) => {
+      // Hold on to the button: currentTarget is null once the handler awaits.
+      const button = event.currentTarget;
+      const text = dialog.querySelector('#export-text');
+      text.select();
+
+      // Where the clipboard is blocked the promise can also simply never
+      // settle, so the button answers on its own after a moment rather than
+      // looking dead. The text is selected either way.
+      const copied = await Promise.race([
+        Promise.resolve(navigator.clipboard?.writeText(text.value)).then(() => true, () => false),
+        new Promise((done) => setTimeout(() => done(false), 600)),
+      ]);
+      button.textContent = copied ? t('export.copied') : t('export.copyByHand');
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `marque-points-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  });
+  }
+
+  dialog.querySelector('#export-title').textContent = t('export.title');
+  dialog.querySelector('#export-hint').textContent = t('export.hint');
+  dialog.querySelector('#export-text').value = json;
+  dialog.querySelector('#export-copy').textContent = t('action.copy');
+  dialog.querySelector('#export-close').textContent = t('action.close');
+  dialog.showModal();
+}
+
+function bindHome() {
+  view.querySelector('#export')?.addEventListener('click', exportGames);
 
   const fileInput = view.querySelector('#import-file');
   view.querySelector('#import')?.addEventListener('click', () => fileInput?.click());
