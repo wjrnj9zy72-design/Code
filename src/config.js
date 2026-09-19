@@ -8,8 +8,8 @@
  * two functions, not the table.
  */
 export const REMOTE = {
-  url: '',
-  key: '',
+  url: 'https://ikndckzjhhdlnwtvfkvx.supabase.co/rest/v1/',
+  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbmRja3pqaGhkbG53dHZma3Z4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4NDMzMDEsImV4cCI6MjEwNTQxOTMwMX0.k1LVHl9LrJAVkN99YnIVDQ4493ol0fSZr12qrFglEiM',
 };
 
 /**
