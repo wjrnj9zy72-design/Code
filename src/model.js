@@ -19,7 +19,7 @@ function uid(prefix = 'id') {
  * Build a new game.
  * `names` is a list of player (or team) names, `overrides` patches the config.
  */
-export function createGame({ presetId, names, overrides = {}, name = '' }) {
+export function createGame({ presetId, names, overrides = {}, name = '', shared = false }) {
   const preset = getPreset(presetId);
   if (!preset) throw new Error(`Unknown preset: ${presetId}`);
 
@@ -35,6 +35,9 @@ export function createGame({ presetId, names, overrides = {}, name = '' }) {
     createdAt: now,
     updatedAt: now,
     finishedAt: null,
+    // A game is only sent to the shared database once it is shared — either
+    // deliberately, or because this device sends everything by choice.
+    shared: Boolean(shared),
     players,
     config: { ...presetConfig(preset), ...overrides },
     rounds: [],
@@ -91,6 +94,12 @@ export function renamePlayer(game, playerId, name) {
     player.id === playerId ? { ...player, name: cleaned } : player,
   );
   return { ...game, players, updatedAt: Date.now() };
+}
+
+/** Mark a game as one the shared database holds. */
+export function setShared(game, shared = true) {
+  if (Boolean(game.shared) === Boolean(shared)) return game;
+  return { ...game, shared: Boolean(shared), updatedAt: Date.now() };
 }
 
 export function setFinished(game, finished) {

@@ -111,6 +111,11 @@ export const STRINGS = {
     'tarot.failed': 'Contrat chuté de {gap} point(s)',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Saisissez les points du preneur pour voir le résultat.',
+    'data.autoShare': 'Envoyer mes nouvelles parties dans la base partagée',
+    'data.autoShareHint':
+      'Décoché, vos parties restent sur cet appareil. Le bouton Partager envoie une partie précise quand vous le décidez.',
+    'share.sending': 'Envoi…',
+    'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -119,7 +124,7 @@ export const STRINGS = {
     'share.pushFailed':
       'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
     'home.storedShared':
-      'Vos parties sont enregistrées dans ce navigateur et dans la base partagée : le bouton Partager donne un lien qui ouvre la partie chez quelqu’un d’autre.',
+      'Vos parties sont enregistrées sur cet appareil. Le bouton Partager, dans une partie, l’envoie dans la base partagée et donne un lien qui l’ouvre chez quelqu’un d’autre.',
     'action.copy': 'Copier',
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
@@ -315,6 +320,11 @@ export const STRINGS = {
     'tarot.failed': 'Contract down by {gap} point(s)',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Enter the taker\u2019s points to see the result.',
+    'data.autoShare': 'Send my new games to the shared database',
+    'data.autoShareHint':
+      'Unticked, your games stay on this device. The Share button sends one game when you decide to.',
+    'share.sending': 'Sending…',
+    'share.sendFailed': 'The game could not be sent. Try again.',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':
@@ -323,7 +333,7 @@ export const STRINGS = {
     'share.pushFailed':
       'Game saved here, but not sent to the others. It will go up with the next change.',
     'home.storedShared':
-      'Your games are stored in this browser and in the shared database: the Share button gives a link that opens the game for someone else.',
+      'Your games are stored on this device. The Share button, inside a game, sends that game to the shared database and gives a link that opens it for someone else.',
     'action.copy': 'Copy',
     'action.close': 'Close',
     'export.title': 'Your games, as text',

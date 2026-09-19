@@ -1,7 +1,7 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, isValidGame } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
@@ -90,7 +90,9 @@ function persist(changed) {
   const ok = saveGames(state.games);
   if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
-  if (state.remote && changed) {
+  // Only a game that has been shared travels: someone else's evening has no
+  // business landing in a database they never chose.
+  if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
     state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
@@ -201,6 +203,15 @@ function homeView() {
       <p class="muted small">${escapeHtml(
         t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
       )}</p>
+      ${
+        state.remote
+          ? `<label class="checkbox">
+               <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
+               ${escapeHtml(t('data.autoShare'))}
+             </label>
+             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>`
+          : ''
+      }
     </section>`;
 }
 
@@ -710,6 +721,11 @@ function showCopyDialog({ title, hint, text: content }) {
 }
 
 function bindHome() {
+  view.querySelector('#auto-share')?.addEventListener('change', (event) => {
+    state.prefs = { ...state.prefs, autoShare: event.target.checked };
+    savePrefs(state.prefs);
+  });
+
   view.querySelector('#export')?.addEventListener('click', exportGames);
 
   const fileInput = view.querySelector('#import-file');
@@ -826,6 +842,7 @@ function bindNewGame() {
       names,
       overrides: config,
       name: view.querySelector('#game-name').value,
+      shared: Boolean(state.prefs.autoShare),
     });
     state.games = [...state.games, game];
     persist(game);
@@ -1261,11 +1278,35 @@ function bindGame(game) {
     render();
   });
 
-  view.querySelector('#share')?.addEventListener('click', () => {
+  view.querySelector('#share')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    let current = game;
+
+    if (!current.shared) {
+      // Send it before handing out a link to it, or the link opens nothing.
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      current = setShared(current, true);
+      try {
+        await state.remote.put(current);
+      } catch {
+        button.disabled = false;
+        button.textContent = t('action.share');
+        flash(t('share.sendFailed'), 'error');
+        render();
+        return;
+      }
+      replaceGame(current);
+      // Redraw so every handler below works on the now-shared game: without
+      // this, the round form still holds the copy captured before sharing,
+      // and the next round would be saved as unshared and never sent.
+      render();
+    }
+
     showCopyDialog({
       title: t('share.title'),
       hint: t('share.hint'),
-      text: shareLink(location, game.id),
+      text: shareLink(location, current.id),
     });
   });
 
@@ -1384,9 +1425,10 @@ async function pullGame(id) {
   const local = getGame(id);
   if (pickNewer(local, stored) !== 'remote') return false;
 
+  const adopted = { ...stored, shared: true };
   state.games = local
-    ? state.games.map((game) => (game.id === id ? stored : game))
-    : [...state.games, stored];
+    ? state.games.map((game) => (game.id === id ? adopted : game))
+    : [...state.games, adopted];
   saveGames(state.games);
   return true;
 }
@@ -1427,6 +1469,22 @@ function isBusy() {
  * Ask the host for a document store. It answers late or not at all, so the
  * app is already running by the time this resolves.
  */
+/**
+ * Games created before sharing became deliberate were all being sent up, so
+ * they are already in the database: keep them that way rather than silently
+ * cutting them off.
+ */
+function adoptOlderGames() {
+  if (!state.remote) return;
+  const migrated = state.games.map((game) =>
+    game.shared === undefined ? { ...game, shared: true } : game,
+  );
+  if (migrated.some((game, index) => game !== state.games[index])) {
+    state.games = migrated;
+    saveGames(state.games);
+  }
+}
+
 function connectToStore() {
   connectStore({
     getLocalGames: () => state.games,
@@ -1457,5 +1515,6 @@ window.addEventListener('hashchange', () => {
   state.editingRoundId = null;
   render();
 });
+adoptOlderGames();
 render();
 connectToStore();
