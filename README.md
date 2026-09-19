@@ -45,7 +45,24 @@ Chaque réglage reste modifiable au moment de créer la partie : les variantes d
 table sont la règle, pas l'exception. Un total de manche inattendu est un
 **avertissement**, jamais un blocage.
 
-## Lancer l'appli
+## Utiliser l'appli
+
+### Le plus simple : un seul fichier
+
+[`dist/marque-points.html`](dist/marque-points.html) contient l'appli entière —
+HTML, CSS et JavaScript réunis. Téléchargez-le, ouvrez-le par double-clic : pas
+de serveur, pas d'installation, et ça marche hors ligne. C'est aussi le format à
+envoyer aux autres joueurs, ou à garder sur le téléphone.
+
+Il est reconstruit avec :
+
+```bash
+npm run bundle   # → dist/marque-points.html
+```
+
+Un test vérifie que le fichier livré correspond bien aux sources.
+
+### Pour développer : le dossier servi en HTTP
 
 ```bash
 npm start            # http://localhost:8080
@@ -59,8 +76,11 @@ PORT=3000 npm start  # autre port
 python3 -m http.server 8080
 ```
 
-Passer par `http://` est nécessaire : les modules ES ne se chargent pas depuis
-un fichier ouvert en `file://`.
+Passer par `http://` est ici nécessaire : les modules ES séparés ne se chargent
+pas depuis un `file://` — c'est précisément ce que le fichier unique résout.
+
+Pour jouer avec le téléphone pendant que l'ordinateur sert l'appli, ouvrez
+`http://<ip-locale-de-l-ordinateur>:8080` depuis le même réseau Wi-Fi.
 
 ## Tests
 
@@ -70,7 +90,8 @@ npm test
 
 Les tests (`node --test`, sans dépendance) couvrent le moteur de score :
 totaux, classement et ex æquo, fins de partie, validation d'une manche,
-complétion automatique, et cohérence des presets et des traductions.
+complétion automatique, cohérence des presets et des traductions, et
+fraîcheur du fichier unique livré dans `dist/`.
 
 ## Organisation du code
 
@@ -84,6 +105,8 @@ src/storage.js    persistance localStorage (tolérante aux erreurs)
 src/i18n.js       traductions fr / en
 src/app.js        routeur, vues et interactions
 tools/serve.js    serveur statique de développement
+tools/bundle.js   construction du fichier unique autonome
+dist/             le fichier unique, livré dans le dépôt
 tests/            tests unitaires
 ```
 
@@ -123,5 +146,7 @@ fichier JSON réimportable.
 **In English** — a dependency-free score keeper for Papayoo and other card
 games. Enter each round, it keeps totals, standings and end-of-game detection,
 and it knows each game's scoring rules (including that a Papayoo deal hands out
-exactly 250 penalty points). `npm start` to run, `npm test` for the tests. The
-interface switches between French and English from the top-right button.
+exactly 250 penalty points). Open `dist/marque-points.html` — one self-contained
+file, no server, works offline — or run `npm start` to serve the sources.
+`npm test` runs the tests. The interface switches between French and English
+from the top-right button.
