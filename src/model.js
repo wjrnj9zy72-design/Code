@@ -83,6 +83,16 @@ export function removeRound(game, roundId) {
 }
 
 
+/** Fix a name that was typed wrong, without disturbing the scores. */
+export function renamePlayer(game, playerId, name) {
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return game;
+  const players = game.players.map((player) =>
+    player.id === playerId ? { ...player, name: cleaned } : player,
+  );
+  return { ...game, players, updatedAt: Date.now() };
+}
+
 export function setFinished(game, finished) {
   return { ...game, finishedAt: finished ? Date.now() : null, updatedAt: Date.now() };
 }

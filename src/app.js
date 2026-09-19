@@ -1,9 +1,10 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, setFinished, isValidGame } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
+import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink } from './remote.js';
@@ -53,7 +54,7 @@ function parseIntOrNull(raw) {
 }
 
 function presetLabel(preset) {
-  return preset.id === 'custom' ? t('new.customLabel') : preset.name;
+  return preset.labelKey ? t(preset.labelKey) : preset.name;
 }
 
 function gameTitle(game) {
@@ -321,6 +322,10 @@ function newGameView() {
 
 function roundFormHtml(game) {
   const preset = getPreset(game.presetId);
+  if (preset?.calculator === 'tarot') {
+    if (!deal) deal = emptyDeal(game);
+    return tarotFormHtml(game);
+  }
   const editing = state.editingRoundId ? game.rounds.find((r) => r.id === state.editingRoundId) : null;
   const index = editing ? game.rounds.indexOf(editing) + 1 : game.rounds.length + 1;
 
@@ -499,6 +504,7 @@ function gameView(game) {
           ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
           : ''
       }
+      <button type="button" class="button button--small" id="rename">${escapeHtml(t('action.rename'))}</button>
       <button type="button" class="button button--small" id="toggle-finish">
         ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
       </button>
@@ -835,6 +841,125 @@ function bindNewGame() {
 /** What the open card counter holds, while it is open. */
 let counterEntry = emptyHelperEntry();
 
+/** The deal being entered on the Tarot screen. */
+let deal = null;
+
+function emptyDeal(game) {
+  return {
+    takerId: game.players[0]?.id || null,
+    partnerId: null,
+    contract: 'garde',
+    oudlers: 1,
+    points: null,
+    petitAuBout: 'none',
+    poignee: 'none',
+    chelem: 'none',
+  };
+}
+
+/** The Tarot entry screen: a deal is described, not a row of scores typed. */
+function tarotFormHtml(game) {
+  const editing = state.editingRoundId
+    ? game.rounds.find((round) => round.id === state.editingRoundId)
+    : null;
+  const index = editing ? game.rounds.indexOf(editing) + 1 : game.rounds.length + 1;
+  const threshold = THRESHOLDS[deal.oudlers];
+  const complete = isCompleteDeal(game.players, deal);
+  const result = complete ? scoreDeal(game.players, deal) : null;
+
+  const options = (items, selected, label) =>
+    items.map((item) => `<option value="${item.id}" ${item.id === selected ? 'selected' : ''}>${escapeHtml(label(item))}</option>`).join('');
+
+  const playerOptions = (selected, extra = '') =>
+    extra + game.players
+      .map((player) => `<option value="${escapeHtml(player.id)}" ${player.id === selected ? 'selected' : ''}>${escapeHtml(player.name)}</option>`)
+      .join('');
+
+  return `
+    <form id="round-form" class="card stack">
+      <h2>${escapeHtml(editing ? t('game.editRound', { n: index }) : t('game.newRound', { n: index }))}</h2>
+
+      <div class="field-grid">
+        <label>${escapeHtml(t('tarot.taker'))}
+          <select id="deal-taker">${playerOptions(deal.takerId)}</select>
+        </label>
+        ${
+          game.players.length === 5
+            ? `<label>${escapeHtml(t('tarot.partner'))}
+                 <select id="deal-partner">
+                   <option value="">${escapeHtml(t('tarot.alone'))}</option>
+                   ${playerOptions(deal.partnerId)}
+                 </select>
+               </label>`
+            : ''
+        }
+        <label>${escapeHtml(t('tarot.contract'))}
+          <select id="deal-contract">${options(CONTRACTS, deal.contract, (c) => `${t(`tarot.${c.id}`)} ×${c.multiplier}`)}</select>
+        </label>
+        <label>${escapeHtml(t('tarot.oudlers'))}
+          <select id="deal-oudlers">
+            ${[0, 1, 2, 3].map((n) => `<option value="${n}" ${n === deal.oudlers ? 'selected' : ''}>${n} — ${THRESHOLDS[n]} ${escapeHtml(t('tarot.pointsNeeded'))}</option>`).join('')}
+          </select>
+        </label>
+        <label>${escapeHtml(t('tarot.points', { max: TOTAL_POINTS }))}
+          <input type="number" id="deal-points" inputmode="numeric" step="1" min="0" max="${TOTAL_POINTS}"
+                 value="${Number.isFinite(deal.points) ? deal.points : ''}" />
+        </label>
+        <label>${escapeHtml(t('tarot.petitAuBout'))}
+          <select id="deal-petit">
+            ${['none', 'taker', 'defence'].map((id) => `<option value="${id}" ${id === deal.petitAuBout ? 'selected' : ''}>${escapeHtml(t(`tarot.petit.${id}`))}</option>`).join('')}
+          </select>
+        </label>
+        <label>${escapeHtml(t('tarot.poignee'))}
+          <select id="deal-poignee">${options(POIGNEES, deal.poignee, (p) => `${t(`tarot.poignee.${p.id}`)}${p.value ? ` (+${p.value})` : ''}`)}</select>
+        </label>
+        <label>${escapeHtml(t('tarot.chelem'))}
+          <select id="deal-chelem">${options(CHELEMS, deal.chelem, (c) => t(`tarot.chelem.${c.id}`))}</select>
+        </label>
+      </div>
+
+      ${
+        result
+          ? `<div class="deal-result ${result.won ? 'deal-result--won' : 'deal-result--lost'}">
+               <strong>${escapeHtml(t(result.won ? 'tarot.made' : 'tarot.failed', {
+                 gap: Math.abs(result.gap),
+               }))}</strong>
+               <span class="small">${escapeHtml(t('tarot.sum', {
+                 base: 25,
+                 gap: Math.abs(result.gap),
+                 petit: result.breakdown.petit ? (result.breakdown.petit > 0 ? ` + 10` : ` − 10`) : '',
+                 multiplier: result.multiplier,
+                 extra: [
+                   result.breakdown.poignee ? `${result.breakdown.poignee > 0 ? '+' : '−'} ${Math.abs(result.breakdown.poignee)}` : '',
+                   result.breakdown.chelem ? `${result.breakdown.chelem > 0 ? '+' : '−'} ${Math.abs(result.breakdown.chelem)}` : '',
+                 ].filter(Boolean).map((piece) => ` ${piece}`).join(''),
+                 amount: result.amount,
+               }))}</span>
+               <div class="deal-scores">
+                 ${game.players.map((player) => `<span><b>${escapeHtml(player.name)}</b> ${result.scores[player.id] > 0 ? '+' : ''}${result.scores[player.id]}</span>`).join('')}
+               </div>
+             </div>`
+          : `<p class="muted small">${escapeHtml(t('tarot.needPoints'))}</p>`
+      }
+
+      <label>${escapeHtml(t('game.note'))}
+        <input type="text" id="round-note" value="${escapeHtml(editing?.note || '')}" />
+      </label>
+
+      <div class="row">
+        <button type="submit" class="button button--primary" ${complete ? '' : 'disabled'}>
+          ${escapeHtml(editing ? t('action.saveRound') : t('action.addRound'))}
+        </button>
+        ${
+          editing
+            ? `<button type="button" class="button" id="cancel-edit">${escapeHtml(t('action.cancel'))}</button>
+               <button type="button" class="button button--danger" id="delete-round">${escapeHtml(t('action.deleteRound'))}</button>`
+            : ''
+        }
+      </div>
+    </form>`;
+}
+
 function renderCounter(helper, player) {
   const dialog = document.getElementById('counter-dialog');
   const total = helperTotal(helper, counterEntry);
@@ -954,16 +1079,118 @@ function openCounter(game, playerId) {
   dialog.showModal();
 }
 
-function bindGame(game) {
-  const form = view.querySelector('#round-form');
+/** Read the Tarot form back into the deal, and redraw its result. */
+function bindTarot(game) {
+  const fields = {
+    '#deal-taker': (v) => { deal.takerId = v; },
+    '#deal-partner': (v) => { deal.partnerId = v || null; },
+    '#deal-contract': (v) => { deal.contract = v; },
+    '#deal-oudlers': (v) => { deal.oudlers = Number(v); },
+    '#deal-points': (v) => { deal.points = v === '' ? null : Number(v); },
+    '#deal-petit': (v) => { deal.petitAuBout = v; },
+    '#deal-poignee': (v) => { deal.poignee = v; },
+    '#deal-chelem': (v) => { deal.chelem = v; },
+  };
 
-  form?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void submitRound(game);
+  for (const [selector, apply] of Object.entries(fields)) {
+    const field = view.querySelector(selector);
+    field?.addEventListener('input', (event) => {
+      apply(event.target.value);
+      // Only the result panel changes, so the form is redrawn in place and
+      // the field being typed into keeps the focus.
+      const active = document.activeElement?.id;
+      const caret = document.activeElement?.selectionStart ?? null;
+      render();
+      const again = active ? view.querySelector(`#${active}`) : null;
+      if (again) {
+        again.focus();
+        if (caret !== null && again.setSelectionRange) {
+          try { again.setSelectionRange(caret, caret); } catch { /* not a text field */ }
+        }
+      }
+    });
+  }
+}
+
+function submitDeal(game) {
+  if (!isCompleteDeal(game.players, deal)) return;
+  const { scores } = scoreDeal(game.players, deal);
+  const note = view.querySelector('#round-note')?.value.trim() || '';
+  const meta = JSON.stringify(deal);
+
+  const next = state.editingRoundId
+    ? updateRound(game, state.editingRoundId, { scores, meta, note })
+    : addRound(game, { scores, meta, note });
+
+  state.editingRoundId = null;
+  deal = emptyDeal(game);
+  replaceGame(next);
+  render();
+}
+
+/** Fix a mistyped name, mid-game, without touching a single score. */
+function openRenameDialog(game) {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('rename.title'))}</h2>
+      <p class="muted small">${escapeHtml(t('rename.hint'))}</p>
+      <div class="stack">
+        ${game.players
+          .map(
+            (player, index) => `
+            <label>${escapeHtml(t(game.config.entrantLabel === 'team' ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}
+              <input type="text" data-rename="${escapeHtml(player.id)}" value="${escapeHtml(player.name)}" />
+            </label>`,
+          )
+          .join('')}
+      </div>
+      <div class="row">
+        <button type="button" class="button button--primary" id="rename-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="rename-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  dialog.querySelector('#rename-cancel').addEventListener('click', close);
+  dialog.querySelector('#rename-save').addEventListener('click', () => {
+    let next = game;
+    dialog.querySelectorAll('[data-rename]').forEach((input) => {
+      next = renamePlayer(next, input.dataset.rename, input.value);
+    });
+    close();
+    if (next !== game) {
+      replaceGame(next);
+      render();
+    }
   });
 
-  form?.addEventListener('input', () => refreshSumLine(game));
-  refreshSumLine(game);
+  dialog.showModal();
+}
+
+function bindGame(game) {
+  const form = view.querySelector('#round-form');
+  const preset = getPreset(game.presetId);
+
+  if (preset?.calculator === 'tarot') {
+    bindTarot(game);
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submitDeal(game);
+    });
+  }
+
+  if (preset?.calculator !== 'tarot') {
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void submitRound(game);
+    });
+
+    form?.addEventListener('input', () => refreshSumLine(game));
+    refreshSumLine(game);
+  }
 
   // Enter walks down the score inputs instead of submitting halfway through.
   const inputs = [...view.querySelectorAll('[data-score]')];
@@ -988,6 +1215,7 @@ function bindGame(game) {
 
   view.querySelector('#cancel-edit')?.addEventListener('click', () => {
     state.editingRoundId = null;
+    if (preset?.calculator === 'tarot') deal = emptyDeal(game);
     render();
   });
 
@@ -1001,6 +1229,15 @@ function bindGame(game) {
 
   const openRound = (roundId) => {
     state.editingRoundId = roundId;
+    if (preset?.calculator === 'tarot') {
+      const round = game.rounds.find((item) => item.id === roundId);
+      try {
+        const stored = JSON.parse(round?.meta || 'null');
+        deal = stored && typeof stored === 'object' ? stored : emptyDeal(game);
+      } catch {
+        deal = emptyDeal(game);
+      }
+    }
     render();
     view.querySelector('#round-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
@@ -1031,6 +1268,8 @@ function bindGame(game) {
       text: shareLink(location, game.id),
     });
   });
+
+  view.querySelector('#rename')?.addEventListener('click', () => openRenameDialog(game));
 
   view.querySelector('#toggle-finish')?.addEventListener('click', () => {
     replaceGame(setFinished(game, !game.finishedAt));

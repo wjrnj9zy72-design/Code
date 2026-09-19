@@ -474,6 +474,29 @@ table.scores .meta-cell { color: var(--muted); }
 
 /* The warning text is built with line breaks, which must survive. */
 .ask-message { white-space: pre-line; }
+
+/* ------------------------------------------------------------ tarot deal --- */
+.deal-result {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  font-variant-numeric: tabular-nums;
+}
+
+.deal-result--won { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); }
+.deal-result--lost { border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
+
+.deal-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.9rem;
+}
+
+.deal-scores b { font-weight: 600; }
     </style>
   </head>
   <body>
@@ -575,6 +598,42 @@ const STRINGS = {
     'notes.petanque': 'Une manche par mène : elle rapporte de 1 à 6 points à une seule équipe. Partie en 13 points.',
     'notes.molkky':
       'Il faut atteindre 50 points exactement : dépasser ramène à 25. Saisissez alors le retrait en négatif, c’est autorisé.',
+    'new.boardLabel': 'Jeu de plateau',
+    'rename.title': 'Renommer',
+    'rename.hint': 'Corrigez un nom mal saisi. Les scores ne bougent pas.',
+    'notes.president':
+      'Points par rang à chaque donne — par exemple président 2, vice-président 1, les autres 0. Les barèmes varient : ajustez le score limite ci-dessous au vôtre.',
+    'notes.plateau':
+      'Une manche par partie : notez le score final de chacun, l’appli tient le cumul des soirées. Pour Catan, Carcassonne, 7 Wonders et les autres.',
+    'tarot.taker': 'Preneur',
+    'tarot.partner': 'Appelé',
+    'tarot.alone': 'Personne (le preneur joue seul)',
+    'tarot.contract': 'Contrat',
+    'tarot.petite': 'Petite',
+    'tarot.garde': 'Garde',
+    'tarot.gardeSans': 'Garde sans',
+    'tarot.gardeContre': 'Garde contre',
+    'tarot.oudlers': 'Bouts',
+    'tarot.pointsNeeded': 'pts',
+    'tarot.points': 'Points du preneur (sur {max})',
+    'tarot.petitAuBout': 'Petit au bout',
+    'tarot.petit.none': 'Personne',
+    'tarot.petit.taker': 'Le preneur (+10)',
+    'tarot.petit.defence': 'La défense (−10)',
+    'tarot.poignee': 'Poignée',
+    'tarot.poignee.none': 'Aucune',
+    'tarot.poignee.simple': 'Simple',
+    'tarot.poignee.double': 'Double',
+    'tarot.poignee.triple': 'Triple',
+    'tarot.chelem': 'Chelem',
+    'tarot.chelem.none': 'Aucun',
+    'tarot.chelem.announcedMade': 'Annoncé et réussi (+400)',
+    'tarot.chelem.announcedFailed': 'Annoncé et chuté (−200)',
+    'tarot.chelem.unannouncedMade': 'Non annoncé et réussi (+200)',
+    'tarot.made': 'Contrat réussi de {gap} point(s)',
+    'tarot.failed': 'Contrat chuté de {gap} point(s)',
+    'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
+    'tarot.needPoints': 'Saisissez les points du preneur pour voir le résultat.',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -743,6 +802,42 @@ const STRINGS = {
     'notes.petanque': 'One round per end, worth 1 to 6 points to a single team. Game to 13.',
     'notes.molkky':
       'You must reach exactly 50: going over sends you back to 25. Enter that drop as a negative, which is allowed.',
+    'new.boardLabel': 'Board game',
+    'rename.title': 'Rename',
+    'rename.hint': 'Fix a name that was typed wrong. The scores do not move.',
+    'notes.president':
+      'Points by rank each deal — president 2, vice-president 1, the others 0, for instance. Scales vary: set the score limit below to match yours.',
+    'notes.plateau':
+      'One round per game: record everyone\u2019s final score, and the app keeps the running total across evenings. For Catan, Carcassonne, 7 Wonders and the rest.',
+    'tarot.taker': 'Taker',
+    'tarot.partner': 'Called partner',
+    'tarot.alone': 'Nobody (the taker plays alone)',
+    'tarot.contract': 'Contract',
+    'tarot.petite': 'Petite',
+    'tarot.garde': 'Garde',
+    'tarot.gardeSans': 'Garde sans',
+    'tarot.gardeContre': 'Garde contre',
+    'tarot.oudlers': 'Oudlers',
+    'tarot.pointsNeeded': 'pts',
+    'tarot.points': 'Taker\u2019s points (out of {max})',
+    'tarot.petitAuBout': 'Petit au bout',
+    'tarot.petit.none': 'Nobody',
+    'tarot.petit.taker': 'The taker (+10)',
+    'tarot.petit.defence': 'The defence (−10)',
+    'tarot.poignee': 'Handful',
+    'tarot.poignee.none': 'None',
+    'tarot.poignee.simple': 'Single',
+    'tarot.poignee.double': 'Double',
+    'tarot.poignee.triple': 'Triple',
+    'tarot.chelem': 'Slam',
+    'tarot.chelem.none': 'None',
+    'tarot.chelem.announcedMade': 'Announced and made (+400)',
+    'tarot.chelem.announcedFailed': 'Announced and failed (−200)',
+    'tarot.chelem.unannouncedMade': 'Unannounced and made (+200)',
+    'tarot.made': 'Contract made by {gap} point(s)',
+    'tarot.failed': 'Contract down by {gap} point(s)',
+    'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
+    'tarot.needPoints': 'Enter the taker\u2019s points to see the result.',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':
@@ -887,6 +982,9 @@ function t(key, params = {}) {
  *   helper      an optional card counter for the round form; see src/helpers.js.
  *   group       how the game is filed in the picker: cards, tiles, dice,
  *               outdoor, other.
+ *   labelKey    for a preset whose name is a category rather than a game, the
+ *               translation key to show instead of `name`.
+ *   calculator  a dedicated entry screen instead of plain score boxes.
  */
 
 /** Skyjo's deck runs from -2 to 12. */
@@ -974,6 +1072,7 @@ const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    calculator: 'tarot',
     group: 'cards',
     notesKey: 'notes.tarot',
   },
@@ -1237,8 +1336,40 @@ const PRESETS = [
     notesKey: 'notes.molkky',
   },
   {
+    id: 'president',
+    name: 'Président',
+    players: [3, 8],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 10,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.president',
+  },
+  {
+    id: 'plateau',
+    name: 'plateau',
+    labelKey: 'new.boardLabel',
+    players: [1, 12],
+    direction: 'high',
+    endMode: 'manual',
+    target: null,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'other',
+    notesKey: 'notes.plateau',
+  },
+  {
     id: 'custom',
     name: 'custom',
+    labelKey: 'new.customLabel',
     players: [1, 12],
     direction: 'low',
     endMode: 'manual',
@@ -1357,6 +1488,16 @@ function removeRound(game, roundId) {
   };
 }
 
+
+/** Fix a name that was typed wrong, without disturbing the scores. */
+function renamePlayer(game, playerId, name) {
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return game;
+  const players = game.players.map((player) =>
+    player.id === playerId ? { ...player, name: cleaned } : player,
+  );
+  return { ...game, players, updatedAt: Date.now() };
+}
 
 function setFinished(game, finished) {
   return { ...game, finishedAt: finished ? Date.now() : null, updatedAt: Date.now() };
@@ -1617,6 +1758,141 @@ function helperTotal(helper, entry) {
 /** True when nothing has been tapped at all — used to keep "Apply" honest. */
 function isEmptyEntry(entry) {
   return entry.cards.length === 0 && !Object.values(entry.toggles || {}).some(Boolean);
+}
+
+  // ---- src/tarot.js ----------------------------------------------------
+/**
+ * French Tarot scoring.
+ *
+ * The one game here whose score is not counted but computed, from the
+ * contract, the oudlers held and the points taken. The arithmetic is
+ * mechanical, which is exactly why it belongs in the app rather than in
+ * someone's head at eleven at night.
+ *
+ * The formula, as the French federation states it:
+ *
+ *     (25 + |écart| + petit au bout) × multiplicateur  + poignée + chelem
+ *
+ * where the écart is the taker's points minus what the contract required, the
+ * petit au bout is worth 10 to whichever side won the last trick with it, and
+ * the poignée and chelem bonuses are added afterwards, unmultiplied, to the
+ * side that won the deal.
+ *
+ * The result is zero-sum: what the taker's side gains, the defence loses.
+ *
+ * Every step is returned in `breakdown` so the players can check the sum at
+ * the table — a calculator that cannot be checked is worse than none.
+ */
+
+/** What the taker must make, by number of oudlers held (Petit, 21, Excuse). */
+const THRESHOLDS = { 0: 56, 1: 51, 2: 41, 3: 36 };
+
+/** The deck holds 91 points in all. */
+const TOTAL_POINTS = 91;
+
+const CONTRACTS = [
+  { id: 'petite', multiplier: 1 },
+  { id: 'garde', multiplier: 2 },
+  { id: 'gardeSans', multiplier: 4 },
+  { id: 'gardeContre', multiplier: 6 },
+];
+
+/** Handfuls of trumps, shown and rewarded to whoever wins the deal. */
+const POIGNEES = [
+  { id: 'none', value: 0 },
+  { id: 'simple', value: 20 },
+  { id: 'double', value: 30 },
+  { id: 'triple', value: 40 },
+];
+
+const CHELEMS = [
+  { id: 'none', value: 0 },
+  { id: 'announcedMade', value: 400 },
+  { id: 'announcedFailed', value: -200 },
+  { id: 'unannouncedMade', value: 200 },
+];
+
+function contractMultiplier(id) {
+  return CONTRACTS.find((contract) => contract.id === id)?.multiplier ?? 1;
+}
+
+function valueOf(list, id) {
+  return list.find((item) => item.id === id)?.value ?? 0;
+}
+
+/**
+ * Score one deal.
+ *
+ * deal = {
+ *   takerId, partnerId (5 players, null when the taker called themselves),
+ *   contract: 'petite' | 'garde' | 'gardeSans' | 'gardeContre',
+ *   oudlers: 0 | 1 | 2 | 3,
+ *   points: what the taker took, 0 to 91,
+ *   petitAuBout: 'none' | 'taker' | 'defence',
+ *   poignee: 'none' | 'simple' | 'double' | 'triple',
+ *   chelem: 'none' | 'announcedMade' | 'announcedFailed' | 'unannouncedMade',
+ * }
+ *
+ * Returns { threshold, gap, won, amount, scores, breakdown }, where `scores`
+ * is keyed by player id and always adds up to zero.
+ */
+function scoreDeal(players, deal) {
+  const threshold = THRESHOLDS[deal.oudlers] ?? THRESHOLDS[0];
+  const gap = deal.points - threshold;
+  const won = gap >= 0;
+  const multiplier = contractMultiplier(deal.contract);
+
+  // The petit au bout is worth 10 to the side that took it; seen from the
+  // taker, that reduces a loss just as it increases a win.
+  const petit = deal.petitAuBout === 'taker' ? 10 : deal.petitAuBout === 'defence' ? -10 : 0;
+  const inner = 25 + Math.abs(gap) + (won ? petit : -petit);
+
+  const poignee = valueOf(POIGNEES, deal.poignee);
+  const chelem = valueOf(CHELEMS, deal.chelem);
+
+  // Bonuses land outside the multiplication, on the winning side.
+  const amount = (won ? 1 : -1) * inner * multiplier + (won ? poignee : -poignee) + chelem;
+
+  const scores = {};
+  const partnered = deal.partnerId && deal.partnerId !== deal.takerId;
+  for (const player of players) {
+    if (player.id === deal.takerId) {
+      scores[player.id] = partnered ? 2 * amount : (players.length - 1) * amount;
+    } else if (partnered && player.id === deal.partnerId) {
+      scores[player.id] = amount;
+    } else {
+      scores[player.id] = -amount;
+    }
+  }
+
+  return {
+    threshold,
+    gap,
+    won,
+    multiplier,
+    amount,
+    scores,
+    breakdown: {
+      threshold,
+      points: deal.points,
+      gap,
+      base: 25,
+      petit,
+      inner,
+      multiplier,
+      poignee: won ? poignee : -poignee,
+      chelem,
+      amount,
+    },
+  };
+}
+
+/** True when the deal can be scored — every field present and sane. */
+function isCompleteDeal(players, deal) {
+  if (!deal?.takerId || !players.some((player) => player.id === deal.takerId)) return false;
+  if (!CONTRACTS.some((contract) => contract.id === deal.contract)) return false;
+  if (![0, 1, 2, 3].includes(deal.oudlers)) return false;
+  return Number.isFinite(deal.points) && deal.points >= 0 && deal.points <= TOTAL_POINTS;
 }
 
   // ---- src/storage.js --------------------------------------------------
@@ -1921,6 +2197,7 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
@@ -1964,7 +2241,7 @@ function parseIntOrNull(raw) {
 }
 
 function presetLabel(preset) {
-  return preset.id === 'custom' ? t('new.customLabel') : preset.name;
+  return preset.labelKey ? t(preset.labelKey) : preset.name;
 }
 
 function gameTitle(game) {
@@ -2232,6 +2509,10 @@ function newGameView() {
 
 function roundFormHtml(game) {
   const preset = getPreset(game.presetId);
+  if (preset?.calculator === 'tarot') {
+    if (!deal) deal = emptyDeal(game);
+    return tarotFormHtml(game);
+  }
   const editing = state.editingRoundId ? game.rounds.find((r) => r.id === state.editingRoundId) : null;
   const index = editing ? game.rounds.indexOf(editing) + 1 : game.rounds.length + 1;
 
@@ -2410,6 +2691,7 @@ function gameView(game) {
           ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
           : ''
       }
+      <button type="button" class="button button--small" id="rename">${escapeHtml(t('action.rename'))}</button>
       <button type="button" class="button button--small" id="toggle-finish">
         ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
       </button>
@@ -2746,6 +3028,125 @@ function bindNewGame() {
 /** What the open card counter holds, while it is open. */
 let counterEntry = emptyHelperEntry();
 
+/** The deal being entered on the Tarot screen. */
+let deal = null;
+
+function emptyDeal(game) {
+  return {
+    takerId: game.players[0]?.id || null,
+    partnerId: null,
+    contract: 'garde',
+    oudlers: 1,
+    points: null,
+    petitAuBout: 'none',
+    poignee: 'none',
+    chelem: 'none',
+  };
+}
+
+/** The Tarot entry screen: a deal is described, not a row of scores typed. */
+function tarotFormHtml(game) {
+  const editing = state.editingRoundId
+    ? game.rounds.find((round) => round.id === state.editingRoundId)
+    : null;
+  const index = editing ? game.rounds.indexOf(editing) + 1 : game.rounds.length + 1;
+  const threshold = THRESHOLDS[deal.oudlers];
+  const complete = isCompleteDeal(game.players, deal);
+  const result = complete ? scoreDeal(game.players, deal) : null;
+
+  const options = (items, selected, label) =>
+    items.map((item) => `<option value="${item.id}" ${item.id === selected ? 'selected' : ''}>${escapeHtml(label(item))}</option>`).join('');
+
+  const playerOptions = (selected, extra = '') =>
+    extra + game.players
+      .map((player) => `<option value="${escapeHtml(player.id)}" ${player.id === selected ? 'selected' : ''}>${escapeHtml(player.name)}</option>`)
+      .join('');
+
+  return `
+    <form id="round-form" class="card stack">
+      <h2>${escapeHtml(editing ? t('game.editRound', { n: index }) : t('game.newRound', { n: index }))}</h2>
+
+      <div class="field-grid">
+        <label>${escapeHtml(t('tarot.taker'))}
+          <select id="deal-taker">${playerOptions(deal.takerId)}</select>
+        </label>
+        ${
+          game.players.length === 5
+            ? `<label>${escapeHtml(t('tarot.partner'))}
+                 <select id="deal-partner">
+                   <option value="">${escapeHtml(t('tarot.alone'))}</option>
+                   ${playerOptions(deal.partnerId)}
+                 </select>
+               </label>`
+            : ''
+        }
+        <label>${escapeHtml(t('tarot.contract'))}
+          <select id="deal-contract">${options(CONTRACTS, deal.contract, (c) => `${t(`tarot.${c.id}`)} ×${c.multiplier}`)}</select>
+        </label>
+        <label>${escapeHtml(t('tarot.oudlers'))}
+          <select id="deal-oudlers">
+            ${[0, 1, 2, 3].map((n) => `<option value="${n}" ${n === deal.oudlers ? 'selected' : ''}>${n} — ${THRESHOLDS[n]} ${escapeHtml(t('tarot.pointsNeeded'))}</option>`).join('')}
+          </select>
+        </label>
+        <label>${escapeHtml(t('tarot.points', { max: TOTAL_POINTS }))}
+          <input type="number" id="deal-points" inputmode="numeric" step="1" min="0" max="${TOTAL_POINTS}"
+                 value="${Number.isFinite(deal.points) ? deal.points : ''}" />
+        </label>
+        <label>${escapeHtml(t('tarot.petitAuBout'))}
+          <select id="deal-petit">
+            ${['none', 'taker', 'defence'].map((id) => `<option value="${id}" ${id === deal.petitAuBout ? 'selected' : ''}>${escapeHtml(t(`tarot.petit.${id}`))}</option>`).join('')}
+          </select>
+        </label>
+        <label>${escapeHtml(t('tarot.poignee'))}
+          <select id="deal-poignee">${options(POIGNEES, deal.poignee, (p) => `${t(`tarot.poignee.${p.id}`)}${p.value ? ` (+${p.value})` : ''}`)}</select>
+        </label>
+        <label>${escapeHtml(t('tarot.chelem'))}
+          <select id="deal-chelem">${options(CHELEMS, deal.chelem, (c) => t(`tarot.chelem.${c.id}`))}</select>
+        </label>
+      </div>
+
+      ${
+        result
+          ? `<div class="deal-result ${result.won ? 'deal-result--won' : 'deal-result--lost'}">
+               <strong>${escapeHtml(t(result.won ? 'tarot.made' : 'tarot.failed', {
+                 gap: Math.abs(result.gap),
+               }))}</strong>
+               <span class="small">${escapeHtml(t('tarot.sum', {
+                 base: 25,
+                 gap: Math.abs(result.gap),
+                 petit: result.breakdown.petit ? (result.breakdown.petit > 0 ? ` + 10` : ` − 10`) : '',
+                 multiplier: result.multiplier,
+                 extra: [
+                   result.breakdown.poignee ? `${result.breakdown.poignee > 0 ? '+' : '−'} ${Math.abs(result.breakdown.poignee)}` : '',
+                   result.breakdown.chelem ? `${result.breakdown.chelem > 0 ? '+' : '−'} ${Math.abs(result.breakdown.chelem)}` : '',
+                 ].filter(Boolean).map((piece) => ` ${piece}`).join(''),
+                 amount: result.amount,
+               }))}</span>
+               <div class="deal-scores">
+                 ${game.players.map((player) => `<span><b>${escapeHtml(player.name)}</b> ${result.scores[player.id] > 0 ? '+' : ''}${result.scores[player.id]}</span>`).join('')}
+               </div>
+             </div>`
+          : `<p class="muted small">${escapeHtml(t('tarot.needPoints'))}</p>`
+      }
+
+      <label>${escapeHtml(t('game.note'))}
+        <input type="text" id="round-note" value="${escapeHtml(editing?.note || '')}" />
+      </label>
+
+      <div class="row">
+        <button type="submit" class="button button--primary" ${complete ? '' : 'disabled'}>
+          ${escapeHtml(editing ? t('action.saveRound') : t('action.addRound'))}
+        </button>
+        ${
+          editing
+            ? `<button type="button" class="button" id="cancel-edit">${escapeHtml(t('action.cancel'))}</button>
+               <button type="button" class="button button--danger" id="delete-round">${escapeHtml(t('action.deleteRound'))}</button>`
+            : ''
+        }
+      </div>
+    </form>`;
+}
+
 function renderCounter(helper, player) {
   const dialog = document.getElementById('counter-dialog');
   const total = helperTotal(helper, counterEntry);
@@ -2865,16 +3266,118 @@ function openCounter(game, playerId) {
   dialog.showModal();
 }
 
-function bindGame(game) {
-  const form = view.querySelector('#round-form');
+/** Read the Tarot form back into the deal, and redraw its result. */
+function bindTarot(game) {
+  const fields = {
+    '#deal-taker': (v) => { deal.takerId = v; },
+    '#deal-partner': (v) => { deal.partnerId = v || null; },
+    '#deal-contract': (v) => { deal.contract = v; },
+    '#deal-oudlers': (v) => { deal.oudlers = Number(v); },
+    '#deal-points': (v) => { deal.points = v === '' ? null : Number(v); },
+    '#deal-petit': (v) => { deal.petitAuBout = v; },
+    '#deal-poignee': (v) => { deal.poignee = v; },
+    '#deal-chelem': (v) => { deal.chelem = v; },
+  };
 
-  form?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void submitRound(game);
+  for (const [selector, apply] of Object.entries(fields)) {
+    const field = view.querySelector(selector);
+    field?.addEventListener('input', (event) => {
+      apply(event.target.value);
+      // Only the result panel changes, so the form is redrawn in place and
+      // the field being typed into keeps the focus.
+      const active = document.activeElement?.id;
+      const caret = document.activeElement?.selectionStart ?? null;
+      render();
+      const again = active ? view.querySelector(`#${active}`) : null;
+      if (again) {
+        again.focus();
+        if (caret !== null && again.setSelectionRange) {
+          try { again.setSelectionRange(caret, caret); } catch { /* not a text field */ }
+        }
+      }
+    });
+  }
+}
+
+function submitDeal(game) {
+  if (!isCompleteDeal(game.players, deal)) return;
+  const { scores } = scoreDeal(game.players, deal);
+  const note = view.querySelector('#round-note')?.value.trim() || '';
+  const meta = JSON.stringify(deal);
+
+  const next = state.editingRoundId
+    ? updateRound(game, state.editingRoundId, { scores, meta, note })
+    : addRound(game, { scores, meta, note });
+
+  state.editingRoundId = null;
+  deal = emptyDeal(game);
+  replaceGame(next);
+  render();
+}
+
+/** Fix a mistyped name, mid-game, without touching a single score. */
+function openRenameDialog(game) {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('rename.title'))}</h2>
+      <p class="muted small">${escapeHtml(t('rename.hint'))}</p>
+      <div class="stack">
+        ${game.players
+          .map(
+            (player, index) => `
+            <label>${escapeHtml(t(game.config.entrantLabel === 'team' ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}
+              <input type="text" data-rename="${escapeHtml(player.id)}" value="${escapeHtml(player.name)}" />
+            </label>`,
+          )
+          .join('')}
+      </div>
+      <div class="row">
+        <button type="button" class="button button--primary" id="rename-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="rename-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  dialog.querySelector('#rename-cancel').addEventListener('click', close);
+  dialog.querySelector('#rename-save').addEventListener('click', () => {
+    let next = game;
+    dialog.querySelectorAll('[data-rename]').forEach((input) => {
+      next = renamePlayer(next, input.dataset.rename, input.value);
+    });
+    close();
+    if (next !== game) {
+      replaceGame(next);
+      render();
+    }
   });
 
-  form?.addEventListener('input', () => refreshSumLine(game));
-  refreshSumLine(game);
+  dialog.showModal();
+}
+
+function bindGame(game) {
+  const form = view.querySelector('#round-form');
+  const preset = getPreset(game.presetId);
+
+  if (preset?.calculator === 'tarot') {
+    bindTarot(game);
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submitDeal(game);
+    });
+  }
+
+  if (preset?.calculator !== 'tarot') {
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void submitRound(game);
+    });
+
+    form?.addEventListener('input', () => refreshSumLine(game));
+    refreshSumLine(game);
+  }
 
   // Enter walks down the score inputs instead of submitting halfway through.
   const inputs = [...view.querySelectorAll('[data-score]')];
@@ -2899,6 +3402,7 @@ function bindGame(game) {
 
   view.querySelector('#cancel-edit')?.addEventListener('click', () => {
     state.editingRoundId = null;
+    if (preset?.calculator === 'tarot') deal = emptyDeal(game);
     render();
   });
 
@@ -2912,6 +3416,15 @@ function bindGame(game) {
 
   const openRound = (roundId) => {
     state.editingRoundId = roundId;
+    if (preset?.calculator === 'tarot') {
+      const round = game.rounds.find((item) => item.id === roundId);
+      try {
+        const stored = JSON.parse(round?.meta || 'null');
+        deal = stored && typeof stored === 'object' ? stored : emptyDeal(game);
+      } catch {
+        deal = emptyDeal(game);
+      }
+    }
     render();
     view.querySelector('#round-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
@@ -2942,6 +3455,8 @@ function bindGame(game) {
       text: shareLink(location, game.id),
     });
   });
+
+  view.querySelector('#rename')?.addEventListener('click', () => openRenameDialog(game));
 
   view.querySelector('#toggle-finish')?.addEventListener('click', () => {
     replaceGame(setFinished(game, !game.finishedAt));
