@@ -26,6 +26,12 @@ jobs:
         with:
           node-version: '22'
 
+      # Reconstruit les fichiers de dist/ à partir des sources. Sans cela,
+      # modifier src/config.js depuis GitHub laisserait dist/ en retard, et le
+      # test de fraîcheur ferait échouer la publication.
+      - name: Reconstruire les fichiers livrés
+        run: npm run bundle
+
       - name: Tests
         run: npm test
 
@@ -36,7 +42,10 @@ jobs:
           cp -r src site/
           cp -r dist site/
 
+      # enablement active Pages si ce n'est pas déjà fait, au lieu d'échouer.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

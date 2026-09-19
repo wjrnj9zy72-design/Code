@@ -20,9 +20,25 @@ const PATH = '/rest/v1/rpc/';
 const TIMEOUT_MS = 8000;
 
 /** Make a client, or null when this copy of the app has no database. */
+/**
+ * The project's address, whichever of its forms was copied.
+ *
+ * The settings page shows both the project URL and the REST endpoint, which
+ * is that URL plus `/rest/v1` — and pasting the second one would otherwise
+ * build `/rest/v1/rest/v1/rpc/...` and fail on every call, with nothing to
+ * suggest why. Both forms are accepted, with or without a trailing slash.
+ */
+export function normaliseUrl(url) {
+  return String(url || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rest\/v1$/, '')
+    .replace(/\/+$/, '');
+}
+
 export function createRemote(config, fetchImpl = globalThis.fetch) {
   if (!config?.url || !config?.key || typeof fetchImpl !== 'function') return null;
-  const base = config.url.replace(/\/+$/, '');
+  const base = normaliseUrl(config.url);
 
   async function call(fn, body) {
     const controller = new AbortController();
