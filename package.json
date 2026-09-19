@@ -1,0 +1,11 @@
+{
+  "name": "marque-points",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Score keeper for Papayoo and other card games. No dependencies, no build step.",
+  "scripts": {
+    "start": "node tools/serve.js",
+    "test": "node --test"
+  }
+}
