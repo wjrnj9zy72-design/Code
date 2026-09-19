@@ -128,9 +128,11 @@ dernière, donc tout coller d'un bloc ne montrerait rien d'utile.
 select public.marque_points_put('test_marque_points', '{"id":"test_marque_points","ok":true}'::jsonb);
 ```
 
-Résultat attendu : **`NULL`**. C'est normal — cette fonction ne renvoie rien
-(`returns void`), et l'éditeur affiche `NULL` pour dire « exécutée, rien à
-signaler ». Une fonction absente donnerait une erreur rouge, pas un `NULL`.
+Résultat attendu : **`NULL`, ou une cellule vide** — les deux veulent dire la
+même chose. C'est normal : cette fonction ne renvoie rien (`returns void`), et
+l'éditeur l'affiche tantôt `NULL`, tantôt comme une case vide, pour dire
+« exécutée, rien à signaler ». Une fonction absente donnerait une erreur rouge,
+jamais une case vide.
 
 **2. La relire** — la seule requête qui compte vraiment
 
@@ -154,7 +156,8 @@ l'écriture n'a pas fonctionné : reprenez l'étape 2.
 select public.marque_points_delete('test_marque_points');
 ```
 
-Résultat attendu : **`NULL`**, pour la même raison qu'à la première requête.
+Résultat attendu : **`NULL` ou une cellule vide**, pour la même raison qu'à la
+première requête.
 
 **4. Vérifier qu'elle a disparu**
 
@@ -169,10 +172,10 @@ En résumé :
 
 | Requête | Attendu | Ce que ça veut dire |
 | --- | --- | --- |
-| `put` | `NULL` | la fonction ne renvoie rien, c'est normal |
+| `put` | `NULL` ou case vide | la fonction ne renvoie rien, c'est normal |
 | `get` après écriture | le JSON | **tout fonctionne** |
-| `delete` | `NULL` | la fonction ne renvoie rien, c'est normal |
-| `get` après suppression | `NULL` | la partie a bien été effacée |
+| `delete` | `NULL` ou case vide | la fonction ne renvoie rien, c'est normal |
+| `get` après suppression | `NULL` ou case vide | la partie a bien été effacée |
 
 > Ce bloc SQL et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16,
 > avec les mêmes rôles que chez Supabase. La table s'est révélée inaccessible en
