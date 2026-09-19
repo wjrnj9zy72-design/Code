@@ -454,3 +454,8 @@ table.scores .meta-cell { color: var(--muted); }
 .card-button small { font-size: 0.7rem; font-weight: 600; opacity: 0.85; }
 
 .button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.dialog--ask { width: min(420px, calc(100vw - 32px)); }
+
+/* The warning text is built with line breaks, which must survive. */
+.ask-message { white-space: pre-line; }

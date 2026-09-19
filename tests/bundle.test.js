@@ -61,3 +61,15 @@ test('bundling refuses to silently produce a broken page', async () => {
   assert.match(html, /<script type="module" src="src\/app\.js"><\/script>/);
   assert.match(html, /<title>[^<]+<\/title>/);
 });
+
+test('the app never reaches for a browser modal', async () => {
+  // A sandboxed page is refused window.confirm/alert/prompt: the call returns
+  // without asking, and whatever it guarded silently does nothing. Everything
+  // must go through the page's own <dialog>.
+  const sources = ['app.js', 'games.js', 'helpers.js', 'i18n.js', 'model.js', 'scoring.js', 'storage.js', 'cloud.js'];
+  for (const name of sources) {
+    const code = await readFile(join(root, 'src', name), 'utf8');
+    const found = code.match(/\b(confirm|alert|prompt)\s*\(/g);
+    assert.equal(found, null, `src/${name} calls ${found?.[0]} — use ask() instead`);
+  }
+});
