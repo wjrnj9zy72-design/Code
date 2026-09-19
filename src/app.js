@@ -666,7 +666,9 @@ function showExportDialog(json) {
 
   dialog.querySelector('#export-title').textContent = t('export.title');
   dialog.querySelector('#export-hint').textContent = t('export.hint');
-  dialog.querySelector('#export-text').value = json;
+  const text = dialog.querySelector('#export-text');
+  text.value = json;
+  text.setAttribute('aria-label', t('export.title'));
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();

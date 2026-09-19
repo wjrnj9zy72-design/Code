@@ -91,7 +91,11 @@ a { color: inherit; }
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
+  /* The plain colour first: a Safari without color-mix() would otherwise
+     leave this sticky bar transparent over the scrolling page. */
+  background: var(--surface);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }

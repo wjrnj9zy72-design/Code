@@ -93,7 +93,11 @@ a { color: inherit; }
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
+  /* The plain colour first: a Safari without color-mix() would otherwise
+     leave this sticky bar transparent over the scrolling page. */
+  background: var(--surface);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
@@ -1098,20 +1102,11 @@ function removeRound(game, roundId) {
   };
 }
 
-function renamePlayer(game, playerId, name) {
-  const players = game.players.map((player) =>
-    player.id === playerId ? { ...player, name: name.trim() || player.name } : player,
-  );
-  return { ...game, players, updatedAt: Date.now() };
-}
 
 function setFinished(game, finished) {
   return { ...game, finishedAt: finished ? Date.now() : null, updatedAt: Date.now() };
 }
 
-function setConfig(game, patch) {
-  return { ...game, config: { ...game.config, ...patch }, updatedAt: Date.now() };
-}
 
 /** Defensive read of anything coming back from storage or an import file. */
 function isValidGame(value) {
@@ -2187,7 +2182,9 @@ function showExportDialog(json) {
 
   dialog.querySelector('#export-title').textContent = t('export.title');
   dialog.querySelector('#export-hint').textContent = t('export.hint');
-  dialog.querySelector('#export-text').value = json;
+  const text = dialog.querySelector('#export-text');
+  text.value = json;
+  text.setAttribute('aria-label', t('export.title'));
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
