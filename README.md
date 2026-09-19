@@ -19,6 +19,9 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
+- **Compter les cartes au doigt** : pour les jeux dont le score est une pile de
+  cartes, un compteur s'ouvre depuis la manche en cours. On touche les cartes
+  ramassées, il fait la somme et reporte le score — plus d'addition de tête.
 - **Correction** : on clique sur une ligne du tableau pour modifier ou supprimer
   une manche, et *Annuler la dernière manche* défait la saisie précédente.
 - **Ça marche sur téléphone**, hors ligne, en français ou en anglais, en thème
@@ -44,6 +47,27 @@ manches, elle tient le classement.
 Chaque réglage reste modifiable au moment de créer la partie : les variantes de
 table sont la règle, pas l'exception. Un total de manche inattendu est un
 **avertissement**, jamais un blocage.
+
+### Le compteur de cartes
+
+Quatre jeux se comptent carte par carte plutôt qu'en additionnant de tête. Le
+bouton 🂠 à côté de chaque joueur ouvre un compteur adapté au jeu :
+
+| Jeu | Ce qu'on touche | Interrupteurs |
+| --- | --- | --- |
+| Papayoo | les Payoos ramassés, 1 à 20 (une seule fois chacun) | le Papayoo, +40 |
+| Skyjo | chaque carte restante devant soi, de -2 à 12 | score doublé |
+| Hearts / Cœurs | ♥, une fois par cœur ramassé | dame de pique, +13 |
+| 6 qui prend ! | la valeur en têtes de bœuf de chaque carte, 1 / 2 / 3 / 5 / 7 | — |
+
+*Annuler la dernière* corrige une erreur de doigt, *Reporter le score* écrit le
+total dans la manche. Le compteur est une calculatrice : seul le total est
+enregistré, pas le détail des cartes.
+
+Les autres jeux gardent la saisie directe, parce que leur score ne se compte pas
+en tapant des cartes : le Tarot se calcule à partir du contrat et des bouts, la
+belote mêle les plis et les annonces, Uno et le Rami dépendent des cartes qui
+restent en main.
 
 ## Utiliser l'appli
 
@@ -90,15 +114,18 @@ npm test
 
 Les tests (`node --test`, sans dépendance) couvrent le moteur de score :
 totaux, classement et ex æquo, fins de partie, validation d'une manche,
-complétion automatique, cohérence des presets et des traductions, et
-fraîcheur du fichier unique livré dans `dist/`.
+complétion automatique, compteurs de cartes (dont la vérification qu'une
+manche entière de Papayoo comptée carte par carte fait bien 250), cohérence
+des presets et des traductions, et fraîcheur des fichiers livrés dans
+`dist/`.
 
 ## Organisation du code
 
 ```
 index.html        coquille de la page
 styles.css        thème clair/sombre, mise en page mobile d'abord
-src/games.js      définition des jeux (presets)
+src/games.js      définition des jeux (presets) et de leurs compteurs
+src/helpers.js    arithmétique du compteur de cartes
 src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)
@@ -128,6 +155,7 @@ l'interface n'est nécessaire :
   allowNegative: false,
   entrantLabel: 'player',  // 'player' | 'team'
   meta: null,              // champ facultatif par manche (cf. Papayoo)
+  helper: null,            // compteur de cartes facultatif (cf. src/helpers.js)
   notesKey: 'notes.president',
 }
 ```

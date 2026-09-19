@@ -13,7 +13,14 @@
  *               Checked as a warning only: most games have variants that break it.
  *   entrantLabel what we are scoring: 'player' or 'team'.
  *   meta        one optional per-round field (e.g. which suit was the Papayoo).
+ *   helper      an optional card counter for the round form; see src/helpers.js.
  */
+
+/** Skyjo's deck runs from -2 to 12. */
+const SKYJO_VALUES = [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/** The twenty Payoos, each worth its face value. */
+const PAYOOS = Array.from({ length: 20 }, (_, index) => index + 1);
 
 /** Suits used by Papayoo's per-round special card. */
 const SUITS = [
@@ -36,6 +43,12 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: { key: 'papayooSuit', labelKey: 'meta.papayooSuit', options: SUITS },
+    helper: {
+      mode: 'toggle',
+      values: PAYOOS,
+      hintKey: 'helper.papayoo.hint',
+      toggles: [{ key: 'papayoo', labelKey: 'helper.papayoo.card', add: 40 }],
+    },
     notesKey: 'notes.papayoo',
   },
   {
@@ -50,6 +63,13 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: [1],
+      labels: { 1: '♥' },
+      hintKey: 'helper.hearts.hint',
+      toggles: [{ key: 'queen', labelKey: 'helper.hearts.queen', add: 13 }],
+    },
     notesKey: 'notes.hearts',
   },
   {
@@ -92,6 +112,12 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: SKYJO_VALUES,
+      hintKey: 'helper.skyjo.hint',
+      toggles: [{ key: 'doubled', labelKey: 'helper.skyjo.doubled', multiply: 2 }],
+    },
     notesKey: 'notes.skyjo',
   },
   {
@@ -106,6 +132,12 @@ export const PRESETS = [
     allowNegative: false,
     entrantLabel: 'player',
     meta: null,
+    helper: {
+      mode: 'count',
+      values: [1, 2, 3, 5, 7],
+      hintKey: 'helper.sixquiprend.hint',
+      toggles: [],
+    },
     notesKey: 'notes.sixquiprend',
   },
   {

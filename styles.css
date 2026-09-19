@@ -395,3 +395,62 @@ table.scores .meta-cell { color: var(--muted); }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.78rem;
 }
+
+/* --------------------------------------------------------- card counter --- */
+.score-row--counter { grid-template-columns: 1fr auto 96px; }
+
+.counter-button {
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.counter-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.counter-readout strong { font-size: 1.35rem; }
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 8px;
+}
+
+.card-button {
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  min-height: 56px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.card-button:hover { border-color: var(--accent); }
+
+.card-button--picked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.card-button small { font-size: 0.7rem; font-weight: 600; opacity: 0.85; }
+
+.button:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -3,6 +3,7 @@
 import { PRESETS, getPreset, presetConfig } from './games.js';
 import { createGame, addRound, updateRound, removeRound, setFinished, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
+import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
@@ -292,9 +293,15 @@ function roundFormHtml(game) {
   const rows = game.players
     .map((player) => {
       const value = editing && Number.isFinite(editing.scores[player.id]) ? editing.scores[player.id] : '';
+      const counter = preset?.helper
+        ? `<button type="button" class="button button--small counter-button"
+                   data-helper="${escapeHtml(player.id)}" title="${escapeHtml(t('helper.open'))}"
+                   aria-label="${escapeHtml(t('helper.title', { name: player.name }))}">🂠</button>`
+        : '';
       return `
-        <div class="score-row">
+        <div class="score-row ${preset?.helper ? 'score-row--counter' : ''}">
           <label class="score-row__name" for="score-${escapeHtml(player.id)}">${escapeHtml(player.name)}</label>
+          ${counter}
           <input type="number" step="1" inputmode="numeric" id="score-${escapeHtml(player.id)}"
                  data-score="${escapeHtml(player.id)}" value="${value}" />
         </div>`;
@@ -733,6 +740,128 @@ function bindNewGame() {
   });
 }
 
+/** What the open card counter holds, while it is open. */
+let counterEntry = emptyHelperEntry();
+
+function renderCounter(helper, player) {
+  const dialog = document.getElementById('counter-dialog');
+  const total = helperTotal(helper, counterEntry);
+
+  dialog.querySelector('#counter-title').textContent = t('helper.title', { name: player.name });
+  dialog.querySelector('#counter-total').textContent = t('helper.total', { total });
+  dialog.querySelector('#counter-count').textContent = t('helper.cards', {
+    count: counterEntry.cards.length,
+  });
+
+  dialog.querySelector('#counter-values').innerHTML = helper.values
+    .map((value) => {
+      const count = cardCount(counterEntry, value);
+      const label = helper.labels?.[value] ?? value;
+      return `
+        <button type="button" class="card-button ${count ? 'card-button--picked' : ''}"
+                data-card="${value}">
+          <span>${escapeHtml(String(label))}</span>
+          ${count > 1 ? `<small>×${count}</small>` : ''}
+        </button>`;
+    })
+    .join('');
+
+  dialog.querySelector('#counter-toggles').innerHTML = (helper.toggles || [])
+    .map(
+      (item) => `
+        <label class="checkbox">
+          <input type="checkbox" data-switch="${escapeHtml(item.key)}"
+                 ${counterEntry.toggles[item.key] ? 'checked' : ''} />
+          ${escapeHtml(t(item.labelKey))}
+        </label>`,
+    )
+    .join('');
+
+  dialog.querySelector('#counter-undo').disabled = counterEntry.cards.length === 0;
+  dialog.querySelector('#counter-apply').disabled = isEmptyEntry(counterEntry);
+}
+
+function openCounter(game, playerId) {
+  const helper = getPreset(game.presetId)?.helper;
+  const player = game.players.find((item) => item.id === playerId);
+  if (!helper || !player) return;
+
+  let dialog = document.getElementById('counter-dialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'counter-dialog';
+    dialog.className = 'dialog';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2 id="counter-title"></h2>
+        <p class="muted small" id="counter-hint"></p>
+        <div class="counter-readout">
+          <strong id="counter-total"></strong>
+          <span class="muted small" id="counter-count"></span>
+        </div>
+        <div class="card-grid" id="counter-values"></div>
+        <div class="stack" id="counter-toggles"></div>
+        <div class="row">
+          <button type="button" class="button button--primary" id="counter-apply"></button>
+          <button type="button" class="button button--small" id="counter-undo"></button>
+          <button type="button" class="button button--small" id="counter-clear"></button>
+          <button type="button" class="button button--small button--ghost" id="counter-close"></button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+  }
+
+  // The listeners close over this round's game and player, so they are rebound
+  // every time the counter opens.
+  const fresh = dialog.cloneNode(true);
+  dialog.replaceWith(fresh);
+  dialog = fresh;
+
+  counterEntry = emptyHelperEntry();
+
+  dialog.querySelector('#counter-hint').textContent = helper.hintKey ? t(helper.hintKey) : '';
+  dialog.querySelector('#counter-apply').textContent = t('helper.apply');
+  dialog.querySelector('#counter-undo').textContent = t('helper.undo');
+  dialog.querySelector('#counter-clear').textContent = t('helper.clear');
+  dialog.querySelector('#counter-close').textContent = t('action.close');
+
+  dialog.querySelector('#counter-values').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-card]');
+    if (!button) return;
+    counterEntry = tapCard(helper, counterEntry, Number(button.dataset.card));
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-toggles').addEventListener('change', (event) => {
+    const box = event.target.closest('[data-switch]');
+    if (!box) return;
+    counterEntry = toggleSwitch(counterEntry, box.dataset.switch);
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-undo').addEventListener('click', () => {
+    counterEntry = undoCard(counterEntry);
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-clear').addEventListener('click', () => {
+    counterEntry = emptyHelperEntry();
+    renderCounter(helper, player);
+  });
+
+  dialog.querySelector('#counter-close').addEventListener('click', () => dialog.close());
+
+  dialog.querySelector('#counter-apply').addEventListener('click', () => {
+    const input = view.querySelector(`[data-score="${player.id}"]`);
+    if (input) input.value = String(helperTotal(helper, counterEntry));
+    dialog.close();
+    refreshSumLine(game);
+  });
+
+  renderCounter(helper, player);
+  dialog.showModal();
+}
+
 function bindGame(game) {
   const form = view.querySelector('#round-form');
 
@@ -752,6 +881,10 @@ function bindGame(game) {
       event.preventDefault();
       inputs[index + 1].focus();
     });
+  });
+
+  view.querySelectorAll('[data-helper]').forEach((button) => {
+    button.addEventListener('click', () => openCounter(game, button.dataset.helper));
   });
 
   view.querySelector('#complete')?.addEventListener('click', (event) => {
