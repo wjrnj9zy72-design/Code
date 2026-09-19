@@ -543,6 +543,15 @@ const STRINGS = {
       'Touchez chaque carte restante devant vous. Une colonne de trois cartes identiques est retirée du jeu : ne la comptez pas.',
     'helper.skyjo.doubled': 'Score doublé (a fermé sans être le plus bas)',
     'helper.sixquiprend.hint': 'Touchez la valeur en têtes de bœuf de chaque carte ramassée.',
+    'action.share': 'Partager la partie',
+    'share.title': 'Lien vers cette partie',
+    'share.hint':
+      'Envoyez ce lien : il ouvre cette partie, avec ses scores, chez la personne qui le reçoit — et elle peut y ajouter des manches.',
+    'share.loading': 'Ouverture de la partie…',
+    'share.pushFailed':
+      'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
+    'home.storedShared':
+      'Vos parties sont enregistrées dans ce navigateur et dans la base partagée : le bouton Partager donne un lien qui ouvre la partie chez quelqu’un d’autre.',
     'action.copy': 'Copier',
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
@@ -679,6 +688,15 @@ const STRINGS = {
       'Tap each card still in front of you. A column of three identical cards is removed from play — do not count it.',
     'helper.skyjo.doubled': 'Score doubled (closed without being lowest)',
     'helper.sixquiprend.hint': 'Tap the bull-head value of each card you took.',
+    'action.share': 'Share this game',
+    'share.title': 'Link to this game',
+    'share.hint':
+      'Send this link: it opens this game, with its scores, for whoever receives it — and they can add rounds to it.',
+    'share.loading': 'Opening the game…',
+    'share.pushFailed':
+      'Game saved here, but not sent to the others. It will go up with the next change.',
+    'home.storedShared':
+      'Your games are stored in this browser and in the shared database: the Share button gives a link that opens the game for someone else.',
     'action.copy': 'Copy',
     'action.close': 'Close',
     'export.title': 'Your games, as text',
@@ -1031,8 +1049,17 @@ function presetConfig(preset) {
 /** Creating and mutating game objects. Pure: every mutator returns a new game. */
 
 
+/**
+ * An identifier. A game's id is also what a share link carries, so it has to
+ * be unguessable: whoever knows it can open the game. randomUUID is used where
+ * the browser offers it (it needs a secure context), with a weaker but still
+ * random fallback elsewhere.
+ */
 function uid(prefix = 'id') {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `${prefix}_${uuid}`;
+  const random = () => Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now().toString(36)}_${random()}${random()}`;
 }
 
 /**
@@ -1412,6 +1439,130 @@ function savePrefs(prefs) {
   return write(PREFS_KEY, prefs);
 }
 
+  // ---- src/config.js ---------------------------------------------------
+/**
+ * Where the shared games live, for a copy of the app that has one.
+ *
+ * Fill these in to turn on sharing (see docs/DEPLOIEMENT.md). Left empty, the
+ * app works exactly as before: games stay in the browser, and nothing is sent
+ * anywhere. The key below is a *public* key — it is meant to be readable by
+ * everyone who opens the page, and the database is protected by only exposing
+ * two functions, not the table.
+ */
+const REMOTE = {
+  url: '',
+  key: '',
+};
+
+/**
+ * A copy of the app served from somewhere else — a file on a phone, say — can
+ * be pointed at the same database without being rebuilt.
+ */
+function remoteConfig() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('marque-points:remote:v1') || 'null');
+    if (stored && stored.url && stored.key) return stored;
+  } catch {
+    // No storage, or nothing stored: fall through to the built-in values.
+  }
+  return REMOTE.url && REMOTE.key ? REMOTE : null;
+}
+
+  // ---- src/remote.js ---------------------------------------------------
+/**
+ * The shared games database.
+ *
+ * A copy of the app that carries a configuration (src/config.js) keeps every
+ * game in a small hosted database as well as in the browser, so a link to a
+ * game opens that same game for someone else.
+ *
+ * It speaks plain HTTP to two Postgres functions — no client library, so the
+ * app keeps its "no dependencies" property. The table itself is never exposed:
+ * the only things reachable are `read one game by id` and `write one game by
+ * id`, which means a game can only be found by someone who has its link.
+ *
+ * Every call is defensive. The network fails, the configuration may be wrong,
+ * the service may be down: none of that may stop someone keeping score, so a
+ * failure leaves the local copy in place and is reported, never thrown at the
+ * player.
+ */
+
+const PATH = '/rest/v1/rpc/';
+const TIMEOUT_MS = 8000;
+
+/** Make a client, or null when this copy of the app has no database. */
+function createRemote(config, fetchImpl = globalThis.fetch) {
+  if (!config?.url || !config?.key || typeof fetchImpl !== 'function') return null;
+  const base = config.url.replace(/\/+$/, '');
+
+  async function call(fn, body) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetchImpl(`${base}${PATH}${fn}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          apikey: config.key,
+          authorization: `Bearer ${config.key}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        const error = new Error(`${fn} failed: ${response.status} ${detail.slice(0, 200)}`);
+        error.status = response.status;
+        throw error;
+      }
+      // A function returning void answers 204 with an empty body.
+      if (response.status === 204) return null;
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return {
+    /** The stored game, or null when nobody has ever shared that id. */
+    async get(id) {
+      const data = await call('marque_points_get', { p_id: id });
+      return data && typeof data === 'object' ? data : null;
+    },
+
+    /** Store a game under its own id. Whoever holds the link may also write. */
+    async put(game) {
+      await call('marque_points_put', { p_id: game.id, p_data: game });
+    },
+
+    async remove(id) {
+      await call('marque_points_delete', { p_id: id });
+    },
+  };
+}
+
+/**
+ * Which of two copies of a game to keep: the one changed most recently.
+ * Returns 'local', 'remote', or 'same'.
+ */
+function pickNewer(local, remote) {
+  if (!remote) return 'local';
+  if (!local) return 'remote';
+  const a = local.updatedAt || 0;
+  const b = remote.updatedAt || 0;
+  if (a === b) return 'same';
+  return a > b ? 'local' : 'remote';
+}
+
+/** The link to give someone so they open this very game. */
+function shareLink(location, gameId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/game/${gameId}`;
+}
+
   // ---- src/cloud.js ----------------------------------------------------
 /**
  * Storing games outside the browser.
@@ -1524,6 +1675,8 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
+
 const view = document.getElementById('view');
 
 const state = {
@@ -1537,6 +1690,10 @@ const state = {
   newName: '',
   // Set once the host's document store answers; null means this browser only.
   store: null,
+  // The shared database, when this copy of the app is configured for one.
+  remote: createRemote(remoteConfig()),
+  // Polling while a shared game is on screen.
+  poll: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -1597,14 +1754,20 @@ function flash(message, kind = 'info') {
  */
 function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok && !state.store) flash(t('home.storageWarning'), 'error');
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed) {
+    // A failure here must never cost the player their round: the local copy is
+    // already written, and the next change pushes again.
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
   return ok;
 }
 
 function forget(id) {
   saveGames(state.games);
   if (state.store) void state.store.remove(id);
+  if (state.remote) state.remote.remove(id).catch(() => {});
 }
 
 function getGame(id) {
@@ -1701,7 +1864,9 @@ function homeView() {
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
-      <p class="muted small">${escapeHtml(t(state.store ? 'home.storedCloud' : 'home.storedLocal'))}</p>
+      <p class="muted small">${escapeHtml(
+        t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
+      )}</p>
     </section>`;
 }
 
@@ -1990,6 +2155,11 @@ function gameView(game) {
           ? `<button type="button" class="button button--small" id="undo">${escapeHtml(t('action.undo'))}</button>`
           : ''
       }
+      ${
+        state.remote
+          ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
+          : ''
+      }
       <button type="button" class="button button--small" id="toggle-finish">
         ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
       </button>
@@ -2145,6 +2315,10 @@ function exportGames() {
 }
 
 function showExportDialog(json) {
+  showCopyDialog({ title: t('export.title'), hint: t('export.hint'), text: json });
+}
+
+function showCopyDialog({ title, hint, text: content }) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -2180,11 +2354,11 @@ function showExportDialog(json) {
     });
   }
 
-  dialog.querySelector('#export-title').textContent = t('export.title');
-  dialog.querySelector('#export-hint').textContent = t('export.hint');
+  dialog.querySelector('#export-title').textContent = title;
+  dialog.querySelector('#export-hint').textContent = hint;
   const text = dialog.querySelector('#export-text');
-  text.value = json;
-  text.setAttribute('aria-label', t('export.title'));
+  text.value = content;
+  text.setAttribute('aria-label', title);
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
@@ -2511,6 +2685,14 @@ function bindGame(game) {
     render();
   });
 
+  view.querySelector('#share')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: t('share.title'),
+      hint: t('share.hint'),
+      text: shareLink(location, game.id),
+    });
+  });
+
   view.querySelector('#toggle-finish')?.addEventListener('click', () => {
     replaceGame(setFinished(game, !game.finishedAt));
     render();
@@ -2571,20 +2753,32 @@ function bindChrome() {
 function render() {
   const current = route();
   if (current.name === 'new') {
+    stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
   } else if (current.name === 'game') {
     const game = getGame(current.id);
     if (!game) {
+      // Perhaps it is a game someone shared: ask the database before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('share.loading'))}</p>`;
+        pullGame(current.id).then((found) => {
+          if (found) render();
+          else if (route().id === current.id) navigate('#/');
+        });
+        return;
+      }
       navigate('#/');
       return;
     }
+    watchGame(game.id);
     if (state.editingRoundId && !game.rounds.some((round) => round.id === state.editingRoundId)) {
       state.editingRoundId = null;
     }
     view.innerHTML = gameView(game);
     bindGame(game);
   } else {
+    stopWatching();
     view.innerHTML = homeView();
     bindHome();
   }
@@ -2592,6 +2786,46 @@ function render() {
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
   });
+}
+
+/**
+ * Pull one game from the shared database and take it if it is newer than what
+ * this browser holds — which is how a link to a game opens that game for
+ * someone who has never seen it.
+ */
+async function pullGame(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  if (!isValidGame(stored)) return false;
+
+  const local = getGame(id);
+  if (pickNewer(local, stored) !== 'remote') return false;
+
+  state.games = local
+    ? state.games.map((game) => (game.id === id ? stored : game))
+    : [...state.games, stored];
+  saveGames(state.games);
+  return true;
+}
+
+/** While a game is on screen, watch for rounds someone else has entered. */
+function watchGame(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return; // never redraw under someone's fingers
+    if (await pullGame(id)) render();
+  }, 5000);
+}
+
+function stopWatching() {
+  if (state.poll) clearInterval(state.poll);
+  state.poll = null;
 }
 
 /** A list's identity for comparison: which games, and how recently each changed. */

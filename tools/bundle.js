@@ -19,7 +19,7 @@ import { join, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'storage.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'storage.js', 'config.js', 'remote.js', 'cloud.js', 'app.js'];
 
 const IMPORT_LINE = /^import\s.*?;\s*$/gm;
 const EXPORT_KEYWORD = /^export\s+(?=(?:const|let|function|class|async)\b)/gm;

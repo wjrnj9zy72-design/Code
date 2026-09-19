@@ -2,8 +2,17 @@
 
 import { getPreset, presetConfig } from './games.js';
 
+/**
+ * An identifier. A game's id is also what a share link carries, so it has to
+ * be unguessable: whoever knows it can open the game. randomUUID is used where
+ * the browser offers it (it needs a secure context), with a weaker but still
+ * random fallback elsewhere.
+ */
 function uid(prefix = 'id') {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `${prefix}_${uuid}`;
+  const random = () => Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now().toString(36)}_${random()}${random()}`;
 }
 
 /**

@@ -6,6 +6,8 @@ import { gameStatus, roundScore, totals, validateRound, completingScore } from '
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
+import { createRemote, pickNewer, shareLink } from './remote.js';
+import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
 const view = document.getElementById('view');
@@ -21,6 +23,10 @@ const state = {
   newName: '',
   // Set once the host's document store answers; null means this browser only.
   store: null,
+  // The shared database, when this copy of the app is configured for one.
+  remote: createRemote(remoteConfig()),
+  // Polling while a shared game is on screen.
+  poll: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -81,14 +87,20 @@ function flash(message, kind = 'info') {
  */
 function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok && !state.store) flash(t('home.storageWarning'), 'error');
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed) {
+    // A failure here must never cost the player their round: the local copy is
+    // already written, and the next change pushes again.
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
   return ok;
 }
 
 function forget(id) {
   saveGames(state.games);
   if (state.store) void state.store.remove(id);
+  if (state.remote) state.remote.remove(id).catch(() => {});
 }
 
 function getGame(id) {
@@ -185,7 +197,9 @@ function homeView() {
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
-      <p class="muted small">${escapeHtml(t(state.store ? 'home.storedCloud' : 'home.storedLocal'))}</p>
+      <p class="muted small">${escapeHtml(
+        t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
+      )}</p>
     </section>`;
 }
 
@@ -474,6 +488,11 @@ function gameView(game) {
           ? `<button type="button" class="button button--small" id="undo">${escapeHtml(t('action.undo'))}</button>`
           : ''
       }
+      ${
+        state.remote
+          ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
+          : ''
+      }
       <button type="button" class="button button--small" id="toggle-finish">
         ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
       </button>
@@ -629,6 +648,10 @@ function exportGames() {
 }
 
 function showExportDialog(json) {
+  showCopyDialog({ title: t('export.title'), hint: t('export.hint'), text: json });
+}
+
+function showCopyDialog({ title, hint, text: content }) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -664,11 +687,11 @@ function showExportDialog(json) {
     });
   }
 
-  dialog.querySelector('#export-title').textContent = t('export.title');
-  dialog.querySelector('#export-hint').textContent = t('export.hint');
+  dialog.querySelector('#export-title').textContent = title;
+  dialog.querySelector('#export-hint').textContent = hint;
   const text = dialog.querySelector('#export-text');
-  text.value = json;
-  text.setAttribute('aria-label', t('export.title'));
+  text.value = content;
+  text.setAttribute('aria-label', title);
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
@@ -995,6 +1018,14 @@ function bindGame(game) {
     render();
   });
 
+  view.querySelector('#share')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: t('share.title'),
+      hint: t('share.hint'),
+      text: shareLink(location, game.id),
+    });
+  });
+
   view.querySelector('#toggle-finish')?.addEventListener('click', () => {
     replaceGame(setFinished(game, !game.finishedAt));
     render();
@@ -1055,20 +1086,32 @@ function bindChrome() {
 function render() {
   const current = route();
   if (current.name === 'new') {
+    stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
   } else if (current.name === 'game') {
     const game = getGame(current.id);
     if (!game) {
+      // Perhaps it is a game someone shared: ask the database before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('share.loading'))}</p>`;
+        pullGame(current.id).then((found) => {
+          if (found) render();
+          else if (route().id === current.id) navigate('#/');
+        });
+        return;
+      }
       navigate('#/');
       return;
     }
+    watchGame(game.id);
     if (state.editingRoundId && !game.rounds.some((round) => round.id === state.editingRoundId)) {
       state.editingRoundId = null;
     }
     view.innerHTML = gameView(game);
     bindGame(game);
   } else {
+    stopWatching();
     view.innerHTML = homeView();
     bindHome();
   }
@@ -1076,6 +1119,46 @@ function render() {
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
   });
+}
+
+/**
+ * Pull one game from the shared database and take it if it is newer than what
+ * this browser holds — which is how a link to a game opens that game for
+ * someone who has never seen it.
+ */
+async function pullGame(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  if (!isValidGame(stored)) return false;
+
+  const local = getGame(id);
+  if (pickNewer(local, stored) !== 'remote') return false;
+
+  state.games = local
+    ? state.games.map((game) => (game.id === id ? stored : game))
+    : [...state.games, stored];
+  saveGames(state.games);
+  return true;
+}
+
+/** While a game is on screen, watch for rounds someone else has entered. */
+function watchGame(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return; // never redraw under someone's fingers
+    if (await pullGame(id)) render();
+  }, 5000);
+}
+
+function stopWatching() {
+  if (state.poll) clearInterval(state.poll);
+  state.poll = null;
 }
 
 /** A list's identity for comparison: which games, and how recently each changed. */

@@ -19,6 +19,10 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
+- **Parties partagées** : branchée sur une base (voir
+  [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
+  La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
+  ajouter des manches — chaque écran se rafraîchit tout seul.
 - **Compter les cartes au doigt** : pour les jeux dont le score est une pile de
   cartes, un compteur s'ouvre depuis la manche en cours. On touche les cartes
   ramassées, il fait la somme et reporte le score — plus d'addition de tête.
@@ -130,6 +134,10 @@ src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)
 src/cloud.js      magasin de documents de l'hôte, et fusion des deux copies
+src/remote.js     base de parties partagées (HTTP simple, sans bibliothèque)
+src/config.js     l'adresse de cette base, à remplir pour activer le partage
+tools/check-remote.js  vérifie que la base est correctement configurée
+docs/DEPLOIEMENT.md    mise en ligne pas à pas
 src/i18n.js       traductions fr / en
 src/app.js        routeur, vues et interactions
 tools/serve.js    serveur statique de développement
@@ -184,6 +192,12 @@ l'emportant, et ce que le magasin n'avait pas lui est envoyé. La section
 Le bouton *Exporter* reste le filet de sécurité : il produit un JSON
 réimportable (ou, là où l'hôte interdit les téléchargements, le même texte à
 copier).
+
+- **Et, si elle est configurée** (`src/config.js`), dans une base partagée que
+  vous hébergez. C'est ce qui permet le bouton *Partager* : le lien d'une partie
+  l'ouvre chez quelqu'un d'autre. Laissée vide, l'appli n'envoie rien nulle part.
+  La marche à suivre est dans [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), y
+  compris ce que ce partage implique.
 
 ---
 

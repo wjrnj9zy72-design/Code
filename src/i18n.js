@@ -52,6 +52,15 @@ export const STRINGS = {
       'Touchez chaque carte restante devant vous. Une colonne de trois cartes identiques est retirée du jeu : ne la comptez pas.',
     'helper.skyjo.doubled': 'Score doublé (a fermé sans être le plus bas)',
     'helper.sixquiprend.hint': 'Touchez la valeur en têtes de bœuf de chaque carte ramassée.',
+    'action.share': 'Partager la partie',
+    'share.title': 'Lien vers cette partie',
+    'share.hint':
+      'Envoyez ce lien : il ouvre cette partie, avec ses scores, chez la personne qui le reçoit — et elle peut y ajouter des manches.',
+    'share.loading': 'Ouverture de la partie…',
+    'share.pushFailed':
+      'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
+    'home.storedShared':
+      'Vos parties sont enregistrées dans ce navigateur et dans la base partagée : le bouton Partager donne un lien qui ouvre la partie chez quelqu’un d’autre.',
     'action.copy': 'Copier',
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
@@ -188,6 +197,15 @@ export const STRINGS = {
       'Tap each card still in front of you. A column of three identical cards is removed from play — do not count it.',
     'helper.skyjo.doubled': 'Score doubled (closed without being lowest)',
     'helper.sixquiprend.hint': 'Tap the bull-head value of each card you took.',
+    'action.share': 'Share this game',
+    'share.title': 'Link to this game',
+    'share.hint':
+      'Send this link: it opens this game, with its scores, for whoever receives it — and they can add rounds to it.',
+    'share.loading': 'Opening the game…',
+    'share.pushFailed':
+      'Game saved here, but not sent to the others. It will go up with the next change.',
+    'home.storedShared':
+      'Your games are stored in this browser and in the shared database: the Share button gives a link that opens the game for someone else.',
     'action.copy': 'Copy',
     'action.close': 'Close',
     'export.title': 'Your games, as text',
