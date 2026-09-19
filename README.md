@@ -34,6 +34,8 @@ manches, elle tient le classement.
 
 ## Jeux fournis
 
+### Jeux de cartes
+
 | Jeu | Vainqueur | Fin de partie | Total par manche |
 | --- | --- | --- | --- |
 | Papayoo | plus petit score | 250 points | 250 (210 de Payoos + 40 pour le Papayoo) |
@@ -44,8 +46,28 @@ manches, elle tient le classement.
 | 6 qui prend ! | plus petit score | 66 points | libre |
 | Uno | plus grand score | 500 points | libre |
 | Rami / Rummy | plus grand score | 500 points | libre |
-| Yams / Yahtzee | plus grand score | à la demande | libre |
 | Mille Bornes | plus grand score | 5000 points | libre |
+| Skull King | plus grand score | 10 manches | libre, négatifs autorisés |
+| Wizard | plus grand score | 60 ÷ nb de joueurs | libre, négatifs autorisés |
+| Canasta | plus grand score | 5000 points | libre, négatifs autorisés |
+| Scopa | plus grand score | 11 points | libre |
+| Cabo / Dutch | plus petit score | 100 points | libre, négatifs autorisés |
+
+### Tuiles, lettres et dominos
+
+| Jeu | Vainqueur | Fin de partie | Total par manche |
+| --- | --- | --- | --- |
+| Rummikub | plus grand score | à la demande | 0 (somme nulle) |
+| Dominos | plus grand score | 100 points | libre |
+| Scrabble | plus grand score | à la demande | libre (une manche = un coup) |
+
+### Dés, extérieur, et le reste
+
+| Jeu | Vainqueur | Fin de partie | Total par manche |
+| --- | --- | --- | --- |
+| Yams / Yahtzee | plus grand score | à la demande | libre |
+| Pétanque (par équipes) | plus grand score | 13 points | libre (une manche = une mène) |
+| Mölkky | plus grand score | 50 points | libre, négatifs autorisés (le retour à 25) |
 | Jeu personnalisé | au choix | au choix | au choix |
 
 Chaque réglage reste modifiable au moment de créer la partie : les variantes de
@@ -54,7 +76,7 @@ table sont la règle, pas l'exception. Un total de manche inattendu est un
 
 ### Le compteur de cartes
 
-Quatre jeux se comptent carte par carte plutôt qu'en additionnant de tête. Le
+Cinq jeux se comptent pièce par pièce plutôt qu'en additionnant de tête. Le
 bouton 🂠 à côté de chaque joueur ouvre un compteur adapté au jeu :
 
 | Jeu | Ce qu'on touche | Interrupteurs |
@@ -63,6 +85,7 @@ bouton 🂠 à côté de chaque joueur ouvre un compteur adapté au jeu :
 | Skyjo | chaque carte restante devant soi, de -2 à 12 | score doublé |
 | Hearts / Cœurs | ♥, une fois par cœur ramassé | dame de pique, +13 |
 | 6 qui prend ! | la valeur en têtes de bœuf de chaque carte, 1 / 2 / 3 / 5 / 7 | — |
+| Rummikub | les tuiles restées sur le chevalet, joker compris | — |
 
 *Annuler la dernière* corrige une erreur de doigt, *Reporter le score* écrit le
 total dans la manche. Le compteur est une calculatrice : seul le total est

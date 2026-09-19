@@ -52,6 +52,29 @@ export const STRINGS = {
       'Touchez chaque carte restante devant vous. Une colonne de trois cartes identiques est retirée du jeu : ne la comptez pas.',
     'helper.skyjo.doubled': 'Score doublé (a fermé sans être le plus bas)',
     'helper.sixquiprend.hint': 'Touchez la valeur en têtes de bœuf de chaque carte ramassée.',
+    'group.cards': 'Jeux de cartes',
+    'group.tiles': 'Tuiles, lettres et dominos',
+    'group.dice': 'Jeux de dés',
+    'group.outdoor': 'Jeux d’extérieur',
+    'group.other': 'Autre',
+    'helper.rummikub.hint':
+      'Touchez chaque tuile restée sur votre chevalet. Le joker vaut 30. Le gagnant marque la somme des autres, en positif.',
+    'notes.skullking':
+      'Dix manches. Un contrat tenu rapporte 20 points par pli annoncé, un contrat manqué coûte 10 points par pli d’écart : les scores négatifs font partie du jeu.',
+    'notes.wizard':
+      'Le nombre de manches vaut 60 divisé par le nombre de joueurs — 20 à trois, 15 à quatre, 12 à cinq, 10 à six. Ajustez-le ci-dessous.',
+    'notes.canasta': 'Première équipe ou joueur à 5000 points. Les manches perdues peuvent être négatives.',
+    'notes.scopa': 'Un point par lot : cartes, deniers, le sette bello, la primiera, plus les scopas. Partie en 11 points (ou 21 selon la variante).',
+    'notes.cabo':
+      'La partie s’arrête quand quelqu’un atteint 100 points, et le plus petit total gagne. Certaines variantes ont des cartes négatives : elles sont autorisées ici.',
+    'notes.rummikub':
+      'Le perdant compte ses tuiles restantes en négatif, le gagnant marque la somme des autres : une manche s’équilibre donc à zéro.',
+    'notes.dominos': 'Le gagnant d’une manche marque les points restés dans les mains adverses. Partie en 100 points.',
+    'notes.scrabble':
+      'Une manche par tour de jeu : saisissez le score de chaque coup, l’appli tient le cumul. Terminez la partie à la main quand la pioche est épuisée.',
+    'notes.petanque': 'Une manche par mène : elle rapporte de 1 à 6 points à une seule équipe. Partie en 13 points.',
+    'notes.molkky':
+      'Il faut atteindre 50 points exactement : dépasser ramène à 25. Saisissez alors le retrait en négatif, c’est autorisé.',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -197,6 +220,29 @@ export const STRINGS = {
       'Tap each card still in front of you. A column of three identical cards is removed from play — do not count it.',
     'helper.skyjo.doubled': 'Score doubled (closed without being lowest)',
     'helper.sixquiprend.hint': 'Tap the bull-head value of each card you took.',
+    'group.cards': 'Card games',
+    'group.tiles': 'Tiles, letters and dominoes',
+    'group.dice': 'Dice games',
+    'group.outdoor': 'Outdoor games',
+    'group.other': 'Other',
+    'helper.rummikub.hint':
+      'Tap each tile left on your rack. The joker is worth 30. The winner scores the others\u2019 total, as a positive.',
+    'notes.skullking':
+      'Ten rounds. A bid met scores 20 points per trick bid; a bid missed costs 10 points per trick off — negative scores are part of the game.',
+    'notes.wizard':
+      'The number of rounds is 60 divided by the number of players — 20 at three, 15 at four, 12 at five, 10 at six. Adjust it below.',
+    'notes.canasta': 'First to 5000 points. A lost round can be negative.',
+    'notes.scopa': 'One point each for cards, coins, the sette bello and the primiera, plus every scopa. Game to 11 (or 21, depending on the variant).',
+    'notes.cabo':
+      'The game stops when someone reaches 100, and the lowest total wins. Some variants have negative cards: they are allowed here.',
+    'notes.rummikub':
+      'The loser counts the tiles left on their rack as a negative, and the winner scores the others\u2019 total — so a round adds up to zero.',
+    'notes.dominos': 'The winner of a round scores the pips left in the other hands. Game to 100.',
+    'notes.scrabble':
+      'One round per turn: enter each play\u2019s score and the app keeps the running total. Finish the game by hand when the bag is empty.',
+    'notes.petanque': 'One round per end, worth 1 to 6 points to a single team. Game to 13.',
+    'notes.molkky':
+      'You must reach exactly 50: going over sends you back to 25. Enter that drop as a negative, which is allowed.',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':

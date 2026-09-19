@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getPreset } from '../src/games.js';
+import { PRESETS, getPreset } from '../src/games.js';
 import {
   emptyHelperEntry,
   tapCard,
@@ -120,14 +120,24 @@ test('tapping never mutates the entry it was given', () => {
 });
 
 test('only the games whose score is a pile of cards carry a counter', () => {
-  for (const id of ['papayoo', 'hearts', 'skyjo', 'sixquiprend']) {
+  const withCounter = PRESETS.filter((preset) => preset.helper).map((preset) => preset.id).sort();
+  assert.deepEqual(withCounter, ['hearts', 'papayoo', 'rummikub', 'sixquiprend', 'skyjo']);
+
+  for (const id of ['papayoo', 'hearts', 'skyjo', 'sixquiprend', 'rummikub']) {
     const helper = getPreset(id).helper;
     assert.ok(helper, `${id} should have a counter`);
     assert.ok(['count', 'toggle'].includes(helper.mode), `${id}: mode`);
     assert.ok(helper.values.length, `${id}: values`);
     assert.ok(helper.hintKey, `${id}: needs a hint explaining what to tap`);
   }
-  for (const id of ['belote', 'tarot', 'uno', 'rummy', 'yams', 'millebornes', 'custom']) {
-    assert.equal(getPreset(id).helper, undefined, `${id} is scored some other way`);
+  for (const preset of PRESETS.filter((item) => !withCounter.includes(item.id))) {
+    assert.equal(preset.helper, undefined, `${preset.id} is scored some other way`);
   }
+});
+
+test('Rummikub counts the tiles left on a rack, joker included', () => {
+  const helper = getPreset('rummikub').helper;
+  const entry = [13, 13, 30, 7].reduce((acc, value) => tapCard(helper, acc, value), emptyHelperEntry());
+  assert.equal(helperTotal(helper, entry), 63);
+  assert.equal(helper.labels[30], 'Joker');
 });

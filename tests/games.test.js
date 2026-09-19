@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PRESETS, getPreset, presetConfig } from '../src/games.js';
+import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from '../src/games.js';
 import { t, setLanguage, LANGUAGES, detectLanguage } from '../src/i18n.js';
 
 test('every preset is coherent', () => {
@@ -16,6 +16,7 @@ test('every preset is coherent', () => {
     assert.ok(['low', 'high'].includes(preset.direction), `${preset.id}: direction`);
     assert.ok(['threshold', 'rounds', 'manual'].includes(preset.endMode), `${preset.id}: endMode`);
     assert.ok(['player', 'team'].includes(preset.entrantLabel), `${preset.id}: entrantLabel`);
+    assert.ok(PRESET_GROUPS.includes(preset.group), `${preset.id}: unknown group ${preset.group}`);
 
     if (preset.endMode === 'threshold') {
       assert.ok(Number.isFinite(preset.target), `${preset.id}: a threshold game needs a target`);
@@ -87,4 +88,28 @@ test('both dictionaries define exactly the same keys', async () => {
   const en = Object.keys(STRINGS.en).sort();
   assert.deepEqual(en.filter((key) => !STRINGS.fr[key]), [], 'keys only present in English');
   assert.deepEqual(fr.filter((key) => !STRINGS.en[key]), [], 'keys only present in French');
+});
+
+test('every group in the picker holds at least one game', () => {
+  for (const group of PRESET_GROUPS) {
+    const games = PRESETS.filter((preset) => preset.group === group);
+    assert.ok(games.length, `the "${group}" group would show up empty`);
+  }
+});
+
+test('a zero-sum game allows negative scores, or it could never be filled in', () => {
+  for (const preset of PRESETS) {
+    if (preset.roundSum === 0) {
+      assert.equal(preset.allowNegative, true, `${preset.id}: rounds add up to zero`);
+    }
+  }
+});
+
+test('a game whose rounds must add up cannot also be open-ended about it', () => {
+  for (const preset of PRESETS) {
+    if (Number.isFinite(preset.roundSum) && preset.roundSum > 0) {
+      assert.equal(preset.direction === 'low' || preset.direction === 'high', true);
+      assert.ok(preset.players[0] >= 2, `${preset.id}: a shared pot needs at least two players`);
+    }
+  }
 });

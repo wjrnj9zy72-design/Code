@@ -1,6 +1,6 @@
 /** UI layer: hash router, views, event wiring. */
 
-import { PRESETS, getPreset, presetConfig } from './games.js';
+import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
 import { createGame, addRound, updateRound, removeRound, setFinished, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
@@ -242,10 +242,16 @@ function newGameView() {
       <label>
         ${escapeHtml(t('new.game'))}
         <select id="preset">
-          ${PRESETS.map(
-            (item) =>
-              `<option value="${item.id}" ${item.id === presetId ? 'selected' : ''}>${escapeHtml(presetLabel(item))}</option>`,
-          ).join('')}
+          ${PRESET_GROUPS.map((group) => {
+            const games = PRESETS.filter((item) => item.group === group);
+            if (!games.length) return '';
+            return `<optgroup label="${escapeHtml(t(`group.${group}`))}">${games
+              .map(
+                (item) =>
+                  `<option value="${item.id}" ${item.id === presetId ? 'selected' : ''}>${escapeHtml(presetLabel(item))}</option>`,
+              )
+              .join('')}</optgroup>`;
+          }).join('')}
         </select>
       </label>
       <p class="notes">${escapeHtml(t(preset.notesKey))}</p>
