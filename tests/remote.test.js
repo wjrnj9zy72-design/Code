@@ -113,3 +113,31 @@ test('a share link points at that game on this same page', () => {
     'http://localhost:8080/index.html?x=1#/game/g_7',
   );
 });
+
+test('the project address is accepted in every form the settings page shows', async () => {
+  const { normaliseUrl } = await import('../src/remote.js');
+  const expected = 'https://abcdefgh.supabase.co';
+
+  for (const pasted of [
+    'https://abcdefgh.supabase.co',
+    'https://abcdefgh.supabase.co/',
+    'https://abcdefgh.supabase.co/rest/v1',
+    'https://abcdefgh.supabase.co/rest/v1/',
+    '  https://abcdefgh.supabase.co/rest/v1/  ',
+  ]) {
+    assert.equal(normaliseUrl(pasted), expected, `not handled: ${JSON.stringify(pasted)}`);
+  }
+});
+
+test('the REST endpoint form reaches the same function as the project url', async () => {
+  const seen = [];
+  const fetchImpl = async (url) => {
+    seen.push(url);
+    return { ok: true, status: 200, text: async () => 'null' };
+  };
+  for (const url of ['https://abcdefgh.supabase.co', 'https://abcdefgh.supabase.co/rest/v1/']) {
+    await createRemote({ url, key: 'k' }, fetchImpl).get('g_1');
+  }
+  assert.equal(seen[0], seen[1]);
+  assert.equal(seen[0], 'https://abcdefgh.supabase.co/rest/v1/rpc/marque_points_get');
+});

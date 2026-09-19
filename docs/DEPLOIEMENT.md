@@ -190,6 +190,10 @@ Dans la colonne de gauche, tout en bas : **Project Settings** (roue dentée) →
 - **Project URL** — ressemble à `https://abcdefgh.supabase.co`
 - **anon public** — une très longue chaîne commençant par `eyJ`
 
+Si la page vous montre plutôt l'adresse du point d'entrée REST,
+`https://abcdefgh.supabase.co/rest/v1`, ce n'est pas grave : l'app accepte les
+deux formes, avec ou sans barre oblique finale.
+
 Gardez les deux sous la main (Bloc-notes, par exemple).
 
 ⚠️ Ne copiez **jamais** la clé `service_role`, juste en dessous : celle-là donne
