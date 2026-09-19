@@ -463,3 +463,26 @@ table.scores .meta-cell { color: var(--muted); }
 
 /* The warning text is built with line breaks, which must survive. */
 .ask-message { white-space: pre-line; }
+
+/* ------------------------------------------------------------ tarot deal --- */
+.deal-result {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  font-variant-numeric: tabular-nums;
+}
+
+.deal-result--won { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); }
+.deal-result--lost { border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
+
+.deal-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.9rem;
+}
+
+.deal-scores b { font-weight: 600; }

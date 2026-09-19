@@ -16,6 +16,9 @@
  *   helper      an optional card counter for the round form; see src/helpers.js.
  *   group       how the game is filed in the picker: cards, tiles, dice,
  *               outdoor, other.
+ *   labelKey    for a preset whose name is a category rather than a game, the
+ *               translation key to show instead of `name`.
+ *   calculator  a dedicated entry screen instead of plain score boxes.
  */
 
 /** Skyjo's deck runs from -2 to 12. */
@@ -103,6 +106,7 @@ export const PRESETS = [
     allowNegative: true,
     entrantLabel: 'player',
     meta: null,
+    calculator: 'tarot',
     group: 'cards',
     notesKey: 'notes.tarot',
   },
@@ -366,8 +370,40 @@ export const PRESETS = [
     notesKey: 'notes.molkky',
   },
   {
+    id: 'president',
+    name: 'Président',
+    players: [3, 8],
+    direction: 'high',
+    endMode: 'threshold',
+    target: 10,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'cards',
+    notesKey: 'notes.president',
+  },
+  {
+    id: 'plateau',
+    name: 'plateau',
+    labelKey: 'new.boardLabel',
+    players: [1, 12],
+    direction: 'high',
+    endMode: 'manual',
+    target: null,
+    rounds: null,
+    roundSum: null,
+    allowNegative: true,
+    entrantLabel: 'player',
+    meta: null,
+    group: 'other',
+    notesKey: 'notes.plateau',
+  },
+  {
     id: 'custom',
     name: 'custom',
+    labelKey: 'new.customLabel',
     players: [1, 12],
     direction: 'low',
     endMode: 'manual',

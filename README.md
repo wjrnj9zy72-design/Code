@@ -23,11 +23,15 @@ manches, elle tient le classement.
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
   ajouter des manches — chaque écran se rafraîchit tout seul.
+- **Le Tarot se calcule tout seul** : preneur, contrat, bouts et points réalisés,
+  et l'appli en tire le score de chacun — en montrant son calcul, pour qu'il soit
+  vérifiable à la table.
 - **Compter les cartes au doigt** : pour les jeux dont le score est une pile de
   cartes, un compteur s'ouvre depuis la manche en cours. On touche les cartes
   ramassées, il fait la somme et reporte le score — plus d'addition de tête.
 - **Correction** : on clique sur une ligne du tableau pour modifier ou supprimer
-  une manche, et *Annuler la dernière manche* défait la saisie précédente.
+  une manche, *Annuler la dernière manche* défait la saisie précédente, et
+  *Renommer* corrige un nom mal saisi sans toucher aux scores.
 - **Ça marche sur téléphone**, hors ligne, en français ou en anglais, en thème
   clair ou sombre. Les parties sont enregistrées dans le navigateur, et
   exportables en JSON pour sauvegarder ou changer d'appareil.
@@ -52,6 +56,7 @@ manches, elle tient le classement.
 | Canasta | plus grand score | 5000 points | libre, négatifs autorisés |
 | Scopa | plus grand score | 11 points | libre |
 | Cabo / Dutch | plus petit score | 100 points | libre, négatifs autorisés |
+| Président | plus grand score | 10 points | libre, négatifs autorisés |
 
 ### Tuiles, lettres et dominos
 
@@ -68,6 +73,7 @@ manches, elle tient le classement.
 | Yams / Yahtzee | plus grand score | à la demande | libre |
 | Pétanque (par équipes) | plus grand score | 13 points | libre (une manche = une mène) |
 | Mölkky | plus grand score | 50 points | libre, négatifs autorisés (le retour à 25) |
+| Jeu de plateau | plus grand score | à la demande | libre (une manche = une partie) |
 | Jeu personnalisé | au choix | au choix | au choix |
 
 Chaque réglage reste modifiable au moment de créer la partie : les variantes de
@@ -91,10 +97,15 @@ bouton 🂠 à côté de chaque joueur ouvre un compteur adapté au jeu :
 total dans la manche. Le compteur est une calculatrice : seul le total est
 enregistré, pas le détail des cartes.
 
-Les autres jeux gardent la saisie directe, parce que leur score ne se compte pas
-en tapant des cartes : le Tarot se calcule à partir du contrat et des bouts, la
-belote mêle les plis et les annonces, Uno et le Rami dépendent des cartes qui
-restent en main.
+Le **Tarot**, lui, ne se compte pas : il se calcule. Son écran demande le
+preneur, le contrat, les bouts et les points réalisés, puis applique la formule
+de la fédération — `(25 + écart + petit au bout) × multiplicateur`, la poignée
+et le chelem venant après la multiplication — et répartit le résultat entre le
+preneur, son appelé éventuel et la défense. Le détail du calcul est affiché,
+parce qu'une calculatrice invérifiable ne vaut rien à une table de jeu.
+
+Les autres jeux gardent la saisie directe : la belote mêle les plis et les
+annonces, Uno et le Rami dépendent des cartes restées dans la main des autres.
 
 ## Utiliser l'appli
 
@@ -153,6 +164,7 @@ index.html        coquille de la page
 styles.css        thème clair/sombre, mise en page mobile d'abord
 src/games.js      définition des jeux (presets) et de leurs compteurs
 src/helpers.js    arithmétique du compteur de cartes
+src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)
