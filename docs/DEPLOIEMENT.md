@@ -98,18 +98,74 @@ Ne copiez **jamais** la clé `service_role` : celle-là donne tous les droits.
 
 ## 3. Vérifier avant de publier
 
-Sur votre ordinateur, dans le dossier du projet :
+Il s'agit de s'assurer que le script SQL a bien pris avant d'aller plus loin —
+sinon l'erreur ne se manifestera qu'au milieu d'une partie.
+
+### Avec le dossier du projet et Node.js
+
+Si vous avez récupéré le projet (l'archive `marque-points-source.zip`, ou
+`git clone`) et que Node.js est installé :
 
 ```bash
+cd ~/Downloads/marque-points          # là où vous avez décompressé le dossier
 node tools/check-remote.js https://abcdefgh.supabase.co eyJ…
 ```
 
-Il écrit une partie de test, la relit, la supprime, et vous dit ce qui cloche le
-cas échéant. Ne passez à la suite que si les cinq lignes sont au vert.
+Astuce : dans le Terminal, tapez `cd ` puis **faites glisser le dossier** sur la
+fenêtre — le chemin s'écrit tout seul. Et `node --version` vous dit si Node est
+installé ; sinon, la version LTS se prend sur [nodejs.org](https://nodejs.org).
+
+Le script écrit une partie de test, la relit, la supprime, et vous dit ce qui
+cloche le cas échéant. Ne passez à la suite que si les cinq lignes sont vertes.
+
+### Sans rien installer
+
+`curl` est déjà présent sur macOS et Linux. Ouvrez le Terminal et lancez ces
+quatre commandes l'une après l'autre, en remplaçant l'URL et la clé :
+
+```bash
+URL=https://abcdefgh.supabase.co
+KEY=eyJ…
+
+# 1. écrire une partie de test  → doit répondre HTTP 204
+curl -s -X POST "$URL/rest/v1/rpc/marque_points_put" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"p_id":"test_marque_points","p_data":{"id":"test_marque_points","ok":true}}' \
+  -w "\nHTTP %{http_code}\n"
+
+# 2. la relire  → doit afficher {"id":"test_marque_points","ok":true} et HTTP 200
+curl -s -X POST "$URL/rest/v1/rpc/marque_points_get" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"p_id":"test_marque_points"}' -w "\nHTTP %{http_code}\n"
+
+# 3. la supprimer  → HTTP 204
+curl -s -X POST "$URL/rest/v1/rpc/marque_points_delete" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"p_id":"test_marque_points"}' -w "\nHTTP %{http_code}\n"
+
+# 4. vérifier qu'elle a disparu  → doit afficher null
+curl -s -X POST "$URL/rest/v1/rpc/marque_points_get" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"p_id":"test_marque_points"}' -w "\nHTTP %{http_code}\n"
+```
+
+Ce que les réponses veulent dire :
+
+| Réponse | Ce qui se passe |
+| --- | --- |
+| `204` puis la partie relue | tout va bien |
+| `401` — *Invalid API key* | la clé n'est pas la bonne : reprenez la clé **anon public** |
+| `404` — *Could not find the function* | le script SQL n'a pas été exécuté, ou pas en entier |
+| aucune réponse | l'URL du projet est fausse, ou le projet est en veille : relancez |
 
 ## 4. Brancher l'app
 
-Ouvrez `src/config.js` et collez vos deux valeurs :
+Cette étape demande le dossier du projet sur votre ordinateur. Si vous ne l'avez
+pas encore : décompressez `marque-points-source.zip` (double-clic), ou, une fois
+connecté au bon compte GitHub, `git clone` le dépôt.
+
+Ouvrez `src/config.js` dans n'importe quel éditeur de texte et collez vos deux
+valeurs :
 
 ```js
 export const REMOTE = {
@@ -124,6 +180,10 @@ Puis enregistrez et envoyez :
 npm run bundle          # reconstruit le fichier autonome avec la configuration
 git add -A && git commit -m "Brancher la base partagée" && git push
 ```
+
+`npm run bundle` demande Node.js. Sans lui, poussez simplement `src/config.js` :
+la version servie en ligne lit ce fichier directement, seul le fichier autonome
+`dist/marque-points.html` resterait sans la configuration.
 
 ## 5. Publier l'app
 
