@@ -19,10 +19,11 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
-- **Parties partagées** : branchée sur une base (voir
+- **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
-  ajouter des manches — chaque écran se rafraîchit tout seul.
+  ajouter des manches — chaque écran se rafraîchit tout seul. Rien ne quitte
+  l'appareil tant que personne n'a appuyé sur *Partager*.
 - **Le Tarot se calcule tout seul** : preneur, contrat, bouts et points réalisés,
   et l'appli en tire le score de chacun — en montrant son calcul, pour qu'il soit
   vérifiable à la table.
@@ -229,10 +230,15 @@ réimportable (ou, là où l'hôte interdit les téléchargements, le même text
 copier).
 
 - **Et, si elle est configurée** (`src/config.js`), dans une base partagée que
-  vous hébergez. C'est ce qui permet le bouton *Partager* : le lien d'une partie
-  l'ouvre chez quelqu'un d'autre. Laissée vide, l'appli n'envoie rien nulle part.
-  La marche à suivre est dans [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), y
-  compris ce que ce partage implique.
+  vous hébergez — mais **seulement pour les parties effectivement partagées**.
+  Une partie reste sur l'appareil jusqu'à ce que quelqu'un appuie sur *Partager*,
+  ce qui l'envoie et donne un lien qui l'ouvre ailleurs. Une case dans la section
+  *Données* permet à un appareil d'envoyer toutes ses nouvelles parties
+  d'emblée : c'est pratique pour qui héberge la base, et décoché par défaut pour
+  tous les autres. `src/config.js` laissée vide, l'appli n'envoie rien nulle
+  part. La marche à suivre est dans
+  [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), y compris ce que ce partage
+  implique.
 
 ---
 

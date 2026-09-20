@@ -234,3 +234,21 @@ test('a game id is unguessable, because a share link is made of it', () => {
     ids.add(id);
   }
 });
+
+test('a new game keeps to itself unless it is meant to be shared', async () => {
+  const { setShared } = await import('../src/model.js');
+
+  const mine = createGame({ presetId: 'papayoo', names: ['A', 'B', 'C'] });
+  assert.equal(mine.shared, false, 'nothing leaves the device by default');
+
+  const chosen = createGame({ presetId: 'papayoo', names: ['A', 'B', 'C'], shared: true });
+  assert.equal(chosen.shared, true, 'a device can choose to send everything');
+
+  const nowShared = setShared(mine, true);
+  assert.equal(nowShared.shared, true);
+  assert.notEqual(nowShared.updatedAt, undefined);
+  assert.equal(mine.shared, false, 'the original is left alone');
+  assert.equal(setShared(nowShared, true), nowShared, 'sharing twice changes nothing');
+  assert.equal(setShared(nowShared, false).shared, false);
+  assert.equal(isValidGame(nowShared), true);
+});

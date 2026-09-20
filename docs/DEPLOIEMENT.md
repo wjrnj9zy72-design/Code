@@ -260,6 +260,11 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
 
 ## Ce que ce montage implique
 
+- **Rien ne part tout seul.** Une partie reste sur l'appareil qui l'a créée
+  jusqu'à ce que quelqu'un appuie sur *Partager* — y compris chez les personnes
+  à qui vous donnez l'adresse de l'app. Si vous hébergez la base, cochez
+  *Envoyer mes nouvelles parties dans la base partagée* dans la section
+  **Données** : vos appareils à vous enverront tout d'emblée, les autres non.
 - **Qui a le lien a tous les droits** sur cette partie : la lire, y ajouter des
   manches, la supprimer. Il n'y a ni compte ni mot de passe — le lien *est* la
   clé, comme un document partagé « par lien ».
