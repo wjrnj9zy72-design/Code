@@ -129,7 +129,7 @@ export const STRINGS = {
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
     'groups.keepKey':
-      'Gardez la clé de votre groupe quelque part — le bouton « Voir la clé » ci-dessous — : c’est elle qui vous fait revenir tout seul après avoir réinstallé l’app, sans avoir à être réinvité ni accepté.',
+      'Chaque appareil a sa propre clé. Gardez la vôtre quelque part — le bouton « Voir ma clé » ci-dessous : c’est elle qui vous fait revenir tout seul après avoir réinstallé l’app, sans avoir à être réinvité ni accepté.',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
     'groups.standaloneNew':
       'Cette app posée sur l’écran d’accueil est une installation à part de Safari : elle a son propre stockage, et doit entrer dans le groupe de son côté. Le plus simple, sur votre propre téléphone : collez la clé du groupe ci-dessous. Sinon, demandez à entrer, et acceptez depuis Safari.',
@@ -173,12 +173,16 @@ export const STRINGS = {
     'groups.catchUp': 'Tout récupérer',
     'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
     'groups.upToDate': 'Rien de nouveau : cet appareil est à jour.',
-    'groups.showKey': 'Voir la clé',
+    'groups.showKey': 'Voir ma clé',
     'groups.confirmShowKey':
-      'Afficher la clé de {name} ? Elle fait entrer n’importe quel appareil où elle est collée — gardez-la pour vous.',
-    'groups.keyTitle': 'La clé de {name}',
+      'Afficher la clé de cet appareil pour {name} ? Elle y fait entrer n’importe quel appareil où elle est collée — gardez-la pour vous.',
+    'groups.keyTitle': 'La clé de cet appareil, pour {name}',
     'groups.keyWarning':
-      'À garder en lieu sûr : un gestionnaire de mots de passe, par exemple. C’est avec elle qu’un de vos appareils revient dans le groupe sans invitation — après avoir réinstallé l’app, ou sur un téléphone neuf. Ne l’envoyez à personne : qui la colle entre.',
+      'Chaque appareil du groupe a sa propre clé ; celle-ci est la vôtre. À garder en lieu sûr — un gestionnaire de mots de passe — car c’est avec elle que cet appareil revient dans le groupe sans invitation, après une réinstallation ou sur un téléphone neuf. Ne l’envoyez à personne : qui la colle entre.',
+    'groups.keyAdmits':
+      'Celle-ci, en plus, fait entrer : c’est elle qui accepte les demandes. La donner, c’est donner la porte.',
+    'groups.keyPlain':
+      'Celle-ci voit et partage, mais ne fait entrer personne : elle ne peut accepter aucune demande.',
     'groups.leave': 'Quitter',
     'groups.confirmLeave':
       'Quitter ce groupe sur cet appareil ? Ce qui est déjà ici y reste, mais vous ne pourrez plus rien y partager ni récupérer sans recoller la clé.',
@@ -230,6 +234,14 @@ export const STRINGS = {
     'gate.thisDevice': 'cet appareil',
     'gate.admitsToo': 'fait entrer',
     'gate.unnamedDevice': 'appareil sans nom',
+    'gate.giveAdmits': 'Peut faire entrer',
+    'gate.dropAdmits': 'Ne plus faire entrer',
+    'gate.confirmGiveAdmits':
+      'Cet appareil pourra accepter les demandes et couper les autres, comme le vôtre. À réserver à quelqu’un avec qui vous tenez la porte à deux.',
+    'gate.confirmDropAdmits':
+      'Retirer à cet appareil le droit de faire entrer ? Il continuera de voir et de partager.',
+    'gate.gaveAdmits': 'C’est fait : cet appareil peut désormais faire entrer.',
+    'gate.droppedAdmits': 'C’est fait : cet appareil ne fait plus entrer.',
     'gate.cut': 'Couper',
     'gate.confirmCut':
       'Couper cet appareil ? Il ne verra plus rien de nouveau et ne pourra plus rien partager ici. Ce qu’il a déjà récupéré reste chez lui.',
@@ -352,6 +364,12 @@ export const STRINGS = {
     'stats.average': 'Moyenne',
     'stats.best': 'Meilleur',
     'stats.empty': 'Jouez une première partie et les statistiques apparaîtront ici.',
+    'stats.rename': 'Renommer partout',
+    'stats.renameTitle': 'Renommer ce joueur dans toutes les parties',
+    'stats.renameHint':
+      'Les statistiques regroupent les joueurs par prénom. Si {name} a été écrit autrement ailleurs — ou a changé —, renommez-le ici : toutes les parties où il apparaît suivent, et les lignes se réunissent.',
+    'stats.renamed': '{name} : {count} partie(s) renommée(s).',
+    'stats.renamedNone': 'Rien à renommer.',
     'stats.note':
       'Les joueurs sont reconnus par leur nom, et les totaux comparés jeu par jeu. Seules les parties terminées comptent une victoire.',
     'share.qrLabel': 'Code QR du lien, à scanner',
@@ -685,12 +703,16 @@ export const STRINGS = {
     'groups.catchUp': 'Fetch everything',
     'groups.caughtUp': '{count} item(s) fetched from the group.',
     'groups.upToDate': 'Nothing new: this device is up to date.',
-    'groups.showKey': 'Show the key',
+    'groups.showKey': 'Show my key',
     'groups.confirmShowKey':
-      'Show the key to {name}? It lets in any device it is pasted into — keep it to yourself.',
-    'groups.keyTitle': 'The key to {name}',
+      'Show this device\'s key for {name}? It lets in any device it is pasted into — keep it to yourself.',
+    'groups.keyTitle': 'This device\'s key, for {name}',
     'groups.keyWarning':
-      'Keep it somewhere safe, a password manager for instance. It is what brings one of your own devices back into the group with no invitation — after reinstalling the app, or on a new phone. Send it to nobody: whoever pastes it is in.',
+      'Every device in the group has its own key; this one is yours. Keep it somewhere safe — a password manager — because it is what brings this device back into the group with no invitation, after reinstalling or on a new phone. Send it to nobody: whoever pastes it is in.',
+    'groups.keyAdmits':
+      'This one also lets people in: it is the key that accepts requests. Giving it away is giving away the door.',
+    'groups.keyPlain':
+      'This one sees and shares, but lets nobody in: it cannot accept any request.',
     'groups.leave': 'Leave',
     'groups.confirmLeave':
       'Leave this group on this device? What is already here stays, but you will not be able to share or fetch anything there without pasting the key again.',
@@ -739,6 +761,14 @@ export const STRINGS = {
     'gate.thisDevice': 'this device',
     'gate.admitsToo': 'lets people in',
     'gate.unnamedDevice': 'unnamed device',
+    'gate.giveAdmits': 'May let people in',
+    'gate.dropAdmits': 'No longer lets people in',
+    'gate.confirmGiveAdmits':
+      'This device will be able to accept requests and cut others off, like yours. Keep it for someone you hold the door with.',
+    'gate.confirmDropAdmits':
+      'Take away this device\'s right to let people in? It will go on seeing and sharing.',
+    'gate.gaveAdmits': 'Done: that device can let people in now.',
+    'gate.droppedAdmits': 'Done: that device no longer lets people in.',
     'gate.cut': 'Cut off',
     'gate.confirmCut':
       'Cut this device off? It will see nothing new and share nothing here. What it already has stays with it.',
@@ -859,6 +889,12 @@ export const STRINGS = {
     'stats.average': 'Average',
     'stats.best': 'Best',
     'stats.empty': 'Play a first game and the statistics will appear here.',
+    'stats.rename': 'Rename everywhere',
+    'stats.renameTitle': 'Rename this player in every game',
+    'stats.renameHint':
+      'The statistics gather players by first name. If {name} was written differently elsewhere — or has changed — rename them here: every game they appear in follows, and the lines come together.',
+    'stats.renamed': '{name}: {count} game(s) renamed.',
+    'stats.renamedNone': 'Nothing to rename.',
     'stats.note':
       'Players are matched by name, and totals compared game by game. Only finished games count a win.',
     'share.qrLabel': 'QR code of the link, to scan',

@@ -935,6 +935,55 @@ begin
 end;
 $$;
 
+-- Désigner l'appareil qui fait entrer, depuis l'app plutôt que d'ici. Il faut
+-- déjà faire entrer soi-même pour l'accorder ou le retirer — sinon n'importe quel
+-- appareil se donnerait la porte — et la dernière clé qui admet ne se retire pas.
+create or replace function public.marque_points_set_admits(p_key text, p_id text, p_allow boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_admits boolean;
+  v_left integer;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  select k.admits into v_admits
+    from public.marque_points_group_key k
+   where k.id = coalesce(p_id, '') and k.group_id = v_group
+     for update;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  if v_admits = coalesce(p_allow, false) then
+    return jsonb_build_object('status', 'ok');
+  end if;
+
+  if not coalesce(p_allow, false) then
+    select count(*) into v_left
+      from public.marque_points_group_key k
+     where k.group_id = v_group and k.admits;
+    if v_left <= 1 then
+      return jsonb_build_object('status', 'last');
+    end if;
+  end if;
+
+  update public.marque_points_group_key
+     set admits = coalesce(p_allow, false)
+   where id = p_id and group_id = v_group;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- Couper un appareil, depuis l'app. La dernière clé qui admet ne se coupe pas :
 -- le groupe n'aurait plus de portier, et plus personne n'y entrerait jamais.
 create or replace function public.marque_points_cut_key(p_key text, p_id text)
@@ -1001,6 +1050,7 @@ grant execute on function public.marque_points_requests(text) to anon, authentic
 grant execute on function public.marque_points_answer(text, text, boolean) to anon, authenticated;
 grant execute on function public.marque_points_group_keys(text) to anon, authenticated;
 grant execute on function public.marque_points_cut_key(text, text) to anon, authenticated;
+grant execute on function public.marque_points_set_admits(text, text, boolean) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
@@ -1200,8 +1250,12 @@ select id, label, admits, created_at from public.marque_points_group_key
 delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
 ```
 
-Pour désigner une autre clé comme celle qui fait entrer — un deuxième appareil à
-vous, par exemple :
+**Pour désigner qui fait entrer, l'app suffit** : Aperçu → le groupe → *Qui est
+dans le groupe* → **Peut faire entrer** sur la ligne voulue, et **Ne plus faire
+entrer** pour le retirer. Il faut faire entrer soi-même pour l'accorder, et la
+dernière clé qui admet ne se retire pas.
+
+Depuis l'éditeur SQL, si vous préférez :
 
 ```sql
 update public.marque_points_group_key set admits = true where id = 'ID_DE_LA_LIGNE';
@@ -1467,6 +1521,19 @@ bougent pas, et les autres continuent de se synchroniser entre eux pendant ce
 temps. Il n'y a que **votre** installation à faire rentrer, et le plus court est
 de recoller la clé.
 
+**Peut-on voir la clé de quelqu'un d'autre ? Non, et personne ne peut** — pas même
+vous, qui hébergez la base. Une clé n'y est jamais écrite : la table ne garde
+qu'une **empreinte salée** (`key_hash`), de quoi reconnaître la bonne clé sans
+pouvoir la reconstituer. Ce que vous voyez d'un appareil, dans *Qui est dans le
+groupe*, c'est son étiquette — le prénom donné à la porte, d'où il vient, quand il
+est arrivé — et le bouton pour le couper. Jamais son secret.
+
+Donc : **une clé ne se retrouve pas, elle se remplace.** Sur l'appareil qui la
+détient encore, *Voir la clé* la relit depuis son propre stockage ; ailleurs, la
+seule voie est une nouvelle invitation. C'est voulu : si la base pouvait rendre
+les clés, un accès à la base suffirait pour se faire passer pour n'importe quel
+appareil du groupe.
+
 Pour l'avoir sous la main : dans *Mes groupes*, **Voir la clé** l'affiche depuis un
 appareil qui la détient — à garder dans un gestionnaire de mots de passe. C'est
 elle qui fait revenir un de vos appareils sans invitation ni acceptation ; ne
@@ -1486,9 +1553,52 @@ porter : une ligne de plus dans *Qui est dans le groupe*, que vous pouvez
 **Couper** sans rien déranger. C'est d'ailleurs le bon réflexe si un téléphone est
 perdu.
 
-Et la clé qu'ils gardent est **la leur** : une clé ordinaire, qui voit et partage
-mais ne fait entrer personne. Ne leur donnez jamais la vôtre — celle qui fait
-entrer — sinon ils pourraient accepter qui ils veulent.
+**Le prénom n'ouvre rien.** Ce qui ramène les données, c'est d'appartenir au
+groupe : tout ce qui y est partagé est rangé sous le groupe, pas sous une
+personne, et un appareil qui revient reçoit l'ensemble — quel que soit le prénom
+qu'il a donné. Revenir sous « Alexandre » plutôt que « Alex » ne fait rien perdre.
+
+Le prénom sert à trois choses, et ce sont trois commodités : il **étiquette la
+clé** (c'est ce qui vous fait reconnaître la ligne dans *Qui est dans le groupe*),
+il est **proposé en premier** dans les listes, sondages et parties créés sur cet
+appareil, et il s'affiche quand quelqu'un frappe.
+
+**Les parties, elles, méritent une précision.** À l'intérieur d'une partie, les
+scores suivent le joueur de cette partie-là, pas un prénom : la partie revient
+entière, avec ses noms et ses points. Mais les **statistiques** traversent les
+parties, et là il n'y a que le prénom pour dire qu'« Alice » de janvier et
+« Alice » de mars sont la même personne.
+
+L'app est donc indulgente sur l'orthographe — majuscules, accents et espaces sont
+ignorés, `alice`, `Alice` et `  ALICE ` ne font qu'une ligne, affichée comme elle
+a été écrite la dernière fois. Deux prénoms différents restent deux personnes :
+« Alex » n'est pas « Alexandre », et l'app n'a pas à le deviner.
+
+Si quelqu'un revient sous un autre prénom, la réunion se fait d'une touche :
+onglet **Parties → Statistiques**, le crayon à côté du nom, **Renommer partout**.
+Toutes les parties où il apparaît suivent, et les deux lignes n'en font plus
+qu'une. Rien n'est perdu entre-temps — juste deux lignes au lieu d'une.
+
+Dans une liste, les personnes sont des lignes du document lui-même — « Alex » et
+ce qui lui est attribué appartiennent à la liste, pas à son téléphone. Elles sont
+donc toujours là quand il revient, et il retrouve ses lignes en touchant sa
+pastille. Reprendre le même prénom est donc une affaire de **propreté**, pas de
+récupération : sinon vous risquez juste de voir « Alex » et « Alexandre » cohabiter
+avec le temps — et là, renommer la personne dans la liste suffit.
+
+**Chaque appareil a sa propre clé, et ce ne sont pas les mêmes.** C'est le point à
+retenir : quand vous acceptez quelqu'un, le jeton *de son appareil* devient *sa*
+clé — la vôtre ne bouge pas et ne lui est jamais montrée. Sa clé à lui voit et
+partage, mais **ne fait entrer personne** : la base refuse (« cette cle ne fait pas
+entrer ») s'il essaie de lire les demandes, d'accepter, de lister les appareils ou
+d'en couper un. *Voir ma clé*, sur son téléphone, lui montre la sienne, et le
+dialogue le lui dit en clair.
+
+La seule façon pour quelqu'un d'autre de pouvoir accepter du monde serait que vous
+lui donniez **votre** clé, celle qu'a affichée l'éditeur SQL. Ne la donnez à
+personne : la donner, c'est donner la porte. (Si c'est délibéré — un deuxième
+adulte de la maison qui doit pouvoir accepter —, l'étape 4 montre comment
+désigner une autre clé, ce qui vaut mieux que de partager la vôtre.)
 
 > ⚠️ Avant de retirer l'app, deux précautions : **récupérez** (⟳) ou **exportez**
 > (*Données*) ce qui n'a jamais été partagé, car cela n'existe que là ; et

@@ -182,6 +182,20 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     },
 
     /**
+     * Let a device let people in, or stop it. Returns 'ok' | 'last' | 'unknown'
+     * — 'last' when it would leave the group with nobody to accept anyone.
+     */
+    async setAdmits(key, id, allow) {
+      const answer = await call('marque_points_set_admits', {
+        p_key: key,
+        p_id: id,
+        p_allow: Boolean(allow),
+      });
+      const status = answer?.status;
+      return status === 'ok' || status === 'last' ? status : 'unknown';
+    },
+
+    /**
      * Cut one device off. Returns 'ok' | 'last' | 'unknown' — 'last' being the
      * one key that lets people in, which the database refuses to remove.
      */

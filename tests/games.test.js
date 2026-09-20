@@ -123,3 +123,25 @@ test('a game whose rounds must add up cannot also be open-ended about it', () =>
     }
   }
 });
+
+test('statistics gather one person written two ways, and keep their last spelling', async () => {
+  const { statsFor, sameName } = await import('../src/stats.js');
+  const { createGame, addRound } = await import('../src/model.js');
+
+  assert.equal(sameName('  ALICE '), sameName('alice'));
+  assert.equal(sameName('Alìce'), sameName('Alice'), 'accents are not two people');
+  assert.notEqual(sameName('Alex'), sameName('Alexandre'), 'two names stay two people');
+
+  const play = (names, at) => {
+    let game = createGame({ presetId: 'papayoo', names });
+    game = addRound(game, Object.fromEntries(game.players.map((player, index) => [player.id, 10 * (index + 1)])));
+    return { ...game, updatedAt: at };
+  };
+
+  // The same two people, typed differently on two evenings.
+  const rows = statsFor([play(['alice', 'bob'], 1), play(['  Alice', 'Bob'], 2)], 'papayoo');
+  assert.equal(rows.length, 2, 'two people, not four');
+  const alice = rows.find((row) => sameName(row.name) === 'alice');
+  assert.equal(alice.played, 2);
+  assert.equal(alice.name, 'Alice', 'shown as it was written last, trimmed by the game');
+});
