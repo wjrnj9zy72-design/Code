@@ -248,6 +248,14 @@ textarea { min-height: 66px; resize: vertical; }
 
 .stack--tight { gap: 8px; }
 
+/* A way in that most people never need, folded away until they do. */
+.details { font-size: 0.9rem; }
+.details summary { padding: 6px 0; color: var(--muted); cursor: pointer; }
+.details .row { margin-top: 6px; }
+
+/* The code field beside the group's name: narrow enough to sit next to it. */
+#group-code { max-width: 7.5em; }
+
 /* A long list of games scrolls, rather than pushing the buttons off-screen. */
 #share-pick { max-height: 38vh; overflow-y: auto; }
 
