@@ -718,6 +718,20 @@ function describeIssue(issue) {
 }
 
 /**
+ * A dialog made for one use. It takes itself off the page when it closes —
+ * including when Escape closes it, which is the case that otherwise leaves
+ * orphans behind: duplicate ids, and radio buttons quietly sharing a group
+ * with the dialog opened before them.
+ */
+function makeDialog(className = 'dialog') {
+  const dialog = document.createElement('dialog');
+  dialog.className = className;
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.append(dialog);
+  return dialog;
+}
+
+/**
  * Ask a yes/no question.
  *
  * Not the browser's own confirm dialog: a sandboxed page — the app embedded
@@ -727,8 +741,7 @@ function describeIssue(issue) {
  */
 function ask(message, { confirmLabel, danger = false } = {}) {
   return new Promise((resolve) => {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'dialog dialog--ask';
+    const dialog = makeDialog('dialog dialog--ask');
     dialog.innerHTML = `
       <div class="stack">
         <p class="ask-message"></p>
@@ -748,7 +761,6 @@ function ask(message, { confirmLabel, danger = false } = {}) {
       settled = true;
       resolve(answer);
       dialog.close();
-      dialog.remove();
     };
 
     dialog.querySelector('[data-answer="yes"]').addEventListener('click', () => finish(true));
@@ -756,7 +768,6 @@ function ask(message, { confirmLabel, danger = false } = {}) {
     // Escape, or a close from anywhere else, means no.
     dialog.addEventListener('close', () => finish(false));
 
-    document.body.append(dialog);
     dialog.showModal();
     dialog.querySelector('[data-answer="no"]').focus();
   });
@@ -948,8 +959,7 @@ function importGames(source) {
  * games move from one to the other.
  */
 function openPasteDialog() {
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dialog';
+  const dialog = makeDialog();
   dialog.innerHTML = `
     <div class="stack">
       <h2>${escapeHtml(t('paste.title'))}</h2>
@@ -961,9 +971,8 @@ function openPasteDialog() {
         <button type="button" class="button" id="paste-cancel">${escapeHtml(t('action.cancel'))}</button>
       </div>
     </div>`;
-  document.body.append(dialog);
 
-  const close = () => { dialog.close(); dialog.remove(); };
+  const close = () => dialog.close();
   dialog.querySelector('#paste-cancel').addEventListener('click', close);
   dialog.querySelector('#paste-import').addEventListener('click', () => {
     const value = dialog.querySelector('#paste-text').value.trim();
@@ -992,8 +1001,7 @@ function openPasteDialog() {
  * which has no address bar of its own.
  */
 function openLinkDialog() {
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dialog';
+  const dialog = makeDialog();
   dialog.innerHTML = `
     <div class="stack">
       <h2>${escapeHtml(t('openLink.title'))}</h2>
@@ -1005,9 +1013,8 @@ function openLinkDialog() {
         <button type="button" class="button" id="link-cancel">${escapeHtml(t('action.cancel'))}</button>
       </div>
     </div>`;
-  document.body.append(dialog);
 
-  const close = () => { dialog.close(); dialog.remove(); };
+  const close = () => dialog.close();
   const fail = (message) => {
     const error = dialog.querySelector('#link-error');
     error.textContent = message;
@@ -1083,8 +1090,16 @@ function lots() {
   return Array.isArray(value) ? value.filter((lot) => lot && typeof lot.id === 'string') : [];
 }
 
+/**
+ * Remembered shares are kept generously: the entry is the only record of a
+ * lot's id and its code, so dropping one leaves a live share that can never be
+ * read again nor revoked. Two hundred of them weigh some twenty kilobytes, and
+ * nobody shares two hundred times.
+ */
+const LOTS_KEPT = 200;
+
 function rememberLot(lot) {
-  state.prefs = { ...state.prefs, lots: [lot, ...lots()].slice(0, 30) };
+  state.prefs = { ...state.prefs, lots: [lot, ...lots()].slice(0, LOTS_KEPT) };
   savePrefs(state.prefs);
 }
 
@@ -1131,8 +1146,7 @@ function openShareAppDialog() {
   }
 
   const off = key ? '' : ' disabled';
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dialog';
+  const dialog = makeDialog();
   dialog.innerHTML = `
     <div class="stack">
       <h2>${escapeHtml(t('shareApp.title'))}</h2>
@@ -1173,9 +1187,8 @@ function openShareAppDialog() {
         <button type="button" class="button" id="share-cancel">${escapeHtml(t('action.cancel'))}</button>
       </div>
     </div>`;
-  document.body.append(dialog);
 
-  const close = () => { dialog.close(); dialog.remove(); };
+  const close = () => dialog.close();
   const button = dialog.querySelector('#share-make');
   const error = dialog.querySelector('#share-error');
   const kind = () => dialog.querySelector('input[name="share-kind"]:checked').value;
@@ -1225,6 +1238,10 @@ function openShareAppDialog() {
     const code = newCode();
     const ids = chosen.map((game) => game.id);
     try {
+      // The key first, and only then the games: a key the database no longer
+      // recognises must not cost an evening its privacy on the way to being
+      // told so.
+      if (!(await state.remote.isOwner(key))) return fail(t('shareApp.badKey'));
       // Sealed where the browser can: then the stored lot holds no game
       // identifier at all, only their encrypted form.
       const contents = canSeal() ? { sealed: await seal(ids, code) } : { ids };
@@ -1287,11 +1304,8 @@ async function shareGames(games) {
  * taken back — by its author, and by nobody else.
  */
 function openMySharesDialog() {
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dialog';
-  document.body.append(dialog);
-
-  const close = () => { dialog.close(); dialog.remove(); };
+  const dialog = makeDialog();
+  const close = () => dialog.close();
 
   const draw = () => {
     const mine = lots();
@@ -1381,8 +1395,7 @@ function openMySharesDialog() {
  */
 function askLotCode(id) {
   return new Promise((resolve) => {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'dialog dialog--ask';
+    const dialog = makeDialog('dialog dialog--ask');
     dialog.innerHTML = `
       <div class="stack">
         <h2>${escapeHtml(t('shareSet.codeTitle'))}</h2>
@@ -1395,11 +1408,13 @@ function askLotCode(id) {
           <button type="button" class="button" id="lot-cancel">${escapeHtml(t('action.cancel'))}</button>
         </div>
       </div>`;
-    document.body.append(dialog);
 
     const button = dialog.querySelector('#lot-open');
     const error = dialog.querySelector('#lot-error');
-    const done = (value) => { dialog.close(); dialog.remove(); resolve(value); };
+    const done = (value) => { resolve(value); dialog.close(); };
+    // Escape closes a dialog without asking anyone: whoever is waiting on this
+    // promise must be told, or the view stays on "fetching" for good.
+    dialog.addEventListener('close', () => resolve(null));
     const fail = (message) => {
       error.textContent = message;
       error.hidden = false;
@@ -1465,9 +1480,9 @@ async function openSet(id) {
   const ids = await askLotCode(id);
   if (!ids) return;
 
-  for (const gameId of ids) {
-    if (!getGame(gameId)) await pullGame(gameId);
-  }
+  // Every game, even one already here: the point of a lot re-shared is to
+  // bring the rounds played since, and pullGame merges rather than replaces.
+  for (const gameId of ids) await pullGame(gameId);
 
   const held = ids.filter((gameId) => getGame(gameId)).length;
   if (!held) {
@@ -2002,8 +2017,7 @@ function reportFor(game) {
 
 /** Fix a mistyped name, mid-game, without touching a single score. */
 function openRenameDialog(game) {
-  const dialog = document.createElement('dialog');
-  dialog.className = 'dialog';
+  const dialog = makeDialog();
   dialog.innerHTML = `
     <form method="dialog" class="stack">
       <h2>${escapeHtml(t('rename.title'))}</h2>
@@ -2023,9 +2037,8 @@ function openRenameDialog(game) {
         <button type="button" class="button" id="rename-cancel">${escapeHtml(t('action.cancel'))}</button>
       </div>
     </form>`;
-  document.body.append(dialog);
 
-  const close = () => { dialog.close(); dialog.remove(); };
+  const close = () => dialog.close();
   dialog.querySelector('#rename-cancel').addEventListener('click', close);
   dialog.querySelector('#rename-save').addEventListener('click', () => {
     let next = game;
@@ -2263,8 +2276,12 @@ function render() {
     view.innerHTML = `<p class="muted small">${escapeHtml(t('shareSet.loading'))}</p>`;
     // A redraw while the games are on their way must not fetch them twice.
     if (state.openingSet !== current.id) {
-      state.openingSet = current.id;
-      openSet(current.id).then(() => {
+      const asked = current.id;
+      state.openingSet = asked;
+      openSet(asked).then(() => {
+        // Another lot may have been asked for meanwhile: that one is now the
+        // one in flight, and neither its guard nor its view is ours to clear.
+        if (state.openingSet !== asked) return;
         state.openingSet = null;
         // Somewhere else by now: leave them there, the games are in the list.
         if (route().name === 'set') navigate('#/');
