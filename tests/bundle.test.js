@@ -97,3 +97,30 @@ test('an import spread over several lines is stripped like any other', async () 
   assert.ok(!/^\s*import\s/m.test(body), 'no import survived the bundling');
   assert.ok(body.includes('createList'), 'and what it imported is in there');
 });
+
+test('the build stamps itself, and the same sources give the same stamp', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const root = new URL('..', import.meta.url);
+
+  const stampOf = async () => {
+    const worker = await readFile(new URL('sw.js', root), 'utf8');
+    const page = await readFile(new URL('index.html', root), 'utf8');
+    return {
+      worker: /const BUILD = '([^']+)'/.exec(worker)?.[1],
+      page: /name="app-build" content="([^"]+)"/.exec(page)?.[1],
+      cache: /const CACHE = `([^`]+)`/.exec(worker)?.[1],
+    };
+  };
+
+  const before = await stampOf();
+  assert.match(before.worker || '', /^[0-9a-f]{8}$/, 'sw.js carries a stamp');
+  assert.equal(before.page, before.worker, 'and the page carries the same one');
+  assert.equal(before.cache, 'marque-points-${VERSION}-${BUILD}',
+    'the cache is named after both, so a change empties the old one');
+
+  // Building again must not move it: the stamp is computed from the sources,
+  // with the stamped lines taken out, or every build would differ from the last.
+  const { bundle } = await import('../tools/bundle.js');
+  await bundle('page');
+  assert.deepEqual(await stampOf(), before, 'the same sources stamp the same');
+});
