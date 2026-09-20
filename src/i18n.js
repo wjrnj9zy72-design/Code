@@ -141,6 +141,10 @@ export const STRINGS = {
     'shareApp.hint':
       'Scannez le code, ou envoyez le lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
     'shareApp.text': 'Marque-Points — compteur de points pour Papayoo et d’autres jeux',
+    'action.importPaste': 'Coller un export',
+    'paste.title': 'Coller un export',
+    'paste.hint':
+      'Collez ici le texte donné par Exporter, depuis un autre navigateur ou un autre appareil. Les parties déjà présentes ne seront pas dupliquées.',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -375,6 +379,10 @@ export const STRINGS = {
     'shareApp.hint':
       'Scan the code, or send the link: they open the app and keep their own games, on their own device.',
     'shareApp.text': 'Marque-Points — a score keeper for Papayoo and other games',
+    'action.importPaste': 'Paste an export',
+    'paste.title': 'Paste an export',
+    'paste.hint':
+      'Paste the text that Export gave you, from another browser or another device. Games already here will not be duplicated.',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':

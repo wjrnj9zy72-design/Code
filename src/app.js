@@ -238,6 +238,7 @@ function homeView() {
       <div class="row">
         <button type="button" class="button button--small" id="export">${escapeHtml(t('action.export'))}</button>
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
+        <button type="button" class="button button--small" id="import-paste">${escapeHtml(t('action.importPaste'))}</button>
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
       <p class="muted small">${escapeHtml(
@@ -860,6 +861,75 @@ function showCopyDialog({ title, hint, text: content, qr = false }) {
   dialog.showModal();
 }
 
+/**
+ * Take in an export, from wherever it came. Games already here are left
+ * alone — importing twice must not double everything.
+ */
+function importGames(source) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    flash(t('home.importFailed'), 'error');
+    return false;
+  }
+
+  const incoming = (Array.isArray(parsed) ? parsed : parsed?.games || []).filter(isValidGame);
+  if (!incoming.length) {
+    flash(t('home.importFailed'), 'error');
+    return false;
+  }
+
+  const known = new Set(state.games.map((game) => game.id));
+  const fresh = incoming.filter((game) => !known.has(game.id));
+  state.games = [...state.games, ...fresh];
+  saveGames(state.games);
+  if (state.store) for (const game of fresh) void state.store.save(game);
+  if (state.remote) for (const game of fresh) if (game.shared) state.remote.put(game).catch(() => {});
+  flash(t('home.importDone', { count: fresh.length }));
+  return true;
+}
+
+/**
+ * Paste an export in. A phone cannot easily hand a file to a web page, and an
+ * app installed on the home screen keeps its own storage — so this is how
+ * games move from one to the other.
+ */
+function openPasteDialog() {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('paste.title'))}</h2>
+      <p class="muted small">${escapeHtml(t('paste.hint'))}</p>
+      <textarea id="paste-text" rows="8" aria-label="${escapeHtml(t('paste.title'))}"></textarea>
+      <p class="banner banner--warn" id="paste-error" hidden></p>
+      <div class="row">
+        <button type="button" class="button button--primary" id="paste-import">${escapeHtml(t('action.import'))}</button>
+        <button type="button" class="button" id="paste-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  dialog.querySelector('#paste-cancel').addEventListener('click', close);
+  dialog.querySelector('#paste-import').addEventListener('click', () => {
+    const value = dialog.querySelector('#paste-text').value.trim();
+    if (!value) return;
+    if (!importGames(value)) {
+      const error = dialog.querySelector('#paste-error');
+      error.textContent = t('home.importFailed');
+      error.hidden = false;
+      return;
+    }
+    close();
+    render();
+  });
+
+  dialog.showModal();
+  dialog.querySelector('#paste-text').focus();
+}
+
 function bindHome() {
   const search = view.querySelector('#search');
   search?.addEventListener('input', (event) => {
@@ -896,21 +966,15 @@ function bindHome() {
 
   view.querySelector('#export')?.addEventListener('click', exportGames);
 
+  view.querySelector('#import-paste')?.addEventListener('click', openPasteDialog);
+
   const fileInput = view.querySelector('#import-file');
   view.querySelector('#import')?.addEventListener('click', () => fileInput?.click());
   fileInput?.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text());
-      const incoming = (Array.isArray(parsed) ? parsed : parsed.games || []).filter(isValidGame);
-      if (!incoming.length) throw new Error('nothing to import');
-      const known = new Set(state.games.map((game) => game.id));
-      const fresh = incoming.filter((game) => !known.has(game.id));
-      state.games = [...state.games, ...fresh];
-      saveGames(state.games);
-      if (state.store) for (const game of fresh) void state.store.save(game);
-      flash(t('home.importDone', { count: fresh.length }));
+      importGames(await file.text());
     } catch {
       flash(t('home.importFailed'), 'error');
     }
