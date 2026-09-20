@@ -224,6 +224,32 @@ textarea { min-height: 66px; resize: vertical; }
 
 .checkbox input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
 
+/*
+ * A row one chooses in a list: a radio or a checkbox beside a label that may
+ * wrap onto two lines, so the control stays level with the first of them.
+ */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.choice input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin-top: 1px;
+  accent-color: var(--accent);
+}
+
+.stack--tight { gap: 8px; }
+
+/* A long list of games scrolls, rather than pushing the buttons off-screen. */
+#share-pick { max-height: 38vh; overflow-y: auto; }
+
 .field-grid {
   display: grid;
   gap: 12px;

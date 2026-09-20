@@ -29,10 +29,12 @@ manches, elle tient le classement.
 - **Rejouer** relance une partie avec les mêmes joueurs et les mêmes règles, et
   les noms déjà utilisés sont proposés à la saisie.
 - **Le donneur tourne** : l'app rappelle à qui c'est de donner.
-- **Passer l'app à quelqu'un** : un bouton *Partager l'app* sur l'accueil ouvre
-  la feuille de partage du téléphone — un appui, et le lien part par message.
-  Là où elle n'existe pas, le lien s'affiche à copier, avec un **code QR** que
-  les autres scannent.
+- **Passer l'app à quelqu'un, avec ou sans les parties** : *Partager l'app*, sur
+  l'accueil, propose trois liens — l'app seule (la personne repart de zéro),
+  l'app **avec toutes** vos parties, ou l'app avec **celles que vous cochez**.
+  Le lien part par la feuille de partage du téléphone, ou s'affiche à copier avec
+  un **code QR** ; il reste court quel que soit le nombre de parties, parce qu'il
+  ne porte pas les parties mais un identifiant qui les désigne.
 - **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
@@ -267,7 +269,8 @@ copier).
   ce qui l'envoie et donne un lien qui l'ouvre ailleurs. Une case dans la section
   *Données* permet à un appareil d'envoyer toutes ses nouvelles parties
   d'emblée : c'est pratique pour qui héberge la base, et décoché par défaut pour
-  tous les autres. `src/config.js` laissée vide, l'appli n'envoie rien nulle
+  tous les autres. *Partager l'app* avec des parties attachées les envoie de la
+  même façon, et le dit avant de créer le lien. `src/config.js` laissée vide, l'appli n'envoie rien nulle
   part. La marche à suivre est dans
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md), y compris ce que ce partage
   implique.

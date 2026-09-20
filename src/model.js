@@ -7,8 +7,11 @@ import { getPreset, presetConfig } from './games.js';
  * be unguessable: whoever knows it can open the game. randomUUID is used where
  * the browser offers it (it needs a secure context), with a weaker but still
  * random fallback elsewhere.
+ *
+ * Exported because a set of games shared together is named the same way, and
+ * for the same reason.
  */
-function uid(prefix = 'id') {
+export function uid(prefix = 'id') {
   const uuid = globalThis.crypto?.randomUUID?.();
   if (uuid) return `${prefix}_${uuid}`;
   const random = () => Math.random().toString(36).slice(2, 10);

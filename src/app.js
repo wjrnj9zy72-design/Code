@@ -1,7 +1,7 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
@@ -12,7 +12,7 @@ import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, setLink, setIdFrom } from './remote.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
@@ -34,6 +34,8 @@ const state = {
   remote: createRemote(remoteConfig()),
   // Polling while a shared game is on screen.
   poll: null,
+  // The set of games being fetched, so a redraw does not start a second fetch.
+  openingSet: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -135,6 +137,7 @@ function route() {
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
+  if (name === 'set' && param) return { name: 'set', id: param };
   return { name: 'home' };
 }
 
@@ -971,7 +974,21 @@ function openLinkDialog() {
 
   dialog.querySelector('#link-cancel').addEventListener('click', close);
   dialog.querySelector('#link-open').addEventListener('click', async (event) => {
-    const id = gameIdFrom(dialog.querySelector('#link-text').value);
+    const pasted = dialog.querySelector('#link-text').value;
+
+    // A link to a whole set of games is pasted here too: on a phone the
+    // installed app has no address bar, so this is the only way in.
+    const setId = setIdFrom(pasted);
+    if (setId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      await openSet(setId);
+      close();
+      navigate('#/');
+      return;
+    }
+
+    const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
     event.currentTarget.disabled = true;
@@ -992,6 +1009,214 @@ function openLinkDialog() {
   dialog.querySelector('#link-text').focus();
 }
 
+/**
+ * Hand a link over the easy way when the device offers one — one tap to a
+ * message — and fall back to the text with its QR code everywhere else.
+ */
+async function shareUrl({ url, title, hint, text }) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t('app.title'), text, url });
+      return;
+    } catch (error) {
+      // Cancelling is not a failure, and nothing should be shown for it.
+      if (error?.name === 'AbortError') return;
+      // Anything else: fall through to the text everyone can copy.
+    }
+  }
+  showCopyDialog({ title, hint, text: url, qr: true });
+}
+
+/**
+ * Share the app, on its own or carrying games.
+ *
+ * A link cannot carry the games themselves: ten of them would make an address
+ * no one could paste and no QR code could hold. So the games are sent to the
+ * shared database — which is what makes them openable elsewhere anyway — and
+ * the link carries one short identifier standing for the lot.
+ */
+function openShareAppDialog() {
+  const games = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  // Without a shared database there is nothing to attach: the app alone, then.
+  if (!state.remote || !games.length) {
+    void shareUrl({
+      url: appLink(),
+      title: t('shareApp.title'),
+      hint: t('shareApp.hint'),
+      text: t('shareApp.text'),
+    });
+    return;
+  }
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('shareApp.title'))}</h2>
+      <div class="stack stack--tight" role="radiogroup" aria-label="${escapeHtml(t('shareApp.title'))}">
+        <label class="choice">
+          <input type="radio" name="share-kind" value="app" checked />
+          <span>${escapeHtml(t('shareApp.kindApp'))}<span class="muted small"> — ${escapeHtml(t('shareApp.kindAppHint'))}</span></span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="share-kind" value="all" />
+          <span>${escapeHtml(t('shareApp.kindAll', { count: games.length }))}</span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="share-kind" value="some" />
+          <span>${escapeHtml(t('shareApp.kindSome'))}</span>
+        </label>
+      </div>
+
+      <div class="stack stack--tight" id="share-pick" hidden>
+        <p class="muted small">${escapeHtml(t('shareApp.pickHint'))}</p>
+        ${games
+          .map(
+            (game) => `
+              <label class="choice">
+                <input type="checkbox" data-share-id="${escapeHtml(game.id)}" />
+                <span>${escapeHtml(gameTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
+              </label>`,
+          )
+          .join('')}
+      </div>
+
+      <p class="muted small" id="share-note" hidden>${escapeHtml(t('shareApp.note'))}</p>
+      <p class="banner banner--warn" id="share-error" hidden></p>
+      <div class="row">
+        <button type="button" class="button button--primary" id="share-make">${escapeHtml(t('shareApp.make'))}</button>
+        <button type="button" class="button" id="share-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  const button = dialog.querySelector('#share-make');
+  const error = dialog.querySelector('#share-error');
+  const kind = () => dialog.querySelector('input[name="share-kind"]:checked').value;
+
+  const refresh = () => {
+    dialog.querySelector('#share-pick').hidden = kind() !== 'some';
+    dialog.querySelector('#share-note').hidden = kind() === 'app';
+    error.hidden = true;
+  };
+  dialog.querySelectorAll('input[name="share-kind"]').forEach((input) => {
+    input.addEventListener('change', refresh);
+  });
+
+  const fail = (message) => {
+    error.textContent = message;
+    error.hidden = false;
+    button.disabled = false;
+    button.textContent = t('shareApp.make');
+  };
+
+  dialog.querySelector('#share-cancel').addEventListener('click', close);
+  button.addEventListener('click', async () => {
+    const choice = kind();
+    if (choice === 'app') {
+      close();
+      void shareUrl({
+        url: appLink(),
+        title: t('shareApp.title'),
+        hint: t('shareApp.hint'),
+        text: t('shareApp.text'),
+      });
+      return;
+    }
+
+    const chosen =
+      choice === 'all'
+        ? games
+        : [...dialog.querySelectorAll('input[data-share-id]:checked')]
+            .map((input) => getGame(input.dataset.shareId))
+            .filter(Boolean);
+    if (!chosen.length) return fail(t('shareApp.pickNone'));
+
+    button.disabled = true;
+    button.textContent = t('share.sending');
+
+    const setId = uid('lot');
+    try {
+      await shareGames(chosen);
+      await state.remote.putSet(setId, chosen.map((game) => game.id));
+    } catch {
+      return fail(t('shareApp.failed'));
+    }
+
+    close();
+    // The games are shared now, so the list shows it.
+    render();
+    void shareUrl({
+      url: setLink(location, setId),
+      title: t('shareSet.title'),
+      hint: t('shareSet.hint', { count: chosen.length }),
+      text: t('shareSet.text'),
+    });
+  });
+
+  dialog.showModal();
+}
+
+/**
+ * Put every one of these games in the shared database, marking as shared those
+ * that were not — a link that hands over a game no one sent would open nothing.
+ */
+async function shareGames(games) {
+  try {
+    for (const game of games) {
+      const next = game.shared ? game : setShared(game, true);
+      await state.remote.put(next);
+      if (next === game) continue;
+      state.games = state.games.map((item) => (item.id === game.id ? next : item));
+      if (state.store) void state.store.save(next);
+    }
+  } finally {
+    // Whatever went through is written down, so a failure halfway is not lost.
+    saveGames(state.games);
+  }
+}
+
+/**
+ * Take in a set of games from its link: fetch the list, then each game.
+ *
+ * A game already here is merged rather than replaced, exactly as a single
+ * shared game is, so opening the link twice costs nothing and opening it while
+ * a game is in progress loses no round.
+ */
+async function openSet(id) {
+  if (!state.remote) {
+    flash(t('shareSet.noDatabase'), 'error');
+    return;
+  }
+
+  let ids = null;
+  try {
+    ids = await state.remote.getSet(id);
+  } catch {
+    ids = null;
+  }
+  if (!ids?.length) {
+    flash(t('shareSet.notFound'), 'error');
+    return;
+  }
+
+  for (const gameId of ids) {
+    if (!getGame(gameId)) await pullGame(gameId);
+  }
+
+  const held = ids.filter((gameId) => getGame(gameId)).length;
+  if (!held) {
+    flash(t('shareSet.notFound'), 'error');
+    return;
+  }
+  flash(
+    held === ids.length
+      ? t('shareSet.opened', { count: held })
+      : t('shareSet.openedSome', { count: held, total: ids.length }),
+  );
+}
+
 function bindHome() {
   const search = view.querySelector('#search');
   search?.addEventListener('input', (event) => {
@@ -1005,21 +1230,7 @@ function bindHome() {
     }
   });
 
-  view.querySelector('#share-app')?.addEventListener('click', async () => {
-    const url = appLink();
-    // The phone's own share sheet is the easy way — one tap to a message.
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: t('app.title'), text: t('shareApp.text'), url });
-        return;
-      } catch (error) {
-        // Cancelling is not a failure, and nothing should be shown for it.
-        if (error?.name === 'AbortError') return;
-        // Anything else: fall through to the text everyone can copy.
-      }
-    }
-    showCopyDialog({ title: t('shareApp.title'), hint: t('shareApp.hint'), text: url, qr: true });
-  });
+  view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
 
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
     state.prefs = { ...state.prefs, autoShare: event.target.checked };
@@ -1745,6 +1956,19 @@ function render() {
     stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
+  } else if (current.name === 'set') {
+    stopWatching();
+    view.innerHTML = `<p class="muted small">${escapeHtml(t('shareSet.loading'))}</p>`;
+    // A redraw while the games are on their way must not fetch them twice.
+    if (state.openingSet !== current.id) {
+      state.openingSet = current.id;
+      openSet(current.id).then(() => {
+        state.openingSet = null;
+        // Somewhere else by now: leave them there, the games are in the list.
+        if (route().name === 'set') navigate('#/');
+      });
+    }
+    return;
   } else if (current.name === 'game') {
     const game = getGame(current.id);
     if (!game) {

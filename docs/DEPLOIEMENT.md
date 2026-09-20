@@ -275,9 +275,14 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
   la page pourrait écrire de fausses parties dans la base. Il ne verrait pas les
   vôtres pour autant. Les garde-fous du script SQL limitent la casse ; le cas
   échéant, régénérez la clé depuis Supabase et refaites l'étape 5.
-- **Deux personnes qui saisissent la même manche en même temps** : la dernière
-  écriture gagne, l'autre est perdue. Pour une table où une seule personne
-  marque, le cas ne se présente pas.
+- **Un lot de parties** — le lien qui en apporte plusieurs d'un coup — vit dans
+  la même table, sous un identifiant aléatoire de la même sorte : il n'y a rien à
+  ajouter au SQL ci-dessus. Un lot ne contient que la liste des identifiants des
+  parties qu'il désigne, pas les parties elles-mêmes.
+- **Deux personnes qui marquent la même partie en même temps** : les manches des
+  deux sont conservées — chaque manche a son identifiant, et les deux copies sont
+  fusionnées manche par manche. Seule une *même* manche corrigée des deux côtés
+  au même moment garde la dernière version écrite.
 - **Sans configuration, rien ne change** : `src/config.js` laissé vide, l'app
   garde tout dans le navigateur et n'envoie rien nulle part. Le fichier autonome
   `dist/marque-points.html` reste utilisable hors ligne dans tous les cas.

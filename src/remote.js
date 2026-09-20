@@ -72,6 +72,25 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
   }
 
   return {
+    /**
+     * Store a set of games under one id, so a link can carry many games
+     * without carrying their identifiers. It lives in the same place as a
+     * game — a document is a document — and is told apart by its `kind`.
+     */
+    async putSet(id, gameIds) {
+      await call('marque_points_put', {
+        p_id: id,
+        p_data: { kind: 'set', ids: gameIds, createdAt: Date.now() },
+      });
+    },
+
+    /** The game ids in a set, or null when that id is not a set. */
+    async getSet(id) {
+      const data = await call('marque_points_get', { p_id: id });
+      if (!data || data.kind !== 'set' || !Array.isArray(data.ids)) return null;
+      return data.ids.filter((value) => typeof value === 'string');
+    },
+
     /** The stored game, or null when nobody has ever shared that id. */
     async get(id) {
       const data = await call('marque_points_get', { p_id: id });
@@ -118,4 +137,16 @@ export function gameIdFrom(pasted) {
 export function shareLink(location, gameId) {
   const { origin, pathname, search } = location;
   return `${origin}${pathname}${search}#/game/${gameId}`;
+}
+
+/** The link that hands over a set of games at once. */
+export function setLink(location, setId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/set/${setId}`;
+}
+
+/** The set id inside whatever was pasted, or null. */
+export function setIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/set\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
 }

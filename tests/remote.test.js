@@ -158,3 +158,46 @@ test('a game id is recognised however it was pasted', async () => {
   assert.equal(gameIdFrom('https://gui.github.io/Code/'), null, 'a link to the app, not to a game');
   assert.equal(gameIdFrom(null), null);
 });
+
+test('a set travels as one short link, whatever it holds', async () => {
+  const { setLink, setIdFrom, gameIdFrom } = await import('../src/remote.js');
+  const place = { origin: 'https://gui.github.io', pathname: '/Code/', search: '' };
+
+  const link = setLink(place, 'lot_abcdefgh');
+  assert.equal(link, 'https://gui.github.io/Code/#/set/lot_abcdefgh');
+  assert.ok(link.length < 60, 'a set of fifty games would not make it any longer');
+
+  assert.equal(setIdFrom(link), 'lot_abcdefgh');
+  assert.equal(setIdFrom(`Tiens : ${link} à ce soir`), 'lot_abcdefgh');
+  assert.equal(setIdFrom('https://gui.github.io/Code/#/game/g_1'), null, 'a game link is not a set');
+  assert.equal(gameIdFrom(link), null, 'and the two are never confused');
+});
+
+test('a set is stored as a document, read back as a list of ids', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    if (url.endsWith('marque_points_get')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ kind: 'set', ids: ['g_1', 'g_2'] }) };
+    }
+    return { ok: true, status: 204, text: async () => '' };
+  };
+  const remote = createRemote(CONFIG, fetchImpl);
+
+  await remote.putSet('lot_1', ['g_1', 'g_2']);
+  assert.equal(calls[0].body.p_data.kind, 'set');
+  assert.deepEqual(calls[0].body.p_data.ids, ['g_1', 'g_2']);
+
+  assert.deepEqual(await remote.getSet('lot_1'), ['g_1', 'g_2']);
+});
+
+test('anything that is not a set reads as none, rather than as junk', async () => {
+  const answer = (body) => createRemote(CONFIG, async () => ({
+    ok: true, status: 200, text: async () => JSON.stringify(body),
+  }));
+  assert.equal(await answer(null).getSet('x'), null, 'nothing stored');
+  assert.equal(await answer({ id: 'g_1', rounds: [] }).getSet('x'), null, 'a game, not a set');
+  assert.equal(await answer({ kind: 'set' }).getSet('x'), null, 'a set with no ids');
+  assert.deepEqual(await answer({ kind: 'set', ids: ['g_1', 42, null] }).getSet('x'), ['g_1'],
+    'and only the ids that are ids');
+});

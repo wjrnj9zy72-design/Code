@@ -141,6 +141,28 @@ export const STRINGS = {
     'shareApp.hint':
       'Scannez le code, ou envoyez le lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
     'shareApp.text': 'Marque-Points — compteur de points pour Papayoo et d’autres jeux',
+    'shareApp.kindApp': 'L’app seule',
+    'shareApp.kindAppHint': 'la personne repart de zéro, avec ses propres parties',
+    'shareApp.kindAll': 'L’app et toutes mes parties ({count})',
+    'shareApp.kindSome': 'L’app et une sélection de parties',
+    'shareApp.pickHint': 'Cochez les parties que le lien doit apporter.',
+    'shareApp.pickNone': 'Choisissez au moins une partie, ou partagez l’app seule.',
+    'shareApp.note':
+      'Les parties choisies seront envoyées dans la base partagée, si elles n’y sont pas déjà : c’est ce qui permet au lien de les ouvrir ailleurs.',
+    'shareApp.make': 'Créer le lien',
+    'shareApp.failed':
+      'Le lien n’a pas pu être créé : les parties n’ont pas toutes été envoyées. Réessayez.',
+    'shareSet.title': 'Lien vers l’app et vos parties',
+    'shareSet.hint':
+      'Scannez le code, ou envoyez le lien : il ouvre l’app et y ajoute les parties choisies ({count}), prêtes à être continuées.',
+    'shareSet.text': 'Marque-Points — l’app et nos parties',
+    'shareSet.loading': 'Récupération des parties partagées…',
+    'shareSet.notFound':
+      'Aucune partie trouvée pour ce lien. Vérifiez qu’il est complet, et qu’il n’est pas trop ancien.',
+    'shareSet.noDatabase':
+      'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
+    'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
+    'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
     'action.importPaste': 'Coller un export',
     'paste.title': 'Coller un export',
     'paste.hint':
@@ -148,7 +170,7 @@ export const STRINGS = {
     'action.openLink': 'Ouvrir par un lien',
     'openLink.title': 'Ouvrir une partie partagée',
     'openLink.hint':
-      'Collez le lien d’une partie, ou son identifiant. L’app la récupère dans la base partagée et l’ajoute à cette liste.',
+      'Collez le lien d’une partie — ou d’un lot de parties, ou un identifiant de partie. L’app va chercher dans la base partagée et ajoute tout à cette liste.',
     'openLink.open': 'Ouvrir',
     'openLink.noId': 'Aucun identifiant de partie reconnu dans ce texte.',
     'openLink.notFound':
@@ -387,6 +409,27 @@ export const STRINGS = {
     'shareApp.hint':
       'Scan the code, or send the link: they open the app and keep their own games, on their own device.',
     'shareApp.text': 'Marque-Points — a score keeper for Papayoo and other games',
+    'shareApp.kindApp': 'The app alone',
+    'shareApp.kindAppHint': 'they start empty, with games of their own',
+    'shareApp.kindAll': 'The app and all my games ({count})',
+    'shareApp.kindSome': 'The app and a selection of games',
+    'shareApp.pickHint': 'Tick the games the link should carry.',
+    'shareApp.pickNone': 'Pick at least one game, or share the app on its own.',
+    'shareApp.note':
+      'The games you pick will be sent to the shared database if they are not there already: that is what lets the link open them elsewhere.',
+    'shareApp.make': 'Create the link',
+    'shareApp.failed': 'The link could not be created: not every game was sent. Try again.',
+    'shareSet.title': 'Link to the app and your games',
+    'shareSet.hint':
+      'Scan the code, or send the link: it opens the app and adds the games you picked ({count}), ready to carry on.',
+    'shareSet.text': 'Marque-Points — the app and our games',
+    'shareSet.loading': 'Fetching the shared games…',
+    'shareSet.notFound':
+      'No games found for that link. Check that it is complete, and not too old.',
+    'shareSet.noDatabase':
+      'This copy of the app has no shared database, so it cannot fetch those games.',
+    'shareSet.opened': '{count} game(s) added from the link.',
+    'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
     'action.importPaste': 'Paste an export',
     'paste.title': 'Paste an export',
     'paste.hint':
@@ -394,7 +437,7 @@ export const STRINGS = {
     'action.openLink': 'Open from a link',
     'openLink.title': 'Open a shared game',
     'openLink.hint':
-      'Paste a game link, or its id. The app fetches it from the shared database and adds it to this list.',
+      'Paste a game link — or a link to a set of games, or a game id. The app fetches from the shared database and adds it all to this list.',
     'openLink.open': 'Open',
     'openLink.noId': 'No game id recognised in that text.',
     'openLink.notFound':
