@@ -42,14 +42,18 @@ const state = {
   poll: null,
   // The set of games being fetched, so a redraw does not start a second fetch.
   openingSet: null,
+  // The same, for a shared list opened from its link.
+  openingList: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
 };
 
-// The new-list form's draft, kept across re-renders like the new-game one.
+// The new-list form's draft, kept across re-renders like the new-game one:
+// adding a person must not throw away the lines already typed.
 let newListName = '';
 let newListPeople = ['', ''];
+let newListLines = '';
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -222,7 +226,7 @@ function newListView() {
 
       <label>
         ${escapeHtml(t('lists.firstLines'))}
-        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}"></textarea>
+        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}">${escapeHtml(newListLines)}</textarea>
       </label>
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('lists.create'))}</button>
@@ -1846,6 +1850,7 @@ function bindHome() {
 /** Keep the list where it lives, and send it on if it has been shared. */
 function persistList(changed) {
   const ok = saveLists(state.lists);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
     state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
@@ -1870,6 +1875,7 @@ function bindNewList() {
 
   const snapshot = () => {
     newListName = view.querySelector('#list-name').value;
+    newListLines = view.querySelector('#list-lines').value;
     view.querySelectorAll('[data-person-index]').forEach((input) => {
       newListPeople[Number(input.dataset.personIndex)] = input.value;
     });
@@ -1903,7 +1909,6 @@ function bindNewList() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const lines = view.querySelector('#list-lines').value;
 
     let list = createList({
       name: newListName,
@@ -1911,12 +1916,13 @@ function bindNewList() {
       // A device that sends everything by choice sends its lists too.
       shared: Boolean(state.prefs.autoShare && state.remote),
     });
-    list = addItems(list, lines);
+    list = addItems(list, newListLines);
 
     state.lists = [...state.lists, list];
     persistList(list);
     newListName = '';
     newListPeople = ['', ''];
+    newListLines = '';
     navigate(`#/list/${list.id}`);
   });
 }
@@ -1956,7 +1962,12 @@ function bindList(list) {
 
   view.querySelector('#share-out')?.addEventListener('click', () => {
     const next = shareOut(list);
-    if (next === list) return flash(t('lists.nothingToShareOut'));
+    if (next === list) {
+      // Saying nothing here would read as a dead button.
+      flash(t('lists.nothingToShareOut'));
+      render();
+      return;
+    }
     replaceList(next);
   });
 
@@ -2236,15 +2247,18 @@ async function pullList(id) {
   } catch {
     return false;
   }
-  if (!isValidList(stored)) return false;
+  return isValidList(stored) ? adoptList(stored) : false;
+}
 
-  const local = getList(id);
+/** The same, for a list: line by line, so nobody's tick is lost. */
+function adoptList(stored) {
+  const local = getList(stored.id);
   const merged = local ? mergeLists(local, stored) : stored;
   if (local && merged === local) return false;
 
   const adopted = { ...merged, shared: true };
   state.lists = local
-    ? state.lists.map((list) => (list.id === id ? adopted : list))
+    ? state.lists.map((list) => (list.id === stored.id ? adopted : list))
     : [...state.lists, adopted];
   saveLists(state.lists);
   return true;
@@ -2952,13 +2966,21 @@ function render() {
   } else if (current.name === 'list') {
     const list = getList(current.id);
     if (!list) {
+      stopWatching();
       // Perhaps a list someone shared: ask the database before giving up.
       if (state.remote) {
         view.innerHTML = `<p class="muted small">${escapeHtml(t('lists.loading'))}</p>`;
-        pullList(current.id).then((found) => {
-          if (found) render();
-          else if (route().id === current.id) navigate('#/lists');
-        });
+        // A redraw while it is on its way must not ask for it twice.
+        if (state.openingList !== current.id) {
+          const asked = current.id;
+          state.openingList = asked;
+          pullList(asked).then((found) => {
+            if (state.openingList !== asked) return;
+            state.openingList = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/lists');
+          });
+        }
         return;
       }
       navigate('#/lists');
@@ -3036,17 +3058,22 @@ async function pullGame(id) {
   } catch {
     return false;
   }
-  if (!isValidGame(stored)) return false;
+  return isValidGame(stored) ? adoptGame(stored) : false;
+}
 
-  const local = getGame(id);
-  // Merge rather than replace: two people scoring the same evening on two
-  // phones would otherwise lose whichever round was written second.
+/**
+ * Take in a game the database handed over. Merge rather than replace: two
+ * people scoring the same evening on two phones would otherwise lose whichever
+ * round was written second.
+ */
+function adoptGame(stored) {
+  const local = getGame(stored.id);
   const merged = local ? mergeGames(local, stored) : stored;
   if (local && merged === local) return false;
 
   const adopted = { ...merged, shared: true };
   state.games = local
-    ? state.games.map((game) => (game.id === id ? adopted : game))
+    ? state.games.map((game) => (game.id === stored.id ? adopted : game))
     : [...state.games, adopted];
   saveGames(state.games);
   return true;
@@ -3068,7 +3095,18 @@ function markTab(current) {
  * lists side by side, and a link pasted in says even less.
  */
 async function pullAny(id) {
-  return (await pullGame(id)) || (await pullList(id));
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  // One request, then whichever kind it turns out to be — a lot of twenty
+  // would otherwise cost forty.
+  if (isValidGame(stored)) return adoptGame(stored);
+  if (isValidList(stored)) return adoptList(stored);
+  return false;
 }
 
 /** While a shared list is on screen, watch for what the others are ticking. */

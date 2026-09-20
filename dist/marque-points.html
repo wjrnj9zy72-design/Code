@@ -2841,7 +2841,14 @@ function createList({ name = '', names = [], shared = false } = {}) {
     name: String(name).trim(),
     createdAt: now,
     updatedAt: now,
+    // People change rarely and separately from the lines, so they carry their
+    // own clock: a merge can then tell "someone was just removed" from "this
+    // copy simply has not heard of them yet".
+    peopleAt: now,
     shared: Boolean(shared),
+    // The lines deleted here, and when — without this a deletion is undone by
+    // the next copy that still holds the line.
+    removed: {},
     people: names
       .map((raw) => String(raw || '').trim())
       .filter(Boolean)
@@ -2908,9 +2915,29 @@ function toggleItem(list, itemId) {
   return item ? patchItem(list, itemId, { done: !item.done }) : list;
 }
 
+/**
+ * Drop a line, and remember having dropped it. Without that trace the other
+ * phone, which still holds the line, hands it straight back at the next sync —
+ * and "clear what is done" undoes itself while you watch.
+ */
 function removeItem(list, itemId) {
   const items = list.items.filter((item) => item.id !== itemId);
-  return items.length === list.items.length ? list : touch(list, items);
+  if (items.length === list.items.length) return list;
+  return {
+    ...touch(list, items),
+    removed: { ...list.removed, [itemId]: Date.now() },
+  };
+}
+
+/** Tombstones worth keeping: a month is longer than any phone stays away. */
+const FORGET_AFTER = 30 * 24 * 60 * 60 * 1000;
+
+function prune(removed, now = Date.now()) {
+  const kept = {};
+  for (const [id, at] of Object.entries(removed || {})) {
+    if (now - at < FORGET_AFTER) kept[id] = at;
+  }
+  return kept;
 }
 
 /** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
@@ -2919,6 +2946,7 @@ function reuseList(list) {
   return {
     ...createList({ name: list.name, shared: list.shared }),
     people: list.people,
+    peopleAt: list.peopleAt || now,
     items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, updatedAt: now })),
   };
 }
@@ -2926,9 +2954,11 @@ function reuseList(list) {
 function addPerson(list, name) {
   const clean = String(name || '').trim();
   if (!clean) return list;
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: [...list.people, { id: uid('w'), name: clean }],
+    peopleAt: at,
     updatedAt: later(list.updatedAt),
   };
 }
@@ -2936,18 +2966,22 @@ function addPerson(list, name) {
 function renamePerson(list, personId, name) {
   const clean = String(name || '').trim();
   if (!clean) return list;
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: list.people.map((person) => (person.id === personId ? { ...person, name: clean } : person)),
+    peopleAt: at,
     updatedAt: later(list.updatedAt),
   };
 }
 
 /** Drop someone. What was theirs goes back to nobody rather than disappearing. */
 function removePerson(list, personId) {
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: list.people.filter((person) => person.id !== personId),
+    peopleAt: at,
     items: list.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
     updatedAt: later(list.updatedAt),
   };
@@ -2960,6 +2994,7 @@ function removePerson(list, personId) {
  */
 function shareOut(list) {
   if (!list.people.length) return list;
+  if (!list.items.some((item) => !item.who && !item.done)) return list;
   const load = new Map(list.people.map((person) => [person.id, 0]));
   for (const item of list.items) {
     if (item.who && !item.done && load.has(item.who)) load.set(item.who, load.get(item.who) + 1);
@@ -3006,26 +3041,41 @@ function mergeLists(a, b) {
   if (a.id !== b.id) return a;
 
   const [newer, older] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+
+  // A line deleted anywhere stays deleted, whichever copy still holds it.
+  const removed = prune({ ...older.removed, ...newer.removed });
+
   const byId = new Map();
   for (const item of [...older.items, ...newer.items]) {
+    if (removed[item.id]) continue;
     const held = byId.get(item.id);
     if (!held || (item.updatedAt || 0) >= (held.updatedAt || 0)) byId.set(item.id, item);
   }
 
   // The newer copy's order first, then the lines only the older one knew.
   const ordered = [
-    ...newer.items.map((item) => byId.get(item.id)),
-    ...older.items.filter((item) => !newer.items.some((other) => other.id === item.id)),
+    ...newer.items.filter((item) => byId.has(item.id)).map((item) => byId.get(item.id)),
+    ...older.items.filter(
+      (item) => byId.has(item.id) && !newer.items.some((other) => other.id === item.id),
+    ),
   ];
 
-  const sameLength = ordered.length === newer.items.length;
-  const sameItems = sameLength && ordered.every((item, index) => item === newer.items[index]);
-  if (sameItems) return newer;
+  // Whoever touched the people last is right about them — including about
+  // someone they removed, which a union of the two sides could never see.
+  const people = (newer.peopleAt || 0) >= (older.peopleAt || 0) ? newer.people : older.people;
+  const peopleAt = Math.max(newer.peopleAt || 0, older.peopleAt || 0);
+
+  const sameItems =
+    ordered.length === newer.items.length &&
+    ordered.every((item, index) => item === newer.items[index]);
+  const samePeople = people === newer.people && Object.keys(removed).length === Object.keys(newer.removed || {}).length;
+  if (sameItems && samePeople) return newer;
 
   return {
     ...newer,
-    // Someone added elsewhere may be the owner of a line coming in.
-    people: newer.people.length >= older.people.length ? newer.people : older.people,
+    people,
+    peopleAt,
+    removed,
     items: ordered,
     updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
   };
@@ -4029,14 +4079,18 @@ const state = {
   poll: null,
   // The set of games being fetched, so a redraw does not start a second fetch.
   openingSet: null,
+  // The same, for a shared list opened from its link.
+  openingList: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
 };
 
-// The new-list form's draft, kept across re-renders like the new-game one.
+// The new-list form's draft, kept across re-renders like the new-game one:
+// adding a person must not throw away the lines already typed.
 let newListName = '';
 let newListPeople = ['', ''];
+let newListLines = '';
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -4209,7 +4263,7 @@ function newListView() {
 
       <label>
         ${escapeHtml(t('lists.firstLines'))}
-        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}"></textarea>
+        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}">${escapeHtml(newListLines)}</textarea>
       </label>
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('lists.create'))}</button>
@@ -5833,6 +5887,7 @@ function bindHome() {
 /** Keep the list where it lives, and send it on if it has been shared. */
 function persistList(changed) {
   const ok = saveLists(state.lists);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
     state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
@@ -5857,6 +5912,7 @@ function bindNewList() {
 
   const snapshot = () => {
     newListName = view.querySelector('#list-name').value;
+    newListLines = view.querySelector('#list-lines').value;
     view.querySelectorAll('[data-person-index]').forEach((input) => {
       newListPeople[Number(input.dataset.personIndex)] = input.value;
     });
@@ -5890,7 +5946,6 @@ function bindNewList() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const lines = view.querySelector('#list-lines').value;
 
     let list = createList({
       name: newListName,
@@ -5898,12 +5953,13 @@ function bindNewList() {
       // A device that sends everything by choice sends its lists too.
       shared: Boolean(state.prefs.autoShare && state.remote),
     });
-    list = addItems(list, lines);
+    list = addItems(list, newListLines);
 
     state.lists = [...state.lists, list];
     persistList(list);
     newListName = '';
     newListPeople = ['', ''];
+    newListLines = '';
     navigate(`#/list/${list.id}`);
   });
 }
@@ -5943,7 +5999,12 @@ function bindList(list) {
 
   view.querySelector('#share-out')?.addEventListener('click', () => {
     const next = shareOut(list);
-    if (next === list) return flash(t('lists.nothingToShareOut'));
+    if (next === list) {
+      // Saying nothing here would read as a dead button.
+      flash(t('lists.nothingToShareOut'));
+      render();
+      return;
+    }
     replaceList(next);
   });
 
@@ -6223,15 +6284,18 @@ async function pullList(id) {
   } catch {
     return false;
   }
-  if (!isValidList(stored)) return false;
+  return isValidList(stored) ? adoptList(stored) : false;
+}
 
-  const local = getList(id);
+/** The same, for a list: line by line, so nobody's tick is lost. */
+function adoptList(stored) {
+  const local = getList(stored.id);
   const merged = local ? mergeLists(local, stored) : stored;
   if (local && merged === local) return false;
 
   const adopted = { ...merged, shared: true };
   state.lists = local
-    ? state.lists.map((list) => (list.id === id ? adopted : list))
+    ? state.lists.map((list) => (list.id === stored.id ? adopted : list))
     : [...state.lists, adopted];
   saveLists(state.lists);
   return true;
@@ -6939,13 +7003,21 @@ function render() {
   } else if (current.name === 'list') {
     const list = getList(current.id);
     if (!list) {
+      stopWatching();
       // Perhaps a list someone shared: ask the database before giving up.
       if (state.remote) {
         view.innerHTML = `<p class="muted small">${escapeHtml(t('lists.loading'))}</p>`;
-        pullList(current.id).then((found) => {
-          if (found) render();
-          else if (route().id === current.id) navigate('#/lists');
-        });
+        // A redraw while it is on its way must not ask for it twice.
+        if (state.openingList !== current.id) {
+          const asked = current.id;
+          state.openingList = asked;
+          pullList(asked).then((found) => {
+            if (state.openingList !== asked) return;
+            state.openingList = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/lists');
+          });
+        }
         return;
       }
       navigate('#/lists');
@@ -7023,17 +7095,22 @@ async function pullGame(id) {
   } catch {
     return false;
   }
-  if (!isValidGame(stored)) return false;
+  return isValidGame(stored) ? adoptGame(stored) : false;
+}
 
-  const local = getGame(id);
-  // Merge rather than replace: two people scoring the same evening on two
-  // phones would otherwise lose whichever round was written second.
+/**
+ * Take in a game the database handed over. Merge rather than replace: two
+ * people scoring the same evening on two phones would otherwise lose whichever
+ * round was written second.
+ */
+function adoptGame(stored) {
+  const local = getGame(stored.id);
   const merged = local ? mergeGames(local, stored) : stored;
   if (local && merged === local) return false;
 
   const adopted = { ...merged, shared: true };
   state.games = local
-    ? state.games.map((game) => (game.id === id ? adopted : game))
+    ? state.games.map((game) => (game.id === stored.id ? adopted : game))
     : [...state.games, adopted];
   saveGames(state.games);
   return true;
@@ -7055,7 +7132,18 @@ function markTab(current) {
  * lists side by side, and a link pasted in says even less.
  */
 async function pullAny(id) {
-  return (await pullGame(id)) || (await pullList(id));
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  // One request, then whichever kind it turns out to be — a lot of twenty
+  // would otherwise cost forty.
+  if (isValidGame(stored)) return adoptGame(stored);
+  if (isValidList(stored)) return adoptList(stored);
+  return false;
 }
 
 /** While a shared list is on screen, watch for what the others are ticking. */

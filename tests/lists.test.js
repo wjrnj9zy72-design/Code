@@ -203,3 +203,76 @@ test('a change beats no change on the same line, however fast the clock', () => 
   assert.equal(mergeLists(ticked, start).items[0].done, true);
   assert.equal(mergeLists(start, ticked).items[0].done, true, 'whichever way round');
 });
+
+test('a line deleted here does not come back from the other phone', () => {
+  const start = addItems(createList({ names: ['Gui'] }), 'Pain\nLait');
+  const id = start.items[0].id;
+
+  const here = removeItem(start, id);
+  const there = toggleItem(start, start.items[1].id); // the other side never saw the deletion
+
+  assert.equal(mergeLists(here, there).items.length, 1, 'deleted stays deleted');
+  assert.equal(mergeLists(there, here).items.length, 1, 'whichever way round');
+  assert.equal(mergeLists(here, there).items[0].text, 'Lait');
+  assert.equal(mergeLists(here, there).items[0].done, true, 'and the tick made there is kept');
+});
+
+test('clearing what is done does not undo itself', () => {
+  let list = addItems(createList({ names: ['Gui'] }), 'Pain\nLait\nŒufs');
+  list = toggleItem(list, list.items[0].id);
+  list = toggleItem(list, list.items[1].id);
+  const elsewhere = list; // the other phone, before the clearing
+
+  const cleared = list.items
+    .filter((item) => item.done)
+    .reduce((carry, item) => removeItem(carry, item.id), list);
+  assert.equal(cleared.items.length, 1);
+
+  const merged = mergeLists(cleared, elsewhere);
+  assert.equal(merged.items.length, 1, 'the two cleared lines stay gone');
+  assert.equal(merged.items[0].text, 'Œufs');
+});
+
+test('a line added elsewhere after a clearing still arrives', () => {
+  const start = addItems(createList({ names: ['Gui'] }), 'Pain');
+  const cleared = removeItem(start, start.items[0].id);
+  const elsewhere = addItems(start, 'Beurre');
+
+  const merged = mergeLists(cleared, elsewhere);
+  assert.deepEqual(merged.items.map((i) => i.text), ['Beurre'],
+    'a deletion is not a reason to refuse everything else');
+});
+
+test('whoever touched the people last is right about them', () => {
+  const start = addItems(createList({ name: 'Courses', names: ['Gui', 'Alice'] }), 'Pain');
+  const alice = start.people[1].id;
+
+  // Here: Alice is removed. There: only a line is ticked, people untouched.
+  const here = removePerson(start, alice);
+  const there = toggleItem(start, start.items[0].id);
+
+  assert.equal(mergeLists(here, there).people.length, 1, 'Alice stays removed');
+  assert.equal(mergeLists(there, here).people.length, 1, 'whichever way round');
+  assert.equal(mergeLists(there, here).items[0].done, true, 'and the tick survives it');
+});
+
+test('someone added elsewhere is not lost to a change made here', () => {
+  const start = addItems(createList({ name: 'Courses', names: ['Gui'] }), 'Pain');
+  const here = toggleItem(start, start.items[0].id);
+  const there = addPerson(start, 'Lea');
+
+  assert.deepEqual(mergeLists(here, there).people.map((p) => p.name), ['Gui', 'Lea']);
+  assert.deepEqual(mergeLists(there, here).people.map((p) => p.name), ['Gui', 'Lea'],
+    'even when the lines are identical on both sides');
+});
+
+test('sharing out nothing is not a change at all', () => {
+  const list = shareOut(addItems(createList({ names: ['Gui'] }), 'Pain'));
+  assert.equal(shareOut(list), list, 'nothing left to hand out: the same list, untouched');
+
+  const nobody = addItems(createList(), 'Pain');
+  assert.equal(shareOut(nobody), nobody, 'and nobody to share with is not a change either');
+
+  const allDone = toggleItem(addItems(createList({ names: ['Gui'] }), 'Pain'), undefined);
+  assert.ok(allDone, 'an unknown line changes nothing');
+});

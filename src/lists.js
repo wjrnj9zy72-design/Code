@@ -26,7 +26,14 @@ export function createList({ name = '', names = [], shared = false } = {}) {
     name: String(name).trim(),
     createdAt: now,
     updatedAt: now,
+    // People change rarely and separately from the lines, so they carry their
+    // own clock: a merge can then tell "someone was just removed" from "this
+    // copy simply has not heard of them yet".
+    peopleAt: now,
     shared: Boolean(shared),
+    // The lines deleted here, and when — without this a deletion is undone by
+    // the next copy that still holds the line.
+    removed: {},
     people: names
       .map((raw) => String(raw || '').trim())
       .filter(Boolean)
@@ -93,9 +100,29 @@ export function toggleItem(list, itemId) {
   return item ? patchItem(list, itemId, { done: !item.done }) : list;
 }
 
+/**
+ * Drop a line, and remember having dropped it. Without that trace the other
+ * phone, which still holds the line, hands it straight back at the next sync —
+ * and "clear what is done" undoes itself while you watch.
+ */
 export function removeItem(list, itemId) {
   const items = list.items.filter((item) => item.id !== itemId);
-  return items.length === list.items.length ? list : touch(list, items);
+  if (items.length === list.items.length) return list;
+  return {
+    ...touch(list, items),
+    removed: { ...list.removed, [itemId]: Date.now() },
+  };
+}
+
+/** Tombstones worth keeping: a month is longer than any phone stays away. */
+const FORGET_AFTER = 30 * 24 * 60 * 60 * 1000;
+
+function prune(removed, now = Date.now()) {
+  const kept = {};
+  for (const [id, at] of Object.entries(removed || {})) {
+    if (now - at < FORGET_AFTER) kept[id] = at;
+  }
+  return kept;
 }
 
 /** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
@@ -104,6 +131,7 @@ export function reuseList(list) {
   return {
     ...createList({ name: list.name, shared: list.shared }),
     people: list.people,
+    peopleAt: list.peopleAt || now,
     items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, updatedAt: now })),
   };
 }
@@ -111,9 +139,11 @@ export function reuseList(list) {
 export function addPerson(list, name) {
   const clean = String(name || '').trim();
   if (!clean) return list;
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: [...list.people, { id: uid('w'), name: clean }],
+    peopleAt: at,
     updatedAt: later(list.updatedAt),
   };
 }
@@ -121,18 +151,22 @@ export function addPerson(list, name) {
 export function renamePerson(list, personId, name) {
   const clean = String(name || '').trim();
   if (!clean) return list;
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: list.people.map((person) => (person.id === personId ? { ...person, name: clean } : person)),
+    peopleAt: at,
     updatedAt: later(list.updatedAt),
   };
 }
 
 /** Drop someone. What was theirs goes back to nobody rather than disappearing. */
 export function removePerson(list, personId) {
+  const at = later(list.peopleAt);
   return {
     ...list,
     people: list.people.filter((person) => person.id !== personId),
+    peopleAt: at,
     items: list.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
     updatedAt: later(list.updatedAt),
   };
@@ -145,6 +179,7 @@ export function removePerson(list, personId) {
  */
 export function shareOut(list) {
   if (!list.people.length) return list;
+  if (!list.items.some((item) => !item.who && !item.done)) return list;
   const load = new Map(list.people.map((person) => [person.id, 0]));
   for (const item of list.items) {
     if (item.who && !item.done && load.has(item.who)) load.set(item.who, load.get(item.who) + 1);
@@ -191,26 +226,41 @@ export function mergeLists(a, b) {
   if (a.id !== b.id) return a;
 
   const [newer, older] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+
+  // A line deleted anywhere stays deleted, whichever copy still holds it.
+  const removed = prune({ ...older.removed, ...newer.removed });
+
   const byId = new Map();
   for (const item of [...older.items, ...newer.items]) {
+    if (removed[item.id]) continue;
     const held = byId.get(item.id);
     if (!held || (item.updatedAt || 0) >= (held.updatedAt || 0)) byId.set(item.id, item);
   }
 
   // The newer copy's order first, then the lines only the older one knew.
   const ordered = [
-    ...newer.items.map((item) => byId.get(item.id)),
-    ...older.items.filter((item) => !newer.items.some((other) => other.id === item.id)),
+    ...newer.items.filter((item) => byId.has(item.id)).map((item) => byId.get(item.id)),
+    ...older.items.filter(
+      (item) => byId.has(item.id) && !newer.items.some((other) => other.id === item.id),
+    ),
   ];
 
-  const sameLength = ordered.length === newer.items.length;
-  const sameItems = sameLength && ordered.every((item, index) => item === newer.items[index]);
-  if (sameItems) return newer;
+  // Whoever touched the people last is right about them — including about
+  // someone they removed, which a union of the two sides could never see.
+  const people = (newer.peopleAt || 0) >= (older.peopleAt || 0) ? newer.people : older.people;
+  const peopleAt = Math.max(newer.peopleAt || 0, older.peopleAt || 0);
+
+  const sameItems =
+    ordered.length === newer.items.length &&
+    ordered.every((item, index) => item === newer.items[index]);
+  const samePeople = people === newer.people && Object.keys(removed).length === Object.keys(newer.removed || {}).length;
+  if (sameItems && samePeople) return newer;
 
   return {
     ...newer,
-    // Someone added elsewhere may be the owner of a line coming in.
-    people: newer.people.length >= older.people.length ? newer.people : older.people,
+    people,
+    peopleAt,
+    removed,
     items: ordered,
     updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
   };
