@@ -5469,9 +5469,15 @@ function registerOfflineCache() {
   });
 }
 
-/** Which copy of the app this is — the version sw.js names its cache after. */
+/**
+ * Which copy of the app this is: the version, bumped by hand when something
+ * worth announcing changes, and the build stamp, which moves on its own
+ * whenever any source file does.
+ */
 function appVersion() {
-  return document.querySelector('meta[name="app-version"]')?.content || '';
+  const version = document.querySelector('meta[name="app-version"]')?.content || '';
+  const build = document.querySelector('meta[name="app-build"]')?.content || '';
+  return [version, build].filter(Boolean).join(' · ');
 }
 
 /**

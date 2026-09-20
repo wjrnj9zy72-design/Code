@@ -5,7 +5,8 @@
     <meta charset="utf-8" />
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
-    <meta name="app-version" content="v6" />
+    <meta name="app-version" content="v7" />
+    <meta name="app-build" content="ce24721c" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -10562,9 +10563,15 @@ function registerOfflineCache() {
   });
 }
 
-/** Which copy of the app this is — the version sw.js names its cache after. */
+/**
+ * Which copy of the app this is: the version, bumped by hand when something
+ * worth announcing changes, and the build stamp, which moves on its own
+ * whenever any source file does.
+ */
 function appVersion() {
-  return document.querySelector('meta[name="app-version"]')?.content || '';
+  const version = document.querySelector('meta[name="app-version"]')?.content || '';
+  const build = document.querySelector('meta[name="app-build"]')?.content || '';
+  return [version, build].filter(Boolean).join(' · ');
 }
 
 /**

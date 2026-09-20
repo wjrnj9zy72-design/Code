@@ -1623,6 +1623,13 @@ sans que rien ne le dise. Ce que l'app fait désormais d'elle-même :
 - l'onglet **Aperçu** affiche la **version** en bas, sous *Données*, avec un
   bouton **Chercher une mise à jour** qui dit ce qu'il a trouvé.
 
+La version se lit en deux morceaux, par exemple `v7 · ce24721c` : le premier
+change quand il y a quelque chose à annoncer, le second est **calculé à partir des
+fichiers eux-mêmes** et bouge à la moindre modification. C'est celui-là qu'on
+compare pour savoir si deux appareils tournent sur la même chose — et c'est lui
+qui garantit qu'une version publiée est bien vue comme nouvelle, puisque le
+fichier du cache change avec elle.
+
 Si malgré cela une installation reste bloquée — c'est arrivé sur iOS avant ces
 garde-fous —, la sortie est mécanique :
 

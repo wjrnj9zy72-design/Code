@@ -18,8 +18,10 @@
  * checks that it matches both the files it built and the version the page shows.
  */
 
-const VERSION = 'v6';
-const CACHE = `marque-points-${VERSION}`;
+const VERSION = 'v7';
+/** Written by tools/bundle.js from the sources: it moves whenever they do. */
+const BUILD = 'ce24721c';
+const CACHE = `marque-points-${VERSION}-${BUILD}`;
 
 const SHELL = [
   './',
