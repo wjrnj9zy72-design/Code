@@ -1553,6 +1553,23 @@ porter : une ligne de plus dans *Qui est dans le groupe*, que vous pouvez
 **Couper** sans rien déranger. C'est d'ailleurs le bon réflexe si un téléphone est
 perdu.
 
+**Le prénom n'ouvre rien.** Ce qui ramène les données, c'est d'appartenir au
+groupe : tout ce qui y est partagé est rangé sous le groupe, pas sous une
+personne, et un appareil qui revient reçoit l'ensemble — quel que soit le prénom
+qu'il a donné. Revenir sous « Alexandre » plutôt que « Alex » ne fait rien perdre.
+
+Le prénom sert à trois choses, et ce sont trois commodités : il **étiquette la
+clé** (c'est ce qui vous fait reconnaître la ligne dans *Qui est dans le groupe*),
+il est **proposé en premier** dans les listes, sondages et parties créés sur cet
+appareil, et il s'affiche quand quelqu'un frappe.
+
+Dans une liste, les personnes sont des lignes du document lui-même — « Alex » et
+ce qui lui est attribué appartiennent à la liste, pas à son téléphone. Elles sont
+donc toujours là quand il revient, et il retrouve ses lignes en touchant sa
+pastille. Reprendre le même prénom est donc une affaire de **propreté**, pas de
+récupération : sinon vous risquez juste de voir « Alex » et « Alexandre » cohabiter
+avec le temps — et là, renommer la personne dans la liste suffit.
+
 **Chaque appareil a sa propre clé, et ce ne sont pas les mêmes.** C'est le point à
 retenir : quand vous acceptez quelqu'un, le jeton *de son appareil* devient *sa*
 clé — la vôtre ne bouge pas et ne lui est jamais montrée. Sa clé à lui voit et
