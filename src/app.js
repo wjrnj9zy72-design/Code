@@ -1229,6 +1229,9 @@ function groupsHtml() {
                       <button type="button" class="button button--small" data-catch-up="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.catchUp'))}
                       </button>
+                      <button type="button" class="button button--small button--ghost" data-show-key="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.showKey'))}
+                      </button>
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -1633,6 +1636,22 @@ function bindOverview() {
       }
       flash(taken ? t('groups.caughtUp', { count: taken }) : t('groups.upToDate'));
       render();
+    });
+  });
+
+  // The key this device holds, readable again — so it can be kept somewhere safe,
+  // or put into a second installation (the app on a home screen, a new phone)
+  // without inviting anyone or asking anyone to accept anything.
+  view.querySelectorAll('[data-show-key]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.showKey);
+      if (!group) return;
+      if (!(await ask(t('groups.confirmShowKey', { name: group.name }), { confirmLabel: t('groups.showKey') }))) return;
+      showCopyDialog({
+        title: t('groups.keyTitle', { name: group.name }),
+        hint: t('groups.keyWarning'),
+        text: group.key,
+      });
     });
   });
 

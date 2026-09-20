@@ -171,6 +171,12 @@ export const STRINGS = {
     'groups.catchUp': 'Tout récupérer',
     'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
     'groups.upToDate': 'Rien de nouveau : cet appareil est à jour.',
+    'groups.showKey': 'Voir la clé',
+    'groups.confirmShowKey':
+      'Afficher la clé de {name} ? Elle fait entrer n’importe quel appareil où elle est collée — gardez-la pour vous.',
+    'groups.keyTitle': 'La clé de {name}',
+    'groups.keyWarning':
+      'À garder en lieu sûr : un gestionnaire de mots de passe, par exemple. C’est avec elle qu’un de vos appareils revient dans le groupe sans invitation — après avoir réinstallé l’app, ou sur un téléphone neuf. Ne l’envoyez à personne : qui la colle entre.',
     'groups.leave': 'Quitter',
     'groups.confirmLeave':
       'Quitter ce groupe sur cet appareil ? Ce qui est déjà ici y reste, mais vous ne pourrez plus rien y partager ni récupérer sans recoller la clé.',
@@ -675,6 +681,12 @@ export const STRINGS = {
     'groups.catchUp': 'Fetch everything',
     'groups.caughtUp': '{count} item(s) fetched from the group.',
     'groups.upToDate': 'Nothing new: this device is up to date.',
+    'groups.showKey': 'Show the key',
+    'groups.confirmShowKey':
+      'Show the key to {name}? It lets in any device it is pasted into — keep it to yourself.',
+    'groups.keyTitle': 'The key to {name}',
+    'groups.keyWarning':
+      'Keep it somewhere safe, a password manager for instance. It is what brings one of your own devices back into the group with no invitation — after reinstalling the app, or on a new phone. Send it to nobody: whoever pastes it is in.',
     'groups.leave': 'Leave',
     'groups.confirmLeave':
       'Leave this group on this device? What is already here stays, but you will not be able to share or fetch anything there without pasting the key again.',

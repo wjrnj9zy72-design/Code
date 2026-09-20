@@ -1460,6 +1460,25 @@ Deux façons de la faire entrer :
 Une fois entrée, elle récupère d'elle-même ce que le groupe partage, et le **⟳**
 apparaît dans la barre du haut.
 
+**Et si vous retirez puis remettez l'app sur l'écran d'accueil ?** Vous ne
+réinvitez **personne**. Retirer l'app efface le stockage de *cette installation*
+et rien d'autre : les clés des autres sont des lignes dans la base, elles ne
+bougent pas, et les autres continuent de se synchroniser entre eux pendant ce
+temps. Il n'y a que **votre** installation à faire rentrer, et le plus court est
+de recoller la clé.
+
+Pour l'avoir sous la main : dans *Mes groupes*, **Voir la clé** l'affiche depuis un
+appareil qui la détient — à garder dans un gestionnaire de mots de passe. C'est
+elle qui fait revenir un de vos appareils sans invitation ni acceptation ; ne
+l'envoyez à personne, qui la colle entre.
+
+> ⚠️ Avant de retirer l'app, deux précautions : **récupérez** (⟳) ou **exportez**
+> (*Données*) ce qui n'a jamais été partagé, car cela n'existe que là ; et
+> assurez-vous d'avoir la clé ailleurs. Si la seule clé qui fait entrer vivait
+> dans cette installation et que vous l'effacez, il ne reste que le bouton
+> d'alarme (`marque_points_new_group_key`) — et **lui**, il fait sortir tout le
+> monde.
+
 ### Quand l'app de l'écran d'accueil montre une version dépassée
 
 Safari et l'app de l'écran d'accueil sont deux installations séparées : chacune
