@@ -19,9 +19,13 @@ import { join, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stats.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'lists.js', 'stats.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
 
-const IMPORT_LINE = /^import\s.*?;\s*$/gm;
+/**
+ * An import, on one line or spread over several — a long list of names wraps,
+ * and a wrapped import left in the bundle makes the whole page fail to parse.
+ */
+const IMPORT_LINE = /^import\s[\s\S]*?;\s*$/gm;
 const EXPORT_KEYWORD = /^export\s+(?=(?:const|let|function|class|async)\b)/gm;
 /** `export { a, b };` and `export default …` — forms with nothing to keep. */
 const EXPORT_LIST = /^export\s*\{[^}]*\}\s*;?\s*$/gm;

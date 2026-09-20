@@ -1,4 +1,4 @@
-<title>Marque-Points</title>
+<title>Together</title>
 <style>
 /* ---------------------------------------------------------------- tokens --- */
 :root {
@@ -458,6 +458,116 @@ table.scores .meta-cell { color: var(--muted); }
   .score-row { grid-template-columns: 1fr 88px; }
 }
 
+/* ----------------------------------------------------------------- lines --- */
+/*
+ * A line in a list: a box to tick, the text, and who it is for. The three are
+ * separate targets — ticking is the common one, so it gets the widest.
+ */
+.lines {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.line__tick {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.line__tick input {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+.line__text {
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.line__who {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.line__who--nobody { color: var(--muted); border-style: dashed; }
+
+.line--done .line__text { color: var(--muted); text-decoration: line-through; }
+
+.chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip--on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+.row--tight { flex-wrap: nowrap; gap: 8px; }
+.row--tight input { flex: 1; }
+
+/* ------------------------------------------------------------------ tabs --- */
+/*
+ * The two halves of the app. Two of them, so they get the full width and the
+ * thumb never has to aim.
+ */
+.tabs {
+  /* Not sticky: the bar above it is, and guessing that bar's height — which
+     changes with the tagline's wrapping — would put the two on top of each
+     other on exactly the narrow screens this is for. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tab {
+  padding: 12px 8px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.tab[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
 /* ---------------------------------------------------------------- dialog --- */
 .dialog {
   width: min(560px, calc(100vw - 32px));
@@ -578,7 +688,7 @@ table.scores .meta-cell { color: var(--muted); }
       <a class="app-bar__brand" href="#/">
         <span class="app-bar__logo" aria-hidden="true">🃏</span>
         <span>
-          <strong data-i18n="app.title">Marque-Points</strong>
+          <strong data-i18n="app.title">Together</strong>
           <small data-i18n="app.tagline"></small>
         </span>
       </a>
@@ -590,6 +700,11 @@ table.scores .meta-cell { color: var(--muted); }
       </div>
     </header>
 
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a class="tab" href="#/" data-tab="games" data-i18n="tab.games">Parties</a>
+      <a class="tab" href="#/lists" data-tab="lists" data-i18n="tab.lists">Listes</a>
+    </nav>
+
     <main id="view" class="view" aria-live="polite"></main>
 
     <script>
@@ -600,8 +715,8 @@ window.MARQUE_POINTS_EXPORT_MODE = 'copy';
 
 const STRINGS = {
   fr: {
-    'app.title': 'Marque-Points',
-    'app.tagline': 'Compteur de points pour Papayoo & autres jeux',
+    'app.title': 'Together',
+    'app.tagline': 'Les points et les listes, à plusieurs',
     'action.newGame': 'Nouvelle partie',
     'action.back': 'Retour',
     'action.save': 'Enregistrer',
@@ -715,6 +830,48 @@ const STRINGS = {
     'share.sending': 'Envoi…',
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.stats': 'Statistiques',
+    'tab.games': 'Parties',
+    'tab.lists': 'Listes',
+    'lists.new': 'Nouvelle liste',
+    'lists.name': 'Titre de la liste',
+    'lists.namePlaceholder': 'Courses de samedi, Valise, Déménagement…',
+    'lists.peopleHint': 'Les personnes que cette liste concerne. On peut en ajouter plus tard.',
+    'lists.person': 'Personne {n}',
+    'lists.addPerson': 'Ajouter une personne',
+    'lists.dropPerson': 'Retirer',
+    'lists.people': 'Les personnes',
+    'lists.nobodyYet': 'Personne pour l’instant.',
+    'lists.firstLines': 'Premières lignes (une par ligne, facultatif)',
+    'lists.firstLinesPlaceholder': 'Pain\nLait\nRéserver le camion',
+    'lists.create': 'Créer la liste',
+    'lists.untitled': 'Liste sans titre',
+    'lists.ongoing': 'En cours',
+    'lists.done': 'Terminées',
+    'lists.none': 'Aucune liste pour l’instant. Créez-en une : courses, valise, corvées, ce que vous voulez.',
+    'lists.empty': 'vide',
+    'lists.progress': '{done} sur {total}',
+    'lists.addLine': 'Ajouter une ligne',
+    'lists.addFirst': 'Écrivez la première ligne ci-dessus.',
+    'lists.nothingHere': 'Rien ici pour l’instant.',
+    'lists.everyone': 'Tout',
+    'lists.nobody': 'Personne',
+    'lists.assignTitle': 'Pour qui ?',
+    'lists.lineTitle': 'Modifier la ligne',
+    'lists.shareOut': 'Répartir',
+    'lists.nothingToShareOut': 'Rien à répartir : tout est déjà attribué ou fait.',
+    'lists.clearDone': 'Effacer ce qui est fait',
+    'lists.confirmClearDone': 'Effacer toutes les lignes cochées ? Elles ne seront plus dans la liste.',
+    'lists.reuse': 'Reprendre cette liste',
+    'lists.rename': 'Renommer la liste',
+    'lists.confirmDelete': 'Supprimer cette liste ? Elle disparaîtra aussi pour les personnes avec qui elle est partagée.',
+    'lists.confirmRemovePerson': 'Retirer cette personne ? Ce qui lui était attribué redeviendra « personne ».',
+    'lists.share': 'Partager la liste',
+    'lists.shareTitle': 'Lien vers cette liste',
+    'lists.shareHint':
+      'Scannez le code, ou envoyez le lien : il ouvre cette liste, et la personne peut cocher et ajouter des lignes.',
+    'lists.sharedMark': 'partagée',
+    'lists.loading': 'Ouverture de la liste…',
+    'lists.textHint': 'À coller dans une conversation.',
     'action.recap': 'Récapitulatif',
     'action.exportDocx': 'Word',
     'action.exportPdf': 'PDF',
@@ -738,7 +895,7 @@ const STRINGS = {
     'shareApp.title': 'Lien vers l’app',
     'shareApp.hint':
       'Scannez le code, ou envoyez le lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
-    'shareApp.text': 'Marque-Points — compteur de points pour Papayoo et d’autres jeux',
+    'shareApp.text': 'Together — les points et les listes, à plusieurs',
     'shareApp.kindApp': 'L’app seule',
     'shareApp.kindAppHint': 'la personne repart de zéro, avec ses propres parties',
     'shareApp.kindAll': 'L’app et toutes mes parties ({count})',
@@ -753,7 +910,7 @@ const STRINGS = {
     'shareSet.title': 'Lien vers l’app et vos parties',
     'shareSet.hint':
       'Scannez le code, ou envoyez le lien : il ouvre l’app et y ajoute les parties choisies ({count}), prêtes à être continuées.',
-    'shareSet.text': 'Marque-Points — l’app et nos parties',
+    'shareSet.text': 'Together — l’app et nos parties',
     'shareSet.loading': 'Récupération des parties partagées…',
     'shareSet.notFound':
       'Aucune partie trouvée pour ce lien. Vérifiez qu’il est complet, et qu’il n’est pas trop ancien.',
@@ -908,8 +1065,8 @@ const STRINGS = {
   },
 
   en: {
-    'app.title': 'Marque-Points',
-    'app.tagline': 'Score keeper for Papayoo & other games',
+    'app.title': 'Together',
+    'app.tagline': 'Scores and lists, together',
     'action.newGame': 'New game',
     'action.back': 'Back',
     'action.save': 'Save',
@@ -1023,6 +1180,48 @@ const STRINGS = {
     'share.sending': 'Sending…',
     'share.sendFailed': 'The game could not be sent. Try again.',
     'action.stats': 'Statistics',
+    'tab.games': 'Games',
+    'tab.lists': 'Lists',
+    'lists.new': 'New list',
+    'lists.name': 'List title',
+    'lists.namePlaceholder': 'Saturday shopping, Suitcase, Moving out…',
+    'lists.peopleHint': 'The people this list concerns. More can be added later.',
+    'lists.person': 'Person {n}',
+    'lists.addPerson': 'Add someone',
+    'lists.dropPerson': 'Remove',
+    'lists.people': 'People',
+    'lists.nobodyYet': 'Nobody yet.',
+    'lists.firstLines': 'First lines (one per line, optional)',
+    'lists.firstLinesPlaceholder': 'Bread\nMilk\nBook the van',
+    'lists.create': 'Create the list',
+    'lists.untitled': 'Untitled list',
+    'lists.ongoing': 'In progress',
+    'lists.done': 'Finished',
+    'lists.none': 'No lists yet. Make one: shopping, a suitcase, the chores — whatever you like.',
+    'lists.empty': 'empty',
+    'lists.progress': '{done} of {total}',
+    'lists.addLine': 'Add a line',
+    'lists.addFirst': 'Write the first line above.',
+    'lists.nothingHere': 'Nothing here for now.',
+    'lists.everyone': 'All',
+    'lists.nobody': 'Nobody',
+    'lists.assignTitle': 'Who is this for?',
+    'lists.lineTitle': 'Edit the line',
+    'lists.shareOut': 'Share out',
+    'lists.nothingToShareOut': 'Nothing to share out: it is all taken or done.',
+    'lists.clearDone': 'Clear what is done',
+    'lists.confirmClearDone': 'Clear every ticked line? They will no longer be in the list.',
+    'lists.reuse': 'Use this list again',
+    'lists.rename': 'Rename the list',
+    'lists.confirmDelete': 'Delete this list? It will go for the people it is shared with too.',
+    'lists.confirmRemovePerson': 'Remove this person? What was theirs goes back to nobody.',
+    'lists.share': 'Share the list',
+    'lists.shareTitle': 'Link to this list',
+    'lists.shareHint':
+      'Scan the code, or send the link: it opens this list, and they can tick lines and add their own.',
+    'lists.sharedMark': 'shared',
+    'lists.loading': 'Opening the list…',
+    'lists.textHint': 'To paste into a conversation.',
     'action.recap': 'Summary',
     'action.exportDocx': 'Word',
     'action.exportPdf': 'PDF',
@@ -1046,7 +1245,7 @@ const STRINGS = {
     'shareApp.title': 'Link to the app',
     'shareApp.hint':
       'Scan the code, or send the link: they open the app and keep their own games, on their own device.',
-    'shareApp.text': 'Marque-Points — a score keeper for Papayoo and other games',
+    'shareApp.text': 'Together — scores and lists, shared',
     'shareApp.kindApp': 'The app alone',
     'shareApp.kindAppHint': 'they start empty, with games of their own',
     'shareApp.kindAll': 'The app and all my games ({count})',
@@ -1060,7 +1259,7 @@ const STRINGS = {
     'shareSet.title': 'Link to the app and your games',
     'shareSet.hint':
       'Scan the code, or send the link: it opens the app and adds the games you picked ({count}), ready to carry on.',
-    'shareSet.text': 'Marque-Points — the app and our games',
+    'shareSet.text': 'Together — the app and our games',
     'shareSet.loading': 'Fetching the shared games…',
     'shareSet.notFound':
       'No games found for that link. Check that it is complete, and not too old.',
@@ -2604,6 +2803,249 @@ function qrSvg(text, { size = 220, quiet = 4 } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${count} ${count}" width="${size}" height="${size}" role="img"><rect width="${count}" height="${count}" fill="#fff"/><g fill="#000">${rects.join('')}</g></svg>`;
 }
 
+  // ---- src/lists.js ----------------------------------------------------
+/**
+ * Lists: a title, the people it concerns, and lines to hand out.
+ *
+ * Deliberately thin. A line is free text — "2 baguettes", "réserver le
+ * camion", "rendre la perceuse à Paul" — because a title plus a sentence says
+ * more than any set of fields would: actions, objects, or both in the same
+ * list, and no form to fill in before writing the first line.
+ *
+ * What a line carries beyond its text is what a shared list actually needs:
+ * who it is for, and whether it is done. Everything else — categories, due
+ * dates, recurrence, effort — is left out until the use asks for it.
+ *
+ * Pure, like the game model: every mutator returns a new list.
+ */
+
+
+/** A new list. `names` are the people it is shared between; it can be nobody. */
+function createList({ name = '', names = [], shared = false } = {}) {
+  const now = Date.now();
+  return {
+    id: uid('l'),
+    // Says what this document is, for a database that holds games and lists
+    // side by side, and for an import that has to tell them apart.
+    kind: 'list',
+    name: String(name).trim(),
+    createdAt: now,
+    updatedAt: now,
+    shared: Boolean(shared),
+    people: names
+      .map((raw) => String(raw || '').trim())
+      .filter(Boolean)
+      .map((personName) => ({ id: uid('w'), name: personName })),
+    items: [],
+  };
+}
+
+/**
+ * Every change moves the clock forward, even when two of them land in the same
+ * millisecond: a stamp that never repeats is what lets a merge tell a line
+ * someone changed from the same line nobody touched.
+ */
+const later = (previous) => Math.max(Date.now(), (previous || 0) + 1);
+
+const touch = (list, items) => ({ ...list, items, updatedAt: later(list.updatedAt) });
+
+/**
+ * Add a line. Several lines at once when a whole list is pasted in — which is
+ * how a list arrives from a message more often than it is typed.
+ */
+function addItems(list, text) {
+  const now = Date.now();
+  const fresh = String(text || '')
+    .split('\n')
+    // A bullet, or a number *used as* a bullet — "1." or "2)". A bare number
+    // is a quantity, and "2 baguettes" must stay two baguettes.
+    .map((line) => line.replace(/^\s*(?:[-*•–—]+|\d+\s*[.)])\s+/, '').trim())
+    .filter(Boolean)
+    .map((line) => ({
+      id: uid('i'),
+      text: line,
+      who: null,
+      done: false,
+      createdAt: now,
+      updatedAt: now,
+    }));
+  return fresh.length ? touch(list, [...list.items, ...fresh]) : list;
+}
+
+function patchItem(list, itemId, patch) {
+  let changed = false;
+  const items = list.items.map((item) => {
+    if (item.id !== itemId) return item;
+    changed = true;
+    return { ...item, ...patch, updatedAt: later(item.updatedAt) };
+  });
+  return changed ? touch(list, items) : list;
+}
+
+function renameItem(list, itemId, text) {
+  const clean = String(text || '').trim();
+  return clean ? patchItem(list, itemId, { text: clean }) : list;
+}
+
+/** Hand a line to someone, or to nobody when `who` is null. */
+function assignItem(list, itemId, who) {
+  const known = who === null || list.people.some((person) => person.id === who);
+  return known ? patchItem(list, itemId, { who }) : list;
+}
+
+function toggleItem(list, itemId) {
+  const item = list.items.find((entry) => entry.id === itemId);
+  return item ? patchItem(list, itemId, { done: !item.done }) : list;
+}
+
+function removeItem(list, itemId) {
+  const items = list.items.filter((item) => item.id !== itemId);
+  return items.length === list.items.length ? list : touch(list, items);
+}
+
+/** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
+function reuseList(list) {
+  const now = Date.now();
+  return {
+    ...createList({ name: list.name, shared: list.shared }),
+    people: list.people,
+    items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, updatedAt: now })),
+  };
+}
+
+function addPerson(list, name) {
+  const clean = String(name || '').trim();
+  if (!clean) return list;
+  return {
+    ...list,
+    people: [...list.people, { id: uid('w'), name: clean }],
+    updatedAt: later(list.updatedAt),
+  };
+}
+
+function renamePerson(list, personId, name) {
+  const clean = String(name || '').trim();
+  if (!clean) return list;
+  return {
+    ...list,
+    people: list.people.map((person) => (person.id === personId ? { ...person, name: clean } : person)),
+    updatedAt: later(list.updatedAt),
+  };
+}
+
+/** Drop someone. What was theirs goes back to nobody rather than disappearing. */
+function removePerson(list, personId) {
+  return {
+    ...list,
+    people: list.people.filter((person) => person.id !== personId),
+    items: list.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
+    updatedAt: later(list.updatedAt),
+  };
+}
+
+/**
+ * Share out what nobody has taken, as evenly as the count allows, starting
+ * with whoever is carrying the least. What is already assigned is left alone:
+ * the button is there to break a deadlock, not to undo people's choices.
+ */
+function shareOut(list) {
+  if (!list.people.length) return list;
+  const load = new Map(list.people.map((person) => [person.id, 0]));
+  for (const item of list.items) {
+    if (item.who && !item.done && load.has(item.who)) load.set(item.who, load.get(item.who) + 1);
+  }
+
+  const now = Date.now();
+  const items = list.items.map((item) => {
+    if (item.who || item.done) return item;
+    let lightest = list.people[0].id;
+    for (const person of list.people) {
+      if (load.get(person.id) < load.get(lightest)) lightest = person.id;
+    }
+    load.set(lightest, load.get(lightest) + 1);
+    return { ...item, who: lightest, updatedAt: now };
+  });
+  return touch(list, items);
+}
+
+/** How far along: { done, total, left } — and per person where asked. */
+function progress(list, personId = undefined) {
+  const items = personId === undefined ? list.items : list.items.filter((item) => item.who === personId);
+  const done = items.filter((item) => item.done).length;
+  return { done, total: items.length, left: items.length - done };
+}
+
+/**
+ * Merge two copies of the same list — this browser's and the database's.
+ *
+ * Line by line, keeping whichever version of a line changed last: two people
+ * ticking different lines at the same moment both get their way, which is the
+ * whole point of a shared shopping list. A line added on one side and never
+ * seen on the other is kept, for the same reason a round is.
+ *
+ * A line someone changed always beats the same line nobody touched, whatever
+ * the clock's resolution, because a change never leaves a stamp where it found
+ * it. What stays undecidable is the same line changed on *both* sides at the
+ * same moment: nothing in the two copies says which came first, so the newer
+ * list's version is taken. Clocks on two phones do not agree closely enough
+ * for more machinery than this to be worth it.
+ */
+function mergeLists(a, b) {
+  if (!isValidList(a)) return b;
+  if (!isValidList(b)) return a;
+  if (a.id !== b.id) return a;
+
+  const [newer, older] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+  const byId = new Map();
+  for (const item of [...older.items, ...newer.items]) {
+    const held = byId.get(item.id);
+    if (!held || (item.updatedAt || 0) >= (held.updatedAt || 0)) byId.set(item.id, item);
+  }
+
+  // The newer copy's order first, then the lines only the older one knew.
+  const ordered = [
+    ...newer.items.map((item) => byId.get(item.id)),
+    ...older.items.filter((item) => !newer.items.some((other) => other.id === item.id)),
+  ];
+
+  const sameLength = ordered.length === newer.items.length;
+  const sameItems = sameLength && ordered.every((item, index) => item === newer.items[index]);
+  if (sameItems) return newer;
+
+  return {
+    ...newer,
+    // Someone added elsewhere may be the owner of a line coming in.
+    people: newer.people.length >= older.people.length ? newer.people : older.people,
+    items: ordered,
+    updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+  };
+}
+
+/** Defensive read of anything coming back from storage, a link, or a file. */
+function isValidList(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      value.kind === 'list' &&
+      typeof value.id === 'string' &&
+      Array.isArray(value.people) &&
+      Array.isArray(value.items) &&
+      value.items.every((item) => item && typeof item.id === 'string' && typeof item.text === 'string'),
+  );
+}
+
+/** The names already used, most recent first, to offer when starting a list. */
+function recentPeople(lists, limit = 12) {
+  const seen = [];
+  for (const list of [...lists].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) {
+    for (const person of list.people) {
+      if (!seen.includes(person.name)) seen.push(person.name);
+      if (seen.length >= limit) return seen;
+    }
+  }
+  return seen;
+}
+
   // ---- src/stats.js ----------------------------------------------------
 /**
  * What the accumulated games say about the people who played them.
@@ -3028,7 +3470,11 @@ function buildPdf(report) {
  */
 
 
+
+// The keys keep the old name on purpose: renaming them would lose every game
+// and every list already on people's phones, to no one's benefit.
 const GAMES_KEY = 'marque-points:games:v1';
+const LISTS_KEY = 'marque-points:lists:v1';
 const PREFS_KEY = 'marque-points:prefs:v1';
 
 function read(key, fallback) {
@@ -3057,6 +3503,15 @@ function loadGames() {
 
 function saveGames(games) {
   return write(GAMES_KEY, games);
+}
+
+function loadLists() {
+  const value = read(LISTS_KEY, []);
+  return Array.isArray(value) ? value.filter(isValidList) : [];
+}
+
+function saveLists(lists) {
+  return write(LISTS_KEY, lists);
 }
 
 function loadPrefs() {
@@ -3397,6 +3852,18 @@ function shareLink(location, gameId) {
   return `${origin}${pathname}${search}#/game/${gameId}`;
 }
 
+/** The link to give someone so they open this very list. */
+function listLink(location, listId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/list/${listId}`;
+}
+
+/** The list id inside whatever was pasted, or null. */
+function listIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/list\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
+}
+
 /** The link that hands over a set of games at once. */
 function setLink(location, setId) {
   const { origin, pathname, search } = location;
@@ -3530,10 +3997,12 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
   games: loadGames(),
+  lists: loadLists(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -3550,7 +4019,14 @@ const state = {
   poll: null,
   // The set of games being fetched, so a redraw does not start a second fetch.
   openingSet: null,
+  // Whose lines are on screen in a list: null for everyone, 'none' for the
+  // ones nobody has taken.
+  listFilter: null,
 };
+
+// The new-list form's draft, kept across re-renders like the new-game one.
+let newListName = '';
+let newListPeople = ['', ''];
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -3585,6 +4061,11 @@ function gameTitle(game) {
   return preset ? presetLabel(preset) : t('new.customLabel');
 }
 
+/** The title of a game or of a list, whichever this is. */
+function documentTitle(document_) {
+  return isValidList(document_) ? listTitle(document_) : gameTitle(document_);
+}
+
 function formatDate(timestamp) {
   try {
     return new Date(timestamp).toLocaleDateString(getLanguage(), {
@@ -3608,6 +4089,220 @@ function flash(message, kind = 'info') {
 }
 
 /* ------------------------------------------------------------- persisting --- */
+
+/* ------------------------------------------------------------------ lists --- */
+
+/**
+ * A list is a title, the people it concerns, and lines to hand out. The views
+ * below are deliberately few: all the lines, or one person's — because what a
+ * shared list is asked in practice is "what do I still have to do".
+ */
+
+function listTitle(list) {
+  return list.name || t('lists.untitled');
+}
+
+function personName(list, who) {
+  return list.people.find((person) => person.id === who)?.name || '';
+}
+
+function listCardHtml(list) {
+  const { done, total } = progress(list);
+  const people = list.people.map((person) => person.name).join(' · ');
+  return `
+    <button type="button" class="game-card" data-goto="#/list/${escapeHtml(list.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(listTitle(list))}
+        <span class="pill ${total && done === total ? 'pill--done' : ''}">
+          ${escapeHtml(total ? t('lists.progress', { done, total }) : t('lists.empty'))}
+        </span>
+      </span>
+      ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
+      <span class="game-card__meta">${escapeHtml(formatDate(list.updatedAt))}</span>
+    </button>`;
+}
+
+function listsView() {
+  const sorted = [...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
+  const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
+      + ${escapeHtml(t('lists.new'))}
+    </button>
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(listCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('lists.none'))}</p>`
+      }
+    </section>
+
+    ${
+      finished.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('lists.done'))}</h2></div>
+             <div class="game-list">${finished.map(listCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }`;
+}
+
+function newListView() {
+  const suggestions = [...new Set([...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('lists.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-list" class="card stack">
+      <label>
+        ${escapeHtml(t('lists.name'))}
+        <input type="text" id="list-name" placeholder="${escapeHtml(t('lists.namePlaceholder'))}"
+               value="${escapeHtml(newListName)}" required />
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('lists.peopleHint'))}</span>
+        ${newListPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newListPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <label>
+        ${escapeHtml(t('lists.firstLines'))}
+        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}"></textarea>
+      </label>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('lists.create'))}</button>
+    </form>`;
+}
+
+function listItemHtml(list, item) {
+  const who = personName(list, item.who);
+  return `
+    <li class="line ${item.done ? 'line--done' : ''}">
+      <label class="line__tick">
+        <input type="checkbox" data-tick="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}
+               aria-label="${escapeHtml(item.text)}" />
+      </label>
+      <button type="button" class="line__text" data-edit="${escapeHtml(item.id)}">
+        <span>${escapeHtml(item.text)}</span>
+      </button>
+      <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
+        ${escapeHtml(who || t('lists.nobody'))}
+      </button>
+    </li>`;
+}
+
+function listView(list) {
+  const filter = state.listFilter;
+  const known = filter === null || filter === 'none' || list.people.some((person) => person.id === filter);
+  const shown = !known || filter === null
+    ? list.items
+    : list.items.filter((item) => (filter === 'none' ? !item.who : item.who === filter));
+  const { done, total } = progress(list);
+
+  const chip = (value, label, count) => `
+    <button type="button" class="chip ${(!known ? null : filter) === value ? 'chip--on' : ''}" data-filter="${value === null ? '' : escapeHtml(value)}">
+      ${escapeHtml(label)}${count === undefined ? '' : ` <span class="muted">${count}</span>`}
+    </button>`;
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(listTitle(list))}</h1>
+        <p class="muted small">
+          ${escapeHtml(total ? t('lists.progress', { done, total }) : t('lists.empty'))}
+          ${list.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="add-line" class="card stack stack--tight">
+      <label class="visually-hidden" for="new-line">${escapeHtml(t('lists.addLine'))}</label>
+      <div class="row row--tight">
+        <input type="text" id="new-line" placeholder="${escapeHtml(t('lists.addLine'))}" autocomplete="off" />
+        <button type="submit" class="button button--primary">+</button>
+      </div>
+    </form>
+
+    ${
+      list.people.length
+        ? `<div class="row">
+             ${chip(null, t('lists.everyone'), progress(list).left)}
+             ${list.people
+               .map((person) => chip(person.id, person.name, progress(list, person.id).left))
+               .join('')}
+             ${chip('none', t('lists.nobody'), progress(list, null).left)}
+           </div>`
+        : ''
+    }
+
+    ${
+      shown.length
+        ? `<ul class="lines">${shown.map((item) => listItemHtml(list, item)).join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        ${
+          list.people.length
+            ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="list-share">${escapeHtml(t('lists.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
+        ${
+          done
+            ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
 
 /**
  * Keep the local copy, and hand the changed game to the store when there is
@@ -3652,6 +4347,9 @@ function route() {
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
   if (name === 'set' && param) return { name: 'set', id: param };
+  if (name === 'lists' && param === 'new') return { name: 'new-list' };
+  if (name === 'lists') return { name: 'lists' };
+  if (name === 'list' && param) return { name: 'list', id: param };
   return { name: 'home' };
 }
 
@@ -4327,7 +5025,7 @@ async function submitRound(game) {
 const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
 
 function exportGames() {
-  const json = JSON.stringify({ version: 1, games: state.games }, null, 2);
+  const json = JSON.stringify({ version: 1, games: state.games, lists: state.lists }, null, 2);
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
     return;
@@ -4450,19 +5148,29 @@ function importGames(source) {
     return false;
   }
 
-  const incoming = (Array.isArray(parsed) ? parsed : parsed?.games || []).filter(isValidGame);
-  if (!incoming.length) {
+  const all = Array.isArray(parsed) ? parsed : [...(parsed?.games || []), ...(parsed?.lists || [])];
+  const games = all.filter(isValidGame);
+  const lists = all.filter(isValidList);
+  if (!games.length && !lists.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
 
-  const known = new Set(state.games.map((game) => game.id));
-  const fresh = incoming.filter((game) => !known.has(game.id));
-  state.games = [...state.games, ...fresh];
+  const knownGames = new Set(state.games.map((game) => game.id));
+  const freshGames = games.filter((game) => !knownGames.has(game.id));
+  state.games = [...state.games, ...freshGames];
   saveGames(state.games);
-  if (state.store) for (const game of fresh) void state.store.save(game);
-  if (state.remote) for (const game of fresh) if (game.shared) state.remote.put(game).catch(() => {});
-  flash(t('home.importDone', { count: fresh.length }));
+
+  const knownLists = new Set(state.lists.map((list) => list.id));
+  const freshLists = lists.filter((list) => !knownLists.has(list.id));
+  state.lists = [...state.lists, ...freshLists];
+  saveLists(state.lists);
+
+  for (const document_ of [...freshGames, ...freshLists]) {
+    if (state.store) void state.store.save(document_);
+    if (state.remote && document_.shared) state.remote.put(document_).catch(() => {});
+  }
+  flash(t('home.importDone', { count: freshGames.length + freshLists.length }));
   return true;
 }
 
@@ -4552,6 +5260,16 @@ function openLinkDialog() {
       return;
     }
 
+    const listId = listIdFrom(pasted);
+    if (listId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      if (!getList(listId) && !(await pullList(listId))) return fail(t('openLink.notFound'));
+      close();
+      navigate(`#/list/${listId}`);
+      return;
+    }
+
     const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
@@ -4563,10 +5281,18 @@ function openLinkDialog() {
       navigate(`#/game/${id}`);
       return;
     }
-    if (!(await pullGame(id))) return fail(t('openLink.notFound'));
-
-    close();
-    navigate(`#/game/${id}`);
+    // A bare identifier says nothing about what it stands for.
+    if (await pullGame(id)) {
+      close();
+      navigate(`#/game/${id}`);
+      return;
+    }
+    if (await pullList(id)) {
+      close();
+      navigate(`#/list/${id}`);
+      return;
+    }
+    return fail(t('openLink.notFound'));
   });
 
   dialog.showModal();
@@ -4645,7 +5371,9 @@ function remoteReason(error) {
  * share — so a link passed on to someone else is worth nothing on its own.
  */
 function openShareAppDialog() {
-  const games = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  // Games and lists travel together: they are documents of the same kind to
+  // the database, and "everything I have" is what the link is asked for.
+  const games = [...state.games, ...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
   const key = state.prefs.shareKey || '';
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -4687,7 +5415,7 @@ function openShareAppDialog() {
             (game) => `
               <label class="choice">
                 <input type="checkbox" data-share-id="${escapeHtml(game.id)}" />
-                <span>${escapeHtml(gameTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
+                <span>${escapeHtml(documentTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
               </label>`,
           )
           .join('')}
@@ -4740,7 +5468,7 @@ function openShareAppDialog() {
       choice === 'all'
         ? games
         : [...dialog.querySelectorAll('input[data-share-id]:checked')]
-            .map((input) => getGame(input.dataset.shareId))
+            .map((input) => getGame(input.dataset.shareId) || getList(input.dataset.shareId))
             .filter(Boolean);
     if (!chosen.length) return fail(t('shareApp.pickNone'));
 
@@ -4796,16 +5524,20 @@ function showLotLink(setId, code, count) {
  */
 async function shareGames(games) {
   try {
-    for (const game of games) {
-      const next = game.shared ? game : setShared(game, true);
+    for (const document_ of games) {
+      const next = document_.shared
+        ? document_
+        : { ...document_, shared: true, updatedAt: Date.now() };
       await state.remote.put(next);
-      if (next === game) continue;
-      state.games = state.games.map((item) => (item.id === game.id ? next : item));
+      if (next === document_) continue;
+      state.games = state.games.map((item) => (item.id === next.id ? next : item));
+      state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
       if (state.store) void state.store.save(next);
     }
   } finally {
     // Whatever went through is written down, so a failure halfway is not lost.
     saveGames(state.games);
+    saveLists(state.lists);
   }
 }
 
@@ -4993,11 +5725,11 @@ async function openSet(id) {
   const ids = await askLotCode(id);
   if (!ids) return;
 
-  // Every game, even one already here: the point of a lot re-shared is to
-  // bring the rounds played since, and pullGame merges rather than replaces.
-  for (const gameId of ids) await pullGame(gameId);
+  // Everything, even what is already here: the point of a lot shared again is
+  // to bring what has happened since, and pulling merges rather than replaces.
+  for (const id_ of ids) await pullAny(id_);
 
-  const held = ids.filter((gameId) => getGame(gameId)).length;
+  const held = ids.filter((id_) => getGame(id_) || getList(id_)).length;
   if (!held) {
     flash(t('shareSet.notFound'), 'error');
     return;
@@ -5084,6 +5816,415 @@ function bindHome() {
     }
     render();
   });
+}
+
+/* ------------------------------------------------------- lists: behaviour --- */
+
+/** Keep the list where it lives, and send it on if it has been shared. */
+function persistList(changed) {
+  const ok = saveLists(state.lists);
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getList(id) {
+  return state.lists.find((list) => list.id === id) || null;
+}
+
+/** Put a changed list back in place, write it down, and redraw. */
+function replaceList(next, { redraw = true } = {}) {
+  state.lists = state.lists.map((list) => (list.id === next.id ? next : list));
+  persistList(next);
+  if (redraw) render();
+}
+
+function bindNewList() {
+  const form = view.querySelector('#new-list');
+  if (!form) return;
+
+  const snapshot = () => {
+    newListName = view.querySelector('#list-name').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newListPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newListPeople = [...newListPeople, ''];
+    render();
+    view.querySelector(`[data-person-index="${newListPeople.length - 1}"]`)?.focus();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newListPeople = newListPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newListPeople.includes(suggest)) return;
+      const empty = newListPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newListPeople[empty] = suggest;
+      else newListPeople = [...newListPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+    const lines = view.querySelector('#list-lines').value;
+
+    let list = createList({
+      name: newListName,
+      names: newListPeople,
+      // A device that sends everything by choice sends its lists too.
+      shared: Boolean(state.prefs.autoShare && state.remote),
+    });
+    list = addItems(list, lines);
+
+    state.lists = [...state.lists, list];
+    persistList(list);
+    newListName = '';
+    newListPeople = ['', ''];
+    navigate(`#/list/${list.id}`);
+  });
+}
+
+function bindList(list) {
+  view.querySelector('#add-line')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const field = view.querySelector('#new-line');
+    const next = addItems(list, field.value);
+    if (next === list) return;
+    replaceList(next);
+    // Straight back to the field: a list is written in one go, not one
+    // reopened dialog at a time.
+    const again = view.querySelector('#new-line');
+    again?.focus();
+  });
+
+  view.querySelectorAll('[data-tick]').forEach((box) => {
+    box.addEventListener('change', () => replaceList(toggleItem(list, box.dataset.tick)));
+  });
+
+  view.querySelectorAll('[data-assign]').forEach((button) => {
+    button.addEventListener('click', () => openAssignDialog(list, button.dataset.assign));
+  });
+
+  view.querySelectorAll('[data-edit]').forEach((button) => {
+    button.addEventListener('click', () => openLineDialog(list, button.dataset.edit));
+  });
+
+  view.querySelectorAll('[data-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const { filter } = chip.dataset;
+      state.listFilter = filter === '' ? null : filter;
+      render();
+    });
+  });
+
+  view.querySelector('#share-out')?.addEventListener('click', () => {
+    const next = shareOut(list);
+    if (next === list) return flash(t('lists.nothingToShareOut'));
+    replaceList(next);
+  });
+
+  view.querySelector('#list-people')?.addEventListener('click', () => openPeopleDialog(list));
+
+  view.querySelector('#list-text')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: listTitle(list),
+      hint: t('lists.textHint'),
+      text: listText(list),
+    });
+  });
+
+  view.querySelector('#clear-done')?.addEventListener('click', async () => {
+    if (!(await ask(t('lists.confirmClearDone'), { confirmLabel: t('lists.clearDone'), danger: true }))) return;
+    const next = list.items.filter((item) => item.done).reduce((carry, item) => removeItem(carry, item.id), list);
+    replaceList(next);
+  });
+
+  view.querySelector('#list-reuse')?.addEventListener('click', () => {
+    const next = reuseList(list);
+    state.lists = [...state.lists, next];
+    persistList(next);
+    navigate(`#/list/${next.id}`);
+  });
+
+  view.querySelector('#list-rename')?.addEventListener('click', () => openListNameDialog(list));
+
+  view.querySelector('#list-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('lists.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.lists = state.lists.filter((item) => item.id !== list.id);
+    saveLists(state.lists);
+    if (state.store) void state.store.remove(list.id);
+    if (state.remote) state.remote.remove(list.id).catch(() => {});
+    navigate('#/lists');
+  });
+
+  view.querySelector('#list-share')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    let current = list;
+
+    if (!current.shared) {
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      current = { ...current, shared: true, updatedAt: Date.now() };
+      try {
+        await state.remote.put(current);
+      } catch {
+        button.disabled = false;
+        button.textContent = t('lists.share');
+        flash(t('share.sendFailed'), 'error');
+        render();
+        return;
+      }
+      replaceList(current);
+    }
+
+    showCopyDialog({
+      title: t('lists.shareTitle'),
+      hint: t('lists.shareHint'),
+      text: listLink(location, current.id),
+      qr: true,
+    });
+  });
+}
+
+/** Hand a line to someone, or take it back. */
+function openAssignDialog(list, itemId) {
+  const item = list.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  const dialog = makeDialog('dialog dialog--ask');
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('lists.assignTitle'))}</h2>
+      <p class="muted small">${escapeHtml(item.text)}</p>
+      <div class="stack stack--tight">
+        ${list.people
+          .map(
+            (person) => `
+              <button type="button" class="button button--block" data-who="${escapeHtml(person.id)}">
+                ${escapeHtml(person.name)}${item.who === person.id ? ' ✓' : ''}
+              </button>`,
+          )
+          .join('')}
+        <button type="button" class="button button--block" data-who="">
+          ${escapeHtml(t('lists.nobody'))}${item.who ? '' : ' ✓'}
+        </button>
+      </div>
+      <div class="row">
+        <button type="button" class="button" id="assign-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--ghost" id="assign-people">${escapeHtml(t('lists.people'))}</button>
+      </div>
+    </div>`;
+
+  dialog.querySelector('#assign-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#assign-people').addEventListener('click', () => {
+    dialog.close();
+    openPeopleDialog(list);
+  });
+  dialog.querySelectorAll('[data-who]').forEach((button) => {
+    button.addEventListener('click', () => {
+      dialog.close();
+      replaceList(assignItem(list, itemId, button.dataset.who || null));
+    });
+  });
+
+  dialog.showModal();
+}
+
+/** Correct a line, or drop it. */
+function openLineDialog(list, itemId) {
+  const item = list.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('lists.lineTitle'))}</h2>
+      <label class="visually-hidden" for="line-text">${escapeHtml(t('lists.lineTitle'))}</label>
+      <input type="text" id="line-text" value="${escapeHtml(item.text)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="line-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#line-text');
+  const save = () => {
+    dialog.close();
+    replaceList(renameItem(list, itemId, field.value));
+  };
+
+  dialog.querySelector('#line-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#line-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#line-delete').addEventListener('click', () => {
+    dialog.close();
+    replaceList(removeItem(list, itemId));
+  });
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** Who this list concerns: add, rename, remove. */
+function openPeopleDialog(list) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getList(list.id) || list;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <p class="muted small">${escapeHtml(t('lists.peopleHint'))}</p>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="row row--tight">
+                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
+                         aria-label="${escapeHtml(person.name)}" />
+                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                    ${escapeHtml(t('action.delete'))}
+                  </button>
+                </div>`,
+            )
+            .join('')}
+          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
+          <button type="button" class="button button--primary" id="person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    const field = dialog.querySelector('#person-new');
+    const add = () => {
+      const next = addPerson(getList(list.id) || list, field.value);
+      replaceList(next, { redraw: false });
+      draw();
+      dialog.querySelector('#person-new').focus();
+    };
+    dialog.querySelector('#person-add').addEventListener('click', add);
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      add();
+    });
+
+    dialog.querySelectorAll('[data-person]').forEach((input) => {
+      input.addEventListener('change', () => {
+        replaceList(renamePerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+      });
+    });
+
+    dialog.querySelectorAll('[data-remove]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
+        replaceList(removePerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
+  };
+
+  // The view behind is only redrawn once, when the dialog is done with.
+  dialog.addEventListener('close', () => render());
+  draw();
+  dialog.showModal();
+}
+
+function openListNameDialog(list) {
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('lists.rename'))}</h2>
+      <label class="visually-hidden" for="list-new-name">${escapeHtml(t('lists.name'))}</label>
+      <input type="text" id="list-new-name" value="${escapeHtml(list.name)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="name-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="name-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#list-new-name');
+  const save = () => {
+    dialog.close();
+    replaceList({ ...list, name: field.value.trim(), updatedAt: Date.now() });
+  };
+  dialog.querySelector('#name-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#name-cancel').addEventListener('click', () => dialog.close());
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** The list as text, to paste into a message. */
+function listText(list) {
+  const line = (item) =>
+    `${item.done ? '[x]' : '[ ]'} ${item.text}${item.who ? ` — ${personName(list, item.who)}` : ''}`;
+  const { done, total } = progress(list);
+  return [
+    listTitle(list),
+    t('lists.progress', { done, total }),
+    '',
+    ...list.items.map(line),
+  ].join('\n');
+}
+
+/**
+ * Fetch a list from the shared database and take what it knows — the same
+ * merge a game gets, for the same reason: two people tick at the same time.
+ */
+async function pullList(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  if (!isValidList(stored)) return false;
+
+  const local = getList(id);
+  const merged = local ? mergeLists(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.lists = local
+    ? state.lists.map((list) => (list.id === id ? adopted : list))
+    : [...state.lists, adopted];
+  saveLists(state.lists);
+  return true;
 }
 
 function bindNewGame() {
@@ -5777,7 +6918,33 @@ function bindChrome() {
 
 function render() {
   const current = route();
-  if (current.name === 'stats') {
+  markTab(current);
+  if (current.name === 'lists') {
+    stopWatching();
+    view.innerHTML = listsView();
+  } else if (current.name === 'new-list') {
+    stopWatching();
+    view.innerHTML = newListView();
+    bindNewList();
+  } else if (current.name === 'list') {
+    const list = getList(current.id);
+    if (!list) {
+      // Perhaps a list someone shared: ask the database before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('lists.loading'))}</p>`;
+        pullList(current.id).then((found) => {
+          if (found) render();
+          else if (route().id === current.id) navigate('#/lists');
+        });
+        return;
+      }
+      navigate('#/lists');
+      return;
+    }
+    watchList(list.id);
+    view.innerHTML = listView(list);
+    bindList(list);
+  } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
   } else if (current.name === 'new') {
@@ -5862,6 +7029,35 @@ async function pullGame(id) {
   return true;
 }
 
+/** Which half of the app we are in, so the tab bar says so. */
+function markTab(current) {
+  const bar = document.getElementById('tabs');
+  if (!bar) return;
+  const here = ['lists', 'new-list', 'list'].includes(current.name) ? 'lists' : 'games';
+  bar.querySelectorAll('[data-tab]').forEach((tab) => {
+    if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  });
+}
+
+/**
+ * Fetch by identifier without being told what it is: a lot holds games and
+ * lists side by side, and a link pasted in says even less.
+ */
+async function pullAny(id) {
+  return (await pullGame(id)) || (await pullList(id));
+}
+
+/** While a shared list is on screen, watch for what the others are ticking. */
+function watchList(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullList(id)) render();
+  }, 5000);
+}
+
 /** While a game is on screen, watch for rounds someone else has entered. */
 function watchGame(id) {
   stopWatching();
@@ -5942,6 +7138,7 @@ applyTheme();
 bindChrome();
 window.addEventListener('hashchange', () => {
   state.editingRoundId = null;
+  state.listFilter = null;
   render();
 });
 /**

@@ -456,6 +456,116 @@ table.scores .meta-cell { color: var(--muted); }
   .score-row { grid-template-columns: 1fr 88px; }
 }
 
+/* ----------------------------------------------------------------- lines --- */
+/*
+ * A line in a list: a box to tick, the text, and who it is for. The three are
+ * separate targets — ticking is the common one, so it gets the widest.
+ */
+.lines {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.line__tick {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.line__tick input {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+.line__text {
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.line__who {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.line__who--nobody { color: var(--muted); border-style: dashed; }
+
+.line--done .line__text { color: var(--muted); text-decoration: line-through; }
+
+.chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip--on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+.row--tight { flex-wrap: nowrap; gap: 8px; }
+.row--tight input { flex: 1; }
+
+/* ------------------------------------------------------------------ tabs --- */
+/*
+ * The two halves of the app. Two of them, so they get the full width and the
+ * thumb never has to aim.
+ */
+.tabs {
+  /* Not sticky: the bar above it is, and guessing that bar's height — which
+     changes with the tagline's wrapping — would put the two on top of each
+     other on exactly the narrow screens this is for. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tab {
+  padding: 12px 8px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.tab[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
 /* ---------------------------------------------------------------- dialog --- */
 .dialog {
   width: min(560px, calc(100vw - 32px));

@@ -47,5 +47,5 @@ createServer(async (request, response) => {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not found');
   }
 }).listen(port, () => {
-  console.log(`Marque-Points → http://localhost:${port}`);
+  console.log(`Together → http://localhost:${port}`);
 });

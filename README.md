@@ -1,15 +1,15 @@
-# 🃏 Marque-Points
+# 🃏 Together
 
-Compteur de points pour **Papayoo** et d'autres jeux de cartes ou de dés.
-Une page web, aucune dépendance, aucun build : on l'ouvre, on saisit les
-manches, elle tient le classement.
+Deux onglets, une seule app : **Parties**, un compteur de points pour Papayoo et
+une vingtaine d'autres jeux ; **Listes**, des listes à cocher et à répartir entre
+plusieurs personnes. Une page web, aucune dépendance, aucun build.
 
 <p>
   <img src="docs/screenshot-light.png" alt="Une partie de Papayoo en thème clair" width="45%" />
   <img src="docs/screenshot-dark.png" alt="La même partie en thème sombre" width="45%" />
 </p>
 
-## Ce que ça fait
+## Ce que ça fait — onglet Parties
 
 - **Une partie = des manches** : on saisit le score de chaque joueur, l'appli
   tient les totaux, le classement (ex æquo compris) et l'écart avec le leader.
@@ -62,6 +62,28 @@ manches, elle tient le classement.
 - **Ça marche sur téléphone**, hors ligne, en français ou en anglais, en thème
   clair ou sombre. Les parties sont enregistrées dans le navigateur, et
   exportables en JSON pour sauvegarder ou changer d'appareil.
+
+## Ce que ça fait — onglet Listes
+
+Une liste, c'est **un titre**, **des gens**, et **des lignes**. Rien à régler
+d'autre : le titre dit le contexte — *Courses de samedi*, *Valise Corse*,
+*Déménagement* — et une ligne est du texte libre, action ou objet, les deux
+mélangés si besoin.
+
+- **Attribuer** : on touche une ligne pour la donner à quelqu'un, ou à personne.
+  *Répartir* distribue d'un coup ce que personne n'a pris, en servant d'abord
+  celui qui en a le moins.
+- **Cocher** ce qui est fait, et filtrer d'un geste : tout, une personne, ou ce
+  que personne n'a pris.
+- **Coller une liste entière** d'un message : les puces et la numérotation sont
+  nettoyées, les quantités gardées (« 2 baguettes » reste deux baguettes).
+- **Reprendre cette liste** décoche tout et garde les lignes — la valise, les
+  courses de base, la liste de sortie, sans notion de modèle à gérer.
+- **Partager** comme une partie : un lien, un code QR, et chacun coche de son
+  côté. Deux personnes qui cochent en même temps gardent chacune leur coche.
+
+Ce qui n'y est délibérément pas : catégories, échéances, récurrences, charge à
+équilibrer. Ça s'ajoutera si l'usage le réclame, et pour ce qu'il réclame.
 
 ## Jeux fournis
 

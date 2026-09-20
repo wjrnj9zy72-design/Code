@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Compteur de points pour Papayoo et autres jeux de cartes." />
-    <title>Marque-Points</title>
+    <meta name="description" content="Compteur de points et listes partagées, pour la famille et les amis." />
+    <title>Together</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🃏</text></svg>" />
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#b8761a" />
@@ -17,7 +17,7 @@
       <a class="app-bar__brand" href="#/">
         <span class="app-bar__logo" aria-hidden="true">🃏</span>
         <span>
-          <strong data-i18n="app.title">Marque-Points</strong>
+          <strong data-i18n="app.title">Together</strong>
           <small data-i18n="app.tagline"></small>
         </span>
       </a>
@@ -28,6 +28,11 @@
         <button type="button" class="icon-button icon-button--text" id="lang-toggle" data-i18n="lang.switch"></button>
       </div>
     </header>
+
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a class="tab" href="#/" data-tab="games" data-i18n="tab.games">Parties</a>
+      <a class="tab" href="#/lists" data-tab="lists" data-i18n="tab.lists">Listes</a>
+    </nav>
 
     <main id="view" class="view" aria-live="polite"></main>
 
