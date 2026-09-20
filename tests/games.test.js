@@ -90,6 +90,16 @@ test('both dictionaries define exactly the same keys', async () => {
   assert.deepEqual(fr.filter((key) => !STRINGS.en[key]), [], 'keys only present in French');
 });
 
+test('both dictionaries fill in the same blanks', async () => {
+  // Key parity is not enough: a {count} kept in one language and dropped in
+  // the other shows the reader a literal "{count}", which no test would catch.
+  const { STRINGS } = await import('../src/i18n.js');
+  const blanks = (text) => [...String(text).matchAll(/\{(\w+)\}/g)].map((found) => found[1]).sort();
+  for (const key of Object.keys(STRINGS.fr)) {
+    assert.deepEqual(blanks(STRINGS.en[key]), blanks(STRINGS.fr[key]), `${key}`);
+  }
+});
+
 test('every group in the picker holds at least one game', () => {
   for (const group of PRESET_GROUPS) {
     const games = PRESETS.filter((preset) => preset.group === group);

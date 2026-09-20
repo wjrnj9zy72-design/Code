@@ -18,10 +18,10 @@ import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
 } from './polls.js';
-import { recentPeople } from './people.js';
+import { recentPeople, withMeFirst } from './people.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -127,8 +127,17 @@ function appLink() {
 }
 
 function flash(message, kind = 'info') {
-  state.flash = { message, kind };
+  state.flash = { message, kind, at: Date.now() };
 }
+
+/**
+ * How long a message stays on screen across redraws.
+ *
+ * Long enough to survive what follows it: something is answered, the app asks
+ * the database what the answer changed, and redraws when it knows. A message
+ * consumed by the first of those two redraws would flash and vanish.
+ */
+const FLASH_KEPT = 4000;
 
 /* ------------------------------------------------------------- persisting --- */
 
@@ -202,7 +211,7 @@ function pollsView() {
 }
 
 function newPollView() {
-  const suggestions = [...new Set([...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  const suggestions = [...new Set([myName(), ...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)].filter(Boolean))].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">
@@ -440,7 +449,7 @@ function bindNewPoll() {
     persistPoll(poll);
     newPollQuestion = '';
     newPollChoices = '';
-    newPollPeople = ['', ''];
+    newPollPeople = withMeFirst(['', ''], myName());
     navigate(`#/poll/${poll.id}`);
   });
 }
@@ -774,8 +783,8 @@ function listsView() {
 
 function newListView() {
   const suggestions = [...new Set([
-    ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
-  ])].slice(0, 12);
+    myName(), ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">
@@ -967,6 +976,15 @@ function route() {
   const hash = location.hash.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'games') return { name: 'home' };
+  // An invitation link carries both the six digits and the group's name, so
+  // the person who receives it has nothing to read out and nothing to type.
+  if (name === 'join' && param) {
+    const invitation = joinFrom(location.hash);
+    if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
+    // Half a link is still half a link: whichever of the two survived is kept,
+    // and the page asks for the other rather than for both.
+    return { name: 'join', code: readCode(param), group: groupSegment(hash) };
+  }
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -980,6 +998,16 @@ function route() {
   return { name: 'overview' };
 }
 
+/** The group's name as written in `#/join/<code>/<name>`, decoded if it can be. */
+function groupSegment(hash) {
+  const segment = hash.split('/')[2] || '';
+  try {
+    return decodeURIComponent(segment).trim();
+  } catch {
+    return segment.trim();
+  }
+}
+
 function navigate(hash) {
   if (location.hash === hash) render();
   else location.hash = hash;
@@ -989,8 +1017,11 @@ function navigate(hash) {
 
 function flashHtml() {
   if (!state.flash) return '';
-  const { message, kind } = state.flash;
-  state.flash = null;
+  const { message, kind, at } = state.flash;
+  if (Date.now() - (at || 0) > FLASH_KEPT) {
+    state.flash = null;
+    return '';
+  }
   return `<p class="banner ${kind === 'error' ? 'banner--warn' : ''}">${escapeHtml(message)}</p>`;
 }
 
@@ -1075,6 +1106,94 @@ function pendingHtml() {
     .join('')}</div>`;
 }
 
+/**
+ * What the gatekeeper of a group sees: the people knocking, each with the first
+ * name they gave, and one tap to let them in or turn them away.
+ */
+function requestsHtml(group) {
+  const rows = gate().requests[group.id];
+  if (!rows) return `<p class="muted small">${escapeHtml(t('gate.loading'))}</p>`;
+  if (!rows.length) return `<p class="muted small">${escapeHtml(t('gate.nobody'))}</p>`;
+
+  return `<div class="stack stack--tight">${rows
+    .map(
+      (row) => `
+        <div class="knock">
+          <div>
+            <strong>${escapeHtml(row.name || t('gate.someone'))}</strong>
+            <span class="muted small">${escapeHtml(row.label || '')}</span>
+          </div>
+          <div class="row row--tight">
+            <button type="button" class="button button--small button--primary"
+                    data-admit="${escapeHtml(group.id)}" data-request="${escapeHtml(row.id)}">
+              ${escapeHtml(t('gate.admit'))}
+            </button>
+            <button type="button" class="button button--small button--ghost"
+                    data-refuse="${escapeHtml(group.id)}" data-request="${escapeHtml(row.id)}">
+              ${escapeHtml(t('gate.refuse'))}
+            </button>
+          </div>
+        </div>`,
+    )
+    .join('')}</div>`;
+}
+
+/** Who is in the group, device by device, and the one tap that cuts one off. */
+function devicesHtml(group) {
+  const rows = gate().devices[group.id];
+  if (!rows) return `<p class="muted small">${escapeHtml(t('gate.loading'))}</p>`;
+
+  return `<div class="stack stack--tight">${rows
+    .map(
+      (row) => `
+        <div class="knock">
+          <div>
+            <strong>${escapeHtml(row.label || t('gate.unnamedDevice'))}</strong>
+            <span class="muted small">${escapeHtml(
+              [row.mine ? t('gate.thisDevice') : '', row.admits ? t('gate.admitsToo') : '']
+                .filter(Boolean)
+                .join(' · '),
+            )}</span>
+          </div>
+          ${
+            row.mine
+              ? ''
+              : `<button type="button" class="button button--small button--ghost"
+                         data-cut="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}">
+                   ${escapeHtml(t('gate.cut'))}
+                 </button>`
+          }
+        </div>`,
+    )
+    .join('')}</div>`;
+}
+
+/** The knocks this device is waiting on, so a wait is never invisible. */
+function myKnocksHtml() {
+  const held = pendings();
+  if (!held.length) return '';
+  return `
+    <div class="stack stack--tight">${held
+      .map(
+        (knock) => `
+          <div class="knock">
+            <div>
+              <strong>${escapeHtml(knock.groupName)}</strong>
+              <span class="muted small">${escapeHtml(t('gate.askedAt', { date: formatDate(knock.at) }))}</span>
+            </div>
+            <div class="row row--tight">
+              <button type="button" class="button button--small" data-check="${escapeHtml(knock.ticket)}">
+                ${escapeHtml(t('gate.check'))}
+              </button>
+              <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(knock.ticket)}">
+                ${escapeHtml(t('gate.dropMine'))}
+              </button>
+            </div>
+          </div>`,
+      )
+      .join('')}</div>`;
+}
+
 function groupsHtml() {
   const held = groups();
   return `
@@ -1105,18 +1224,40 @@ function groupsHtml() {
                         ${escapeHtml(t('groups.leave'))}
                       </button>
                     </div>
+                    ${
+                      group.admits === false
+                        ? ''
+                        : `<div class="stack stack--tight">
+                             <span class="muted small">${escapeHtml(t('gate.knocking'))}</span>
+                             ${requestsHtml(group)}
+                             <details class="details">
+                               <summary>${escapeHtml(t('gate.who'))}</summary>
+                               ${devicesHtml(group)}
+                             </details>
+                           </div>`
+                    }
                   </div>`,
               )
               .join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>`
       }
+
+      ${
+        pendings().length
+          ? `<div class="stack stack--tight">
+               <span class="muted small">${escapeHtml(t('gate.mine'))}</span>
+               ${myKnocksHtml()}
+             </div>`
+          : ''
+      }
+
       <label for="group-name">${escapeHtml(t('groups.add'))}</label>
       <div class="row row--tight">
         <input type="text" id="group-name" autocomplete="off"
                placeholder="${escapeHtml(t('groups.namePlaceholder'))}" />
         <input type="text" id="group-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
                maxlength="7" placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
-        <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('groups.join'))}</button>
+        <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('gate.knock'))}</button>
       </div>
       <p class="muted small" id="group-state">${escapeHtml(t('groups.codeHint'))}</p>
 
@@ -1129,6 +1270,25 @@ function groupsHtml() {
           <button type="button" class="button" id="group-paste">${escapeHtml(t('groups.join'))}</button>
         </div>
       </details>
+    </section>`;
+}
+
+/**
+ * Who this device belongs to. Shown here rather than buried in a setting,
+ * because it is what the app puts in a group's list of keys and what it offers
+ * as the first person of every new list.
+ */
+function meHtml() {
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('me.title'))}</h2></div>
+      <p class="muted small">${escapeHtml(t(state.remote ? 'me.hint' : 'me.hintAlone'))}</p>
+      <div class="row row--tight">
+        <input type="text" id="me-name" autocomplete="given-name" maxlength="${NAME_KEPT}"
+               value="${escapeHtml(myName())}" placeholder="${escapeHtml(t('me.placeholder'))}"
+               aria-label="${escapeHtml(t('me.title'))}" />
+        <button type="button" class="button" id="me-save">${escapeHtml(t('action.save'))}</button>
+      </div>
     </section>`;
 }
 
@@ -1156,6 +1316,8 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
+
+    ${meHtml()}
 
     ${state.remote ? groupsHtml() : ''}
 
@@ -1196,6 +1358,17 @@ function overviewView() {
 function bindOverview() {
   bindData();
 
+  view.querySelector('#me-save')?.addEventListener('click', () => {
+    const name = setMyName(view.querySelector('#me-name').value);
+    flash(name ? t('me.saved', { name }) : t('me.cleared'));
+    render();
+  });
+  view.querySelector('#me-name')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#me-save')?.click();
+  });
+
   const joining = (line, message) => {
     line.textContent = message;
   };
@@ -1210,20 +1383,29 @@ function bindOverview() {
 
     button.disabled = true;
     joining(line, t('groups.checking'));
+    const me = myName();
+    if (!me) return joining(line, t('gate.needNameFirst'));
+
     let answer = { status: 'unknown' };
     try {
-      answer = await state.remote.join(name, code, deviceLabel());
+      answer = await state.remote.ask(name, code, me, deviceLabel());
     } catch {
       button.disabled = false;
       return joining(line, t('groups.unsure'));
     }
     button.disabled = false;
 
-    if (answer.status === 'busy') return joining(line, t('groups.busy'));
-    if (answer.status !== 'ok') return joining(line, t('groups.codeRefused'));
+    if (answer.status === 'busy') return joining(line, t('gate.busy'));
+    if (answer.status !== 'waiting') return joining(line, t('groups.codeRefused'));
 
-    rememberGroup({ id: answer.id, name: answer.name, key: answer.key });
-    flash(t('groups.joined', { name: answer.name }));
+    rememberPending({
+      ticket: answer.ticket,
+      groupId: answer.id,
+      groupName: answer.name || name,
+      me,
+      at: Date.now(),
+    });
+    flash(t('gate.asked', { name: answer.name || name }));
     render();
   });
 
@@ -1261,11 +1443,17 @@ function bindOverview() {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.invite);
       if (!group) return;
+
+      // Two shapes, and the usual one first: a link good for the day that
+      // several people can knock with, or one meant for a single person.
+      const shape = await askInvitationShape();
+      if (!shape) return;
+
       button.disabled = true;
       button.textContent = t('share.sending');
       let invitation = null;
       try {
-        invitation = await state.remote.invite(group.key);
+        invitation = await state.remote.invite(group.key, shape.minutes, shape.uses);
       } catch (error) {
         flash(remoteReason(error), 'error');
         render();
@@ -1277,14 +1465,105 @@ function bindOverview() {
         return;
       }
       render();
-      showCopyDialog({
+      // One link, and whoever receives it types their first name and nothing
+      // else. The digits stay on show underneath, to be said out loud instead.
+      await shareUrl({
+        url: joinLink(location, group.name, invitation.code),
         title: t('groups.inviteTitle', { name: group.name }),
-        hint: t('groups.inviteHint', { minutes: invitation.minutes }),
-        text: t('groups.inviteText', { name: group.name, code: invitation.code }),
+        hint: t(shape.uses > 1 ? 'groups.inviteHintOpen' : 'groups.inviteHintOne', {
+          hours: Math.round(invitation.minutes / 60),
+          minutes: invitation.minutes,
+        }),
+        text: t('groups.inviteText', { name: group.name }),
         code: invitation.code,
+        codeLabel: 'groups.codeLabel',
+        codeHint: 'groups.codeInLink',
       });
     });
   });
+
+  view.querySelectorAll('[data-admit], [data-refuse]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const admit = 'admit' in button.dataset;
+      const group = groups().find((item) => item.id === (admit ? button.dataset.admit : button.dataset.refuse));
+      if (!group) return;
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        status = await state.remote.answer(group.key, button.dataset.request, admit);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      if (status === 'ok') flash(t('gate.admitted'));
+      else if (status === 'refused') flash(t('gate.refused'));
+      else flash(t('gate.gone'), 'error');
+      render();
+    });
+  });
+
+  view.querySelectorAll('[data-cut]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cut);
+      if (!group) return;
+      if (!(await ask(t('gate.confirmCut'), { confirmLabel: t('gate.cut'), danger: true }))) return;
+      let status = 'unknown';
+      try {
+        status = await state.remote.cutKey(group.key, button.dataset.key);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      if (status === 'ok') flash(t('gate.cutDone'));
+      else if (status === 'last') flash(t('gate.cutLast'), 'error');
+      else flash(t('gate.gone'), 'error');
+      render();
+    });
+  });
+
+  view.querySelectorAll('[data-check]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const knock = pendings().find((held) => held.ticket === button.dataset.check);
+      if (!knock) return;
+      button.disabled = true;
+      const status = await checkPending(knock);
+      if (status === 'waiting') flash(t('gate.stillWaiting'));
+      else if (status === null) flash(t('groups.unsure'), 'error');
+      render();
+    });
+  });
+
+  view.querySelectorAll('[data-drop]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const knock = pendings().find((held) => held.ticket === button.dataset.drop);
+      if (!knock) return;
+      if (!(await ask(t('gate.confirmDropMine', { name: knock.groupName }),
+        { confirmLabel: t('gate.dropMine'), danger: true }))) return;
+      forgetPending(knock.ticket);
+      flash(t('gate.droppedMine', { name: knock.groupName }));
+      render();
+    });
+  });
+
+  // What the gatekeeper's blocks need, asked once and then kept.
+  for (const group of groups()) {
+    if (group.admits === undefined) {
+      refreshGroup(group).then((learnt) => {
+        if (learnt && !isBusy() && route().name === 'overview') render();
+      });
+      continue;
+    }
+    if (group.admits === false) continue;
+    loadGate(group).then((learnt) => {
+      if (learnt && !isBusy() && route().name === 'overview') render();
+    });
+  }
 
   view.querySelectorAll('[data-catch-up]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -1312,6 +1591,262 @@ function bindOverview() {
       render();
     });
   });
+}
+
+/* ------------------------------------------------------- joining a group --- */
+
+/**
+ * The page an invitation link opens: one field, the first name of whoever is
+ * joining, and a button. The group's name and the six digits arrived in the
+ * link, and are shown so that a link mangled by a messaging app can still be
+ * corrected by hand rather than being a dead end.
+ */
+function joinView(invitation) {
+  const waiting = invitation.group ? pendingFor(invitation.group) : null;
+  if (waiting) return waitingView(waiting);
+
+  const already = invitation.group ? groupNamed(invitation.group) : null;
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="join-form" class="card stack">
+      <p class="muted small">${escapeHtml(already ? t('join.already', { name: already.name }) : t('join.hint'))}</p>
+      <label>
+        ${escapeHtml(t('join.me'))}
+        <input type="text" id="join-me" autocomplete="given-name" maxlength="${NAME_KEPT}" aria-required="true"
+               value="${escapeHtml(myName())}" placeholder="${escapeHtml(t('me.placeholder'))}" />
+      </label>
+
+      <button type="submit" class="button button--primary button--block">
+        ${escapeHtml(t('join.action'))}
+      </button>
+      <p class="muted small" id="join-state"></p>
+
+      <details class="details">
+        <summary>${escapeHtml(t('join.byHand'))}</summary>
+        <div class="row row--tight">
+          <input type="text" id="join-group" autocomplete="off" value="${escapeHtml(invitation.group)}"
+                 placeholder="${escapeHtml(t('groups.namePlaceholder'))}" aria-label="${escapeHtml(t('groups.namePlaceholder'))}" />
+          <input type="text" id="join-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="7" value="${escapeHtml(invitation.code || '')}" placeholder="000000"
+                 aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
+        </div>
+      </details>
+    </form>`;
+}
+
+/**
+ * The screen of someone who has knocked: nothing to do but wait, and nothing
+ * shown that they are not yet entitled to see. It looks in on its own while it
+ * is open, so being accepted needs no gesture on this side.
+ */
+function waitingView(ask) {
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('gate.waitingTitle', { name: ask.groupName }))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <div class="card stack">
+      <p>${escapeHtml(t('gate.waitingWhat', { name: ask.groupName, me: ask.me || t('gate.someone') }))}</p>
+      <p class="muted small">${escapeHtml(t('gate.waitingHow'))}</p>
+      <p class="muted small" id="waiting-state"></p>
+      <div class="row">
+        <button type="button" class="button button--primary" id="waiting-check">${escapeHtml(t('gate.check'))}</button>
+        <button type="button" class="button button--ghost" id="waiting-drop">${escapeHtml(t('gate.dropMine'))}</button>
+      </div>
+    </div>`;
+}
+
+/**
+ * Which invitation to draw. The link for the day comes first because it is what
+ * a family wants; the single-person one is for someone you would rather not see
+ * a link forwarded for.
+ */
+async function askInvitationShape() {
+  return new Promise((resolve) => {
+    const dialog = makeDialog('dialog dialog--ask');
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('groups.inviteWhich'))}</h2>
+        <p class="muted small">${escapeHtml(t('groups.inviteWhichHint'))}</p>
+        <div class="stack stack--tight">
+          <button type="button" class="button button--primary button--block" id="invite-open">
+            ${escapeHtml(t('groups.inviteOpen'))}
+          </button>
+          <button type="button" class="button button--block" id="invite-one">
+            ${escapeHtml(t('groups.inviteOne'))}
+          </button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="invite-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+
+    let answered = false;
+    const done = (shape) => {
+      if (answered) return;
+      answered = true;
+      resolve(shape);
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => done(null));
+    dialog.querySelector('#invite-cancel').addEventListener('click', () => done(null));
+    dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: 1440, uses: 50 }));
+    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 30, uses: 1 }));
+    dialog.showModal();
+  });
+}
+
+/** The group of that name this device is in, if any. */
+function groupNamed(name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return null;
+  return groups().find((group) => String(group.name || '').trim().toLowerCase() === wanted) || null;
+}
+
+/**
+ * Leave the invitation screen for the overview, without leaving the link in
+ * the history: the code is spent, and a back button that lands on a dead
+ * invitation explains nothing to anyone.
+ */
+function leaveInvitation() {
+  // Replacing rather than pushing: the hash really changes, so the redraw comes
+  // from the hashchange the way it does everywhere else. Drawing here as well
+  // would show the "you are in Mifa" line and then immediately wipe it.
+  if (location.hash.startsWith('#/join/')) {
+    location.replace(`${location.pathname}${location.search}#/`);
+    return;
+  }
+  navigate('#/');
+}
+
+function bindJoin() {
+  const waitingLine = view.querySelector('#waiting-state');
+  if (waitingLine) {
+    const knock = pendingFor(route().group);
+    const look = async (button) => {
+      if (!knock) return;
+      if (button) button.disabled = true;
+      waitingLine.textContent = t('groups.checking');
+      const status = await checkPending(knock);
+      if (status === 'waiting') {
+        waitingLine.textContent = t('gate.stillWaiting');
+        if (button) button.disabled = false;
+        return;
+      }
+      if (status === null) {
+        waitingLine.textContent = t('groups.unsure');
+        if (button) button.disabled = false;
+        return;
+      }
+      leaveInvitation();
+    };
+
+    view.querySelector('#waiting-check')?.addEventListener('click', (event) => look(event.currentTarget));
+    view.querySelector('#waiting-drop')?.addEventListener('click', async () => {
+      if (!knock) return;
+      const sure = await ask(t('gate.confirmDropMine', { name: knock.groupName }),
+        { confirmLabel: t('gate.dropMine'), danger: true });
+      if (!sure) return;
+      forgetPending(knock.ticket);
+      flash(t('gate.droppedMine', { name: knock.groupName }));
+      leaveInvitation();
+    });
+    return;
+  }
+
+  const form = view.querySelector('#join-form');
+  const line = view.querySelector('#join-state');
+  const say = (message) => {
+    line.textContent = message;
+  };
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const me = view.querySelector('#join-me').value.trim();
+    const group = view.querySelector('#join-group').value.trim();
+    const code = readCode(view.querySelector('#join-code').value);
+    if (!me) return say(t('join.needMe'));
+    if (!group) return say(t('groups.needName'));
+    if (!code) return say(t('groups.needCode'));
+    if (!state.remote) return say(t('join.noDatabase'));
+
+    setMyName(me);
+
+    // Already in this group: the invitation is worth keeping for someone else,
+    // so take what the group shares instead of spending it. Groups are told
+    // apart by name here, which is what the link carries — the database keeps
+    // those names unique for exactly this reason.
+    const held = groupNamed(group);
+    if (held) {
+      button.disabled = true;
+      say(t('groups.checking'));
+      let taken = 0;
+      try {
+        taken = await catchUpWith(held);
+      } catch {
+        button.disabled = false;
+        return say(t('groups.unsure'));
+      }
+      flash(taken
+        ? t('join.alreadyCaughtUp', { name: held.name, count: taken })
+        : t('join.alreadyUpToDate', { name: held.name }));
+      leaveInvitation();
+      return;
+    }
+
+    button.disabled = true;
+    say(t('groups.checking'));
+    let answer = { status: 'unknown' };
+    try {
+      answer = await state.remote.ask(group, code, me, deviceLabel());
+    } catch {
+      button.disabled = false;
+      return say(t('groups.unsure'));
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return say(t('gate.busy'));
+    if (answer.status !== 'waiting') return say(t('groups.codeRefused'));
+
+    rememberPending({
+      ticket: answer.ticket,
+      groupId: answer.id,
+      groupName: answer.name || group,
+      me,
+      at: Date.now(),
+    });
+    render();
+  });
+
+  view.querySelector('#join-me')?.focus();
+}
+
+/** While someone waits to be let in, look in on their own — five seconds apart. */
+function watchPending() {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    const knock = pendingFor(route().group);
+    if (!knock) return;
+    const status = await checkPending(knock);
+    if (status && status !== 'waiting') {
+      stopWatching();
+      leaveInvitation();
+    }
+  }, 5000);
 }
 
 function homeView() {
@@ -1443,7 +1978,7 @@ function newGameView() {
   while (newGameNames.length < min) newGameNames.push('');
   const names = newGameNames.slice(0, Math.max(min, Math.min(newGameNames.length, max)));
 
-  const known = recentNames(state.games);
+  const known = [...new Set([isTeam ? '' : myName(), ...recentNames(state.games)].filter(Boolean))];
   const nameRows = names
     .map(
       (value, index) => `
@@ -1935,7 +2470,19 @@ function qrFor(text) {
   return qrSvg(text, { size: side * scale });
 }
 
-function showCopyDialog({ title, hint, text: content, qr = false, code = null, send = false }) {
+function showCopyDialog({
+  title,
+  hint,
+  text: content,
+  qr = false,
+  code = null,
+  send = false,
+  // A lot's code is a second secret, to be sent by another route; an
+  // invitation's is already inside the link, and saying otherwise would be
+  // advice nobody can follow.
+  codeLabel = 'shareSet.codeLabel',
+  codeHint = 'shareSet.codeApart',
+}) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -1961,8 +2508,9 @@ function showCopyDialog({ title, hint, text: content, qr = false, code = null, s
     document.body.append(dialog);
 
     dialog.querySelector('#export-close').addEventListener('click', () => dialog.close());
-    // Sending hands over the link, never the code: the code travels by another
-    // route, or the two together in one message would protect nothing.
+    // Sending hands over the link. For a lot that is the whole point — its
+    // code travels by another route — and for an invitation the code is in
+    // the link already, on purpose.
     dialog.querySelector('#export-send').addEventListener('click', async () => {
       const url = dialog.querySelector('#export-text').value;
       try {
@@ -2002,9 +2550,9 @@ function showCopyDialog({ title, hint, text: content, qr = false, code = null, s
   const box = dialog.querySelector('#export-code');
   box.hidden = !code;
   if (code) {
-    dialog.querySelector('#export-code-label').textContent = t('shareSet.codeLabel');
+    dialog.querySelector('#export-code-label').textContent = t(codeLabel);
     dialog.querySelector('#export-code-value').textContent = code;
-    dialog.querySelector('#export-code-hint').textContent = t('shareSet.codeApart');
+    dialog.querySelector('#export-code-hint').textContent = t(codeHint);
   }
 
   const sendButton = dialog.querySelector('#export-send');
@@ -2139,6 +2687,14 @@ function openLinkDialog() {
 
     // A link to a whole set of games is pasted here too: on a phone the
     // installed app has no address bar, so this is the only way in.
+    // An invitation pasted rather than tapped: the same screen, prefilled.
+    const invitation = joinFrom(pasted);
+    if (invitation) {
+      close();
+      navigate(`#/join/${invitation.code}/${encodeURIComponent(invitation.name)}`);
+      return;
+    }
+
     const setId = setIdFrom(pasted);
     if (setId) {
       event.currentTarget.disabled = true;
@@ -2207,7 +2763,7 @@ function openLinkDialog() {
  * Hand a link over the easy way when the device offers one — one tap to a
  * message — and fall back to the text with its QR code everywhere else.
  */
-async function shareUrl({ url, title, hint, text }) {
+async function shareUrl({ url, title, hint, text, code = null, codeLabel, codeHint }) {
   if (navigator.share) {
     try {
       await navigator.share({ title: t('app.title'), text, url });
@@ -2218,7 +2774,7 @@ async function shareUrl({ url, title, hint, text }) {
       // Anything else: fall through to the text everyone can copy.
     }
   }
-  showCopyDialog({ title, hint, text: url, qr: true });
+  showCopyDialog({ title, hint, text: url, qr: true, code, codeLabel, codeHint });
 }
 
 /* ----------------------------------------------------------------- groups --- */
@@ -2337,24 +2893,259 @@ async function startSharing(document_) {
   return shared;
 }
 
+/** Long enough for any first name, short enough to leave room on a key's label. */
+const NAME_KEPT = 24;
+
 /**
- * How this device shows up in a group's list of keys. Not a name, not an
- * identity: just enough for whoever hosts the database to tell one line from
- * another when cutting one off.
+ * Who is holding this device — a first name, nothing more.
+ *
+ * It is asked once, when joining a group, because that is the moment it is
+ * actually wanted: the group needs to know who has just come in, and the
+ * person is going to type their name into the first list anyway.
+ *
+ * Where it goes: the label on this device's key, so the group can tell whose
+ * device is whose — and, like any name typed into a list, into that list,
+ * which travels to the group when the list is shared. Nowhere else.
+ */
+function myName() {
+  const value = state.prefs.me;
+  return typeof value === 'string' ? value.trim().slice(0, NAME_KEPT) : '';
+}
+
+function setMyName(name) {
+  const clean = String(name || '').trim().slice(0, NAME_KEPT);
+  if (clean === myName()) return clean;
+  state.prefs = { ...state.prefs, me: clean };
+  savePrefs(state.prefs);
+  // A name given just now — on joining a group, most of the time — belongs in
+  // the forms that are still empty, without waiting for the app to be reopened.
+  offerMeInForms();
+  return clean;
+}
+
+/**
+ * Offer me as the first person of each form that is currently empty. Called
+ * when the app starts and each time a form is emptied after creating
+ * something — never on a redraw, so a name deleted by hand stays deleted.
+ */
+function offerMeInForms() {
+  newListPeople = withMeFirst(newListPeople, myName());
+  newPollPeople = withMeFirst(newPollPeople, myName());
+  // A team is not a person, so a preset played by teams is left alone.
+  if (!entrantsAreTeams()) newGameNames = withMeFirst(newGameNames, myName());
+}
+
+function entrantsAreTeams() {
+  const preset = getPreset(state.newPresetId || PRESETS[0].id);
+  const config = state.newConfig || presetConfig(preset);
+  return config.entrantLabel === 'team';
+}
+
+/**
+ * Where this device is, and when it knocked — enough to tell one line from
+ * another in the group's list of devices. The first name is *not* in here: it
+ * travels beside it, and the database puts the two together, so a line reads
+ * "Alice · écran d'accueil · 20 sept. 2026" and never "Alice · Alice · …".
  */
 function deviceLabel() {
   const standalone = matchMedia?.('(display-mode: standalone)')?.matches;
-  return `${standalone ? t('groups.onHomeScreen') : t('groups.inBrowser')} · ${formatDate(Date.now())}`;
+  const where = standalone ? t('groups.onHomeScreen') : t('groups.inBrowser');
+  return `${where} · ${formatDate(Date.now())}`;
 }
 
-/** Take in a key: the database says which group it opens, or refuses it. */
+/**
+ * Take in a key: the database says which group it opens, or refuses it. This is
+ * the very first device of a group — the one nobody can invite, which starts
+ * from the key the SQL editor printed.
+ */
 async function joinGroup(key) {
   const clean = String(key || '').trim();
   if (!clean || !state.remote) return null;
   const group = await state.remote.groupOf(clean);
   if (!group) return null;
-  rememberGroup({ id: group.id, name: group.name, key: clean });
+  rememberGroup({ id: group.id, name: group.name, key: clean, admits: Boolean(group.admits) });
   return group;
+}
+
+/**
+ * Check every group this device believes it is in.
+ *
+ * A key can be cut off from the other side — a phone lost, someone who left.
+ * Without this the group would sit in the list for ever, refusing everything
+ * with no explanation. Asked once, on opening the app.
+ */
+async function verifyGroups() {
+  if (!state.remote) return false;
+  let learnt = false;
+  for (const group of groups()) {
+    let found = null;
+    try {
+      found = await state.remote.groupOf(group.key);
+    } catch {
+      continue; // No answer is not an answer: the group stays.
+    }
+    if (!found) {
+      forgetGroup(group.id);
+      flash(t('gate.cutMe', { name: group.name }), 'error');
+      learnt = true;
+      continue;
+    }
+    if (found.name !== group.name || Boolean(found.admits) !== group.admits) {
+      rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+      learnt = true;
+    }
+  }
+  return learnt;
+}
+
+/* ------------------------------------------------- knocking, and admitting --- */
+
+/**
+ * A device does not let itself into a group: it knocks, and waits.
+ *
+ * What it keeps while it waits is a ticket — a secret the database handed it
+ * once. Accepted, that very ticket becomes its key; refused, it never opened
+ * anything. So the wait costs nothing and shows nothing, and an invitation that
+ * goes astray is a knock at the door rather than a stranger in the house.
+ */
+function pendings() {
+  const value = state.prefs.pendings;
+  return Array.isArray(value)
+    ? value.filter((knock) => knock && typeof knock.ticket === 'string' && knock.ticket)
+    : [];
+}
+
+function rememberPending(knock) {
+  const others = pendings().filter((held) => held.ticket !== knock.ticket);
+  state.prefs = { ...state.prefs, pendings: [...others, knock] };
+  savePrefs(state.prefs);
+}
+
+function forgetPending(ticket) {
+  state.prefs = { ...state.prefs, pendings: pendings().filter((knock) => knock.ticket !== ticket) };
+  savePrefs(state.prefs);
+}
+
+/** The knock this device is still waiting on for that group, if any. */
+function pendingFor(name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return null;
+  return pendings().find((knock) => String(knock.groupName || '').trim().toLowerCase() === wanted) || null;
+}
+
+/**
+ * Ask the database where a knock stands. Accepted, the group is remembered with
+ * the ticket as its key and everything it shares comes in; refused, the knock
+ * is forgotten. Returns the answer's status, or null when nothing was learnt.
+ */
+async function checkPending(knock) {
+  if (!state.remote) return null;
+  let answer = null;
+  try {
+    answer = await state.remote.claim(knock.ticket);
+  } catch {
+    return null;
+  }
+
+  if (answer.status === 'ok') {
+    const group = { id: answer.id, name: answer.name || knock.groupName, key: knock.ticket, admits: false };
+    rememberGroup(group);
+    forgetPending(knock.ticket);
+    let taken = 0;
+    try {
+      taken = await catchUpWith(group);
+    } catch {
+      // In the group either way; what it shares can be fetched later.
+    }
+    flash(taken
+      ? t('groups.joinedWith', { name: group.name, count: taken })
+      : t('groups.joined', { name: group.name }));
+    return 'ok';
+  }
+
+  if (answer.status === 'refused') {
+    forgetPending(knock.ticket);
+    flash(t('gate.refusedMe', { name: knock.groupName }), 'error');
+    return 'refused';
+  }
+
+  // 'unknown' means the knock is gone — expired, or the group was deleted.
+  if (answer.status === 'unknown') {
+    forgetPending(knock.ticket);
+    flash(t('gate.lostMe', { name: knock.groupName }), 'error');
+    return 'unknown';
+  }
+
+  return 'waiting';
+}
+
+/** Look in on every knock at once — on opening the app, or on demand. */
+async function checkAllPendings() {
+  let learnt = false;
+  for (const knock of pendings()) {
+    const status = await checkPending(knock);
+    if (status && status !== 'waiting') learnt = true;
+  }
+  return learnt;
+}
+
+/**
+ * What the group's gatekeeper sees: who is knocking, and which devices are in.
+ * Both are asked of the database and kept until something changes them, so a
+ * redraw does not knock again.
+ */
+function gate() {
+  if (!state.gate) state.gate = { requests: {}, devices: {}, asked: {} };
+  return state.gate;
+}
+
+function forgetGate(groupId) {
+  const held = gate();
+  delete held.requests[groupId];
+  delete held.devices[groupId];
+  delete held.asked[groupId];
+}
+
+/**
+ * Load a group's knocks and devices, once — and never draw over a message
+ * nobody has read yet: a redraw consumes it, and a second one would wipe it.
+ */
+async function loadGate(group) {
+  const held = gate();
+  if (held.asked[group.id]) return false;
+  held.asked[group.id] = true;
+  if (!state.remote) return false;
+
+  try {
+    const [requests, devices] = await Promise.all([
+      state.remote.requests(group.key),
+      state.remote.groupKeys(group.key),
+    ]);
+    held.requests[group.id] = requests;
+    held.devices[group.id] = devices;
+    return true;
+  } catch {
+    // Not the gatekeeper — or the database is out. Either way: nothing to show.
+    rememberGroup({ ...group, admits: false });
+    return true;
+  }
+}
+
+/**
+ * Whether this device's key lets people in. Groups remembered before the
+ * question existed do not say, so the database is asked once.
+ */
+async function refreshGroup(group) {
+  if (!state.remote) return false;
+  let found = null;
+  try {
+    found = await state.remote.groupOf(group.key);
+  } catch {
+    return false;
+  }
+  if (!found) return false;
+  rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+  return true;
 }
 
 /**
@@ -2926,7 +3717,7 @@ function bindNewList() {
     state.lists = [...state.lists, list];
     persistList(list);
     newListName = '';
-    newListPeople = ['', ''];
+    newListPeople = withMeFirst(['', ''], myName());
     newListLines = '';
     navigate(`#/list/${list.id}`);
   });
@@ -3359,7 +4150,7 @@ function bindNewGame() {
     state.games = [...state.games, game];
     persist(game);
 
-    newGameNames = ['', '', ''];
+    newGameNames = entrantsAreTeams() ? ['', '', ''] : withMeFirst(['', '', ''], myName());
     state.newPresetId = null;
     state.newConfig = null;
     state.newName = '';
@@ -4055,6 +4846,11 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'join') {
+    view.innerHTML = joinView(current);
+    bindJoin();
+    if (pendingFor(current.group)) watchPending();
+    else stopWatching();
   } else if (current.name === 'home') {
     stopWatching();
     view.innerHTML = homeView();
@@ -4253,6 +5049,16 @@ function registerOfflineCache() {
 }
 
 adoptOlderGames();
+offerMeInForms();
 render();
+// What happened while the app was closed, learnt on opening it rather than left
+// waiting for someone to press a button: a knock answered, a key cut off.
+if (state.remote) {
+  (async () => {
+    const answered = pendings().length ? await checkAllPendings() : false;
+    const changed = await verifyGroups();
+    if ((answered || changed) && !isBusy()) render();
+  })();
+}
 connectToStore();
 registerOfflineCache();

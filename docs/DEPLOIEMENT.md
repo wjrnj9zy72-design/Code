@@ -168,9 +168,10 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 -- tour.
 --
 -- On entre dans un groupe avec **le nom du groupe et six chiffres** : quelqu'un
--- qui en est déjà membre crée l'invitation depuis l'app, la dit de vive voix, et
--- l'app d'en face échange ça contre une clé à elle — propre à cet appareil, et
--- révocable sans toucher aux autres.
+-- qui en est déjà membre crée l'invitation depuis l'app, l'envoie sous forme de
+-- lien (ou la dit de vive voix), et l'app d'en face échange ça contre une clé à
+-- elle — propre à cet appareil, étiquetée du prénom de qui entre, et révocable
+-- sans toucher aux autres.
 --
 -- Deux règles, et elles suffisent :
 --   * créer un partage demande la clé d'un groupe ;
@@ -202,6 +203,24 @@ create table if not exists public.marque_points_group (
 
 alter table public.marque_points_group enable row level security;
 
+-- Deux groupes du même nom seraient indiscernables : on entre dans un groupe en
+-- disant son nom, et un lien d'invitation ne porte que ce nom. Sur une base qui
+-- en aurait déjà deux, l'index n'est pas créé et un message le dit — renommez-en
+-- un, puis relancez ce bloc.
+do $$
+begin
+  if exists (
+    select 1 from public.marque_points_group
+     group by lower(btrim(name)) having count(*) > 1
+  ) then
+    raise notice 'deux groupes portent le meme nom : renommez-en un, puis relancez';
+  else
+    create unique index if not exists marque_points_group_name
+      on public.marque_points_group (lower(btrim(name)));
+  end if;
+end;
+$$;
+
 -- Un groupe a autant de clés que d'appareils entrés : chacune se révoque sans
 -- déranger les autres.
 create table if not exists public.marque_points_group_key (
@@ -216,18 +235,62 @@ create table if not exists public.marque_points_group_key (
 alter table public.marque_points_group_key enable row level security;
 create index if not exists marque_points_group_key_group on public.marque_points_group_key (group_id);
 
+-- Toutes les clés voient et partagent ; seules certaines **font entrer**. La clé
+-- affichée à la création du groupe admet ; celles distribuées ensuite non. C'est
+-- ce qui vous garde portier de votre groupe : une personne que vous acceptez ne
+-- peut pas en accepter d'autres à votre place.
+alter table public.marque_points_group_key
+  add column if not exists admits boolean not null default false;
+
+-- Une base montée avant l'acceptation : une de ses clés doit devenir celle qui
+-- admet, sinon plus personne ne pourrait faire entrer qui que ce soit.
+--
+-- Laquelle : celle que l'éditeur SQL a affichée à la création du groupe, qui se
+-- reconnaît à son étiquette — c'est la vôtre. À défaut, la plus ancienne. (Le
+-- seul départage par date serait un tirage au sort quand deux clés ont été
+-- créées dans la même transaction, ce qui arrive sur une base montée d'un coup.)
+update public.marque_points_group_key k
+   set admits = true
+ where k.id = (select k2.id
+                 from public.marque_points_group_key k2
+                where k2.group_id = k.group_id
+                order by (k2.label in ('première clé', 'clé refaite')) desc,
+                         k2.created_at, k2.id
+                limit 1)
+   and not exists (select 1
+                     from public.marque_points_group_key k3
+                    where k3.group_id = k.group_id and k3.admits);
+
 -- Une base montée avant les invitations garde sa clé sur le groupe : elle
--- devient la première clé de ce groupe, et la colonne disparaît.
-insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, created_at)
-select replace(gen_random_uuid()::text, '-', ''), g.id, 'première clé', g.key_hash, g.key_salt, g.created_at
-  from public.marque_points_group g
- where g.key_hash is not null
-   and not exists (select 1 from public.marque_points_group_key k where k.group_id = g.id);
+-- devient la première clé de ce groupe, et la colonne disparaît. Écrit ainsi
+-- pour que **relancer ce bloc** ne bute pas sur une colonne déjà disparue : tout
+-- ce bloc doit pouvoir être repassé tel quel, autant de fois que nécessaire.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'marque_points_group'
+       and column_name = 'key_hash'
+  ) then
+    execute $migration$
+      insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, created_at)
+      select replace(gen_random_uuid()::text, '-', ''), g.id, 'première clé', g.key_hash, g.key_salt, g.created_at
+        from public.marque_points_group g
+       where g.key_hash is not null
+         and not exists (select 1 from public.marque_points_group_key k where k.group_id = g.id)
+    $migration$;
+  end if;
+end;
+$$;
 
 alter table public.marque_points_group drop column if exists key_hash;
 alter table public.marque_points_group drop column if exists key_salt;
 
--- Les invitations : six chiffres, une demi-heure, une seule entrée.
+-- Les invitations : six chiffres, une durée, et un nombre d'entrées. Un lien
+-- ouvert vaut une journée et plusieurs personnes ; une invitation pour une seule
+-- personne vaut une demi-heure et une entrée. L'un comme l'autre ne donnent que
+-- le droit de **frapper** : ce qui fait entrer, c'est votre acceptation.
 create table if not exists public.marque_points_invite (
   code text primary key,
   group_id text not null references public.marque_points_group(id) on delete cascade,
@@ -238,6 +301,27 @@ create table if not exists public.marque_points_invite (
 );
 
 alter table public.marque_points_invite enable row level security;
+
+-- Qui a frappé, et qui attend. Une demande porte le prénom donné à l'entrée,
+-- l'étiquette de l'appareil, et l'empreinte d'un jeton secret rendu une seule
+-- fois à cet appareil. Le jour où vous acceptez, ce jeton **devient** sa clé de
+-- groupe : la base n'a donc jamais à garder un secret en clair, et l'appareil
+-- n'a rien à venir chercher.
+create table if not exists public.marque_points_request (
+  id text primary key,
+  group_id text not null references public.marque_points_group(id) on delete cascade,
+  name text not null default '',
+  label text not null default '',
+  ticket_hash text not null,
+  ticket_salt text not null,
+  state text not null default 'waiting',
+  created_at timestamptz not null default now(),
+  answered_at timestamptz
+);
+
+alter table public.marque_points_request enable row level security;
+create index if not exists marque_points_request_group
+  on public.marque_points_request (group_id, state);
 
 -- Les entrées ratées, par nom de groupe. C'est ici que se joue la solidité de
 -- six chiffres : compter les essais sur une invitation ne protégerait de rien,
@@ -280,8 +364,8 @@ begin
   values (replace(gen_random_uuid()::text, '-', ''), v_name)
   returning id into v_id;
 
-  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
-  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'première clé', md5(v_key || v_salt), v_salt);
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'première clé', md5(v_key || v_salt), v_salt, true);
 
   return query select v_name, v_key;
 end;
@@ -307,8 +391,8 @@ begin
   end if;
 
   delete from public.marque_points_group_key where group_id = v_id;
-  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
-  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'clé refaite', md5(v_key || v_salt), v_salt);
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'clé refaite', md5(v_key || v_salt), v_salt, true);
   return v_key;
 end;
 $$;
@@ -321,7 +405,7 @@ language sql
 security definer
 set search_path = public
 as $$
-  select jsonb_build_object('id', g.id, 'name', g.name)
+  select jsonb_build_object('id', g.id, 'name', g.name, 'admits', k.admits)
     from public.marque_points_group_key k
     join public.marque_points_group g on g.id = k.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
@@ -518,8 +602,21 @@ begin
 end;
 $$;
 
--- Inviter quelqu'un : il faut déjà être dans le groupe.
-create or replace function public.marque_points_invite(p_key text, p_minutes integer default 30)
+-- Inviter : il faut déjà être dans le groupe. Le lien ouvert (une journée,
+-- plusieurs personnes) et l'invitation pour une seule personne sont la même
+-- fonction, à deux réglages près.
+--
+-- L'ancienne version de cette étape avait une fonction « entrer » qui rendait
+-- une clé sur-le-champ. Elle disparaît : la garder laisserait un chemin pour
+-- entrer sans être accepté.
+drop function if exists public.marque_points_join(text, text, text);
+drop function if exists public.marque_points_invite(text, integer);
+
+create or replace function public.marque_points_invite(
+  p_key text,
+  p_minutes integer default 30,
+  p_uses integer default 1
+)
 returns jsonb
 language plpgsql
 security definer
@@ -530,6 +627,7 @@ declare
   v_name text;
   v_code text;
   v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 1440));
+  v_uses integer := greatest(1, least(coalesce(p_uses, 1), 200));
 begin
   select g.id, g.name into v_group, v_name
     from public.marque_points_group_key k
@@ -545,15 +643,21 @@ begin
 
   v_code := public.marque_points_fresh_code();
   insert into public.marque_points_invite (code, group_id, expires_at, uses)
-  values (v_code, v_group, now() + make_interval(mins => v_minutes), 1);
+  values (v_code, v_group, now() + make_interval(mins => v_minutes), v_uses);
 
-  return jsonb_build_object('code', v_code, 'name', v_name, 'minutes', v_minutes);
+  return jsonb_build_object('code', v_code, 'name', v_name, 'minutes', v_minutes, 'uses', v_uses);
 end;
 $$;
 
--- Entrer avec le nom du groupe et le code. En échange, une clé qui n'appartient
--- qu'à cet appareil : la révoquer plus tard ne dérange personne d'autre.
-create or replace function public.marque_points_join(p_name text, p_code text, p_label text default '')
+-- Frapper à la porte : le nom du groupe, le code, et le prénom de qui demande.
+-- Aucune clé n'est rendue — seulement un jeton, que cet appareil garde et qui
+-- deviendra sa clé si vous acceptez. D'ici là il ne voit rien.
+create or replace function public.marque_points_ask(
+  p_name text,
+  p_code text,
+  p_who text default '',
+  p_label text default ''
+)
 returns jsonb
 language plpgsql
 security definer
@@ -562,11 +666,17 @@ as $$
 declare
   v_invite public.marque_points_invite;
   v_name text := lower(btrim(coalesce(p_name, '')));
-  v_key text := replace(gen_random_uuid()::text, '-', '');
+  v_ticket text := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
   v_salt text := md5(gen_random_uuid()::text);
   v_misses integer;
+  v_waiting integer;
 begin
   delete from public.marque_points_join_miss where at < now() - interval '1 hour';
+  -- Une demande sans réponse finit par s'effacer, et une réponse finit par être
+  -- lue : sans ce ménage la liste des demandes deviendrait un dépotoir.
+  delete from public.marque_points_request
+   where (state = 'waiting' and created_at < now() - interval '7 days')
+      or (state <> 'waiting' and answered_at < now() - interval '1 day');
 
   select count(*) into v_misses
     from public.marque_points_join_miss
@@ -586,33 +696,251 @@ begin
 
   if not found then
     insert into public.marque_points_join_miss (name) values (v_name);
-    -- Un code qui existe mais qu'on tape mal se ferme de son côté aussi.
     update public.marque_points_invite set tries = tries + 1 where code = coalesce(p_code, '');
     return jsonb_build_object('status', 'unknown');
   end if;
 
-  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
+  -- Personne ne doit pouvoir vous noyer sous les demandes.
+  select count(*) into v_waiting
+    from public.marque_points_request
+   where group_id = v_invite.group_id and state = 'waiting';
+  if v_waiting >= 50 then
+    return jsonb_build_object('status', 'busy');
+  end if;
+
+  insert into public.marque_points_request (id, group_id, name, label, ticket_hash, ticket_salt)
   values (replace(gen_random_uuid()::text, '-', ''), v_invite.group_id,
-          left(coalesce(btrim(p_label), ''), 40), md5(v_key || v_salt), v_salt);
+          left(coalesce(btrim(p_who), ''), 24), left(coalesce(btrim(p_label), ''), 80),
+          md5(v_ticket || v_salt), v_salt);
 
   update public.marque_points_invite set uses = uses - 1 where code = v_invite.code;
   delete from public.marque_points_invite where uses <= 0;
-  -- Une entrée réussie efface l'ardoise de ce groupe.
   delete from public.marque_points_join_miss where name = v_name;
 
   return jsonb_build_object(
-    'status', 'ok',
+    'status', 'waiting',
+    'ticket', v_ticket,
     'id', v_invite.group_id,
-    'name', (select name from public.marque_points_group where id = v_invite.group_id),
-    'key', v_key
+    'name', (select name from public.marque_points_group where id = v_invite.group_id)
   );
 end;
 $$;
 
-revoke all on function public.marque_points_fresh_code() from public, anon, authenticated;
+-- « Alors, on m'a accepté ? » L'appareil qui attend demande avec son jeton.
+-- Accepté, ce jeton est désormais sa clé de groupe : il n'a rien à recevoir.
+create or replace function public.marque_points_claim(p_ticket text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_request public.marque_points_request;
+begin
+  select r.* into v_request
+    from public.marque_points_request r
+   where r.ticket_hash = md5(coalesce(p_ticket, '') || r.ticket_salt);
 
-grant execute on function public.marque_points_invite(text, integer) to anon, authenticated;
-grant execute on function public.marque_points_join(text, text, text) to anon, authenticated;
+  if not found then
+    -- La demande a pu être effacée après coup ; si le jeton ouvre le groupe,
+    -- c'est qu'il a été accepté, et cela vaut réponse.
+    if exists (select 1 from public.marque_points_group_key k
+                where k.key_hash = md5(coalesce(p_ticket, '') || k.key_salt)) then
+      return (select jsonb_build_object('status', 'ok', 'id', g.id, 'name', g.name)
+                from public.marque_points_group_key k
+                join public.marque_points_group g on g.id = k.group_id
+               where k.key_hash = md5(coalesce(p_ticket, '') || k.key_salt)
+               limit 1);
+    end if;
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  if v_request.state = 'waiting' then
+    return jsonb_build_object('status', 'waiting',
+      'name', (select name from public.marque_points_group where id = v_request.group_id));
+  end if;
+  if v_request.state = 'refused' then
+    return jsonb_build_object('status', 'refused');
+  end if;
+
+  return jsonb_build_object('status', 'ok', 'id', v_request.group_id,
+    'name', (select name from public.marque_points_group where id = v_request.group_id));
+end;
+$$;
+
+-- Les demandes en attente, pour la clé qui admet. Une clé ordinaire n'a rien à
+-- voir ici : elle ne fait pas entrer.
+create or replace function public.marque_points_requests(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', r.id, 'name', r.name, 'label', r.label,
+             'at', (extract(epoch from r.created_at) * 1000)::bigint)
+           order by r.created_at)
+      from public.marque_points_request r
+     where r.group_id = v_group and r.state = 'waiting'
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- Accepter, ou refuser. Accepter crée la clé de cet appareil à partir de
+-- l'empreinte de son jeton : rien n'a eu à circuler en clair.
+create or replace function public.marque_points_answer(p_key text, p_id text, p_accept boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_request public.marque_points_request;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  select r.* into v_request
+    from public.marque_points_request r
+   where r.id = coalesce(p_id, '') and r.group_id = v_group and r.state = 'waiting';
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  if not coalesce(p_accept, false) then
+    update public.marque_points_request
+       set state = 'refused', answered_at = now()
+     where id = v_request.id;
+    return jsonb_build_object('status', 'refused');
+  end if;
+
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values (replace(gen_random_uuid()::text, '-', ''), v_group,
+          left(btrim(coalesce(v_request.name, '') || ' · ' || coalesce(v_request.label, '')), 80),
+          v_request.ticket_hash, v_request.ticket_salt, false);
+
+  update public.marque_points_request
+     set state = 'ok', answered_at = now()
+   where id = v_request.id;
+
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Qui est dans le groupe : une ligne par appareil, pour la clé qui admet. La
+-- ligne de l'appareil qui demande est signalée, pour qu'il ne se coupe pas
+-- lui-même sans le savoir.
+create or replace function public.marque_points_group_keys(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', k.id, 'label', k.label, 'admits', k.admits,
+             'mine', k.key_hash = md5(coalesce(p_key, '') || k.key_salt),
+             'at', (extract(epoch from k.created_at) * 1000)::bigint)
+           order by k.created_at)
+      from public.marque_points_group_key k
+     where k.group_id = v_group
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- Couper un appareil, depuis l'app. La dernière clé qui admet ne se coupe pas :
+-- le groupe n'aurait plus de portier, et plus personne n'y entrerait jamais.
+create or replace function public.marque_points_cut_key(p_key text, p_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_admits boolean;
+  v_left integer;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  select k.admits into v_admits
+    from public.marque_points_group_key k
+   where k.id = coalesce(p_id, '') and k.group_id = v_group;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  if v_admits then
+    select count(*) into v_left
+      from public.marque_points_group_key k
+     where k.group_id = v_group and k.admits;
+    if v_left <= 1 then
+      return jsonb_build_object('status', 'last');
+    end if;
+  end if;
+
+  delete from public.marque_points_group_key where id = p_id and group_id = v_group;
+  -- Ce que cet appareil avait demandé n'a plus de raison d'être.
+  delete from public.marque_points_request
+   where group_id = v_group and state <> 'waiting'
+     and not exists (select 1 from public.marque_points_group_key k
+                      where k.group_id = v_group
+                        and k.key_hash = public.marque_points_request.ticket_hash);
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- PostgreSQL accorde l'exécution à tout le monde par défaut : ce qui ne doit
+-- s'exécuter que d'ici, depuis l'éditeur SQL, doit être retiré explicitement.
+-- Sans cette ligne, quiconque a la clé publique de la page — elle est dans le
+-- code, c'est son rôle — pourrait refaire la clé d'un groupe dont il connaît le
+-- nom : tous les appareils dehors, et le groupe à lui.
+revoke all on function public.marque_points_fresh_code() from public, anon, authenticated;
+revoke all on function public.marque_points_new_group(text) from public, anon, authenticated;
+revoke all on function public.marque_points_new_group_key(text) from public, anon, authenticated;
+
+grant execute on function public.marque_points_invite(text, integer, integer) to anon, authenticated;
+grant execute on function public.marque_points_ask(text, text, text, text) to anon, authenticated;
+grant execute on function public.marque_points_claim(text) to anon, authenticated;
+grant execute on function public.marque_points_requests(text) to anon, authenticated;
+grant execute on function public.marque_points_answer(text, text, boolean) to anon, authenticated;
+grant execute on function public.marque_points_group_keys(text) to anon, authenticated;
+grant execute on function public.marque_points_cut_key(text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
@@ -628,12 +956,73 @@ Attendu : **Success. No rows returned.**
 > plus, et les appareils devront recevoir une clé de groupe. Ce qui était déjà
 > partagé reste.
 
+#### Et les groupes qui existent déjà ?
+
+Ils restent, et personne n'a rien à refaire. Éprouvé en montant une base avec la
+version précédente de cette étape — un groupe, trois appareils entrés par
+l'ancien chemin, trois documents partagés, une invitation en cours — puis en
+appliquant ce bloc par-dessus :
+
+| | après le bloc |
+| --- | --- |
+| Le groupe et son nom | inchangés |
+| Les clés des appareils | **toutes valables**, rien à recoller |
+| Ce qui était partagé | toujours là, et toujours dans son groupe |
+| Partager, contribuer, supprimer | comme avant, sans rien retoucher |
+| Une invitation déjà envoyée | sert encore — elle fait désormais **frapper** |
+| Qui fait entrer | **la clé affichée à la création du groupe** ; les appareils entrés avant ne font entrer personne |
+
+Deux conséquences à connaître :
+
+- **Une copie de l'app ouverte depuis longtemps** appelle encore l'ancienne
+  entrée directe, qui n'existe plus : elle dira que la base n'a pas répondu.
+  Rechargez la page — l'app se sert d'abord du réseau, la nouvelle version
+  arrive d'elle-même.
+- **Si la clé qui fait entrer n'est pas celle que vous voulez** — une base montée
+  à la main, par exemple —, désignez-en une autre avec l'`update` de l'étape 4.
+
+### 1 bis. Tout remettre à zéro
+
+**À ne faire que si vous voulez repartir de rien** — un groupe créé pour essayer,
+des partages de test, une clé qui traîne. Effacez la zone de texte et lancez :
+
+```sql
+-- Repartir de zéro : plus aucun groupe, aucune clé, aucune demande, aucune
+-- invitation, et plus rien de partagé dans la base.
+delete from public.marque_points_request;
+delete from public.marque_points_invite;
+delete from public.marque_points_join_miss;
+delete from public.marque_points_group_key;
+delete from public.marque_points_group;
+delete from public.marque_points_games;
+```
+
+Attendu : six lignes `DELETE n`. Ce que cela efface, dit franchement :
+
+- **tous les groupes et toutes les clés** : aucun appareil n'appartient plus à
+  rien, et les clés copiées jusqu'ici ne servent plus à rien ;
+- **tout ce qui était partagé** — parties, listes, sondages — *dans la base* ;
+- **tous les liens déjà envoyés**, y compris les lots à six chiffres : ils ne
+  s'ouvriront plus.
+
+Ce que cela n'efface pas : **ce qui est sur les appareils**. Chaque app garde sa
+propre copie de ses parties, listes et sondages ; elle continue de les afficher,
+simplement plus rien n'est partagé. À la prochaine ouverture, chaque appareil
+constate que sa clé n'ouvre plus rien, retire le groupe de sa liste et le dit —
+vous n'avez rien à faire sur les téléphones.
+
+> Le deuxième `delete` de la liste vide la table qui porte les documents
+> partagés. Si vous voulez garder ce qui est partagé et ne refaire que les
+> groupes, retirez la ligne `delete from public.marque_points_games;` — mais
+> lancez alors la requête de rattachement (**2 bis** ci-dessous) après avoir créé
+> le nouveau groupe, sinon ces documents n'appartiendront à personne.
+
 ### 2. Créer votre premier groupe
 
 Effacez la zone de texte et lancez :
 
 ```sql
-select * from public.marque_points_new_group('Famille');
+select * from public.marque_points_new_group('Mifa');
 ```
 
 Elle affiche deux colonnes : le **nom** et la **clé**, une suite de 32
@@ -653,7 +1042,7 @@ le range dans le groupe que vous venez de créer :
 
 ```sql
 update public.marque_points_games
-   set group_id = (select id from public.marque_points_group where name = 'Famille')
+   set group_id = (select id from public.marque_points_group where name = 'Mifa')
  where group_id is null;
 ```
 
@@ -666,51 +1055,97 @@ déjà envoyés continuent de fonctionner, avant comme après.
 vous venez de copier. Dans l'app, onglet **Aperçu** → **Mes groupes** → dépliez
 *Je n'ai pas de code, mais une clé* → collez → **Entrer**.
 
-**Tous les autres entrent avec six chiffres**, et c'est tout :
+C'est cette clé — et elle seule — qui **fait entrer les autres**. Gardez-la sur
+votre appareil : les clés distribuées ensuite voient tout et partagent, mais
+n'acceptent personne.
 
-1. sur un appareil déjà dans le groupe, touchez **Inviter** à côté du nom du
-   groupe ;
-2. dites le nom du groupe et les six chiffres affichés — de vive voix, au
-   téléphone, comme vous voulez ;
-3. en face : onglet **Aperçu**, le nom du groupe, le code, **Entrer**.
+**Tous les autres frappent, et c'est vous qui ouvrez :**
 
-L'invitation vaut **une demi-heure et une seule entrée**. L'appareil qui entre
-reçoit **sa propre clé** : la couper plus tard ne dérange aucun autre.
+1. sur votre appareil, touchez **Inviter** à côté du nom du groupe, puis
+   choisissez :
+   - **un lien pour la journée, plusieurs personnes** — celui qu'on envoie dans
+     la conversation de famille ;
+   - **une seule personne, une demi-heure** — pour quelqu'un d'extérieur au
+     cercle, quand vous préférez qu'un lien transféré ne serve à rien ;
+2. envoyez le lien — message, courriel, QR code montré à l'écran ;
+3. en face, le lien ouvre une page qui ne demande qu'**un prénom**, puis
+   **Entrer**. Rien ne s'ouvre : la demande arrive chez vous ;
+4. dans votre **Aperçu**, sous *On frappe*, la demande apparaît avec ce prénom :
+   **Accepter** ou **Refuser**.
+
+Accepté, l'appareil d'en face s'en aperçoit tout seul (sa page regarde, et
+l'acceptation est vue de toute façon à la prochaine ouverture de l'app), reçoit
+**sa propre clé** et récupère d'un coup ce que le groupe partage. Refusé, il
+l'apprend, et n'a jamais rien ouvert.
+
+> **Il n'y a pas de notification.** Vous voyez qu'on a frappé en ouvrant l'app,
+> et la personne voit votre réponse en ouvrant la sienne. Dites-vous un mot de
+> vive voix, comme pour le code.
+
+Si le lien ne passe pas — un message qui l'abîme, quelqu'un au téléphone —
+**dites le nom du groupe et les six chiffres** affichés sous le lien : l'onglet
+**Aperçu** de l'autre appareil les accepte tels quels, et la page d'entrée aussi,
+en dépliant *Nom du groupe et code*. La suite est la même : ça frappe, vous
+acceptez.
+
+> C'est ce qui rend le lien du jour tranquille : **une invitation ne donne que le
+> droit de frapper**. Transférée, capturée, retrouvée dans un fil de discussion,
+> elle ne fait entrer personne sans vous. Une demande de trop se refuse d'une
+> touche, et n'a rien vu entre-temps.
 
 > Le code ne fait que six chiffres, mais on ne les devine pas : au-delà de vingt
 > essais ratés en dix minutes sur un même groupe, la base n'ouvre plus du tout
-> pendant un moment — et une entrée réussie efface l'ardoise.
+> pendant un moment — et une demande réussie efface l'ardoise. Au-delà de
+> cinquante demandes en attente, elle n'en prend plus : personne ne peut vous
+> noyer sous les lignes.
 
 Faites-le sur chaque appareil : le vôtre, celui des personnes du groupe, Safari
-et l'app de l'écran d'accueil (qui comptent pour deux). Puis **Tout récupérer**
-ramène d'un coup ce que le groupe partage déjà.
+et l'app de l'écran d'accueil (qui comptent pour deux). Une demande sans réponse
+s'effface au bout de **sept jours** ; une réponse non lue, au bout d'un jour —
+d'ici là elle attend sagement que l'app soit ouverte.
 
 > ⚠️ Ne mettez **jamais** une clé de groupe dans `src/config.js` ni ailleurs dans
 > le dépôt : ce fichier est public, et la clé le deviendrait avec lui.
 
 ### 4. Couper un appareil, ou tout le monde
 
-Pour **un seul appareil** — un téléphone perdu, quelqu'un qui quitte le groupe :
+**Depuis l'app, et c'est le cas courant** : Aperçu → le groupe → dépliez *Qui est
+dans le groupe*. Une ligne par appareil, avec le prénom donné à l'entrée, d'où il
+vient et quand il est arrivé. **Couper** le met dehors : il ne verra plus rien de
+nouveau, ne pourra plus rien partager, et ce qu'il avait déjà récupéré reste chez
+lui — on ne rappelle pas ce qui est déjà lu. À la prochaine ouverture, son app le
+lui dit plutôt que de tout refuser sans raison.
+
+Votre propre appareil n'a pas de bouton *Couper*, et la **dernière clé qui fait
+entrer** ne se coupe pas : le groupe se retrouverait sans personne pour accepter
+qui que ce soit.
+
+**Depuis l'éditeur SQL**, si vous préférez, ou si vous avez perdu l'appareil qui
+fait entrer :
 
 ```sql
-select id, label, created_at from public.marque_points_group_key
- where group_id = (select id from public.marque_points_group where name = 'Famille');
+select id, label, admits, created_at from public.marque_points_group_key
+ where group_id = (select id from public.marque_points_group where name = 'Mifa');
 
 delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
 ```
 
-La colonne `label` dit d'où venait l'appareil (« écran d'accueil · 20 sept.
-2026 »), de quoi s'y retrouver.
-
-Pour **tout le monde à la fois**, si vous pensez qu'une clé a fuité :
+Pour désigner une autre clé comme celle qui fait entrer — un deuxième appareil à
+vous, par exemple :
 
 ```sql
-select public.marque_points_new_group_key('Famille');
+update public.marque_points_group_key set admits = true where id = 'ID_DE_LA_LIGNE';
 ```
 
-Toutes les clés du groupe sont coupées et une seule est refaite : il faut la
-recoller sur le premier appareil, puis réinviter les autres. Ce qui est partagé
-dans le groupe reste.
+**Tout le monde dehors, et on repart** — le bouton d'alarme. Toutes les clés du
+groupe sont coupées et une seule est refaite, qui fait entrer ; ce qui est partagé
+reste :
+
+```sql
+select public.marque_points_new_group_key('Mifa');
+```
+
+Recollez la clé affichée sur votre appareil (étape 3), puis réinvitez les autres.
 
 ### 5. Vérifier
 
@@ -720,8 +1155,24 @@ Une requête à la fois, en remplaçant `VOTRE_CLE` par la clé copiée :
 select public.marque_points_group_of('VOTRE_CLE');
 ```
 
-Attendu : `{"id": "...", "name": "Famille"}`. Avec n'importe quoi d'autre à la
-place : une cellule vide.
+Attendu : `{"id": "...", "name": "Mifa", "admits": true}` — `admits` étant ce
+qui fait de cette clé celle qui accepte les demandes. Avec n'importe quoi d'autre
+à la place : une cellule vide.
+
+Pour voir la porte fonctionner sans quitter l'éditeur :
+
+```sql
+select public.marque_points_invite('VOTRE_CLE', 1440, 50);
+select public.marque_points_ask('Mifa', 'LE_CODE_AFFICHE', 'Test', 'navigateur');
+select public.marque_points_requests('VOTRE_CLE');
+select public.marque_points_answer('VOTRE_CLE', 'ID_DE_LA_DEMANDE', false);
+select jsonb_array_length(public.marque_points_group_keys('VOTRE_CLE'));
+```
+
+Attendu, dans l'ordre : un code à six chiffres valable 1440 minutes et 50
+demandes ; `{"status": "waiting", "ticket": "...", ...}` — un jeton, pas une clé ;
+la demande, avec son prénom ; `{"status": "refused"}` ; et le nombre d'appareils
+du groupe, **inchangé** par ce refus.
 
 ```sql
 select public.marque_points_put('g_de_test_1', '{"id":"g_de_test_1"}'::jsonb);
@@ -736,12 +1187,19 @@ but ; une cellule vide ; une cellule vide encore (contribuer ne demande rien) ;
 **1** ; et une cellule vide.
 
 > Ce bloc et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16 avec
-> les rôles de Supabase : sans clé rien ne se crée, une clé n'ouvre que son
-> groupe, un groupe ne voit pas les documents du groupe d'à côté, couper une clé
-> laisse les autres intactes, une invitation ne sert qu'une fois et expire, vingt
-> essais ratés ferment l'entrée du groupe pendant dix minutes sans gêner le
-> groupe d'à côté, et le rôle public ne peut ni créer de groupe, ni tirer de clé,
-> ni lire aucune table.
+> les rôles de Supabase, et le bloc a été repassé deux fois de suite pour vérifier
+> qu'il se relance sans dommage. Ce qui a été éprouvé : sans clé rien ne se crée ;
+> une clé n'ouvre que son groupe ; un groupe ne voit pas les documents du groupe
+> d'à côté ; deux groupes ne peuvent pas porter le même nom ; un jeton non accepté
+> n'ouvre rien, et un jeton refusé jamais ; le jeton accepté devient la clé de son
+> appareil, sans que rien ait circulé en clair ; une clé ordinaire ne lit pas les
+> demandes et n'accepte personne ; couper une clé laisse les autres intactes, mais
+> la dernière clé qui fait entrer est protégée ; une invitation expirée ne frappe
+> plus ; vingt essais ratés ferment l'entrée du groupe pendant dix minutes sans
+> gêner le groupe d'à côté ; cinquante demandes en attente et la porte n'en prend
+> plus ; et le rôle public — celui de la clé publique qui est dans la page — ne
+> peut ni créer de groupe, ni refaire la clé d'un groupe, ni tirer de code, ni
+> lire aucune table.
 
 ## Étape 3 — Vérifier, sans quitter la page
 

@@ -173,6 +173,68 @@ test('a set travels as one short link, whatever it holds', async () => {
   assert.equal(gameIdFrom(link), null, 'and the two are never confused');
 });
 
+test('an invitation travels as a link, so nothing has to be typed', async () => {
+  const { joinLink, joinFrom, setIdFrom, gameIdFrom } = await import('../src/remote.js');
+  const place = { origin: 'https://gui.github.io', pathname: '/Code/', search: '' };
+
+  const link = joinLink(place, 'Mifa', '123456');
+  assert.equal(link, 'https://gui.github.io/Code/#/join/123456/Mifa');
+  assert.deepEqual(joinFrom(link), { code: '123456', name: 'Mifa' });
+  assert.deepEqual(joinFrom(`Tiens : ${link} à ce soir`), { code: '123456', name: 'Mifa' });
+
+  const spaced = joinLink(place, 'Copains du mardi', '000042');
+  assert.equal(spaced, 'https://gui.github.io/Code/#/join/000042/Copains%20du%20mardi',
+    'a name with spaces still makes one unbroken link');
+  assert.deepEqual(joinFrom(spaced), { code: '000042', name: 'Copains du mardi' },
+    'and comes back as it was written');
+  assert.deepEqual(joinFrom(joinLink(place, 'Été 2026 / sud', '999999')),
+    { code: '999999', name: 'Été 2026 / sud' }, 'accents and slashes included');
+
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/12345/Mifa'), null, 'five digits is not a code');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456'), null, 'a code without its group');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456/'), null, 'nor an empty group name');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/set/lot_abcdefgh'), null, 'a lot is not an invitation');
+  assert.equal(joinFrom(null), null);
+  assert.equal(setIdFrom(link), null, 'and an invitation is never taken for something else');
+  assert.equal(gameIdFrom(link), null);
+});
+
+test('an invitation link read out of a sentence loses the sentence with it', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  const link = 'https://gui.github.io/Code/#/join/123456/Mifa';
+  const famille = { code: '123456', name: 'Mifa' };
+
+  assert.deepEqual(joinFrom(`Voici le lien : ${link}.`), famille, 'a full stop');
+  assert.deepEqual(joinFrom(`Le lien (${link}) à ce soir`), famille, 'a bracket that closes nothing');
+  assert.deepEqual(joinFrom(`«${link}»`), famille, 'the quotes a phone puts round it');
+  assert.deepEqual(joinFrom(`${link}!!`), famille);
+  assert.deepEqual(joinFrom(`${link}\u2026`), famille, 'and an ellipsis');
+
+  // A group really called that keeps its brackets: they close what they open.
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/Mifa%20(maison)'),
+    { code: '123456', name: 'Mifa (maison)' });
+});
+
+test('an invitation is six digits, in a hash, or it is not one', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/1234567/Mifa'), null,
+    'seven digits is not a code, and must not be read as six');
+  assert.equal(joinFrom('https://gui.github.io/Code/join/123456/Mifa'), null,
+    'a path that merely looks like one is not an invitation');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456/%20'), null,
+    'a name made of blanks names nothing');
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/%20Mifa%20'),
+    { code: '123456', name: 'Mifa' }, 'and one written with blanks round it is trimmed');
+});
+
+test('a link mangled on its way through a message still carries the digits', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  // A stray percent sign is what a message app leaves behind when it decides
+  // to shorten a link: the name is then read as it stands rather than lost.
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/Mifa%'),
+    { code: '123456', name: 'Mifa%' });
+});
+
 test('a lot takes a group key to write, and a code to read', async () => {
   const calls = [];
   const remote = createRemote(CONFIG, async (url, options) => {
@@ -180,7 +242,7 @@ test('a lot takes a group key to write, and a code to read', async () => {
     if (url.endsWith('marque_points_open_set')) {
       return ok({ status: 'ok', set: { kind: 'set', ids: ['g_1', 'g_2'] } });
     }
-    if (url.endsWith('marque_points_group_of')) return ok({ id: 'grp_1', name: 'Famille' });
+    if (url.endsWith('marque_points_group_of')) return ok({ id: 'grp_1', name: 'Mifa', admits: true });
     return ok(undefined, 204);
   });
 
@@ -193,14 +255,18 @@ test('a lot takes a group key to write, and a code to read', async () => {
   assert.deepEqual(answer, { status: 'ok', contents: { kind: 'set', ids: ['g_1', 'g_2'] } });
   assert.ok(!('p_key' in calls[1].body), 'the receiver has no key to give');
 
-  assert.deepEqual(await remote.groupOf('la-cle-famille'), { id: 'grp_1', name: 'Famille' });
+  assert.deepEqual(await remote.groupOf('la-cle-famille'), { id: 'grp_1', name: 'Mifa', admits: true });
   assert.equal(await remote.forgetSet('lot_1', 'la-cle-famille'), false, 'no answer means not gone');
   assert.equal(calls[3].body.p_key, 'la-cle-famille', 'revoking takes the key, not the code');
 });
 
-test('a key says which group it opens, or none', async () => {
+test('a key says which group it opens, and whether it lets people in', async () => {
   const answering = (body) => createRemote(CONFIG, async () => ok(body));
-  assert.deepEqual(await answering({ id: 'grp_1', name: 'Famille' }).groupOf('k'), { id: 'grp_1', name: 'Famille' });
+  assert.deepEqual(await answering({ id: 'grp_1', name: 'Mifa', admits: true }).groupOf('k'),
+    { id: 'grp_1', name: 'Mifa', admits: true });
+  assert.deepEqual(await answering({ id: 'grp_1', name: 'Mifa' }).groupOf('k'),
+    { id: 'grp_1', name: 'Mifa', admits: false },
+    'a key that says nothing about it does not let people in');
   assert.equal(await answering(null).groupOf('k'), null, 'a key that opens nothing');
   assert.equal(await answering({ name: 'Sans identifiant' }).groupOf('k'), null, 'nor an answer missing its id');
 });
@@ -276,36 +342,105 @@ test('a refused key is a refusal, not a silent success', async () => {
     /cle de groupe invalide/);
 });
 
-test('an invitation is six digits, and joining hands back a key of one\'s own', async () => {
+test('an invitation is six digits, and knocking hands back no key at all', async () => {
   const calls = [];
   const remote = createRemote(CONFIG, async (url, options) => {
     calls.push({ fn: url.split('/').pop(), body: JSON.parse(options.body) });
-    if (url.endsWith('marque_points_invite')) return ok({ code: '482913', name: 'Famille', minutes: 30 });
-    return ok({ status: 'ok', id: 'grp_1', name: 'Famille', key: 'la-cle-de-cet-appareil' });
+    if (url.endsWith('marque_points_invite')) {
+      return ok({ code: '482913', name: 'Mifa', minutes: 1440, uses: 50 });
+    }
+    return ok({ status: 'waiting', ticket: 'le-jeton-de-cet-appareil', id: 'grp_1', name: 'Mifa' });
   });
 
-  const invitation = await remote.invite('la-cle-famille');
-  assert.deepEqual(invitation, { code: '482913', name: 'Famille', minutes: 30 });
+  const invitation = await remote.invite('la-cle-famille', 1440, 50);
+  assert.deepEqual(invitation, { code: '482913', name: 'Mifa', minutes: 1440, uses: 50 });
   assert.equal(calls[0].body.p_key, 'la-cle-famille', 'inviting takes being in the group');
-  assert.equal(calls[0].body.p_minutes, 30);
+  assert.equal(calls[0].body.p_minutes, 1440, 'a link for the day');
+  assert.equal(calls[0].body.p_uses, 50, 'and for several people');
 
-  const joined = await remote.join('Famille', '482913', 'écran d’accueil');
-  assert.deepEqual(joined, { status: 'ok', id: 'grp_1', name: 'Famille', key: 'la-cle-de-cet-appareil' });
-  assert.equal(calls[1].body.p_name, 'Famille');
+  const knocked = await remote.ask('Mifa', '482913', 'Alice', 'écran d’accueil');
+  assert.deepEqual(knocked,
+    { status: 'waiting', ticket: 'le-jeton-de-cet-appareil', id: 'grp_1', name: 'Mifa' });
+  assert.equal(calls[1].body.p_name, 'Mifa');
   assert.equal(calls[1].body.p_code, '482913');
+  assert.equal(calls[1].body.p_who, 'Alice', 'so the group knows who is knocking');
   assert.equal(calls[1].body.p_label, 'écran d’accueil', 'so a key can be told from another later');
-  assert.ok(!('p_key' in calls[1].body), 'joining holds no key yet — that is the point');
+  assert.ok(!('p_key' in calls[1].body), 'knocking holds no key — that is the whole point');
 });
 
-test('every way joining can fail says which one it was', async () => {
+test('every way knocking can fail says which one it was', async () => {
   const answering = (body) => createRemote(CONFIG, async () => ok(body));
 
-  assert.deepEqual(await answering({ status: 'unknown' }).join('Famille', '000000'), { status: 'unknown' });
-  assert.deepEqual(await answering({ status: 'busy' }).join('Famille', '000000'), { status: 'busy' },
-    'too many attempts on that group just now');
-  assert.deepEqual(await answering({ status: 'ok', id: 'g', name: 'F' }).join('Famille', '000000'),
-    { status: 'unknown' }, 'an "ok" with no key in it is not a way in');
-  assert.deepEqual(await answering(null).join('Famille', '000000'), { status: 'unknown' });
+  assert.deepEqual(await answering({ status: 'unknown' }).ask('Mifa', '000000'), { status: 'unknown' });
+  assert.deepEqual(await answering({ status: 'busy' }).ask('Mifa', '000000'), { status: 'busy' },
+    'too many attempts, or too many people already waiting');
+  assert.deepEqual(await answering({ status: 'waiting', id: 'g', name: 'F' }).ask('Mifa', '000000'),
+    { status: 'unknown' }, 'a "waiting" with no ticket in it is nothing to wait on');
+  assert.deepEqual(await answering(null).ask('Mifa', '000000'), { status: 'unknown' });
   assert.equal(await answering(null).invite('k'), null);
-  assert.equal(await answering({ name: 'Famille' }).invite('k'), null, 'an answer with no code is none');
+  assert.equal(await answering({ name: 'Mifa' }).invite('k'), null, 'an answer with no code is none');
+});
+
+test('a ticket is answered with waiting, yes, no, or gone', async () => {
+  const answering = (body) => createRemote(CONFIG, async () => ok(body));
+
+  assert.deepEqual(await answering({ status: 'waiting', name: 'Mifa' }).claim('jeton'),
+    { status: 'waiting', name: 'Mifa' });
+  assert.deepEqual(await answering({ status: 'ok', id: 'grp_1', name: 'Mifa' }).claim('jeton'),
+    { status: 'ok', id: 'grp_1', name: 'Mifa' });
+  assert.deepEqual(await answering({ status: 'refused' }).claim('jeton'), { status: 'refused' });
+  assert.deepEqual(await answering({ status: 'ok' }).claim('jeton'), { status: 'unknown' },
+    'an "ok" that names no group is not an answer');
+  assert.deepEqual(await answering(null).claim('jeton'), { status: 'unknown' });
+});
+
+test('the gatekeeper reads the knocks, answers them, and cuts a device off', async () => {
+  const calls = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    const fn = url.split('/').pop();
+    calls.push({ fn, body: JSON.parse(options.body) });
+    if (fn === 'marque_points_requests') {
+      return ok([{ id: 'req_1', name: 'Alice', label: 'navigateur', at: 1 }, null, { name: 'sans id' }]);
+    }
+    if (fn === 'marque_points_group_keys') {
+      return ok([{ id: 'key_1', label: 'première clé', admits: true, mine: true, at: 1 }]);
+    }
+    if (fn === 'marque_points_answer') return ok({ status: 'ok' });
+    return ok({ status: 'last' });
+  });
+
+  assert.deepEqual(await remote.requests('la-cle-famille'),
+    [{ id: 'req_1', name: 'Alice', label: 'navigateur', at: 1 }],
+    'rows that are rows, and nothing else');
+
+  assert.deepEqual(await remote.groupKeys('la-cle-famille'),
+    [{ id: 'key_1', label: 'première clé', admits: true, mine: true, at: 1 }]);
+
+  assert.equal(await remote.answer('la-cle-famille', 'req_1', true), 'ok');
+  assert.equal(calls[2].body.p_accept, true, 'accepting says so plainly');
+
+  assert.equal(await remote.cutKey('la-cle-famille', 'key_1'), 'last',
+    'the last key that lets people in is refused, and the caller is told which refusal it is');
+});
+
+test('a gate a key does not open is an empty hand, not a crash', async () => {
+  const refusing = createRemote(CONFIG, async () => ({
+    ok: false,
+    status: 400,
+    async json() {
+      return { code: 'P0001', message: 'cette cle ne fait pas entrer' };
+    },
+    async text() {
+      return 'cette cle ne fait pas entrer';
+    },
+  }));
+
+  await assert.rejects(() => refusing.requests('une-cle-ordinaire'), /ne fait pas entrer/);
+  await assert.rejects(() => refusing.groupKeys('une-cle-ordinaire'), /ne fait pas entrer/);
+
+  const silent = createRemote(CONFIG, async () => ok(null));
+  assert.deepEqual(await silent.requests('k'), [], 'nobody knocking is an empty list');
+  assert.deepEqual(await silent.groupKeys('k'), []);
+  assert.equal(await silent.answer('k', 'req', true), 'unknown');
+  assert.equal(await silent.cutKey('k', 'key'), 'unknown');
 });

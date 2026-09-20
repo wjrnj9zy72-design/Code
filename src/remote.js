@@ -16,9 +16,12 @@
  * everything shared in it. Contributing to something already shared needs
  * nothing at all.
  *
- * A device joins with the group's name and six digits said out loud, and gets
- * back a key of its own, which it keeps. Each device has its own, so one can
- * be cut off without disturbing the others.
+ * A device does not let itself in. It knocks — with the group's name, six
+ * digits from an invitation, and the first name of whoever is asking — and
+ * someone in the group accepts or refuses. Accepted, the ticket it was given
+ * becomes its own key; refused, it never opened anything. Each device has its
+ * own key, so one can be cut off without disturbing the others, and only the
+ * keys marked as admitting can let anyone in.
  *
  * A lot — a link that hands over several things at once — goes through its own
  * functions, because it is protected differently: writing one takes a group's
@@ -90,37 +93,102 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     /**
      * The group a key opens — its id and its name — or null when the key
      * opens nothing. Showing the name is what turns "key accepted" into
-     * "you are in Famille".
+     * "you are in Mifa".
      */
     async groupOf(key) {
       const group = await call('marque_points_group_of', { p_key: key });
-      return group && typeof group === 'object' && group.id ? group : null;
+      if (!group || typeof group !== 'object' || !group.id) return null;
+      return { ...group, admits: Boolean(group.admits) };
     },
 
     /**
-     * Invite someone: the database draws six digits, good for half an hour and
-     * for one device. Being in the group is what allows it.
-     * Returns { code, name, minutes }.
+     * Invite: the database draws six digits, good for as long and for as many
+     * people as asked. Being in the group is what allows it.
+     * Returns { code, name, minutes, uses }.
      */
-    async invite(key, minutes = 30) {
-      const answer = await call('marque_points_invite', { p_key: key, p_minutes: minutes });
+    async invite(key, minutes = 30, uses = 1) {
+      const answer = await call('marque_points_invite', {
+        p_key: key,
+        p_minutes: minutes,
+        p_uses: uses,
+      });
       return answer && typeof answer.code === 'string' ? answer : null;
     },
 
     /**
-     * Join with the group's name and those six digits. What comes back is a
-     * key of this device's own — revoking it later disturbs nobody else.
+     * Knock: the group's name, the six digits, and the first name of whoever is
+     * asking. Nothing is opened by this — what comes back is a ticket this
+     * device keeps, and which becomes its key the day someone in the group
+     * accepts. Until then it sees nothing at all.
      *
-     * Returns { status: 'ok', id, name, key } | { status: 'unknown' }
+     * Returns { status: 'waiting', ticket, id, name } | { status: 'unknown' }
      *       | { status: 'busy' }
      */
-    async join(name, code, label = '') {
-      const answer = await call('marque_points_join', { p_name: name, p_code: code, p_label: label });
+    async ask(name, code, who = '', label = '') {
+      const answer = await call('marque_points_ask', {
+        p_name: name,
+        p_code: code,
+        p_who: who,
+        p_label: label,
+      });
       const status = answer?.status;
-      if (status === 'ok' && answer.key) {
-        return { status, id: answer.id, name: answer.name, key: answer.key };
+      if (status === 'waiting' && typeof answer.ticket === 'string') {
+        return { status, ticket: answer.ticket, id: answer.id, name: answer.name };
       }
       return { status: status === 'busy' ? 'busy' : 'unknown' };
+    },
+
+    /**
+     * "Well? Am I in?" — asked with the ticket. Accepted, that ticket is this
+     * device's key from then on, so there is nothing to receive.
+     *
+     * Returns { status: 'ok', id, name } | { status: 'waiting', name }
+     *       | { status: 'refused' } | { status: 'unknown' }
+     */
+    async claim(ticket) {
+      const answer = await call('marque_points_claim', { p_ticket: ticket });
+      const status = answer?.status;
+      if (status === 'ok' && answer.id) return { status, id: answer.id, name: answer.name || '' };
+      if (status === 'waiting') return { status, name: answer.name || '' };
+      if (status === 'refused') return { status };
+      return { status: 'unknown' };
+    },
+
+    /**
+     * Who is knocking: the requests still waiting, for a key that admits. An
+     * ordinary key is refused by the database, which is how a device knows it
+     * is not the one who lets people in.
+     */
+    async requests(key) {
+      const rows = await call('marque_points_requests', { p_key: key });
+      return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string') : [];
+    },
+
+    /** Accept, or refuse. Returns 'ok' | 'refused' | 'unknown'. */
+    async answer(key, id, accept) {
+      const answer = await call('marque_points_answer', {
+        p_key: key,
+        p_id: id,
+        p_accept: Boolean(accept),
+      });
+      const status = answer?.status;
+      return status === 'ok' || status === 'refused' ? status : 'unknown';
+    },
+
+    /** The devices in the group, one line each — for a key that admits. */
+    async groupKeys(key) {
+      const rows = await call('marque_points_group_keys', { p_key: key });
+      return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string') : [];
+    },
+
+    /**
+     * Cut one device off. Returns 'ok' | 'last' | 'unknown' — 'last' being the
+     * one key that lets people in, which the database refuses to remove.
+     */
+    async cutKey(key, id) {
+      const answer = await call('marque_points_cut_key', { p_key: key, p_id: id });
+      const status = answer?.status;
+      return status === 'ok' || status === 'last' ? status : 'unknown';
     },
 
     /**
@@ -254,6 +322,57 @@ export function pollIdFrom(pasted) {
   const found = String(pasted || '').trim().match(/#\/poll\/([A-Za-z0-9_.~:@+-]+)/);
   return found ? found[1] : null;
 }
+
+/**
+ * The link that brings someone into a group: the six digits, and the group's
+ * name after them so that nothing has to be typed at all.
+ *
+ * The two travel together here, which the lot links deliberately avoid — and
+ * for the opposite reason: an invitation is good for half an hour and for one
+ * device, so what protects it is that it expires, not that it is hard to
+ * guess. The name and code can still be said out loud instead.
+ */
+export function joinLink(location, name, code) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/join/${code}/${encodeURIComponent(name)}`;
+}
+
+/** The invitation inside whatever was pasted: { code, name }, or null. */
+export function joinFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/join\/(\d{6})(?!\d)\/([^\s/?#]+)/);
+  if (!found) return null;
+  let name = '';
+  try {
+    name = decodeURIComponent(found[2]);
+  } catch {
+    // A link mangled on its way through a message: the digits are still good.
+    name = found[2];
+  }
+  return unpunctuate(name) ? { code: found[1], name: unpunctuate(name) } : null;
+}
+
+/**
+ * The sentence a link was pasted in from ends somewhere, and its full stop
+ * sticks to the group's name: "…/#/join/123456/Mifa." would then be a
+ * group nobody has. Brackets are only dropped when they close nothing, since
+ * a group may well be called "Mifa (maison)".
+ */
+function unpunctuate(name) {
+  let clean = String(name || '').trim();
+  let last = '';
+  const count = (text, character) => text.split(character).length - 1;
+  while (clean && clean !== last) {
+    last = clean;
+    clean = clean.replace(/[.,;:!?\u2026\u00ab\u00bb"'\u2018\u2019\u201c\u201d]+$/, '').trim();
+    for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+      if (clean.endsWith(close) && count(clean, close) > count(clean, open)) {
+        clean = clean.slice(0, -1).trim();
+      }
+    }
+  }
+  return clean;
+}
+
 
 /** The link that hands over a set of games at once. */
 export function setLink(location, setId) {
