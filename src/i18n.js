@@ -163,6 +163,46 @@ export const STRINGS = {
       'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
     'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
     'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
+    'shareApp.needsKey':
+      'Pour créer un lien avec des parties, il faut la clé de partage : renseignez-la dans la section Données, en bas de l’accueil.',
+    'shareApp.needsUpdate':
+      'La base n’a pas encore la fonction des lots : lancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
+    'shareApp.badKey':
+      'La base a refusé la clé de partage. Vérifiez-la dans la section Données.',
+    'shareSet.codeLabel': 'Code à communiquer',
+    'shareSet.codeApart':
+      'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
+    'shareSet.send': 'Envoyer le lien',
+    'shareSet.codeTitle': 'Code du partage',
+    'shareSet.codeHint':
+      'Ce lien apporte des parties. Tapez les six chiffres donnés par la personne qui vous l’a envoyé.',
+    'shareSet.badCode': 'Un code est fait de six chiffres.',
+    'shareSet.wrongCode': 'Code incorrect. Il reste {left} essai(s) avant que ce lien se bloque.',
+    'shareSet.locked':
+      'Ce lien est bloqué : dix codes faux ont été essayés. Demandez un nouveau lien à la personne qui l’a créé.',
+    'shareSet.cannotUnseal':
+      'Le code est bon, mais ce navigateur ne peut pas déchiffrer le lot : ouvrez le lien en https (l’adresse de l’app), pas en http.',
+    'data.shareKey': 'Clé de partage (pour créer des liens avec parties)',
+    'data.shareKeyPlaceholder': 'collée une fois, gardée sur cet appareil',
+    'data.shareKeySave': 'Enregistrer la clé',
+    'data.shareKeyHint':
+      'Elle s’obtient une fois pour toutes dans l’éditeur SQL de votre base (étape 2 bis du guide). Sans elle, cet appareil peut ouvrir des liens mais pas en créer avec des parties.',
+    'data.shareKeySet': 'Une clé est enregistrée sur cet appareil.',
+    'data.shareKeyChecking': 'Vérification auprès de la base…',
+    'data.shareKeyGood': 'Clé reconnue : cet appareil peut créer des liens avec parties.',
+    'data.shareKeyBad': 'Clé refusée par la base. Vérifiez qu’elle a été copiée en entier.',
+    'data.shareKeyUnsure': 'Clé enregistrée, mais la base n’a pas répondu. Elle sera vérifiée au prochain partage.',
+    'data.shareKeyCleared': 'Clé effacée de cet appareil.',
+    'lots.title': 'Mes partages ({count})',
+    'lots.hint':
+      'Les liens avec parties créés depuis cet appareil. Le code est rappelé ici, et révoquer un lien le rend inutilisable pour tout le monde, même avec le bon code.',
+    'lots.line': '{count} partie(s) · {date}',
+    'lots.link': 'Revoir le lien',
+    'lots.revoke': 'Révoquer',
+    'lots.confirmRevoke':
+      'Révoquer ce partage ? Le lien ne donnera plus accès à rien, même avec le bon code. Les parties, elles, ne sont pas supprimées.',
+    'lots.alreadyGone': 'Ce partage n’existait plus dans la base ; il a été retiré de la liste.',
+    'lots.empty': 'Aucun partage depuis cet appareil.',
     'action.importPaste': 'Coller un export',
     'paste.title': 'Coller un export',
     'paste.hint':
@@ -430,6 +470,45 @@ export const STRINGS = {
       'This copy of the app has no shared database, so it cannot fetch those games.',
     'shareSet.opened': '{count} game(s) added from the link.',
     'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
+    'shareApp.needsKey':
+      'Creating a link that carries games takes the sharing key: enter it in the Data section, at the bottom of the home screen.',
+    'shareApp.needsUpdate':
+      'The database does not have the lot functions yet: run the SQL block from step 2b of the deployment guide.',
+    'shareApp.badKey': 'The database refused the sharing key. Check it in the Data section.',
+    'shareSet.codeLabel': 'Code to pass on',
+    'shareSet.codeApart':
+      'Do not send it in the same message as the link: say it out loud, or use another route.',
+    'shareSet.send': 'Send the link',
+    'shareSet.codeTitle': 'Code for this share',
+    'shareSet.codeHint':
+      'This link carries games. Type the six digits given to you by whoever sent it.',
+    'shareSet.badCode': 'A code is six digits.',
+    'shareSet.wrongCode': 'Wrong code. {left} attempt(s) left before this link locks itself.',
+    'shareSet.locked':
+      'This link is locked: ten wrong codes were tried. Ask whoever made it for a new one.',
+    'shareSet.cannotUnseal':
+      'The code is right, but this browser cannot unseal the lot: open the link over https (the app\'s own address), not http.',
+    'data.shareKey': 'Sharing key (to create links that carry games)',
+    'data.shareKeyPlaceholder': 'pasted once, kept on this device',
+    'data.shareKeySave': 'Save the key',
+    'data.shareKeyHint':
+      'You get it once and for all from your database\'s SQL editor (step 2b of the guide). Without it this device can open links but not create ones carrying games.',
+    'data.shareKeySet': 'A key is saved on this device.',
+    'data.shareKeyChecking': 'Checking with the database…',
+    'data.shareKeyGood': 'Key recognised: this device can create links that carry games.',
+    'data.shareKeyBad': 'The database refused that key. Check that all of it was copied.',
+    'data.shareKeyUnsure': 'Key saved, but the database did not answer. It will be checked at the next share.',
+    'data.shareKeyCleared': 'Key removed from this device.',
+    'lots.title': 'My shares ({count})',
+    'lots.hint':
+      'The links carrying games made from this device. The code is shown again here, and revoking a link makes it useless to everyone, right code or not.',
+    'lots.line': '{count} game(s) · {date}',
+    'lots.link': 'Show the link',
+    'lots.revoke': 'Revoke',
+    'lots.confirmRevoke':
+      'Revoke this share? The link will give access to nothing, even with the right code. The games themselves are not deleted.',
+    'lots.alreadyGone': 'That share was no longer in the database; it has been taken off the list.',
+    'lots.empty': 'Nothing shared from this device.',
     'action.importPaste': 'Paste an export',
     'paste.title': 'Paste an export',
     'paste.hint':

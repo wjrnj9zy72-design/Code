@@ -13,6 +13,7 @@ import { qrSvg, qrMatrix } from './qr.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, setLink, setIdFrom } from './remote.js';
+import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
@@ -258,7 +259,22 @@ function homeView() {
                <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
                ${escapeHtml(t('data.autoShare'))}
              </label>
-             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>`
+             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>
+             <label for="share-key">${escapeHtml(t('data.shareKey'))}</label>
+             <input type="password" id="share-key" autocomplete="off" spellcheck="false"
+                    value="${escapeHtml(state.prefs.shareKey || '')}"
+                    placeholder="${escapeHtml(t('data.shareKeyPlaceholder'))}" />
+             <div class="row">
+               <button type="button" class="button button--small" id="save-key">${escapeHtml(t('data.shareKeySave'))}</button>
+               ${
+                 lots().length
+                   ? `<button type="button" class="button button--small" id="my-shares">${escapeHtml(t('lots.title', { count: lots().length }))}</button>`
+                   : ''
+               }
+             </div>
+             <p class="muted small" id="share-key-state">${escapeHtml(
+               state.prefs.shareKey ? t('data.shareKeySet') : t('data.shareKeyHint'),
+             )}</p>`
           : ''
       }
     </section>`;
@@ -816,7 +832,7 @@ function qrFor(text) {
   return qrSvg(text, { size: side * scale });
 }
 
-function showCopyDialog({ title, hint, text: content, qr = false }) {
+function showCopyDialog({ title, hint, text: content, qr = false, code = null, send = false }) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -826,16 +842,32 @@ function showCopyDialog({ title, hint, text: content, qr = false }) {
       <div class="stack">
         <h2 id="export-title"></h2>
         <p class="muted small" id="export-hint"></p>
+        <div class="code-box" id="export-code" hidden>
+          <span class="code-box__label" id="export-code-label"></span>
+          <strong class="code-box__value" id="export-code-value"></strong>
+          <span class="muted small" id="export-code-hint"></span>
+        </div>
         <div id="export-qr" class="qr" hidden></div>
         <textarea id="export-text" readonly rows="8"></textarea>
         <div class="row">
           <button type="button" class="button button--primary" id="export-copy"></button>
+          <button type="button" class="button" id="export-send" hidden></button>
           <button type="button" class="button" id="export-close"></button>
         </div>
       </div>`;
     document.body.append(dialog);
 
     dialog.querySelector('#export-close').addEventListener('click', () => dialog.close());
+    // Sending hands over the link, never the code: the code travels by another
+    // route, or the two together in one message would protect nothing.
+    dialog.querySelector('#export-send').addEventListener('click', async () => {
+      const url = dialog.querySelector('#export-text').value;
+      try {
+        await navigator.share({ title: t('app.title'), text: t('shareSet.text'), url });
+      } catch {
+        // Cancelled, or refused: the text and its code are still on screen.
+      }
+    });
     dialog.querySelector('#export-copy').addEventListener('click', async (event) => {
       // Hold on to the button: currentTarget is null once the handler awaits.
       const button = event.currentTarget;
@@ -859,11 +891,23 @@ function showCopyDialog({ title, hint, text: content, qr = false }) {
   text.value = content;
   text.setAttribute('aria-label', title);
 
-  const code = dialog.querySelector('#export-qr');
+  const image = dialog.querySelector('#export-qr');
   const svg = qr ? qrFor(content) : null;
-  code.innerHTML = svg || '';
-  code.hidden = !svg;
-  if (svg) code.setAttribute('aria-label', t('share.qrLabel'));
+  image.innerHTML = svg || '';
+  image.hidden = !svg;
+  if (svg) image.setAttribute('aria-label', t('share.qrLabel'));
+  const box = dialog.querySelector('#export-code');
+  box.hidden = !code;
+  if (code) {
+    dialog.querySelector('#export-code-label').textContent = t('shareSet.codeLabel');
+    dialog.querySelector('#export-code-value').textContent = code;
+    dialog.querySelector('#export-code-hint').textContent = t('shareSet.codeApart');
+  }
+
+  const sendButton = dialog.querySelector('#export-send');
+  sendButton.hidden = !(send && navigator.share);
+  sendButton.textContent = t('shareSet.send');
+
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
@@ -1027,6 +1071,38 @@ async function shareUrl({ url, title, hint, text }) {
   showCopyDialog({ title, hint, text: url, qr: true });
 }
 
+/* ------------------------------------------------------------------- lots --- */
+
+/**
+ * The lots shared from this device, newest first. Their codes are kept so a
+ * code can be read again later, and so a lot can be revoked — both of which
+ * are the point of the sharing key: the shares stay in one pair of hands.
+ */
+function lots() {
+  const value = state.prefs.lots;
+  return Array.isArray(value) ? value.filter((lot) => lot && typeof lot.id === 'string') : [];
+}
+
+function rememberLot(lot) {
+  state.prefs = { ...state.prefs, lots: [lot, ...lots()].slice(0, 30) };
+  savePrefs(state.prefs);
+}
+
+function forgetLot(id) {
+  state.prefs = { ...state.prefs, lots: lots().filter((lot) => lot.id !== id) };
+  savePrefs(state.prefs);
+}
+
+/** Why the database refused, in words that say what to do about it. */
+function remoteReason(error) {
+  const text = String(error?.message || '');
+  if (error?.status === 404 || /PGRST202/.test(text)) return t('shareApp.needsUpdate');
+  if (/cle de partage/i.test(text)) return t('shareApp.badKey');
+  return t('shareApp.failed');
+}
+
+/* --------------------------------------------------------- sharing the app --- */
+
 /**
  * Share the app, on its own or carrying games.
  *
@@ -1034,9 +1110,15 @@ async function shareUrl({ url, title, hint, text }) {
  * no one could paste and no QR code could hold. So the games are sent to the
  * shared database — which is what makes them openable elsewhere anyway — and
  * the link carries one short identifier standing for the lot.
+ *
+ * A lot is not something anyone may create: the database asks for the sharing
+ * key first, and that key lives only on the devices its holder typed it into.
+ * Opening one asks the receiver for a six-digit code, drawn afresh for every
+ * share — so a link passed on to someone else is worth nothing on its own.
  */
 function openShareAppDialog() {
   const games = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  const key = state.prefs.shareKey || '';
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
     void shareUrl({
@@ -1048,6 +1130,7 @@ function openShareAppDialog() {
     return;
   }
 
+  const off = key ? '' : ' disabled';
   const dialog = document.createElement('dialog');
   dialog.className = 'dialog';
   dialog.innerHTML = `
@@ -1058,15 +1141,17 @@ function openShareAppDialog() {
           <input type="radio" name="share-kind" value="app" checked />
           <span>${escapeHtml(t('shareApp.kindApp'))}<span class="muted small"> — ${escapeHtml(t('shareApp.kindAppHint'))}</span></span>
         </label>
-        <label class="choice">
-          <input type="radio" name="share-kind" value="all" />
+        <label class="choice${key ? '' : ' choice--off'}">
+          <input type="radio" name="share-kind" value="all"${off} />
           <span>${escapeHtml(t('shareApp.kindAll', { count: games.length }))}</span>
         </label>
-        <label class="choice">
-          <input type="radio" name="share-kind" value="some" />
+        <label class="choice${key ? '' : ' choice--off'}">
+          <input type="radio" name="share-kind" value="some"${off} />
           <span>${escapeHtml(t('shareApp.kindSome'))}</span>
         </label>
       </div>
+
+      ${key ? '' : `<p class="banner">${escapeHtml(t('shareApp.needsKey'))}</p>`}
 
       <div class="stack stack--tight" id="share-pick" hidden>
         <p class="muted small">${escapeHtml(t('shareApp.pickHint'))}</p>
@@ -1137,25 +1222,42 @@ function openShareAppDialog() {
     button.textContent = t('share.sending');
 
     const setId = uid('lot');
+    const code = newCode();
+    const ids = chosen.map((game) => game.id);
     try {
+      // Sealed where the browser can: then the stored lot holds no game
+      // identifier at all, only their encrypted form.
+      const contents = canSeal() ? { sealed: await seal(ids, code) } : { ids };
       await shareGames(chosen);
-      await state.remote.putSet(setId, chosen.map((game) => game.id));
-    } catch {
-      return fail(t('shareApp.failed'));
+      await state.remote.putSet(setId, contents, code, key);
+    } catch (error_) {
+      return fail(remoteReason(error_));
     }
 
+    rememberLot({ id: setId, code, count: chosen.length, createdAt: Date.now() });
     close();
-    // The games are shared now, so the list shows it.
+    // The games are shared now, and the share is remembered: the list shows it.
     render();
-    void shareUrl({
-      url: setLink(location, setId),
-      title: t('shareSet.title'),
-      hint: t('shareSet.hint', { count: chosen.length }),
-      text: t('shareSet.text'),
-    });
+    showLotLink(setId, code, chosen.length);
   });
 
   dialog.showModal();
+}
+
+/**
+ * The link and its code, side by side but never in the same message: the link
+ * is what gets sent, the code is what is said out loud. Copying the link alone
+ * is what the button does, on purpose.
+ */
+function showLotLink(setId, code, count) {
+  showCopyDialog({
+    title: t('shareSet.title'),
+    hint: t('shareSet.hint', { count }),
+    text: setLink(location, setId),
+    qr: true,
+    code,
+    send: true,
+  });
 }
 
 /**
@@ -1177,8 +1279,178 @@ async function shareGames(games) {
   }
 }
 
+/* --------------------------------------------------------- my own shares --- */
+
 /**
- * Take in a set of games from its link: fetch the list, then each game.
+ * The shares made from this device: their code, to read again, and a way to
+ * revoke them. Revoking takes the sharing key, so a link handed out can be
+ * taken back — by its author, and by nobody else.
+ */
+function openMySharesDialog() {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+
+  const draw = () => {
+    const mine = lots();
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lots.title', { count: mine.length }))}</h2>
+        <p class="muted small">${escapeHtml(t('lots.hint'))}</p>
+        <p class="banner banner--warn" id="lots-error" hidden></p>
+        ${
+          mine.length
+            ? `<div class="stack stack--tight">${mine
+                .map(
+                  (lot) => `
+                    <div class="lot">
+                      <div>
+                        <span class="lot__code">${escapeHtml(lot.code || '······')}</span>
+                        <span class="muted small">${escapeHtml(t('lots.line', {
+                          count: lot.count || 0,
+                          date: formatDate(lot.createdAt || Date.now()),
+                        }))}</span>
+                      </div>
+                      <div class="row">
+                        <button type="button" class="button button--small" data-lot-link="${escapeHtml(lot.id)}">${escapeHtml(t('lots.link'))}</button>
+                        <button type="button" class="button button--small button--ghost" data-lot-revoke="${escapeHtml(lot.id)}">${escapeHtml(t('lots.revoke'))}</button>
+                      </div>
+                    </div>`,
+                )
+                .join('')}</div>`
+            : `<p class="muted small">${escapeHtml(t('lots.empty'))}</p>`
+        }
+        <div class="row">
+          <button type="button" class="button" id="lots-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    dialog.querySelector('#lots-close').addEventListener('click', close);
+
+    dialog.querySelectorAll('[data-lot-link]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const lot = lots().find((item) => item.id === node.dataset.lotLink);
+        if (lot) showLotLink(lot.id, lot.code, lot.count || 0);
+      });
+    });
+
+    dialog.querySelectorAll('[data-lot-revoke]').forEach((node) => {
+      node.addEventListener('click', async () => {
+        const id = node.dataset.lotRevoke;
+        if (!(await ask(t('lots.confirmRevoke'), { confirmLabel: t('lots.revoke'), danger: true }))) return;
+        node.disabled = true;
+        node.textContent = t('share.sending');
+        let gone = false;
+        try {
+          gone = await state.remote.forgetSet(id, state.prefs.shareKey || '');
+        } catch (error) {
+          const line = dialog.querySelector('#lots-error');
+          line.textContent = remoteReason(error);
+          line.hidden = false;
+          node.disabled = false;
+          node.textContent = t('lots.revoke');
+          return;
+        }
+        // Not there any more either way: stop remembering it.
+        forgetLot(id);
+        draw();
+        if (!gone) {
+          const line = dialog.querySelector('#lots-error');
+          line.textContent = t('lots.alreadyGone');
+          line.hidden = false;
+        }
+        render();
+      });
+    });
+  };
+
+  draw();
+  dialog.showModal();
+}
+
+/* ------------------------------------------------- opening a shared lot --- */
+
+/**
+ * Ask for the six-digit code, and give back the game ids it unlocks.
+ *
+ * The database allows ten wrong answers, then closes that lot for good — which
+ * is what makes six digits enough to be worth typing. Resolves null when the
+ * person gives up, or when the answer leaves nothing to try again with.
+ */
+function askLotCode(id) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dialog dialog--ask';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('shareSet.codeTitle'))}</h2>
+        <p class="muted small">${escapeHtml(t('shareSet.codeHint'))}</p>
+        <input type="text" id="lot-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="7" aria-label="${escapeHtml(t('shareSet.codeTitle'))}" />
+        <p class="banner banner--warn" id="lot-error" hidden></p>
+        <div class="row">
+          <button type="button" class="button button--primary" id="lot-open">${escapeHtml(t('openLink.open'))}</button>
+          <button type="button" class="button" id="lot-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+
+    const button = dialog.querySelector('#lot-open');
+    const error = dialog.querySelector('#lot-error');
+    const done = (value) => { dialog.close(); dialog.remove(); resolve(value); };
+    const fail = (message) => {
+      error.textContent = message;
+      error.hidden = false;
+      button.disabled = false;
+      button.textContent = t('openLink.open');
+      dialog.querySelector('#lot-code').select();
+    };
+
+    dialog.querySelector('#lot-cancel').addEventListener('click', () => done(null));
+    button.addEventListener('click', async () => {
+      const code = readCode(dialog.querySelector('#lot-code').value);
+      if (!code) return fail(t('shareSet.badCode'));
+
+      button.disabled = true;
+      button.textContent = t('share.sending');
+
+      let answer = null;
+      try {
+        answer = await state.remote.openSet(id, code);
+      } catch (error_) {
+        return fail(remoteReason(error_));
+      }
+
+      if (answer.status === 'wrong') return fail(t('shareSet.wrongCode', { left: answer.left }));
+      if (answer.status === 'locked') {
+        flash(t('shareSet.locked'), 'error');
+        return done(null);
+      }
+      if (answer.status !== 'ok') {
+        flash(t('shareSet.notFound'), 'error');
+        return done(null);
+      }
+
+      const ids = answer.contents?.sealed
+        ? await unseal(answer.contents.sealed, code)
+        : answer.contents?.ids;
+      const clean = Array.isArray(ids) ? ids.filter((value) => typeof value === 'string') : [];
+      // The code was right, so a lot that will not open is a lot this browser
+      // cannot unseal — over http, where Web Crypto is not offered.
+      if (!clean.length) return fail(t('shareSet.cannotUnseal'));
+      done(clean);
+    });
+
+    dialog.showModal();
+    dialog.querySelector('#lot-code').focus();
+  });
+}
+
+/**
+ * Take in a lot of games from its link: the code, then the list, then each
+ * game.
  *
  * A game already here is merged rather than replaced, exactly as a single
  * shared game is, so opening the link twice costs nothing and opening it while
@@ -1190,16 +1462,8 @@ async function openSet(id) {
     return;
   }
 
-  let ids = null;
-  try {
-    ids = await state.remote.getSet(id);
-  } catch {
-    ids = null;
-  }
-  if (!ids?.length) {
-    flash(t('shareSet.notFound'), 'error');
-    return;
-  }
+  const ids = await askLotCode(id);
+  if (!ids) return;
 
   for (const gameId of ids) {
     if (!getGame(gameId)) await pullGame(gameId);
@@ -1231,6 +1495,37 @@ function bindHome() {
   });
 
   view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
+
+  view.querySelector('#save-key')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const field = view.querySelector('#share-key');
+    const line = view.querySelector('#share-key-state');
+    const key = field.value.trim();
+
+    state.prefs = { ...state.prefs, shareKey: key };
+    savePrefs(state.prefs);
+
+    if (!key) {
+      line.textContent = t('data.shareKeyCleared');
+      return;
+    }
+
+    // Say whether the database recognises it, rather than leaving it to be
+    // found out at the worst moment — when a link is being created.
+    button.disabled = true;
+    line.textContent = t('data.shareKeyChecking');
+    let good = false;
+    try {
+      good = await state.remote.isOwner(key);
+    } catch {
+      good = null; // could not ask
+    }
+    button.disabled = false;
+    line.textContent =
+      good === true ? t('data.shareKeyGood') : good === false ? t('data.shareKeyBad') : t('data.shareKeyUnsure');
+  });
+
+  view.querySelector('#my-shares')?.addEventListener('click', openMySharesDialog);
 
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
     state.prefs = { ...state.prefs, autoShare: event.target.checked };

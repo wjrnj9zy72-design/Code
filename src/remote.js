@@ -5,10 +5,17 @@
  * game in a small hosted database as well as in the browser, so a link to a
  * game opens that same game for someone else.
  *
- * It speaks plain HTTP to two Postgres functions — no client library, so the
- * app keeps its "no dependencies" property. The table itself is never exposed:
- * the only things reachable are `read one game by id` and `write one game by
- * id`, which means a game can only be found by someone who has its link.
+ * It speaks plain HTTP to a handful of Postgres functions — no client library,
+ * so the app keeps its "no dependencies" property. The table itself is never
+ * exposed: the only things reachable are `read one game by id` and `write one
+ * game by id`, which means a game can only be found by someone who has its
+ * link.
+ *
+ * A lot of games — a link that hands over several at once — goes through its
+ * own functions, because it is protected differently: writing one takes the
+ * sharing key that only the person hosting the database has, and reading one
+ * takes the six-digit code drawn for that share, which the database allows ten
+ * attempts at.
  *
  * Every call is defensive. The network fails, the configuration may be wrong,
  * the service may be down: none of that may stop someone keeping score, so a
@@ -72,23 +79,51 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
   }
 
   return {
+    /** Is this the sharing key the database was set up with? */
+    async isOwner(key) {
+      return (await call('marque_points_is_owner', { p_key: key })) === true;
+    },
+
     /**
-     * Store a set of games under one id, so a link can carry many games
-     * without carrying their identifiers. It lives in the same place as a
-     * game — a document is a document — and is told apart by its `kind`.
+     * Store a lot of games under one id, so a link can carry many games
+     * without carrying their identifiers.
+     *
+     * Two secrets are needed, and they are not interchangeable: the sharing
+     * key, without which the database refuses to write a lot at all, and the
+     * six-digit code the receiver will have to type. `contents` is either
+     * `{ sealed }` or, where this browser cannot seal, `{ ids }`.
      */
-    async putSet(id, gameIds) {
-      await call('marque_points_put', {
+    async putSet(id, contents, code, key) {
+      await call('marque_points_put_set', {
         p_id: id,
-        p_data: { kind: 'set', ids: gameIds, createdAt: Date.now() },
+        p_data: { kind: 'set', ...contents, createdAt: Date.now() },
+        p_code: code,
+        p_key: key,
       });
     },
 
-    /** The game ids in a set, or null when that id is not a set. */
-    async getSet(id) {
-      const data = await call('marque_points_get', { p_id: id });
-      if (!data || data.kind !== 'set' || !Array.isArray(data.ids)) return null;
-      return data.ids.filter((value) => typeof value === 'string');
+    /**
+     * Ask for a lot with a code. The database counts the wrong answers and
+     * stops at ten, which is what makes six digits enough; the answer says
+     * which case it is rather than throwing, because every one of them has
+     * something to tell the person waiting.
+     *
+     * Returns { status: 'ok', contents } | { status: 'wrong', left }
+     *       | { status: 'locked' } | { status: 'unknown' }
+     */
+    async openSet(id, code) {
+      const answer = await call('marque_points_open_set', { p_id: id, p_code: code });
+      const status = answer?.status;
+      if (status === 'ok') return { status, contents: answer.set || null };
+      if (status === 'wrong') return { status, left: Number(answer.left) || 0 };
+      if (status === 'locked') return { status };
+      return { status: 'unknown' };
+    },
+
+    /** Revoke a lot: the sharing key, so only whoever shared it can. */
+    async forgetSet(id, key) {
+      const answer = await call('marque_points_forget_set', { p_id: id, p_key: key });
+      return answer?.status === 'ok';
     },
 
     /** The stored game, or null when nobody has ever shared that id. */
