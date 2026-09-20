@@ -1472,6 +1472,24 @@ appareil qui la détient — à garder dans un gestionnaire de mots de passe. C'
 elle qui fait revenir un de vos appareils sans invitation ni acceptation ; ne
 l'envoyez à personne, qui la colle entre.
 
+**Et quand ce sont eux qui réinstallent ?** La même règle, vue de leur côté :
+retirer l'app n'efface que *leur* installation. Deux cas, et un seul vous demande
+quelque chose :
+
+| | ce qu'il faut faire |
+| --- | --- |
+| Ils ont **gardé leur clé** (*Voir la clé* → gestionnaire de mots de passe) | ils la recollent, et ils sont revenus — **vous n'avez rien à faire** |
+| Ils ne l'ont **pas gardée** | vous leur envoyez un **nouveau lien**, ils écrivent leur prénom, **vous acceptez**. Deux touches chacun |
+
+Dans le second cas, leur ancienne clé reste dans la base sans appareil pour la
+porter : une ligne de plus dans *Qui est dans le groupe*, que vous pouvez
+**Couper** sans rien déranger. C'est d'ailleurs le bon réflexe si un téléphone est
+perdu.
+
+Et la clé qu'ils gardent est **la leur** : une clé ordinaire, qui voit et partage
+mais ne fait entrer personne. Ne leur donnez jamais la vôtre — celle qui fait
+entrer — sinon ils pourraient accepter qui ils veulent.
+
 > ⚠️ Avant de retirer l'app, deux précautions : **récupérez** (⟳) ou **exportez**
 > (*Données*) ce qui n'a jamais été partagé, car cela n'existe que là ; et
 > assurez-vous d'avoir la clé ailleurs. Si la seule clé qui fait entrer vivait

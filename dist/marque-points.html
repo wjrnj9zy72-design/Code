@@ -979,6 +979,8 @@ const STRINGS = {
     'groups.title': 'Mes groupes',
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
+    'groups.keepKey':
+      'Gardez la clé de votre groupe quelque part — le bouton « Voir la clé » ci-dessous — : c’est elle qui vous fait revenir tout seul après avoir réinstallé l’app, sans avoir à être réinvité ni accepté.',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
     'groups.standaloneNew':
       'Cette app posée sur l’écran d’accueil est une installation à part de Safari : elle a son propre stockage, et doit entrer dans le groupe de son côté. Le plus simple, sur votre propre téléphone : collez la clé du groupe ci-dessous. Sinon, demandez à entrer, et acceptez depuis Safari.',
@@ -1491,6 +1493,8 @@ const STRINGS = {
     'groups.title': 'My groups',
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
+    'groups.keepKey':
+      'Keep your group\'s key somewhere — the “Show the key” button below —: it is what brings you back on your own after reinstalling the app, with nobody to invite or accept you.',
     'groups.none': 'This device is in no group: it keeps everything to itself.',
     'groups.standaloneNew':
       'This app on your home screen is a separate installation from Safari: it has its own storage, and has to join the group on its own. On your own phone the easy way is to paste the group\'s key below. Otherwise ask to join, and accept it from Safari.',
@@ -6227,6 +6231,11 @@ function groupsHtml() {
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('groups.title'))}</h2></div>
       <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
+      ${
+        held.length
+          ? `<p class="muted small">${escapeHtml(t('groups.keepKey'))}</p>`
+          : ''
+      }
       ${
         held.length
           ? `<div class="stack stack--tight">${held

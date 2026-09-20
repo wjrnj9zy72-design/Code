@@ -1211,6 +1211,11 @@ function groupsHtml() {
       <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
       ${
         held.length
+          ? `<p class="muted small">${escapeHtml(t('groups.keepKey'))}</p>`
+          : ''
+      }
+      ${
+        held.length
           ? `<div class="stack stack--tight">${held
               .map(
                 (group) => `
