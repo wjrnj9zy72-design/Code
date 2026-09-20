@@ -12,11 +12,16 @@ import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
-  addPerson, renamePerson, removePerson, shareOut, progress, mergeLists, isValidList, recentPeople,
+  addListPerson, renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList,
 } from './lists.js';
-import { loadGames, saveGames, loadLists, saveLists, loadPrefs, savePrefs } from './storage.js';
+import {
+  createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
+  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
+} from './polls.js';
+import { recentPeople } from './people.js';
+import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, setLink, setIdFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -26,6 +31,7 @@ const view = document.getElementById('view');
 const state = {
   games: loadGames(),
   lists: loadLists(),
+  polls: loadPolls(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -44,6 +50,8 @@ const state = {
   openingSet: null,
   // The same, for a shared list opened from its link.
   openingList: null,
+  // And for a poll.
+  openingPoll: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -54,6 +62,11 @@ const state = {
 let newListName = '';
 let newListPeople = ['', ''];
 let newListLines = '';
+
+// And the new-poll form's.
+let newPollQuestion = '';
+let newPollChoices = '';
+let newPollPeople = ['', ''];
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -90,7 +103,9 @@ function gameTitle(game) {
 
 /** The title of a game or of a list, whichever this is. */
 function documentTitle(document_) {
-  return isValidList(document_) ? listTitle(document_) : gameTitle(document_);
+  if (isValidList(document_)) return listTitle(document_);
+  if (isValidPoll(document_)) return pollTitle(document_);
+  return gameTitle(document_);
 }
 
 function formatDate(timestamp) {
@@ -116,6 +131,591 @@ function flash(message, kind = 'info') {
 }
 
 /* ------------------------------------------------------------- persisting --- */
+
+/* ------------------------------------------------------------------ polls --- */
+
+/**
+ * A poll is a question, the choices it offers, and a grid: one answer per
+ * person and per choice. The "which evening suits you" case is the one worth
+ * building, and picking one thing out of several is the same grid with a
+ * single yes in it.
+ */
+
+function pollTitle(poll) {
+  return poll.question || t('polls.untitled');
+}
+
+const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
+
+function pollCardHtml(poll) {
+  const { answered, leaders, rows } = tally(poll);
+  const leading = rows.find((row) => leaders.includes(row.option.id));
+  return `
+    <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(pollTitle(poll))}
+        <span class="pill ${poll.closedAt ? 'pill--done' : ''}">
+          ${escapeHtml(poll.closedAt ? t('polls.closed') : t('polls.answered', { count: answered, total: poll.people.length }))}
+        </span>
+      </span>
+      ${
+        leading
+          ? `<span class="game-card__meta">${escapeHtml(
+              leading.yes
+                ? t('polls.leading', { option: leading.option.text, count: leading.yes })
+                : t('polls.leadingMaybe', { option: leading.option.text, count: leading.maybe }),
+            )}</span>`
+          : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
+      }
+      <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
+    </button>`;
+}
+
+function pollsView() {
+  const sorted = [...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = sorted.filter((poll) => !poll.closedAt);
+  const closed = sorted.filter((poll) => poll.closedAt);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
+      + ${escapeHtml(t('polls.new'))}
+    </button>
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(pollCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('polls.none'))}</p>`
+      }
+    </section>
+
+    ${
+      closed.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('polls.done'))}</h2></div>
+             <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }`;
+}
+
+function newPollView() {
+  const suggestions = [...new Set([...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('polls.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-poll" class="card stack">
+      <label>
+        ${escapeHtml(t('polls.question'))}
+        <input type="text" id="poll-question" placeholder="${escapeHtml(t('polls.questionPlaceholder'))}"
+               value="${escapeHtml(newPollQuestion)}" required />
+      </label>
+
+      <label>
+        ${escapeHtml(t('polls.choices'))}
+        <textarea id="poll-choices" rows="5" placeholder="${escapeHtml(t('polls.choicesPlaceholder'))}">${escapeHtml(newPollChoices)}</textarea>
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('polls.peopleHint'))}</span>
+        ${newPollPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newPollPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('polls.create'))}</button>
+    </form>`;
+}
+
+function pollView(poll) {
+  const me = state.prefs.voter?.[poll.id] || null;
+  const { rows, leaders, answered } = tally(poll);
+  const closed = Boolean(poll.closedAt);
+
+  const cellHtml = (option, person) => {
+    const value = voteOf(poll, person.id, option.id);
+    return `
+      <td class="${person.id === me ? 'votes__mine' : ''}">
+        <button type="button" class="vote ${value ? `vote--${value}` : 'vote--none'}"
+                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+                aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
+          ${escapeHtml(value ? VOTE_MARK[value] : '·')}
+        </button>
+      </td>`;
+  };
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(pollTitle(poll))}</h1>
+        <p class="muted small">
+          ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
+          ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
+          ${poll.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${
+      poll.people.length
+        ? `<div class="row">
+             <span class="muted small">${escapeHtml(t('polls.iAm'))}</span>
+             ${poll.people
+               .map(
+                 (person) => `<button type="button" class="chip ${person.id === me ? 'chip--on' : ''}" data-me="${escapeHtml(person.id)}">${escapeHtml(person.name)}</button>`,
+               )
+               .join('')}
+           </div>`
+        : ''
+    }
+
+    ${
+      poll.options.length && poll.people.length
+        ? `<div class="table-wrap">
+             <table class="votes">
+               <thead>
+                 <tr>
+                   <th>${escapeHtml(t('polls.choice'))}</th>
+                   ${poll.people.map((person) => `<th class="${person.id === me ? 'votes__mine' : ''}">${escapeHtml(person.name)}</th>`).join('')}
+                   <th>${escapeHtml(t('polls.count'))}</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 ${rows
+                   .map(
+                     (row) => `
+                       <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
+                         <th scope="row">
+                           <button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
+                             ${escapeHtml(row.option.text)}
+                           </button>
+                         </th>
+                         ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
+                         <td class="votes__score">${row.yes}${row.maybe ? `<span class="muted small"> +${row.maybe}~</span>` : ''}</td>
+                       </tr>`,
+                   )
+                   .join('')}
+               </tbody>
+             </table>
+           </div>
+           <p class="muted small">${escapeHtml(t('polls.tapHint'))}</p>`
+        : `<p class="muted small">${escapeHtml(poll.people.length ? t('polls.addChoices') : t('polls.addPeople'))}</p>`
+    }
+
+    ${
+      closed
+        ? ''
+        : `<form id="add-choice" class="card stack stack--tight">
+             <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
+             <div class="row row--tight">
+               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
+               <button type="submit" class="button button--primary">+</button>
+             </div>
+           </form>`
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="poll-share">${escapeHtml(t('polls.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
+        <button type="button" class="button button--small" id="poll-close">
+          ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
+
+/* ------------------------------------------------------ polls: behaviour --- */
+
+function persistPoll(changed) {
+  const ok = savePolls(state.polls);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getPoll(id) {
+  return state.polls.find((poll) => poll.id === id) || null;
+}
+
+function replacePoll(next, { redraw = true } = {}) {
+  state.polls = state.polls.map((poll) => (poll.id === next.id ? next : poll));
+  persistPoll(next);
+  if (redraw) render();
+}
+
+function bindNewPoll() {
+  const form = view.querySelector('#new-poll');
+  if (!form) return;
+
+  const snapshot = () => {
+    newPollQuestion = view.querySelector('#poll-question').value;
+    newPollChoices = view.querySelector('#poll-choices').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newPollPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newPollPeople = [...newPollPeople, ''];
+    render();
+    view.querySelector(`[data-person-index="${newPollPeople.length - 1}"]`)?.focus();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newPollPeople = newPollPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newPollPeople.includes(suggest)) return;
+      const empty = newPollPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newPollPeople[empty] = suggest;
+      else newPollPeople = [...newPollPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+
+    let poll = createPoll({
+      question: newPollQuestion,
+      names: newPollPeople,
+      shared: Boolean(state.prefs.autoShare && state.remote),
+    });
+    poll = addOptions(poll, newPollChoices);
+
+    state.polls = [...state.polls, poll];
+    persistPoll(poll);
+    newPollQuestion = '';
+    newPollChoices = '';
+    newPollPeople = ['', ''];
+    navigate(`#/poll/${poll.id}`);
+  });
+}
+
+function bindPoll(poll) {
+  view.querySelectorAll('[data-vote]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const [personId, optionId] = button.dataset.vote.split('|');
+      const next = setVote(poll, personId, optionId, nextValue(voteOf(poll, personId, optionId)));
+      if (next === poll) return;
+      // Remember who this device answers as, so its column stands out.
+      if (!state.prefs.voter?.[poll.id]) {
+        state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: personId } };
+        savePrefs(state.prefs);
+      }
+      replacePoll(next);
+    });
+  });
+
+  view.querySelectorAll('[data-me]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const chosen = state.prefs.voter?.[poll.id] === chip.dataset.me ? null : chip.dataset.me;
+      state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: chosen } };
+      savePrefs(state.prefs);
+      render();
+    });
+  });
+
+  view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const field = view.querySelector('#new-choice');
+    const next = addOptions(poll, field.value);
+    if (next === poll) return;
+    replacePoll(next);
+    view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-option]').forEach((button) => {
+    button.addEventListener('click', () => openChoiceDialog(poll, button.dataset.option));
+  });
+
+  view.querySelector('#poll-people')?.addEventListener('click', () => openPollPeopleDialog(poll));
+
+  view.querySelector('#poll-text')?.addEventListener('click', () => {
+    showCopyDialog({ title: pollTitle(poll), hint: t('lists.textHint'), text: pollText(poll) });
+  });
+
+  view.querySelector('#poll-close')?.addEventListener('click', () => {
+    replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
+
+  view.querySelector('#poll-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('polls.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.polls = state.polls.filter((item) => item.id !== poll.id);
+    savePolls(state.polls);
+    if (state.store) void state.store.remove(poll.id);
+    if (state.remote) state.remote.remove(poll.id).catch(() => {});
+    navigate('#/polls');
+  });
+
+  view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    let current = poll;
+
+    if (!current.shared) {
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      current = { ...current, shared: true, updatedAt: Date.now() };
+      try {
+        await state.remote.put(current);
+      } catch {
+        button.disabled = false;
+        button.textContent = t('polls.share');
+        flash(t('share.sendFailed'), 'error');
+        render();
+        return;
+      }
+      replacePoll(current);
+    }
+
+    showCopyDialog({
+      title: t('polls.shareTitle'),
+      hint: t('polls.shareHint'),
+      text: pollLink(location, current.id),
+      qr: true,
+    });
+  });
+}
+
+/** Correct a choice, or drop it. */
+function openChoiceDialog(poll, optionId) {
+  const option = poll.options.find((entry) => entry.id === optionId);
+  if (!option) return;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('polls.choiceTitle'))}</h2>
+      <label class="visually-hidden" for="choice-text">${escapeHtml(t('polls.choiceTitle'))}</label>
+      <input type="text" id="choice-text" value="${escapeHtml(option.text)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="choice-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="choice-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="choice-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#choice-text');
+  const save = () => {
+    dialog.close();
+    replacePoll(renameOption(poll, optionId, field.value));
+  };
+  dialog.querySelector('#choice-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#choice-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#choice-delete').addEventListener('click', async () => {
+    if (!(await ask(t('polls.confirmRemoveChoice'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    dialog.close();
+    replacePoll(removeOption(poll, optionId));
+  });
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** Who is being asked. */
+function openPollPeopleDialog(poll) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getPoll(poll.id) || poll;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <p class="muted small">${escapeHtml(t('polls.peopleHint'))}</p>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="row row--tight">
+                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
+                         aria-label="${escapeHtml(person.name)}" />
+                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                    ${escapeHtml(t('action.delete'))}
+                  </button>
+                </div>`,
+            )
+            .join('')}
+          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
+          <button type="button" class="button button--primary" id="person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    const field = dialog.querySelector('#person-new');
+    const add = () => {
+      replacePoll(addPollPerson(getPoll(poll.id) || poll, field.value), { redraw: false });
+      draw();
+      dialog.querySelector('#person-new').focus();
+    };
+    dialog.querySelector('#person-add').addEventListener('click', add);
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      add();
+    });
+
+    dialog.querySelectorAll('[data-person]').forEach((input) => {
+      input.addEventListener('change', () => {
+        replacePoll(renamePollPerson(getPoll(poll.id) || poll, input.dataset.person, input.value), { redraw: false });
+      });
+    });
+
+    dialog.querySelectorAll('[data-remove]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!(await ask(t('polls.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
+        replacePoll(removePollPerson(getPoll(poll.id) || poll, button.dataset.remove), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
+  };
+
+  dialog.addEventListener('close', () => render());
+  draw();
+  dialog.showModal();
+}
+
+function openPollNameDialog(poll) {
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('polls.rename'))}</h2>
+      <label class="visually-hidden" for="poll-new-name">${escapeHtml(t('polls.question'))}</label>
+      <input type="text" id="poll-new-name" value="${escapeHtml(poll.question)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="poll-name-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="poll-name-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#poll-new-name');
+  const save = () => {
+    dialog.close();
+    replacePoll({ ...poll, question: field.value.trim(), updatedAt: Date.now() });
+  };
+  dialog.querySelector('#poll-name-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#poll-name-cancel').addEventListener('click', () => dialog.close());
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** The poll as text, to paste into a message. */
+function pollText(poll) {
+  const { rows } = tally(poll);
+  const line = (row) =>
+    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, maybe: row.maybe, no: row.no })}`;
+  return [pollTitle(poll), '', ...rows.map(line)].join('\n');
+}
+
+/** Fetch a poll from the shared database and take what it knows. */
+async function pullPoll(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidPoll(stored) ? adoptPoll(stored) : false;
+}
+
+/** Answers arrive cell by cell, so nobody's answer is lost to someone else's. */
+function adoptPoll(stored) {
+  const local = getPoll(stored.id);
+  const merged = local ? mergePolls(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.polls = local
+    ? state.polls.map((poll) => (poll.id === stored.id ? adopted : poll))
+    : [...state.polls, adopted];
+  savePolls(state.polls);
+  return true;
+}
+
+/** While a shared poll is on screen, watch for the answers coming in. */
+function watchPoll(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullPoll(id)) render();
+  }, 5000);
+}
 
 /* ------------------------------------------------------------------ lists --- */
 
@@ -180,7 +780,9 @@ function listsView() {
 }
 
 function newListView() {
-  const suggestions = [...new Set([...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  const suggestions = [...new Set([
+    ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
+  ])].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">
@@ -377,6 +979,9 @@ function route() {
   if (name === 'lists' && param === 'new') return { name: 'new-list' };
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
+  if (name === 'polls' && param === 'new') return { name: 'new-poll' };
+  if (name === 'polls') return { name: 'polls' };
+  if (name === 'poll' && param) return { name: 'poll', id: param };
   return { name: 'home' };
 }
 
@@ -1052,7 +1657,9 @@ async function submitRound(game) {
 const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
 
 function exportGames() {
-  const json = JSON.stringify({ version: 1, games: state.games, lists: state.lists }, null, 2);
+  const json = JSON.stringify(
+    { version: 1, games: state.games, lists: state.lists, polls: state.polls }, null, 2,
+  );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
     return;
@@ -1175,10 +1782,13 @@ function importGames(source) {
     return false;
   }
 
-  const all = Array.isArray(parsed) ? parsed : [...(parsed?.games || []), ...(parsed?.lists || [])];
+  const all = Array.isArray(parsed)
+    ? parsed
+    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || [])];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
-  if (!games.length && !lists.length) {
+  const polls = all.filter(isValidPoll);
+  if (!games.length && !lists.length && !polls.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -1193,11 +1803,16 @@ function importGames(source) {
   state.lists = [...state.lists, ...freshLists];
   saveLists(state.lists);
 
-  for (const document_ of [...freshGames, ...freshLists]) {
+  const knownPolls = new Set(state.polls.map((poll) => poll.id));
+  const freshPolls = polls.filter((poll) => !knownPolls.has(poll.id));
+  state.polls = [...state.polls, ...freshPolls];
+  savePolls(state.polls);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) state.remote.put(document_).catch(() => {});
   }
-  flash(t('home.importDone', { count: freshGames.length + freshLists.length }));
+  flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
   return true;
 }
 
@@ -1297,6 +1912,16 @@ function openLinkDialog() {
       return;
     }
 
+    const pollId = pollIdFrom(pasted);
+    if (pollId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      if (!getPoll(pollId) && !(await pullPoll(pollId))) return fail(t('openLink.notFound'));
+      close();
+      navigate(`#/poll/${pollId}`);
+      return;
+    }
+
     const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
@@ -1317,6 +1942,11 @@ function openLinkDialog() {
     if (await pullList(id)) {
       close();
       navigate(`#/list/${id}`);
+      return;
+    }
+    if (await pullPoll(id)) {
+      close();
+      navigate(`#/poll/${id}`);
       return;
     }
     return fail(t('openLink.notFound'));
@@ -1400,7 +2030,7 @@ function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
   const key = state.prefs.shareKey || '';
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -1495,7 +2125,8 @@ function openShareAppDialog() {
       choice === 'all'
         ? games
         : [...dialog.querySelectorAll('input[data-share-id]:checked')]
-            .map((input) => getGame(input.dataset.shareId) || getList(input.dataset.shareId))
+            .map((input) =>
+              getGame(input.dataset.shareId) || getList(input.dataset.shareId) || getPoll(input.dataset.shareId))
             .filter(Boolean);
     if (!chosen.length) return fail(t('shareApp.pickNone'));
 
@@ -1559,12 +2190,14 @@ async function shareGames(games) {
       if (next === document_) continue;
       state.games = state.games.map((item) => (item.id === next.id ? next : item));
       state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
+      state.polls = state.polls.map((item) => (item.id === next.id ? next : item));
       if (state.store) void state.store.save(next);
     }
   } finally {
     // Whatever went through is written down, so a failure halfway is not lost.
     saveGames(state.games);
     saveLists(state.lists);
+    savePolls(state.polls);
   }
 }
 
@@ -1756,7 +2389,7 @@ async function openSet(id) {
   // to bring what has happened since, and pulling merges rather than replaces.
   for (const id_ of ids) await pullAny(id_);
 
-  const held = ids.filter((id_) => getGame(id_) || getList(id_)).length;
+  const held = ids.filter((id_) => getGame(id_) || getList(id_) || getPoll(id_)).length;
   if (!held) {
     flash(t('shareSet.notFound'), 'error');
     return;
@@ -2156,7 +2789,7 @@ function openPeopleDialog(list) {
 
     const field = dialog.querySelector('#person-new');
     const add = () => {
-      const next = addPerson(getList(list.id) || list, field.value);
+      const next = addListPerson(getList(list.id) || list, field.value);
       replaceList(next, { redraw: false });
       draw();
       dialog.querySelector('#person-new').focus();
@@ -2170,14 +2803,14 @@ function openPeopleDialog(list) {
 
     dialog.querySelectorAll('[data-person]').forEach((input) => {
       input.addEventListener('change', () => {
-        replaceList(renamePerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+        replaceList(renameListPerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
       });
     });
 
     dialog.querySelectorAll('[data-remove]').forEach((button) => {
       button.addEventListener('click', async () => {
         if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replaceList(removePerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        replaceList(removeListPerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
         draw();
       });
     });
@@ -2989,6 +3622,37 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
+  } else if (current.name === 'polls') {
+    stopWatching();
+    view.innerHTML = pollsView();
+  } else if (current.name === 'new-poll') {
+    stopWatching();
+    view.innerHTML = newPollView();
+    bindNewPoll();
+  } else if (current.name === 'poll') {
+    const poll = getPoll(current.id);
+    if (!poll) {
+      stopWatching();
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('polls.loading'))}</p>`;
+        if (state.openingPoll !== current.id) {
+          const asked = current.id;
+          state.openingPoll = asked;
+          pullPoll(asked).then((found) => {
+            if (state.openingPoll !== asked) return;
+            state.openingPoll = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/polls');
+          });
+        }
+        return;
+      }
+      navigate('#/polls');
+      return;
+    }
+    watchPoll(poll.id);
+    view.innerHTML = pollView(poll);
+    bindPoll(poll);
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
@@ -3083,7 +3747,11 @@ function adoptGame(stored) {
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
-  const here = ['lists', 'new-list', 'list'].includes(current.name) ? 'lists' : 'games';
+  const here = ['lists', 'new-list', 'list'].includes(current.name)
+    ? 'lists'
+    : ['polls', 'new-poll', 'poll'].includes(current.name)
+      ? 'polls'
+      : 'games';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -3106,6 +3774,7 @@ async function pullAny(id) {
   // would otherwise cost forty.
   if (isValidGame(stored)) return adoptGame(stored);
   if (isValidList(stored)) return adoptList(stored);
+  if (isValidPoll(stored)) return adoptPoll(stored);
   return false;
 }
 

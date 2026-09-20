@@ -110,7 +110,8 @@ a { color: inherit; }
 
 .app-bar__brand strong { display: block; font-size: 1.05rem; }
 .app-bar__brand small { display: block; color: var(--muted); font-size: 0.75rem; }
-.app-bar__logo { font-size: 1.5rem; }
+/* The mark: two tokens side by side, in the accent, at the size of a word. */
+.app-bar__logo { display: flex; flex: none; color: var(--accent); }
 .app-bar__actions { display: flex; gap: 6px; flex: none; }
 
 .icon-button {
@@ -536,17 +537,76 @@ table.scores .meta-cell { color: var(--muted); }
 .row--tight { flex-wrap: nowrap; gap: 8px; }
 .row--tight input { flex: 1; }
 
+/* ----------------------------------------------------------------- votes --- */
+/*
+ * The poll grid: choices down the side, people across. Cells are square and
+ * finger-sized, because tapping them is the whole interaction.
+ */
+.votes { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+.votes th, .votes td { padding: 4px; text-align: center; }
+
+.votes thead th {
+  padding-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.votes tbody th {
+  text-align: left;
+  font-weight: 550;
+}
+
+.votes tbody tr { border-top: 1px solid var(--border); }
+
+.votes__leader { background: var(--accent-soft); }
+
+.votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.votes__score { font-variant-numeric: tabular-nums; font-weight: 650; }
+
+.vote {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
+.vote--maybe { border-color: #b8761a; background: var(--accent-soft); color: #8a5712; }
+.vote--no { border-color: #a33c32; background: #f7e7e5; color: #8c2f26; }
+.vote[disabled] { cursor: default; opacity: 0.75; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
+  :root:not([data-theme="light"]) .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
+  :root:not([data-theme="light"]) .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+}
+
+:root[data-theme="dark"] .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
+:root[data-theme="dark"] .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
+:root[data-theme="dark"] .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+
 /* ------------------------------------------------------------------ tabs --- */
 /*
- * The two halves of the app. Two of them, so they get the full width and the
- * thumb never has to aim.
+ * The parts of the app, side by side across the full width: few enough that
+ * the thumb never has to aim, and the columns divide themselves however many
+ * there are.
  */
 .tabs {
   /* Not sticky: the bar above it is, and guessing that bar's height — which
      changes with the tagline's wrapping — would put the two on top of each
      other on exactly the narrow screens this is for. */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
