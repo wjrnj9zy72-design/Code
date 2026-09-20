@@ -13,7 +13,7 @@
  * changes — tools/bundle.js checks that it matches the files it built.
  */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `marque-points-${VERSION}`;
 
 const SHELL = [
@@ -35,6 +35,8 @@ const SHELL = [
   './src/export-pdf.js',
   './src/storage.js',
   './src/config.js',
+  './src/qr.js',
+  './src/lock.js',
   './src/remote.js',
   './src/cloud.js',
   './src/i18n.js',

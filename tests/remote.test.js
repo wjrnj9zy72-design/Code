@@ -158,3 +158,84 @@ test('a game id is recognised however it was pasted', async () => {
   assert.equal(gameIdFrom('https://gui.github.io/Code/'), null, 'a link to the app, not to a game');
   assert.equal(gameIdFrom(null), null);
 });
+
+test('a set travels as one short link, whatever it holds', async () => {
+  const { setLink, setIdFrom, gameIdFrom } = await import('../src/remote.js');
+  const place = { origin: 'https://gui.github.io', pathname: '/Code/', search: '' };
+
+  const link = setLink(place, 'lot_abcdefgh');
+  assert.equal(link, 'https://gui.github.io/Code/#/set/lot_abcdefgh');
+  assert.ok(link.length < 60, 'a set of fifty games would not make it any longer');
+
+  assert.equal(setIdFrom(link), 'lot_abcdefgh');
+  assert.equal(setIdFrom(`Tiens : ${link} à ce soir`), 'lot_abcdefgh');
+  assert.equal(setIdFrom('https://gui.github.io/Code/#/game/g_1'), null, 'a game link is not a set');
+  assert.equal(gameIdFrom(link), null, 'and the two are never confused');
+});
+
+test('a lot takes the sharing key to write, and a code to read', async () => {
+  const calls = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    calls.push({ fn: url.split('/').pop(), body: JSON.parse(options.body) });
+    if (url.endsWith('marque_points_open_set')) {
+      return ok({ status: 'ok', set: { kind: 'set', ids: ['g_1', 'g_2'] } });
+    }
+    if (url.endsWith('marque_points_is_owner')) return ok(true);
+    return ok(undefined, 204);
+  });
+
+  await remote.putSet('lot_1', { ids: ['g_1', 'g_2'] }, '123456', 'the-sharing-key');
+  assert.equal(calls[0].fn, 'marque_points_put_set');
+  assert.equal(calls[0].body.p_code, '123456');
+  assert.equal(calls[0].body.p_key, 'the-sharing-key', 'no key, no lot');
+  assert.equal(calls[0].body.p_data.kind, 'set');
+  assert.deepEqual(calls[0].body.p_data.ids, ['g_1', 'g_2']);
+
+  const answer = await remote.openSet('lot_1', '123456');
+  assert.deepEqual(answer, { status: 'ok', contents: { kind: 'set', ids: ['g_1', 'g_2'] } });
+  assert.equal(calls[1].body.p_code, '123456');
+  assert.ok(!('p_key' in calls[1].body), 'the receiver has no key to give');
+
+  assert.equal(await remote.isOwner('the-sharing-key'), true);
+  assert.equal(await remote.forgetSet('lot_1', 'the-sharing-key'), false, 'no answer means not gone');
+  assert.equal(calls[3].body.p_key, 'the-sharing-key', 'revoking takes the key, not the code');
+});
+
+test('a sealed lot travels as sealed bytes, never as its game ids', async () => {
+  const sent = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    sent.push(options.body);
+    return ok(undefined, 204);
+  });
+
+  await remote.putSet('lot_1', { sealed: { v: 1, salt: 'c2FsdA==', iv: 'aXY=', data: 'ZGF0YQ==' } }, '123456', 'k');
+  assert.ok(!sent[0].includes('g_'), 'nothing that looks like a game id');
+  assert.ok(sent[0].includes('sealed'));
+});
+
+test('every way a lot can refuse says which one it was', async () => {
+  const answering = (body) => createRemote(CONFIG, async () => ok(body));
+
+  assert.deepEqual(await answering({ status: 'wrong', left: 7 }).openSet('lot_1', '000000'),
+    { status: 'wrong', left: 7 }, 'a wrong code, and how many tries are left');
+  assert.deepEqual(await answering({ status: 'locked' }).openSet('lot_1', '000000'), { status: 'locked' },
+    'too many tries: that lot is closed for good');
+  assert.deepEqual(await answering({ status: 'unknown' }).openSet('lot_1', '000000'), { status: 'unknown' });
+  assert.deepEqual(await answering(null).openSet('lot_1', '000000'), { status: 'unknown' },
+    'and a database that answers nothing is not a crash');
+  assert.deepEqual(await answering({ status: 'ok' }).openSet('lot_1', '000000'),
+    { status: 'ok', contents: null }, 'an empty lot is still an answer');
+  assert.equal(await answering({ status: 'ok' }).forgetSet('lot_1', 'k'), true);
+  assert.equal(await answering({ status: 'unknown' }).forgetSet('lot_1', 'k'), false);
+  assert.equal(await answering(false).isOwner('k'), false);
+});
+
+test('a refused key is a refusal, not a silent success', async () => {
+  const remote = createRemote(CONFIG, async () => ({
+    ok: false,
+    status: 400,
+    text: async () => JSON.stringify({ message: 'cle de partage invalide' }),
+  }));
+  await assert.rejects(() => remote.putSet('lot_1', { ids: ['g_1'] }, '123456', 'wrong'),
+    /cle de partage invalide/);
+});

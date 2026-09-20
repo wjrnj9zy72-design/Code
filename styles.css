@@ -224,6 +224,79 @@ textarea { min-height: 66px; resize: vertical; }
 
 .checkbox input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
 
+/*
+ * A row one chooses in a list: a radio or a checkbox beside a label that may
+ * wrap onto two lines, so the control stays level with the first of them.
+ */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.choice input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin-top: 1px;
+  accent-color: var(--accent);
+}
+
+.stack--tight { gap: 8px; }
+
+/* A long list of games scrolls, rather than pushing the buttons off-screen. */
+#share-pick { max-height: 38vh; overflow-y: auto; }
+
+/* A choice this copy of the app cannot offer yet, and says why underneath. */
+.choice--off { opacity: 0.55; }
+
+/* The six-digit code that guards a shared lot: made to be read out loud. */
+.code-box {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.code-box__label { font-size: 0.8rem; font-weight: 550; }
+
+.code-box__value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.8rem;
+  letter-spacing: 0.18em;
+}
+
+.code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+/* One remembered share: its code on one side, what to do with it on the other. */
+.lot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lot__code {
+  margin-right: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+}
+
 .field-grid {
   display: grid;
   gap: 12px;

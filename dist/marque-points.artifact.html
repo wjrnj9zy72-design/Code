@@ -226,6 +226,79 @@ textarea { min-height: 66px; resize: vertical; }
 
 .checkbox input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
 
+/*
+ * A row one chooses in a list: a radio or a checkbox beside a label that may
+ * wrap onto two lines, so the control stays level with the first of them.
+ */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.choice input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin-top: 1px;
+  accent-color: var(--accent);
+}
+
+.stack--tight { gap: 8px; }
+
+/* A long list of games scrolls, rather than pushing the buttons off-screen. */
+#share-pick { max-height: 38vh; overflow-y: auto; }
+
+/* A choice this copy of the app cannot offer yet, and says why underneath. */
+.choice--off { opacity: 0.55; }
+
+/* The six-digit code that guards a shared lot: made to be read out loud. */
+.code-box {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.code-box__label { font-size: 0.8rem; font-weight: 550; }
+
+.code-box__value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.8rem;
+  letter-spacing: 0.18em;
+}
+
+.code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+/* One remembered share: its code on one side, what to do with it on the other. */
+.lot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lot__code {
+  margin-right: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+}
+
 .field-grid {
   display: grid;
   gap: 12px;
@@ -666,6 +739,68 @@ const STRINGS = {
     'shareApp.hint':
       'Scannez le code, ou envoyez le lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
     'shareApp.text': 'Marque-Points — compteur de points pour Papayoo et d’autres jeux',
+    'shareApp.kindApp': 'L’app seule',
+    'shareApp.kindAppHint': 'la personne repart de zéro, avec ses propres parties',
+    'shareApp.kindAll': 'L’app et toutes mes parties ({count})',
+    'shareApp.kindSome': 'L’app et une sélection de parties',
+    'shareApp.pickHint': 'Cochez les parties que le lien doit apporter.',
+    'shareApp.pickNone': 'Choisissez au moins une partie, ou partagez l’app seule.',
+    'shareApp.note':
+      'Les parties choisies seront envoyées dans la base partagée, si elles n’y sont pas déjà : c’est ce qui permet au lien de les ouvrir ailleurs.',
+    'shareApp.make': 'Créer le lien',
+    'shareApp.failed':
+      'Le lien n’a pas pu être créé : les parties n’ont pas toutes été envoyées. Réessayez.',
+    'shareSet.title': 'Lien vers l’app et vos parties',
+    'shareSet.hint':
+      'Scannez le code, ou envoyez le lien : il ouvre l’app et y ajoute les parties choisies ({count}), prêtes à être continuées.',
+    'shareSet.text': 'Marque-Points — l’app et nos parties',
+    'shareSet.loading': 'Récupération des parties partagées…',
+    'shareSet.notFound':
+      'Aucune partie trouvée pour ce lien. Vérifiez qu’il est complet, et qu’il n’est pas trop ancien.',
+    'shareSet.noDatabase':
+      'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
+    'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
+    'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
+    'shareApp.needsKey':
+      'Pour créer un lien avec des parties, il faut la clé de partage : renseignez-la dans la section Données, en bas de l’accueil.',
+    'shareApp.needsUpdate':
+      'La base n’a pas encore la fonction des lots : lancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
+    'shareApp.badKey':
+      'La base a refusé la clé de partage. Vérifiez-la dans la section Données.',
+    'shareSet.codeLabel': 'Code à communiquer',
+    'shareSet.codeApart':
+      'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
+    'shareSet.send': 'Envoyer le lien',
+    'shareSet.codeTitle': 'Code du partage',
+    'shareSet.codeHint':
+      'Ce lien apporte des parties. Tapez les six chiffres donnés par la personne qui vous l’a envoyé.',
+    'shareSet.badCode': 'Un code est fait de six chiffres.',
+    'shareSet.wrongCode': 'Code incorrect. Il reste {left} essai(s) avant que ce lien se bloque.',
+    'shareSet.locked':
+      'Ce lien est bloqué : dix codes faux ont été essayés. Demandez un nouveau lien à la personne qui l’a créé.',
+    'shareSet.cannotUnseal':
+      'Le code est bon, mais ce navigateur ne peut pas déchiffrer le lot : ouvrez le lien en https (l’adresse de l’app), pas en http.',
+    'data.shareKey': 'Clé de partage (pour créer des liens avec parties)',
+    'data.shareKeyPlaceholder': 'collée une fois, gardée sur cet appareil',
+    'data.shareKeySave': 'Enregistrer la clé',
+    'data.shareKeyHint':
+      'Elle s’obtient une fois pour toutes dans l’éditeur SQL de votre base (étape 2 bis du guide). Sans elle, cet appareil peut ouvrir des liens mais pas en créer avec des parties.',
+    'data.shareKeySet': 'Une clé est enregistrée sur cet appareil.',
+    'data.shareKeyChecking': 'Vérification auprès de la base…',
+    'data.shareKeyGood': 'Clé reconnue : cet appareil peut créer des liens avec parties.',
+    'data.shareKeyBad': 'Clé refusée par la base. Vérifiez qu’elle a été copiée en entier.',
+    'data.shareKeyUnsure': 'Clé enregistrée, mais la base n’a pas répondu. Elle sera vérifiée au prochain partage.',
+    'data.shareKeyCleared': 'Clé effacée de cet appareil.',
+    'lots.title': 'Mes partages ({count})',
+    'lots.hint':
+      'Les liens avec parties créés depuis cet appareil. Le code est rappelé ici, et révoquer un lien le rend inutilisable pour tout le monde, même avec le bon code.',
+    'lots.line': '{count} partie(s) · {date}',
+    'lots.link': 'Revoir le lien',
+    'lots.revoke': 'Révoquer',
+    'lots.confirmRevoke':
+      'Révoquer ce partage ? Le lien ne donnera plus accès à rien, même avec le bon code. Les parties, elles, ne sont pas supprimées.',
+    'lots.alreadyGone': 'Ce partage n’existait plus dans la base ; il a été retiré de la liste.',
+    'lots.empty': 'Aucun partage depuis cet appareil.',
     'action.importPaste': 'Coller un export',
     'paste.title': 'Coller un export',
     'paste.hint':
@@ -673,7 +808,7 @@ const STRINGS = {
     'action.openLink': 'Ouvrir par un lien',
     'openLink.title': 'Ouvrir une partie partagée',
     'openLink.hint':
-      'Collez le lien d’une partie, ou son identifiant. L’app la récupère dans la base partagée et l’ajoute à cette liste.',
+      'Collez le lien d’une partie — ou d’un lot de parties, ou un identifiant de partie. L’app va chercher dans la base partagée et ajoute tout à cette liste.',
     'openLink.open': 'Ouvrir',
     'openLink.noId': 'Aucun identifiant de partie reconnu dans ce texte.',
     'openLink.notFound':
@@ -912,6 +1047,66 @@ const STRINGS = {
     'shareApp.hint':
       'Scan the code, or send the link: they open the app and keep their own games, on their own device.',
     'shareApp.text': 'Marque-Points — a score keeper for Papayoo and other games',
+    'shareApp.kindApp': 'The app alone',
+    'shareApp.kindAppHint': 'they start empty, with games of their own',
+    'shareApp.kindAll': 'The app and all my games ({count})',
+    'shareApp.kindSome': 'The app and a selection of games',
+    'shareApp.pickHint': 'Tick the games the link should carry.',
+    'shareApp.pickNone': 'Pick at least one game, or share the app on its own.',
+    'shareApp.note':
+      'The games you pick will be sent to the shared database if they are not there already: that is what lets the link open them elsewhere.',
+    'shareApp.make': 'Create the link',
+    'shareApp.failed': 'The link could not be created: not every game was sent. Try again.',
+    'shareSet.title': 'Link to the app and your games',
+    'shareSet.hint':
+      'Scan the code, or send the link: it opens the app and adds the games you picked ({count}), ready to carry on.',
+    'shareSet.text': 'Marque-Points — the app and our games',
+    'shareSet.loading': 'Fetching the shared games…',
+    'shareSet.notFound':
+      'No games found for that link. Check that it is complete, and not too old.',
+    'shareSet.noDatabase':
+      'This copy of the app has no shared database, so it cannot fetch those games.',
+    'shareSet.opened': '{count} game(s) added from the link.',
+    'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
+    'shareApp.needsKey':
+      'Creating a link that carries games takes the sharing key: enter it in the Data section, at the bottom of the home screen.',
+    'shareApp.needsUpdate':
+      'The database does not have the lot functions yet: run the SQL block from step 2b of the deployment guide.',
+    'shareApp.badKey': 'The database refused the sharing key. Check it in the Data section.',
+    'shareSet.codeLabel': 'Code to pass on',
+    'shareSet.codeApart':
+      'Do not send it in the same message as the link: say it out loud, or use another route.',
+    'shareSet.send': 'Send the link',
+    'shareSet.codeTitle': 'Code for this share',
+    'shareSet.codeHint':
+      'This link carries games. Type the six digits given to you by whoever sent it.',
+    'shareSet.badCode': 'A code is six digits.',
+    'shareSet.wrongCode': 'Wrong code. {left} attempt(s) left before this link locks itself.',
+    'shareSet.locked':
+      'This link is locked: ten wrong codes were tried. Ask whoever made it for a new one.',
+    'shareSet.cannotUnseal':
+      'The code is right, but this browser cannot unseal the lot: open the link over https (the app\'s own address), not http.',
+    'data.shareKey': 'Sharing key (to create links that carry games)',
+    'data.shareKeyPlaceholder': 'pasted once, kept on this device',
+    'data.shareKeySave': 'Save the key',
+    'data.shareKeyHint':
+      'You get it once and for all from your database\'s SQL editor (step 2b of the guide). Without it this device can open links but not create ones carrying games.',
+    'data.shareKeySet': 'A key is saved on this device.',
+    'data.shareKeyChecking': 'Checking with the database…',
+    'data.shareKeyGood': 'Key recognised: this device can create links that carry games.',
+    'data.shareKeyBad': 'The database refused that key. Check that all of it was copied.',
+    'data.shareKeyUnsure': 'Key saved, but the database did not answer. It will be checked at the next share.',
+    'data.shareKeyCleared': 'Key removed from this device.',
+    'lots.title': 'My shares ({count})',
+    'lots.hint':
+      'The links carrying games made from this device. The code is shown again here, and revoking a link makes it useless to everyone, right code or not.',
+    'lots.line': '{count} game(s) · {date}',
+    'lots.link': 'Show the link',
+    'lots.revoke': 'Revoke',
+    'lots.confirmRevoke':
+      'Revoke this share? The link will give access to nothing, even with the right code. The games themselves are not deleted.',
+    'lots.alreadyGone': 'That share was no longer in the database; it has been taken off the list.',
+    'lots.empty': 'Nothing shared from this device.',
     'action.importPaste': 'Paste an export',
     'paste.title': 'Paste an export',
     'paste.hint':
@@ -919,7 +1114,7 @@ const STRINGS = {
     'action.openLink': 'Open from a link',
     'openLink.title': 'Open a shared game',
     'openLink.hint':
-      'Paste a game link, or its id. The app fetches it from the shared database and adds it to this list.',
+      'Paste a game link — or a link to a set of games, or a game id. The app fetches from the shared database and adds it all to this list.',
     'openLink.open': 'Open',
     'openLink.noId': 'No game id recognised in that text.',
     'openLink.notFound':
@@ -1499,6 +1694,9 @@ const PRESET_GROUPS = ['cards', 'tiles', 'dice', 'outdoor', 'other'];
  * be unguessable: whoever knows it can open the game. randomUUID is used where
  * the browser offers it (it needs a secure context), with a weaker but still
  * random fallback elsewhere.
+ *
+ * Exported because a set of games shared together is named the same way, and
+ * for the same reason.
  */
 function uid(prefix = 'id') {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -2899,6 +3097,127 @@ function remoteConfig() {
   return REMOTE.url && REMOTE.key ? REMOTE : null;
 }
 
+  // ---- src/lock.js -----------------------------------------------------
+/**
+ * The six-digit code that guards a lot of games, and the sealing of what the
+ * lot holds with it.
+ *
+ * Two different secrets protect a lot, because they answer two different
+ * questions:
+ *
+ *   * the sharing key, held only by whoever runs the database, answers "may
+ *     this person create a lot at all". It never leaves the device it was
+ *     typed into, and the database refuses to write a lot without it.
+ *   * this code, drawn afresh for every share, answers "may this person open
+ *     that lot". It is what the receiver types in.
+ *
+ * Six digits is a million possibilities — far too few to resist a machine
+ * trying them one after another, which is why the database counts the
+ * attempts and stops at ten. The sealing below adds the other half: the game
+ * identifiers are not in the stored lot at all, only their encrypted form, so
+ * a row read by some other means still says nothing about which games it
+ * designates.
+ *
+ * Sealing needs Web Crypto, which browsers only offer in a secure context
+ * (https, or localhost). Where it is missing the lot is stored as a plain list
+ * instead — still behind the key and the code — and the app says so rather
+ * than pretending.
+ */
+
+const DIGITS = 6;
+const ITERATIONS = 310000; // a few tenths of a second on a phone
+const VERSION = 1;
+
+/** Can this copy of the app seal a lot? */
+function canSeal() {
+  return Boolean(globalThis.crypto?.subtle);
+}
+
+/**
+ * A six-digit code, uniform over the million. Values above the last whole
+ * multiple of a million are thrown away: taking the remainder of everything
+ * would make the low codes very slightly likelier.
+ */
+function newCode() {
+  const range = 10 ** DIGITS;
+  const limit = Math.floor(0x100000000 / range) * range;
+  const buffer = new Uint32Array(1);
+  let drawn = limit;
+  while (drawn >= limit) {
+    globalThis.crypto.getRandomValues(buffer);
+    [drawn] = buffer;
+  }
+  return String(drawn % range).padStart(DIGITS, '0');
+}
+
+/** Is this a code, whatever the person typed around it? */
+function isCode(value) {
+  return /^[0-9]{6}$/.test(String(value ?? '').trim());
+}
+
+/** The digits inside whatever was typed — spaces and dashes are forgiven. */
+function readCode(value) {
+  const digits = String(value ?? '').replace(/[^0-9]/g, '');
+  return digits.length === DIGITS ? digits : null;
+}
+
+const toBase64 = (bytes) => btoa(String.fromCharCode(...bytes));
+const fromBase64 = (text) => Uint8Array.from(atob(String(text)), (char) => char.charCodeAt(0));
+
+async function keyFrom(code, salt) {
+  const material = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(code),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: ITERATIONS },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+/** Seal any small value with a code. The salt and the nonce travel with it. */
+async function seal(value, code) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await keyFrom(code, salt);
+  const sealed = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(value)),
+  );
+  return {
+    v: VERSION,
+    salt: toBase64(salt),
+    iv: toBase64(iv),
+    data: toBase64(new Uint8Array(sealed)),
+  };
+}
+
+/**
+ * What was sealed, or null — a wrong code and a tampered-with document are
+ * both simply "null", because AES-GCM refuses to decrypt either.
+ */
+async function unseal(sealed, code) {
+  if (!sealed || sealed.v !== VERSION || !canSeal()) return null;
+  try {
+    const key = await keyFrom(code, fromBase64(sealed.salt));
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: fromBase64(sealed.iv) },
+      key,
+      fromBase64(sealed.data),
+    );
+    return JSON.parse(new TextDecoder().decode(plain));
+  } catch {
+    return null;
+  }
+}
+
   // ---- src/remote.js ---------------------------------------------------
 /**
  * The shared games database.
@@ -2907,10 +3226,17 @@ function remoteConfig() {
  * game in a small hosted database as well as in the browser, so a link to a
  * game opens that same game for someone else.
  *
- * It speaks plain HTTP to two Postgres functions — no client library, so the
- * app keeps its "no dependencies" property. The table itself is never exposed:
- * the only things reachable are `read one game by id` and `write one game by
- * id`, which means a game can only be found by someone who has its link.
+ * It speaks plain HTTP to a handful of Postgres functions — no client library,
+ * so the app keeps its "no dependencies" property. The table itself is never
+ * exposed: the only things reachable are `read one game by id` and `write one
+ * game by id`, which means a game can only be found by someone who has its
+ * link.
+ *
+ * A lot of games — a link that hands over several at once — goes through its
+ * own functions, because it is protected differently: writing one takes the
+ * sharing key that only the person hosting the database has, and reading one
+ * takes the six-digit code drawn for that share, which the database allows ten
+ * attempts at.
  *
  * Every call is defensive. The network fails, the configuration may be wrong,
  * the service may be down: none of that may stop someone keeping score, so a
@@ -2974,6 +3300,53 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
   }
 
   return {
+    /** Is this the sharing key the database was set up with? */
+    async isOwner(key) {
+      return (await call('marque_points_is_owner', { p_key: key })) === true;
+    },
+
+    /**
+     * Store a lot of games under one id, so a link can carry many games
+     * without carrying their identifiers.
+     *
+     * Two secrets are needed, and they are not interchangeable: the sharing
+     * key, without which the database refuses to write a lot at all, and the
+     * six-digit code the receiver will have to type. `contents` is either
+     * `{ sealed }` or, where this browser cannot seal, `{ ids }`.
+     */
+    async putSet(id, contents, code, key) {
+      await call('marque_points_put_set', {
+        p_id: id,
+        p_data: { kind: 'set', ...contents, createdAt: Date.now() },
+        p_code: code,
+        p_key: key,
+      });
+    },
+
+    /**
+     * Ask for a lot with a code. The database counts the wrong answers and
+     * stops at ten, which is what makes six digits enough; the answer says
+     * which case it is rather than throwing, because every one of them has
+     * something to tell the person waiting.
+     *
+     * Returns { status: 'ok', contents } | { status: 'wrong', left }
+     *       | { status: 'locked' } | { status: 'unknown' }
+     */
+    async openSet(id, code) {
+      const answer = await call('marque_points_open_set', { p_id: id, p_code: code });
+      const status = answer?.status;
+      if (status === 'ok') return { status, contents: answer.set || null };
+      if (status === 'wrong') return { status, left: Number(answer.left) || 0 };
+      if (status === 'locked') return { status };
+      return { status: 'unknown' };
+    },
+
+    /** Revoke a lot: the sharing key, so only whoever shared it can. */
+    async forgetSet(id, key) {
+      const answer = await call('marque_points_forget_set', { p_id: id, p_key: key });
+      return answer?.status === 'ok';
+    },
+
     /** The stored game, or null when nobody has ever shared that id. */
     async get(id) {
       const data = await call('marque_points_get', { p_id: id });
@@ -3020,6 +3393,18 @@ function gameIdFrom(pasted) {
 function shareLink(location, gameId) {
   const { origin, pathname, search } = location;
   return `${origin}${pathname}${search}#/game/${gameId}`;
+}
+
+/** The link that hands over a set of games at once. */
+function setLink(location, setId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/set/${setId}`;
+}
+
+/** The set id inside whatever was pasted, or null. */
+function setIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/set\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
 }
 
   // ---- src/cloud.js ----------------------------------------------------
@@ -3142,6 +3527,7 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
@@ -3160,6 +3546,8 @@ const state = {
   remote: createRemote(remoteConfig()),
   // Polling while a shared game is on screen.
   poll: null,
+  // The set of games being fetched, so a redraw does not start a second fetch.
+  openingSet: null,
 };
 
 /* ------------------------------------------------------------- utilities --- */
@@ -3261,6 +3649,7 @@ function route() {
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
+  if (name === 'set' && param) return { name: 'set', id: param };
   return { name: 'home' };
 }
 
@@ -3381,7 +3770,22 @@ function homeView() {
                <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
                ${escapeHtml(t('data.autoShare'))}
              </label>
-             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>`
+             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>
+             <label for="share-key">${escapeHtml(t('data.shareKey'))}</label>
+             <input type="password" id="share-key" autocomplete="off" spellcheck="false"
+                    value="${escapeHtml(state.prefs.shareKey || '')}"
+                    placeholder="${escapeHtml(t('data.shareKeyPlaceholder'))}" />
+             <div class="row">
+               <button type="button" class="button button--small" id="save-key">${escapeHtml(t('data.shareKeySave'))}</button>
+               ${
+                 lots().length
+                   ? `<button type="button" class="button button--small" id="my-shares">${escapeHtml(t('lots.title', { count: lots().length }))}</button>`
+                   : ''
+               }
+             </div>
+             <p class="muted small" id="share-key-state">${escapeHtml(
+               state.prefs.shareKey ? t('data.shareKeySet') : t('data.shareKeyHint'),
+             )}</p>`
           : ''
       }
     </section>`;
@@ -3939,7 +4343,7 @@ function qrFor(text) {
   return qrSvg(text, { size: side * scale });
 }
 
-function showCopyDialog({ title, hint, text: content, qr = false }) {
+function showCopyDialog({ title, hint, text: content, qr = false, code = null, send = false }) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -3949,16 +4353,32 @@ function showCopyDialog({ title, hint, text: content, qr = false }) {
       <div class="stack">
         <h2 id="export-title"></h2>
         <p class="muted small" id="export-hint"></p>
+        <div class="code-box" id="export-code" hidden>
+          <span class="code-box__label" id="export-code-label"></span>
+          <strong class="code-box__value" id="export-code-value"></strong>
+          <span class="muted small" id="export-code-hint"></span>
+        </div>
         <div id="export-qr" class="qr" hidden></div>
         <textarea id="export-text" readonly rows="8"></textarea>
         <div class="row">
           <button type="button" class="button button--primary" id="export-copy"></button>
+          <button type="button" class="button" id="export-send" hidden></button>
           <button type="button" class="button" id="export-close"></button>
         </div>
       </div>`;
     document.body.append(dialog);
 
     dialog.querySelector('#export-close').addEventListener('click', () => dialog.close());
+    // Sending hands over the link, never the code: the code travels by another
+    // route, or the two together in one message would protect nothing.
+    dialog.querySelector('#export-send').addEventListener('click', async () => {
+      const url = dialog.querySelector('#export-text').value;
+      try {
+        await navigator.share({ title: t('app.title'), text: t('shareSet.text'), url });
+      } catch {
+        // Cancelled, or refused: the text and its code are still on screen.
+      }
+    });
     dialog.querySelector('#export-copy').addEventListener('click', async (event) => {
       // Hold on to the button: currentTarget is null once the handler awaits.
       const button = event.currentTarget;
@@ -3982,11 +4402,23 @@ function showCopyDialog({ title, hint, text: content, qr = false }) {
   text.value = content;
   text.setAttribute('aria-label', title);
 
-  const code = dialog.querySelector('#export-qr');
+  const image = dialog.querySelector('#export-qr');
   const svg = qr ? qrFor(content) : null;
-  code.innerHTML = svg || '';
-  code.hidden = !svg;
-  if (svg) code.setAttribute('aria-label', t('share.qrLabel'));
+  image.innerHTML = svg || '';
+  image.hidden = !svg;
+  if (svg) image.setAttribute('aria-label', t('share.qrLabel'));
+  const box = dialog.querySelector('#export-code');
+  box.hidden = !code;
+  if (code) {
+    dialog.querySelector('#export-code-label').textContent = t('shareSet.codeLabel');
+    dialog.querySelector('#export-code-value').textContent = code;
+    dialog.querySelector('#export-code-hint').textContent = t('shareSet.codeApart');
+  }
+
+  const sendButton = dialog.querySelector('#export-send');
+  sendButton.hidden = !(send && navigator.share);
+  sendButton.textContent = t('shareSet.send');
+
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
@@ -4097,7 +4529,21 @@ function openLinkDialog() {
 
   dialog.querySelector('#link-cancel').addEventListener('click', close);
   dialog.querySelector('#link-open').addEventListener('click', async (event) => {
-    const id = gameIdFrom(dialog.querySelector('#link-text').value);
+    const pasted = dialog.querySelector('#link-text').value;
+
+    // A link to a whole set of games is pasted here too: on a phone the
+    // installed app has no address bar, so this is the only way in.
+    const setId = setIdFrom(pasted);
+    if (setId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      await openSet(setId);
+      close();
+      navigate('#/');
+      return;
+    }
+
+    const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
     event.currentTarget.disabled = true;
@@ -4118,6 +4564,434 @@ function openLinkDialog() {
   dialog.querySelector('#link-text').focus();
 }
 
+/**
+ * Hand a link over the easy way when the device offers one — one tap to a
+ * message — and fall back to the text with its QR code everywhere else.
+ */
+async function shareUrl({ url, title, hint, text }) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t('app.title'), text, url });
+      return;
+    } catch (error) {
+      // Cancelling is not a failure, and nothing should be shown for it.
+      if (error?.name === 'AbortError') return;
+      // Anything else: fall through to the text everyone can copy.
+    }
+  }
+  showCopyDialog({ title, hint, text: url, qr: true });
+}
+
+/* ------------------------------------------------------------------- lots --- */
+
+/**
+ * The lots shared from this device, newest first. Their codes are kept so a
+ * code can be read again later, and so a lot can be revoked — both of which
+ * are the point of the sharing key: the shares stay in one pair of hands.
+ */
+function lots() {
+  const value = state.prefs.lots;
+  return Array.isArray(value) ? value.filter((lot) => lot && typeof lot.id === 'string') : [];
+}
+
+function rememberLot(lot) {
+  state.prefs = { ...state.prefs, lots: [lot, ...lots()].slice(0, 30) };
+  savePrefs(state.prefs);
+}
+
+function forgetLot(id) {
+  state.prefs = { ...state.prefs, lots: lots().filter((lot) => lot.id !== id) };
+  savePrefs(state.prefs);
+}
+
+/** Why the database refused, in words that say what to do about it. */
+function remoteReason(error) {
+  const text = String(error?.message || '');
+  if (error?.status === 404 || /PGRST202/.test(text)) return t('shareApp.needsUpdate');
+  if (/cle de partage/i.test(text)) return t('shareApp.badKey');
+  return t('shareApp.failed');
+}
+
+/* --------------------------------------------------------- sharing the app --- */
+
+/**
+ * Share the app, on its own or carrying games.
+ *
+ * A link cannot carry the games themselves: ten of them would make an address
+ * no one could paste and no QR code could hold. So the games are sent to the
+ * shared database — which is what makes them openable elsewhere anyway — and
+ * the link carries one short identifier standing for the lot.
+ *
+ * A lot is not something anyone may create: the database asks for the sharing
+ * key first, and that key lives only on the devices its holder typed it into.
+ * Opening one asks the receiver for a six-digit code, drawn afresh for every
+ * share — so a link passed on to someone else is worth nothing on its own.
+ */
+function openShareAppDialog() {
+  const games = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  const key = state.prefs.shareKey || '';
+  // Without a shared database there is nothing to attach: the app alone, then.
+  if (!state.remote || !games.length) {
+    void shareUrl({
+      url: appLink(),
+      title: t('shareApp.title'),
+      hint: t('shareApp.hint'),
+      text: t('shareApp.text'),
+    });
+    return;
+  }
+
+  const off = key ? '' : ' disabled';
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('shareApp.title'))}</h2>
+      <div class="stack stack--tight" role="radiogroup" aria-label="${escapeHtml(t('shareApp.title'))}">
+        <label class="choice">
+          <input type="radio" name="share-kind" value="app" checked />
+          <span>${escapeHtml(t('shareApp.kindApp'))}<span class="muted small"> — ${escapeHtml(t('shareApp.kindAppHint'))}</span></span>
+        </label>
+        <label class="choice${key ? '' : ' choice--off'}">
+          <input type="radio" name="share-kind" value="all"${off} />
+          <span>${escapeHtml(t('shareApp.kindAll', { count: games.length }))}</span>
+        </label>
+        <label class="choice${key ? '' : ' choice--off'}">
+          <input type="radio" name="share-kind" value="some"${off} />
+          <span>${escapeHtml(t('shareApp.kindSome'))}</span>
+        </label>
+      </div>
+
+      ${key ? '' : `<p class="banner">${escapeHtml(t('shareApp.needsKey'))}</p>`}
+
+      <div class="stack stack--tight" id="share-pick" hidden>
+        <p class="muted small">${escapeHtml(t('shareApp.pickHint'))}</p>
+        ${games
+          .map(
+            (game) => `
+              <label class="choice">
+                <input type="checkbox" data-share-id="${escapeHtml(game.id)}" />
+                <span>${escapeHtml(gameTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
+              </label>`,
+          )
+          .join('')}
+      </div>
+
+      <p class="muted small" id="share-note" hidden>${escapeHtml(t('shareApp.note'))}</p>
+      <p class="banner banner--warn" id="share-error" hidden></p>
+      <div class="row">
+        <button type="button" class="button button--primary" id="share-make">${escapeHtml(t('shareApp.make'))}</button>
+        <button type="button" class="button" id="share-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  const button = dialog.querySelector('#share-make');
+  const error = dialog.querySelector('#share-error');
+  const kind = () => dialog.querySelector('input[name="share-kind"]:checked').value;
+
+  const refresh = () => {
+    dialog.querySelector('#share-pick').hidden = kind() !== 'some';
+    dialog.querySelector('#share-note').hidden = kind() === 'app';
+    error.hidden = true;
+  };
+  dialog.querySelectorAll('input[name="share-kind"]').forEach((input) => {
+    input.addEventListener('change', refresh);
+  });
+
+  const fail = (message) => {
+    error.textContent = message;
+    error.hidden = false;
+    button.disabled = false;
+    button.textContent = t('shareApp.make');
+  };
+
+  dialog.querySelector('#share-cancel').addEventListener('click', close);
+  button.addEventListener('click', async () => {
+    const choice = kind();
+    if (choice === 'app') {
+      close();
+      void shareUrl({
+        url: appLink(),
+        title: t('shareApp.title'),
+        hint: t('shareApp.hint'),
+        text: t('shareApp.text'),
+      });
+      return;
+    }
+
+    const chosen =
+      choice === 'all'
+        ? games
+        : [...dialog.querySelectorAll('input[data-share-id]:checked')]
+            .map((input) => getGame(input.dataset.shareId))
+            .filter(Boolean);
+    if (!chosen.length) return fail(t('shareApp.pickNone'));
+
+    button.disabled = true;
+    button.textContent = t('share.sending');
+
+    const setId = uid('lot');
+    const code = newCode();
+    const ids = chosen.map((game) => game.id);
+    try {
+      // Sealed where the browser can: then the stored lot holds no game
+      // identifier at all, only their encrypted form.
+      const contents = canSeal() ? { sealed: await seal(ids, code) } : { ids };
+      await shareGames(chosen);
+      await state.remote.putSet(setId, contents, code, key);
+    } catch (error_) {
+      return fail(remoteReason(error_));
+    }
+
+    rememberLot({ id: setId, code, count: chosen.length, createdAt: Date.now() });
+    close();
+    // The games are shared now, and the share is remembered: the list shows it.
+    render();
+    showLotLink(setId, code, chosen.length);
+  });
+
+  dialog.showModal();
+}
+
+/**
+ * The link and its code, side by side but never in the same message: the link
+ * is what gets sent, the code is what is said out loud. Copying the link alone
+ * is what the button does, on purpose.
+ */
+function showLotLink(setId, code, count) {
+  showCopyDialog({
+    title: t('shareSet.title'),
+    hint: t('shareSet.hint', { count }),
+    text: setLink(location, setId),
+    qr: true,
+    code,
+    send: true,
+  });
+}
+
+/**
+ * Put every one of these games in the shared database, marking as shared those
+ * that were not — a link that hands over a game no one sent would open nothing.
+ */
+async function shareGames(games) {
+  try {
+    for (const game of games) {
+      const next = game.shared ? game : setShared(game, true);
+      await state.remote.put(next);
+      if (next === game) continue;
+      state.games = state.games.map((item) => (item.id === game.id ? next : item));
+      if (state.store) void state.store.save(next);
+    }
+  } finally {
+    // Whatever went through is written down, so a failure halfway is not lost.
+    saveGames(state.games);
+  }
+}
+
+/* --------------------------------------------------------- my own shares --- */
+
+/**
+ * The shares made from this device: their code, to read again, and a way to
+ * revoke them. Revoking takes the sharing key, so a link handed out can be
+ * taken back — by its author, and by nobody else.
+ */
+function openMySharesDialog() {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+
+  const draw = () => {
+    const mine = lots();
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lots.title', { count: mine.length }))}</h2>
+        <p class="muted small">${escapeHtml(t('lots.hint'))}</p>
+        <p class="banner banner--warn" id="lots-error" hidden></p>
+        ${
+          mine.length
+            ? `<div class="stack stack--tight">${mine
+                .map(
+                  (lot) => `
+                    <div class="lot">
+                      <div>
+                        <span class="lot__code">${escapeHtml(lot.code || '······')}</span>
+                        <span class="muted small">${escapeHtml(t('lots.line', {
+                          count: lot.count || 0,
+                          date: formatDate(lot.createdAt || Date.now()),
+                        }))}</span>
+                      </div>
+                      <div class="row">
+                        <button type="button" class="button button--small" data-lot-link="${escapeHtml(lot.id)}">${escapeHtml(t('lots.link'))}</button>
+                        <button type="button" class="button button--small button--ghost" data-lot-revoke="${escapeHtml(lot.id)}">${escapeHtml(t('lots.revoke'))}</button>
+                      </div>
+                    </div>`,
+                )
+                .join('')}</div>`
+            : `<p class="muted small">${escapeHtml(t('lots.empty'))}</p>`
+        }
+        <div class="row">
+          <button type="button" class="button" id="lots-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    dialog.querySelector('#lots-close').addEventListener('click', close);
+
+    dialog.querySelectorAll('[data-lot-link]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const lot = lots().find((item) => item.id === node.dataset.lotLink);
+        if (lot) showLotLink(lot.id, lot.code, lot.count || 0);
+      });
+    });
+
+    dialog.querySelectorAll('[data-lot-revoke]').forEach((node) => {
+      node.addEventListener('click', async () => {
+        const id = node.dataset.lotRevoke;
+        if (!(await ask(t('lots.confirmRevoke'), { confirmLabel: t('lots.revoke'), danger: true }))) return;
+        node.disabled = true;
+        node.textContent = t('share.sending');
+        let gone = false;
+        try {
+          gone = await state.remote.forgetSet(id, state.prefs.shareKey || '');
+        } catch (error) {
+          const line = dialog.querySelector('#lots-error');
+          line.textContent = remoteReason(error);
+          line.hidden = false;
+          node.disabled = false;
+          node.textContent = t('lots.revoke');
+          return;
+        }
+        // Not there any more either way: stop remembering it.
+        forgetLot(id);
+        draw();
+        if (!gone) {
+          const line = dialog.querySelector('#lots-error');
+          line.textContent = t('lots.alreadyGone');
+          line.hidden = false;
+        }
+        render();
+      });
+    });
+  };
+
+  draw();
+  dialog.showModal();
+}
+
+/* ------------------------------------------------- opening a shared lot --- */
+
+/**
+ * Ask for the six-digit code, and give back the game ids it unlocks.
+ *
+ * The database allows ten wrong answers, then closes that lot for good — which
+ * is what makes six digits enough to be worth typing. Resolves null when the
+ * person gives up, or when the answer leaves nothing to try again with.
+ */
+function askLotCode(id) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dialog dialog--ask';
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('shareSet.codeTitle'))}</h2>
+        <p class="muted small">${escapeHtml(t('shareSet.codeHint'))}</p>
+        <input type="text" id="lot-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="7" aria-label="${escapeHtml(t('shareSet.codeTitle'))}" />
+        <p class="banner banner--warn" id="lot-error" hidden></p>
+        <div class="row">
+          <button type="button" class="button button--primary" id="lot-open">${escapeHtml(t('openLink.open'))}</button>
+          <button type="button" class="button" id="lot-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+    document.body.append(dialog);
+
+    const button = dialog.querySelector('#lot-open');
+    const error = dialog.querySelector('#lot-error');
+    const done = (value) => { dialog.close(); dialog.remove(); resolve(value); };
+    const fail = (message) => {
+      error.textContent = message;
+      error.hidden = false;
+      button.disabled = false;
+      button.textContent = t('openLink.open');
+      dialog.querySelector('#lot-code').select();
+    };
+
+    dialog.querySelector('#lot-cancel').addEventListener('click', () => done(null));
+    button.addEventListener('click', async () => {
+      const code = readCode(dialog.querySelector('#lot-code').value);
+      if (!code) return fail(t('shareSet.badCode'));
+
+      button.disabled = true;
+      button.textContent = t('share.sending');
+
+      let answer = null;
+      try {
+        answer = await state.remote.openSet(id, code);
+      } catch (error_) {
+        return fail(remoteReason(error_));
+      }
+
+      if (answer.status === 'wrong') return fail(t('shareSet.wrongCode', { left: answer.left }));
+      if (answer.status === 'locked') {
+        flash(t('shareSet.locked'), 'error');
+        return done(null);
+      }
+      if (answer.status !== 'ok') {
+        flash(t('shareSet.notFound'), 'error');
+        return done(null);
+      }
+
+      const ids = answer.contents?.sealed
+        ? await unseal(answer.contents.sealed, code)
+        : answer.contents?.ids;
+      const clean = Array.isArray(ids) ? ids.filter((value) => typeof value === 'string') : [];
+      // The code was right, so a lot that will not open is a lot this browser
+      // cannot unseal — over http, where Web Crypto is not offered.
+      if (!clean.length) return fail(t('shareSet.cannotUnseal'));
+      done(clean);
+    });
+
+    dialog.showModal();
+    dialog.querySelector('#lot-code').focus();
+  });
+}
+
+/**
+ * Take in a lot of games from its link: the code, then the list, then each
+ * game.
+ *
+ * A game already here is merged rather than replaced, exactly as a single
+ * shared game is, so opening the link twice costs nothing and opening it while
+ * a game is in progress loses no round.
+ */
+async function openSet(id) {
+  if (!state.remote) {
+    flash(t('shareSet.noDatabase'), 'error');
+    return;
+  }
+
+  const ids = await askLotCode(id);
+  if (!ids) return;
+
+  for (const gameId of ids) {
+    if (!getGame(gameId)) await pullGame(gameId);
+  }
+
+  const held = ids.filter((gameId) => getGame(gameId)).length;
+  if (!held) {
+    flash(t('shareSet.notFound'), 'error');
+    return;
+  }
+  flash(
+    held === ids.length
+      ? t('shareSet.opened', { count: held })
+      : t('shareSet.openedSome', { count: held, total: ids.length }),
+  );
+}
+
 function bindHome() {
   const search = view.querySelector('#search');
   search?.addEventListener('input', (event) => {
@@ -4131,21 +5005,38 @@ function bindHome() {
     }
   });
 
-  view.querySelector('#share-app')?.addEventListener('click', async () => {
-    const url = appLink();
-    // The phone's own share sheet is the easy way — one tap to a message.
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: t('app.title'), text: t('shareApp.text'), url });
-        return;
-      } catch (error) {
-        // Cancelling is not a failure, and nothing should be shown for it.
-        if (error?.name === 'AbortError') return;
-        // Anything else: fall through to the text everyone can copy.
-      }
+  view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
+
+  view.querySelector('#save-key')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const field = view.querySelector('#share-key');
+    const line = view.querySelector('#share-key-state');
+    const key = field.value.trim();
+
+    state.prefs = { ...state.prefs, shareKey: key };
+    savePrefs(state.prefs);
+
+    if (!key) {
+      line.textContent = t('data.shareKeyCleared');
+      return;
     }
-    showCopyDialog({ title: t('shareApp.title'), hint: t('shareApp.hint'), text: url, qr: true });
+
+    // Say whether the database recognises it, rather than leaving it to be
+    // found out at the worst moment — when a link is being created.
+    button.disabled = true;
+    line.textContent = t('data.shareKeyChecking');
+    let good = false;
+    try {
+      good = await state.remote.isOwner(key);
+    } catch {
+      good = null; // could not ask
+    }
+    button.disabled = false;
+    line.textContent =
+      good === true ? t('data.shareKeyGood') : good === false ? t('data.shareKeyBad') : t('data.shareKeyUnsure');
   });
+
+  view.querySelector('#my-shares')?.addEventListener('click', openMySharesDialog);
 
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
     state.prefs = { ...state.prefs, autoShare: event.target.checked };
@@ -4871,6 +5762,19 @@ function render() {
     stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
+  } else if (current.name === 'set') {
+    stopWatching();
+    view.innerHTML = `<p class="muted small">${escapeHtml(t('shareSet.loading'))}</p>`;
+    // A redraw while the games are on their way must not fetch them twice.
+    if (state.openingSet !== current.id) {
+      state.openingSet = current.id;
+      openSet(current.id).then(() => {
+        state.openingSet = null;
+        // Somewhere else by now: leave them there, the games are in the list.
+        if (route().name === 'set') navigate('#/');
+      });
+    }
+    return;
   } else if (current.name === 'game') {
     const game = getGame(current.id);
     if (!game) {

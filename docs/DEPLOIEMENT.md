@@ -116,6 +116,288 @@ Attendu : **Success. No rows returned.**
 Si un message rouge apparaît, c'est que le bloc n'a pas été collé en entier —
 recollez-le depuis la première ligne `create table` jusqu'au dernier `grant`.
 
+## Étape 2 bis — Les liens qui portent des parties
+
+Cette étape ajoute les **lots** : un lien qui apporte plusieurs parties d'un
+coup. Elle est facultative — sans elle, tout le reste de l'app fonctionne, seuls
+les deux liens « avec parties » sont indisponibles et l'app le dit.
+
+Deux secrets s'y ajoutent, et ils ne jouent pas le même rôle :
+
+| | Qui l'a | Ce qu'il permet |
+| --- | --- | --- |
+| **La clé de partage** | vous seul, sur vos appareils | créer un lien avec des parties |
+| **Un code à six chiffres** | la personne qui reçoit le lien | ouvrir ce lien-là |
+
+La clé fait que **personne d'autre que vous ne peut partager des parties**, même
+en récupérant la clé publique dans le code de la page. Le code, tiré au hasard à
+chaque partage, fait qu'un lien transmis à quelqu'un d'autre ne vaut rien sans
+lui : la base compte les codes faux et ferme le lot au dixième.
+
+### 1. Le bloc SQL
+
+**SQL Editor** → **New query**, collez **tout** ce bloc, puis **Run**.
+
+```sql
+-- ---------------------------------------------------------------------------
+-- Les lots de parties : un lien qui apporte plusieurs parties d'un coup.
+--
+-- Deux secrets différents, pour deux rôles différents :
+--   * la clé de partage, que vous seul détenez : sans elle, impossible de
+--     créer un lot. C'est elle qui fait que vous êtes le seul à pouvoir
+--     partager des parties.
+--   * un code à six chiffres, tiré au hasard à chaque partage : c'est ce que
+--     tape la personne qui reçoit le lien.
+-- ---------------------------------------------------------------------------
+
+alter table public.marque_points_games
+  add column if not exists code_hash text,
+  add column if not exists code_salt text,
+  add column if not exists tries integer not null default 0;
+
+-- La clé de partage. Une seule ligne, et seulement le condensé de la clé :
+-- même en lisant cette table, on ne peut pas la reconstituer.
+create table if not exists public.marque_points_owner (
+  id boolean primary key default true check (id),
+  key_hash text not null,
+  key_salt text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marque_points_owner enable row level security;
+
+-- Tire une clé de partage, remplace celle qui existait, et l'affiche UNE fois.
+-- Elle est retirée à tout le monde juste après (PostgreSQL accorde sinon
+-- l'exécution à tous par défaut) : elle ne s'exécute donc que d'ici, depuis
+-- l'éditeur SQL de votre projet, et jamais depuis l'app.
+create or replace function public.marque_points_new_owner_key()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_key text := replace(gen_random_uuid()::text, '-', '');
+  v_salt text := md5(gen_random_uuid()::text);
+begin
+  insert into public.marque_points_owner (id, key_hash, key_salt)
+  values (true, md5(v_key || v_salt), v_salt)
+  on conflict (id) do update
+    set key_hash = excluded.key_hash, key_salt = excluded.key_salt, created_at = now();
+  return v_key;
+end;
+$$;
+
+-- Cette clé est-elle la bonne ? L'app le demande pour dire à qui la saisit si
+-- elle est reconnue. Une clé fait 122 bits : on ne la trouve pas en essayant.
+create or replace function public.marque_points_is_owner(p_key text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.marque_points_owner
+     where key_hash = md5(coalesce(p_key, '') || key_salt)
+  );
+$$;
+
+-- Un lot protégé devient invisible à la lecture ordinaire : la seule porte est
+-- marque_points_open_set, qui exige le code et compte les essais.
+create or replace function public.marque_points_get(p_id text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select data from public.marque_points_games
+   where id = p_id and code_hash is null;
+$$;
+
+-- Et l'écriture ordinaire ne peut pas écraser un lot.
+create or replace function public.marque_points_put(p_id text, p_data jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
+    raise exception 'identifiant invalide';
+  end if;
+  if pg_column_size(p_data) > 200000 then
+    raise exception 'partie trop volumineuse';
+  end if;
+
+  insert into public.marque_points_games (id, data, updated_at)
+  values (p_id, p_data, now())
+  on conflict (id) do update
+    set data = excluded.data, updated_at = now()
+    where marque_points_games.code_hash is null;
+end;
+$$;
+
+-- La suppression ordinaire ne touche pas non plus aux lots : un lot ne
+-- disparaît que par marque_points_forget_set, avec la clé de partage.
+create or replace function public.marque_points_delete(p_id text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.marque_points_games
+   where id = p_id and code_hash is null;
+$$;
+
+-- Créer un lot. Il faut la clé de partage, et un code à six chiffres qui ne
+-- sera jamais stocké en clair.
+create or replace function public.marque_points_put_set(
+  p_id text, p_data jsonb, p_code text, p_key text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_salt text := md5(gen_random_uuid()::text);
+begin
+  if not public.marque_points_is_owner(p_key) then
+    raise exception 'cle de partage invalide';
+  end if;
+  if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
+    raise exception 'identifiant invalide';
+  end if;
+  if p_code is null or p_code !~ '^[0-9]{6}$' then
+    raise exception 'code invalide';
+  end if;
+  if pg_column_size(p_data) > 200000 then
+    raise exception 'lot trop volumineux';
+  end if;
+
+  insert into public.marque_points_games (id, data, updated_at, code_hash, code_salt, tries)
+  values (p_id, p_data, now(), md5(p_code || v_salt), v_salt, 0);
+end;
+$$;
+
+-- Ouvrir un lot : dix essais en tout, et le compteur repart à zéro dès qu'un
+-- code juste est donné. C'est ce plafond qui rend six chiffres suffisants.
+create or replace function public.marque_points_open_set(p_id text, p_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row public.marque_points_games;
+begin
+  select * into v_row from public.marque_points_games
+   where id = p_id and code_hash is not null;
+
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  if v_row.tries >= 10 then
+    return jsonb_build_object('status', 'locked');
+  end if;
+  if v_row.code_hash <> md5(coalesce(p_code, '') || v_row.code_salt) then
+    update public.marque_points_games set tries = tries + 1 where id = p_id;
+    return jsonb_build_object('status', 'wrong', 'left', 9 - v_row.tries);
+  end if;
+
+  update public.marque_points_games set tries = 0 where id = p_id;
+  return jsonb_build_object('status', 'ok', 'set', v_row.data);
+end;
+$$;
+
+-- Révoquer un lot : avec la clé de partage, donc vous seul. Le lien ne donne
+-- plus rien à personne, même avec le bon code.
+create or replace function public.marque_points_forget_set(p_id text, p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.marque_points_is_owner(p_key) then
+    raise exception 'cle de partage invalide';
+  end if;
+
+  delete from public.marque_points_games
+   where id = p_id and code_hash is not null;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Personne, sauf le propriétaire du projet depuis cet éditeur.
+revoke all on function public.marque_points_new_owner_key() from public, anon, authenticated;
+
+grant execute on function public.marque_points_is_owner(text) to anon, authenticated;
+grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
+grant execute on function public.marque_points_open_set(text, text) to anon, authenticated;
+grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
+```
+
+Attendu : **Success. No rows returned.**
+
+### 2. Tirer votre clé de partage
+
+Effacez la zone de texte et lancez cette requête **une seule fois** :
+
+```sql
+select public.marque_points_new_owner_key();
+```
+
+Elle affiche une suite de 32 caractères, par exemple
+`7c50632b32d14ea1974ca2a77503315d`. **Copiez-la maintenant** : elle ne sera plus
+jamais affichée. La base n'en garde qu'une empreinte, pas la clé elle-même.
+
+Relancer cette requête plus tard remplace la clé : les appareils qui avaient
+l'ancienne ne peuvent plus créer de liens (les liens déjà créés continuent, eux,
+de fonctionner). C'est le geste à faire si vous pensez que la clé a fuité.
+
+### 3. La donner à l'app, une fois par appareil
+
+Dans l'app : bas de l'accueil, section **Données** → **Clé de partage** → collez,
+puis **Enregistrer la clé**. L'app répond *Clé reconnue* — c'est la base qui le
+dit, pas l'app.
+
+> ⚠️ Ne mettez **jamais** cette clé dans `src/config.js` ni ailleurs dans le
+> dépôt : ce fichier est public, et la clé deviendrait publique avec lui. Elle se
+> colle dans l'app, sur chaque appareil depuis lequel vous voulez partager des
+> parties (Safari et l'app installée sur l'écran d'accueil comptent pour deux).
+
+### 4. Vérifier
+
+Toujours dans **SQL Editor**, une requête à la fois, en remplaçant
+`VOTRE_CLE` par la clé copiée :
+
+```sql
+select public.marque_points_is_owner('VOTRE_CLE');
+```
+
+Attendu : **`true`**. Avec n'importe quoi d'autre à la place, **`false`**.
+
+```sql
+select public.marque_points_put_set('lot_de_test_1', '{"kind":"set","ids":["test"]}'::jsonb, '123456', 'VOTRE_CLE');
+select public.marque_points_open_set('lot_de_test_1', '000000');
+select public.marque_points_open_set('lot_de_test_1', '123456');
+select public.marque_points_forget_set('lot_de_test_1', 'VOTRE_CLE');
+```
+
+Attendu, dans l'ordre : une cellule vide (la fonction ne renvoie rien),
+`{"left": 9, "status": "wrong"}`, puis `{"status": "ok", "set": {…}}`, puis
+`{"status": "ok"}`.
+
+> Ce bloc et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16 avec
+> les mêmes rôles que chez Supabase. Sans la clé, la création d'un lot est
+> refusée ; un lot n'est pas lisible par la fonction de lecture ordinaire, ni
+> écrasable, ni supprimable par les fonctions ordinaires ; le dixième code faux
+> le ferme définitivement ; et le rôle public ne peut pas tirer de nouvelle clé.
+
 ## Étape 3 — Vérifier, sans quitter la page
 
 Toujours dans **SQL Editor**, effacez ce que vous venez de coller et lancez ces
@@ -275,9 +557,34 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
   la page pourrait écrire de fausses parties dans la base. Il ne verrait pas les
   vôtres pour autant. Les garde-fous du script SQL limitent la casse ; le cas
   échéant, régénérez la clé depuis Supabase et refaites l'étape 5.
-- **Deux personnes qui saisissent la même manche en même temps** : la dernière
-  écriture gagne, l'autre est perdue. Pour une table où une seule personne
-  marque, le cas ne se présente pas.
+- **Un lot de parties** — le lien qui en apporte plusieurs d'un coup — ne se crée
+  qu'avec la clé de partage, et ne s'ouvre qu'avec son code à six chiffres, dix
+  essais au maximum. Il ne contient pas les parties, seulement la liste chiffrée
+  de leurs identifiants : même en lisant la ligne dans la base, on ne sait pas
+  quelles parties il désigne. Le chiffrement demande https (l'adresse de l'app en
+  est une) ; sur une adresse en http, la liste est stockée en clair et l'app le
+  dit.
+- **Le code est à dire, pas à écrire dans le même message.** Un lien et son code
+  envoyés ensemble ne protègent plus rien : le bouton *Copier* ne copie que le
+  lien, exprès.
+- **Révoquer un partage** se fait depuis *Mes partages*, dans la section
+  **Données** : le lien ne donne plus rien à personne, même avec le bon code. Les
+  parties elles-mêmes restent.
+- **Une partie ouverte par un lot reste ouvrable par son propre lien** ensuite,
+  comme toute partie partagée : le code protège le lot, pas chaque partie pour
+  toujours.
+- **Les dix essais peuvent être gâchés** par quelqu'un à qui le lien est parvenu
+  sans le code : le lot se ferme, et il faut en refaire un. C'est le prix du
+  plafond, et c'est le bon sens du compromis — mieux vaut un partage à refaire
+  qu'un code à six chiffres essayé un million de fois.
+- **Le bouton *Partager* d'une partie, lui, n'a pas changé** : il reste ouvert à
+  qui utilise l'app, parce qu'une partie partagée doit pouvoir être tenue à
+  plusieurs. Ce sont les liens qui portent *plusieurs* parties qui demandent la
+  clé.
+- **Deux personnes qui marquent la même partie en même temps** : les manches des
+  deux sont conservées — chaque manche a son identifiant, et les deux copies sont
+  fusionnées manche par manche. Seule une *même* manche corrigée des deux côtés
+  au même moment garde la dernière version écrite.
 - **Sans configuration, rien ne change** : `src/config.js` laissé vide, l'app
   garde tout dans le navigateur et n'envoie rien nulle part. Le fichier autonome
   `dist/marque-points.html` reste utilisable hors ligne dans tous les cas.
