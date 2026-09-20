@@ -111,13 +111,43 @@ export const STRINGS = {
     'tarot.failed': 'Contrat chuté de {gap} point(s)',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Saisissez les points du preneur pour voir le résultat.',
-    'data.autoShare': 'Envoyer mes nouvelles parties dans la base partagée',
+    'data.autoShare': 'Envoyer mes nouveautés dans mon groupe',
     'data.autoShareHint':
-      'Décoché, vos parties restent sur cet appareil. Le bouton Partager envoie une partie précise quand vous le décidez.',
+      'Décoché, tout reste sur cet appareil jusqu’à ce que vous appuyiez sur Partager. Coché, chaque nouvelle partie, liste ou sondage part dans votre groupe — à condition qu’il n’y en ait qu’un, sinon l’app préfère demander.',
     'share.sending': 'Envoi…',
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.stats': 'Statistiques',
     'tab.games': 'Parties',
+    'tab.overview': 'Aperçu',
+    'overview.what':
+      'Une app à plusieurs : des listes à cocher et à répartir, des sondages pour trancher une date, et de quoi compter les points d’une vingtaine de jeux.',
+    'overview.pending': 'En cours',
+    'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
+    'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
+    'lists.leftToDo': '{count} ligne(s) à faire',
+    'groups.title': 'Mes groupes',
+    'groups.hint':
+      'Un groupe, c’est un cercle de personnes et une clé : la famille, les copains du mardi. Qui a la clé voit tout ce qui y est partagé — parties, listes et sondages — et peut y partager à son tour.',
+    'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
+    'groups.add': 'Entrer dans un groupe (clé)',
+    'groups.keyPlaceholder': 'collée une fois, gardée sur cet appareil',
+    'groups.keyHint':
+      'La clé se tire une fois dans l’éditeur SQL de votre base (étape 2 bis du guide), et se colle sur chaque appareil du groupe.',
+    'groups.join': 'Entrer',
+    'groups.checking': 'Vérification auprès de la base…',
+    'groups.refused': 'Cette clé n’ouvre aucun groupe. Vérifiez qu’elle a été copiée en entier.',
+    'groups.unsure': 'La base n’a pas répondu. Réessayez dans un moment.',
+    'groups.joined': 'Vous êtes dans {name}.',
+    'groups.shared': '{count} partagé(s) ici',
+    'groups.catchUp': 'Tout récupérer',
+    'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
+    'groups.upToDate': 'Rien de nouveau : cet appareil est à jour.',
+    'groups.leave': 'Quitter',
+    'groups.confirmLeave':
+      'Quitter ce groupe sur cet appareil ? Ce qui est déjà ici y reste, mais vous ne pourrez plus rien y partager ni récupérer sans recoller la clé.',
+    'groups.which': 'Partager dans quel groupe ?',
+    'groups.needOne':
+      'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Aperçu.',
     'tab.polls': 'Sondages',
     'polls.new': 'Nouveau sondage',
     'polls.question': 'La question',
@@ -242,12 +272,8 @@ export const STRINGS = {
       'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
     'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
     'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
-    'shareApp.needsKey':
-      'Pour créer un lien avec des parties, il faut la clé de partage : renseignez-la dans la section Données, en bas de l’accueil.',
     'shareApp.needsUpdate':
       'La base n’a pas encore la fonction des lots : lancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
-    'shareApp.badKey':
-      'La base a refusé la clé de partage. Vérifiez-la dans la section Données.',
     'shareSet.codeLabel': 'Code à communiquer',
     'shareSet.codeApart':
       'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
@@ -261,17 +287,6 @@ export const STRINGS = {
       'Ce lien est bloqué : dix codes faux ont été essayés. Demandez un nouveau lien à la personne qui l’a créé.',
     'shareSet.cannotUnseal':
       'Le code est bon, mais ce navigateur ne peut pas déchiffrer le lot : ouvrez le lien en https (l’adresse de l’app), pas en http.',
-    'data.shareKey': 'Clé de partage (pour créer des liens avec parties)',
-    'data.shareKeyPlaceholder': 'collée une fois, gardée sur cet appareil',
-    'data.shareKeySave': 'Enregistrer la clé',
-    'data.shareKeyHint':
-      'Elle s’obtient une fois pour toutes dans l’éditeur SQL de votre base (étape 2 bis du guide). Sans elle, cet appareil peut ouvrir des liens mais pas en créer avec des parties.',
-    'data.shareKeySet': 'Une clé est enregistrée sur cet appareil.',
-    'data.shareKeyChecking': 'Vérification auprès de la base…',
-    'data.shareKeyGood': 'Clé reconnue : cet appareil peut créer des liens avec parties.',
-    'data.shareKeyBad': 'Clé refusée par la base. Vérifiez qu’elle a été copiée en entier.',
-    'data.shareKeyUnsure': 'Clé enregistrée, mais la base n’a pas répondu. Elle sera vérifiée au prochain partage.',
-    'data.shareKeyCleared': 'Clé effacée de cet appareil.',
     'lots.title': 'Mes partages ({count})',
     'lots.hint':
       'Les liens avec parties créés depuis cet appareil. Le code est rappelé ici, et révoquer un lien le rend inutilisable pour tout le monde, même avec le bon code.',
@@ -302,7 +317,7 @@ export const STRINGS = {
     'share.pushFailed':
       'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
     'home.storedShared':
-      'Vos parties sont enregistrées sur cet appareil. Le bouton Partager, dans une partie, l’envoie dans la base partagée et donne un lien qui l’ouvre chez quelqu’un d’autre.',
+      'Tout est enregistré sur cet appareil. Le bouton Partager, dans une partie, une liste ou un sondage, l’envoie dans un de vos groupes et donne un lien qui l’ouvre chez quelqu’un d’autre.',
     'action.copy': 'Copier',
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
@@ -498,13 +513,42 @@ export const STRINGS = {
     'tarot.failed': 'Contract down by {gap} point(s)',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Enter the taker\u2019s points to see the result.',
-    'data.autoShare': 'Send my new games to the shared database',
+    'data.autoShare': 'Send whatever I start to my group',
     'data.autoShareHint':
-      'Unticked, your games stay on this device. The Share button sends one game when you decide to.',
+      'Unticked, everything stays on this device until you press Share. Ticked, each new game, list or poll goes to your group — as long as there is only one, otherwise the app would rather ask.',
     'share.sending': 'Sending…',
     'share.sendFailed': 'The game could not be sent. Try again.',
     'action.stats': 'Statistics',
     'tab.games': 'Games',
+    'tab.overview': 'Overview',
+    'overview.what':
+      'An app for several people: lists to tick and hand out, polls to settle a date, and a score keeper for a couple of dozen games.',
+    'overview.pending': 'Going on',
+    'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
+    'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
+    'lists.leftToDo': '{count} line(s) left',
+    'groups.title': 'My groups',
+    'groups.hint':
+      'A group is a circle of people and a key: the family, the Tuesday card players. Whoever holds the key sees everything shared in it — games, lists and polls — and can share there too.',
+    'groups.none': 'This device is in no group: it keeps everything to itself.',
+    'groups.add': 'Join a group (key)',
+    'groups.keyPlaceholder': 'pasted once, kept on this device',
+    'groups.keyHint':
+      'The key is drawn once in your database\'s SQL editor (step 2b of the guide), and pasted on every device in the group.',
+    'groups.join': 'Join',
+    'groups.checking': 'Checking with the database…',
+    'groups.refused': 'That key opens no group. Check that all of it was copied.',
+    'groups.unsure': 'The database did not answer. Try again in a moment.',
+    'groups.joined': 'You are in {name}.',
+    'groups.shared': '{count} shared here',
+    'groups.catchUp': 'Fetch everything',
+    'groups.caughtUp': '{count} item(s) fetched from the group.',
+    'groups.upToDate': 'Nothing new: this device is up to date.',
+    'groups.leave': 'Leave',
+    'groups.confirmLeave':
+      'Leave this group on this device? What is already here stays, but you will not be able to share or fetch anything there without pasting the key again.',
+    'groups.which': 'Share in which group?',
+    'groups.needOne': 'Sharing takes a group: paste its key in the Overview tab.',
     'tab.polls': 'Polls',
     'polls.new': 'New poll',
     'polls.question': 'The question',
@@ -628,11 +672,8 @@ export const STRINGS = {
       'This copy of the app has no shared database, so it cannot fetch those games.',
     'shareSet.opened': '{count} game(s) added from the link.',
     'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
-    'shareApp.needsKey':
-      'Creating a link that carries games takes the sharing key: enter it in the Data section, at the bottom of the home screen.',
     'shareApp.needsUpdate':
       'The database does not have the lot functions yet: run the SQL block from step 2b of the deployment guide.',
-    'shareApp.badKey': 'The database refused the sharing key. Check it in the Data section.',
     'shareSet.codeLabel': 'Code to pass on',
     'shareSet.codeApart':
       'Do not send it in the same message as the link: say it out loud, or use another route.',
@@ -646,17 +687,6 @@ export const STRINGS = {
       'This link is locked: ten wrong codes were tried. Ask whoever made it for a new one.',
     'shareSet.cannotUnseal':
       'The code is right, but this browser cannot unseal the lot: open the link over https (the app\'s own address), not http.',
-    'data.shareKey': 'Sharing key (to create links that carry games)',
-    'data.shareKeyPlaceholder': 'pasted once, kept on this device',
-    'data.shareKeySave': 'Save the key',
-    'data.shareKeyHint':
-      'You get it once and for all from your database\'s SQL editor (step 2b of the guide). Without it this device can open links but not create ones carrying games.',
-    'data.shareKeySet': 'A key is saved on this device.',
-    'data.shareKeyChecking': 'Checking with the database…',
-    'data.shareKeyGood': 'Key recognised: this device can create links that carry games.',
-    'data.shareKeyBad': 'The database refused that key. Check that all of it was copied.',
-    'data.shareKeyUnsure': 'Key saved, but the database did not answer. It will be checked at the next share.',
-    'data.shareKeyCleared': 'Key removed from this device.',
     'lots.title': 'My shares ({count})',
     'lots.hint':
       'The links carrying games made from this device. The code is shown again here, and revoking a link makes it useless to everyone, right code or not.',
@@ -687,7 +717,7 @@ export const STRINGS = {
     'share.pushFailed':
       'Game saved here, but not sent to the others. It will go up with the next change.',
     'home.storedShared':
-      'Your games are stored on this device. The Share button, inside a game, sends that game to the shared database and gives a link that opens it for someone else.',
+      'Everything is stored on this device. The Share button — in a game, a list or a poll — sends it to one of your groups and gives a link that opens it for someone else.',
     'action.copy': 'Copy',
     'action.close': 'Close',
     'export.title': 'Your games, as text',

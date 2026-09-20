@@ -22,7 +22,7 @@ export function uid(prefix = 'id') {
  * Build a new game.
  * `names` is a list of player (or team) names, `overrides` patches the config.
  */
-export function createGame({ presetId, names, overrides = {}, name = '', shared = false }) {
+export function createGame({ presetId, names, overrides = {}, name = '', shared = false, groupId = null }) {
   const preset = getPreset(presetId);
   if (!preset) throw new Error(`Unknown preset: ${presetId}`);
 
@@ -39,8 +39,10 @@ export function createGame({ presetId, names, overrides = {}, name = '', shared 
     updatedAt: now,
     finishedAt: null,
     // A game is only sent to the shared database once it is shared — either
-    // deliberately, or because this device sends everything by choice.
+    // deliberately, or because this device sends everything by choice. The
+    // group it was shared in says whose key may change or remove it later.
     shared: Boolean(shared),
+    groupId: groupId || null,
     players,
     config: { ...presetConfig(preset), ...overrides },
     rounds: [],
@@ -147,6 +149,7 @@ export function replayGame(game) {
     overrides: { ...game.config },
     name: game.name,
     shared: Boolean(game.shared),
+    groupId: game.groupId,
   });
 }
 

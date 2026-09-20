@@ -279,8 +279,9 @@ textarea { min-height: 66px; resize: vertical; }
   text-align: center;
 }
 
-/* One remembered share: its code on one side, what to do with it on the other. */
-.lot {
+/* One remembered share, or one group: what it is on one side, what to do with
+   it on the other. */
+.lot, .group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

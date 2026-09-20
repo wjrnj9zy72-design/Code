@@ -20,7 +20,7 @@ export const VALUES = ['yes', 'maybe', 'no'];
 /** The key a single answer is stored under: one person, one choice. */
 const answerKey = (personId, optionId) => `${personId}|${optionId}`;
 
-export function createPoll({ question = '', names = [], shared = false } = {}) {
+export function createPoll({ question = '', names = [], shared = false, groupId = null } = {}) {
   const now = Date.now();
   return {
     id: uid('v'),
@@ -31,6 +31,7 @@ export function createPoll({ question = '', names = [], shared = false } = {}) {
     peopleAt: now,
     closedAt: null,
     shared: Boolean(shared),
+    groupId: groupId || null,
     removed: {},
     people: names
       .map((raw) => String(raw || '').trim())

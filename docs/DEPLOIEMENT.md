@@ -130,23 +130,29 @@ Attendu : **Success. No rows returned.**
 Si un message rouge apparaît, c'est que le bloc n'a pas été collé en entier —
 recollez-le depuis la première ligne `create table` jusqu'au dernier `grant`.
 
-## Étape 2 bis — Les liens qui portent des parties
+## Étape 2 bis — Les groupes
 
-Cette étape ajoute les **lots** : un lien qui apporte plusieurs parties d'un
-coup. Elle est facultative — sans elle, tout le reste de l'app fonctionne, seuls
-les deux liens « avec parties » sont indisponibles et l'app le dit.
+Cette étape ajoute les **groupes**, et avec eux tout le partage. Elle est
+facultative : sans elle, l'app marche, mais chacun garde ses parties, ses listes
+et ses sondages pour lui.
 
-Deux secrets s'y ajoutent, et ils ne jouent pas le même rôle :
+Un **groupe**, c'est un cercle de personnes — la famille, les copains du mardi —
+et une **clé**. Qui a la clé :
 
-| | Qui l'a | Ce qu'il permet |
-| --- | --- | --- |
-| **La clé de partage** | vous seul, sur vos appareils | créer un lien avec des parties |
-| **Un code à six chiffres** | la personne qui reçoit le lien | ouvrir ce lien-là |
+- voit **tout ce qui est partagé dans le groupe**, parties, listes et sondages
+  confondus, d'un seul bouton (*Tout récupérer*) ;
+- peut **y partager** à son tour.
 
-La clé fait que **personne d'autre que vous ne peut partager des parties**, même
-en récupérant la clé publique dans le code de la page. Le code, tiré au hasard à
-chaque partage, fait qu'un lien transmis à quelqu'un d'autre ne vaut rien sans
-lui : la base compte les codes faux et ferme le lot au dixième.
+Et deux règles qui font le reste :
+
+| | Faut-il une clé ? |
+| --- | --- |
+| **Commencer** à partager quelque chose | oui, celle d'un groupe |
+| **Contribuer** à ce qui est déjà partagé — ajouter une manche, cocher une ligne, répondre | non |
+| **Supprimer** quelque chose de partagé | oui, celle de son groupe |
+
+C'est ce qui permet d'envoyer le lien d'une partie à quelqu'un d'extérieur : il
+joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 
 ### 1. Le bloc SQL
 
@@ -154,37 +160,76 @@ lui : la base compte les codes faux et ferme le lot au dixième.
 
 ```sql
 -- ---------------------------------------------------------------------------
--- Les lots de parties : un lien qui apporte plusieurs parties d'un coup.
+-- Les groupes, et les liens qui portent plusieurs choses à la fois.
 --
--- Deux secrets différents, pour deux rôles différents :
---   * la clé de partage, que vous seul détenez : sans elle, impossible de
---     créer un lot. C'est elle qui fait que vous êtes le seul à pouvoir
---     partager des parties.
---   * un code à six chiffres, tiré au hasard à chaque partage : c'est ce que
---     tape la personne qui reçoit le lien.
+-- Un groupe, c'est un cercle de personnes — la famille, les copains du mardi —
+-- et une clé. Qui a la clé appartient au groupe : il voit tout ce qui y est
+-- partagé, parties, listes et sondages confondus, et peut y partager à son
+-- tour.
+--
+-- Deux règles, et elles suffisent :
+--   * créer un partage demande la clé d'un groupe ;
+--   * contribuer à un partage qui existe déjà n'en demande pas — c'est ce qui
+--     permet d'envoyer un lien à quelqu'un d'extérieur au groupe et qu'il
+--     puisse ajouter une manche ou cocher une ligne, sans rien voir du reste.
+--
+-- Un lot, en plus, se ferme d'un code à six chiffres : dix essais, puis il se
+-- bloque. C'est la façon de faire entrer quelqu'un d'un coup pour une soirée,
+-- sans lui donner la clé du groupe.
+--
+-- Ce bloc se relance sans dommage, autant de fois qu'on veut.
 -- ---------------------------------------------------------------------------
 
-alter table public.marque_points_games
-  add column if not exists code_hash text,
-  add column if not exists code_salt text,
-  add column if not exists tries integer not null default 0;
+-- La version d'avant n'avait qu'une clé, sans groupe : elle s'efface ici.
+drop function if exists public.marque_points_new_owner_key();
+drop function if exists public.marque_points_new_owner_key(text);
+drop function if exists public.marque_points_is_owner(text);
+drop function if exists public.marque_points_is_owner(text, text);
+drop table if exists public.marque_points_owner;
 
--- La clé de partage. Une seule ligne, et seulement le condensé de la clé :
--- même en lisant cette table, on ne peut pas la reconstituer.
-create table if not exists public.marque_points_owner (
-  id boolean primary key default true check (id),
+create table if not exists public.marque_points_group (
+  id text primary key,
+  name text not null,
   key_hash text not null,
   key_salt text not null,
   created_at timestamptz not null default now()
 );
 
-alter table public.marque_points_owner enable row level security;
+alter table public.marque_points_group enable row level security;
 
--- Tire une clé de partage, remplace celle qui existait, et l'affiche UNE fois.
--- Elle est retirée à tout le monde juste après (PostgreSQL accorde sinon
--- l'exécution à tous par défaut) : elle ne s'exécute donc que d'ici, depuis
--- l'éditeur SQL de votre projet, et jamais depuis l'app.
-create or replace function public.marque_points_new_owner_key()
+-- Chaque document partagé appartient au groupe qui l'a créé.
+alter table public.marque_points_games
+  add column if not exists group_id text;
+
+create index if not exists marque_points_games_group on public.marque_points_games (group_id);
+
+-- Crée un groupe et affiche sa clé UNE fois. Ne s'exécute que d'ici, depuis
+-- l'éditeur SQL du projet : PostgreSQL accorde sinon l'exécution à tous.
+create or replace function public.marque_points_new_group(p_name text)
+returns table (nom text, cle text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_key text := replace(gen_random_uuid()::text, '-', '');
+  v_salt text := md5(gen_random_uuid()::text);
+  v_name text := nullif(btrim(coalesce(p_name, '')), '');
+begin
+  if v_name is null then
+    raise exception 'donnez un nom au groupe';
+  end if;
+
+  insert into public.marque_points_group (id, name, key_hash, key_salt)
+  values (replace(gen_random_uuid()::text, '-', ''), v_name, md5(v_key || v_salt), v_salt);
+
+  return query select v_name, v_key;
+end;
+$$;
+
+-- Renouvelle la clé d'un groupe : les appareils qui avaient l'ancienne en
+-- sortent, ce qui y est partagé reste.
+create or replace function public.marque_points_new_group_key(p_name text)
 returns text
 language plpgsql
 security definer
@@ -193,81 +238,122 @@ as $$
 declare
   v_key text := replace(gen_random_uuid()::text, '-', '');
   v_salt text := md5(gen_random_uuid()::text);
+  v_id text;
 begin
-  insert into public.marque_points_owner (id, key_hash, key_salt)
-  values (true, md5(v_key || v_salt), v_salt)
-  on conflict (id) do update
-    set key_hash = excluded.key_hash, key_salt = excluded.key_salt, created_at = now();
+  select id into v_id from public.marque_points_group where name = btrim(coalesce(p_name, ''));
+  if v_id is null then
+    raise exception 'aucun groupe de ce nom';
+  end if;
+
+  update public.marque_points_group
+     set key_hash = md5(v_key || v_salt), key_salt = v_salt, created_at = now()
+   where id = v_id;
   return v_key;
 end;
 $$;
 
--- Cette clé est-elle la bonne ? L'app le demande pour dire à qui la saisit si
--- elle est reconnue. Une clé fait 122 bits : on ne la trouve pas en essayant.
-create or replace function public.marque_points_is_owner(p_key text)
-returns boolean
-language sql
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1 from public.marque_points_owner
-     where key_hash = md5(coalesce(p_key, '') || key_salt)
-  );
-$$;
-
--- Les trois fonctions ordinaires, à nouveau : identiques à celles de l'étape 2,
--- répétées ici pour que ce bloc suffise à lui seul si votre base date d'une
--- version antérieure du guide. Un lot protégé est invisible à la lecture
--- ordinaire : la seule porte est marque_points_open_set, qui exige le code et
--- compte les essais.
-create or replace function public.marque_points_get(p_id text)
+-- Le groupe qu'ouvre cette clé, ou rien. C'est ce que l'app demande quand on
+-- colle une clé : elle en affiche le nom, plutôt qu'un simple « acceptée ».
+create or replace function public.marque_points_group_of(p_key text)
 returns jsonb
 language sql
 security definer
 set search_path = public
 as $$
-  select data from public.marque_points_games
-   where id = p_id and code_hash is null;
+  select jsonb_build_object('id', id, 'name', name)
+    from public.marque_points_group
+   where key_hash = md5(coalesce(p_key, '') || key_salt)
+   limit 1;
 $$;
 
--- Et l'écriture ordinaire ne peut pas écraser un lot.
-create or replace function public.marque_points_put(p_id text, p_data jsonb)
+-- Tout ce qui est partagé dans ce groupe : de quoi rattraper un appareil qui
+-- vient d'entrer, ou qui a été absent.
+create or replace function public.marque_points_group_docs(p_key text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'updatedAt', g.data->'updatedAt')), '[]'::jsonb)
+    from public.marque_points_games g
+    join public.marque_points_group p on p.id = g.group_id
+   where p.key_hash = md5(coalesce(p_key, '') || p.key_salt)
+     and g.code_hash is null;
+$$;
+
+drop function if exists public.marque_points_put(text, jsonb);
+drop function if exists public.marque_points_delete(text);
+
+create or replace function public.marque_points_put(p_id text, p_data jsonb, p_key text default null)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_exists boolean;
+  v_group text;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
   end if;
   if pg_column_size(p_data) > 200000 then
-    raise exception 'partie trop volumineuse';
+    raise exception 'donnee trop volumineuse';
   end if;
 
-  insert into public.marque_points_games (id, data, updated_at)
-  values (p_id, p_data, now())
-  on conflict (id) do update
-    set data = excluded.data, updated_at = now()
-    where marque_points_games.code_hash is null;
+  select true into v_exists
+    from public.marque_points_games
+   where id = p_id and code_hash is null;
+
+  if v_exists is null then
+    -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
+    -- dire dans quel groupe.
+    select id into v_group from public.marque_points_group
+     where key_hash = md5(coalesce(p_key, '') || key_salt);
+    if v_group is null then
+      raise exception 'cle de groupe invalide';
+    end if;
+
+    insert into public.marque_points_games (id, data, updated_at, group_id)
+    values (p_id, p_data, now(), v_group);
+  else
+    -- La ligne existe : qui a le lien peut y contribuer.
+    update public.marque_points_games
+       set data = p_data, updated_at = now()
+     where id = p_id and code_hash is null;
+  end if;
 end;
 $$;
 
--- La suppression ordinaire ne touche pas non plus aux lots : un lot ne
--- disparaît que par marque_points_forget_set, avec la clé de partage.
-create or replace function public.marque_points_delete(p_id text)
+-- Supprimer ce qui est partagé demande la clé du groupe : sinon, quiconque a
+-- reçu un lien pourrait effacer la partie de tout le monde.
+create or replace function public.marque_points_delete(p_id text, p_key text default null)
 returns void
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
-  delete from public.marque_points_games
+declare
+  v_group text;
+begin
+  select group_id into v_group from public.marque_points_games
    where id = p_id and code_hash is null;
+  if not found then
+    return; -- rien à supprimer, rien à refuser
+  end if;
+
+  if v_group is null or v_group is distinct from (
+    select id from public.marque_points_group
+     where key_hash = md5(coalesce(p_key, '') || key_salt)
+  ) then
+    raise exception 'cle de groupe invalide';
+  end if;
+
+  delete from public.marque_points_games where id = p_id and code_hash is null;
+end;
 $$;
 
--- Créer un lot. Il faut la clé de partage, et un code à six chiffres qui ne
--- sera jamais stocké en clair.
+-- Un lot : la clé d'un groupe suffit, et il se range dans ce groupe.
 create or replace function public.marque_points_put_set(
   p_id text, p_data jsonb, p_code text, p_key text
 )
@@ -278,9 +364,12 @@ set search_path = public
 as $$
 declare
   v_salt text := md5(gen_random_uuid()::text);
+  v_group text;
 begin
-  if not public.marque_points_is_owner(p_key) then
-    raise exception 'cle de partage invalide';
+  select id into v_group from public.marque_points_group
+   where key_hash = md5(coalesce(p_key, '') || key_salt);
+  if v_group is null then
+    raise exception 'cle de groupe invalide';
   end if;
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
@@ -292,8 +381,31 @@ begin
     raise exception 'lot trop volumineux';
   end if;
 
-  insert into public.marque_points_games (id, data, updated_at, code_hash, code_salt, tries)
-  values (p_id, p_data, now(), md5(p_code || v_salt), v_salt, 0);
+  insert into public.marque_points_games (id, data, updated_at, code_hash, code_salt, tries, group_id)
+  values (p_id, p_data, now(), md5(p_code || v_salt), v_salt, 0, v_group);
+end;
+$$;
+
+create or replace function public.marque_points_forget_set(p_id text, p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.marque_points_group
+     where key_hash = md5(coalesce(p_key, '') || key_salt)
+  ) then
+    raise exception 'cle de groupe invalide';
+  end if;
+
+  delete from public.marque_points_games
+   where id = p_id and code_hash is not null;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  return jsonb_build_object('status', 'ok');
 end;
 $$;
 
@@ -327,100 +439,92 @@ begin
 end;
 $$;
 
--- Révoquer un lot : avec la clé de partage, donc vous seul. Le lien ne donne
--- plus rien à personne, même avec le bon code.
-create or replace function public.marque_points_forget_set(p_id text, p_key text)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if not public.marque_points_is_owner(p_key) then
-    raise exception 'cle de partage invalide';
-  end if;
+-- Les clés se tirent depuis cet éditeur, et de nulle part ailleurs.
+revoke all on function public.marque_points_new_group(text) from public, anon, authenticated;
+revoke all on function public.marque_points_new_group_key(text) from public, anon, authenticated;
 
-  delete from public.marque_points_games
-   where id = p_id and code_hash is not null;
-  if not found then
-    return jsonb_build_object('status', 'unknown');
-  end if;
-  return jsonb_build_object('status', 'ok');
-end;
-$$;
-
--- Personne, sauf le propriétaire du projet depuis cet éditeur.
-revoke all on function public.marque_points_new_owner_key() from public, anon, authenticated;
-
-grant execute on function public.marque_points_is_owner(text) to anon, authenticated;
-grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_open_set(text, text) to anon, authenticated;
+grant execute on function public.marque_points_group_of(text) to anon, authenticated;
+grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
+grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
+grant execute on function public.marque_points_delete(text, text) to anon, authenticated;
+grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
 ```
 
 Attendu : **Success. No rows returned.**
 
-### 2. Tirer votre clé de partage
+> Si vous aviez passé la version précédente de cette étape — celle avec une clé
+> unique, sans groupe —, ce bloc l'efface proprement : la clé d'avant ne servira
+> plus, et les appareils devront recevoir une clé de groupe. Ce qui était déjà
+> partagé reste.
 
-Effacez la zone de texte et lancez cette requête **une seule fois** :
+### 2. Créer votre premier groupe
 
-```sql
-select public.marque_points_new_owner_key();
-```
-
-Elle affiche une suite de 32 caractères, par exemple
-`7c50632b32d14ea1974ca2a77503315d`. **Copiez-la maintenant** : elle ne sera plus
-jamais affichée. La base n'en garde qu'une empreinte, pas la clé elle-même.
-
-Relancer cette requête plus tard remplace la clé : les appareils qui avaient
-l'ancienne ne peuvent plus créer de liens (les liens déjà créés continuent, eux,
-de fonctionner). C'est le geste à faire si vous pensez que la clé a fuité.
-
-### 3. La donner à l'app, une fois par appareil
-
-Dans l'app : bas de l'accueil, section **Données** → **Clé de partage** → collez,
-puis **Enregistrer la clé**. L'app répond *Clé reconnue* — c'est la base qui le
-dit, pas l'app.
-
-> ⚠️ Ne mettez **jamais** cette clé dans `src/config.js` ni ailleurs dans le
-> dépôt : ce fichier est public, et la clé deviendrait publique avec lui. Elle se
-> colle dans l'app, sur chaque appareil depuis lequel vous voulez partager des
-> parties (Safari et l'app installée sur l'écran d'accueil comptent pour deux).
-
-### 4. Vérifier
-
-Toujours dans **SQL Editor**, une requête à la fois, en remplaçant
-`VOTRE_CLE` par la clé copiée :
+Effacez la zone de texte et lancez :
 
 ```sql
-select public.marque_points_is_owner('VOTRE_CLE');
+select * from public.marque_points_new_group('Famille');
 ```
 
-Attendu : **`true`**. Avec n'importe quoi d'autre à la place, **`false`**.
+Elle affiche deux colonnes : le **nom** et la **clé**, une suite de 32
+caractères. **Copiez la clé maintenant** : elle ne sera plus jamais affichée. La
+base n'en garde qu'une empreinte.
+
+Recommencez avec un autre nom pour un autre cercle — `'Copains du mardi'`, par
+exemple. Un appareil peut appartenir à plusieurs groupes ; l'app demande alors
+dans lequel partager.
+
+### 3. Donner la clé à l'app, une fois par appareil
+
+Dans l'app : onglet **Aperçu** → section **Mes groupes** → collez la clé →
+**Entrer**. L'app répond *Vous êtes dans Famille* — c'est la base qui le dit.
+
+Faites-le sur chaque appareil du groupe : le vôtre, celui de la personne avec
+qui vous partagez, Safari et l'app de l'écran d'accueil (qui comptent pour deux).
+Puis **Tout récupérer** ramène d'un coup ce que le groupe partage déjà.
+
+> ⚠️ Ne mettez **jamais** une clé de groupe dans `src/config.js` ni ailleurs dans
+> le dépôt : ce fichier est public, et la clé le deviendrait avec lui.
+
+### 4. Si une clé fuite
 
 ```sql
-select public.marque_points_put_set('lot_de_test_1', '{"kind":"set","ids":["test"]}'::jsonb, '123456', 'VOTRE_CLE');
-select public.marque_points_open_set('lot_de_test_1', '000000');
-select public.marque_points_open_set('lot_de_test_1', '123456');
-select public.marque_points_forget_set('lot_de_test_1', 'VOTRE_CLE');
+select public.marque_points_new_group_key('Famille');
 ```
 
-Attendu, dans l'ordre :
+Elle en tire une nouvelle : les appareils qui avaient l'ancienne sortent du
+groupe, ce qui y est partagé reste, et il suffit de recoller la nouvelle clé là
+où il faut.
 
-1. une cellule vide — `put_set` ne renvoie rien ;
-2. `{"left": 9, "status": "wrong"}` — le mauvais code est compté ;
-3. `{"set": {"ids": ["test"], "kind": "set"}, "status": "ok"}` — le bon code
-   rend le lot ;
-4. `{"status": "ok"}` — le lot de test est révoqué.
+### 5. Vérifier
 
-PostgreSQL range les champs par longueur de nom, donc `set` s'affiche avant
-`status` : c'est normal, et l'ordre n'a aucune importance.
+Une requête à la fois, en remplaçant `VOTRE_CLE` par la clé copiée :
+
+```sql
+select public.marque_points_group_of('VOTRE_CLE');
+```
+
+Attendu : `{"id": "...", "name": "Famille"}`. Avec n'importe quoi d'autre à la
+place : une cellule vide.
+
+```sql
+select public.marque_points_put('g_de_test_1', '{"id":"g_de_test_1"}'::jsonb);
+select public.marque_points_put('g_de_test_1', '{"id":"g_de_test_1"}'::jsonb, 'VOTRE_CLE');
+select public.marque_points_put('g_de_test_1', '{"id":"g_de_test_1","ok":true}'::jsonb);
+select jsonb_array_length(public.marque_points_group_docs('VOTRE_CLE'));
+select public.marque_points_delete('g_de_test_1', 'VOTRE_CLE');
+```
+
+Attendu, dans l'ordre : une **erreur rouge** `cle de groupe invalide` — c'est le
+but ; une cellule vide ; une cellule vide encore (contribuer ne demande rien) ;
+**1** ; et une cellule vide.
 
 > Ce bloc et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16 avec
-> les mêmes rôles que chez Supabase. Sans la clé, la création d'un lot est
-> refusée ; un lot n'est pas lisible par la fonction de lecture ordinaire, ni
-> écrasable, ni supprimable par les fonctions ordinaires ; le dixième code faux
-> le ferme définitivement ; et le rôle public ne peut pas tirer de nouvelle clé.
+> les rôles de Supabase : sans clé rien ne se crée, une clé n'ouvre que son
+> groupe, un groupe ne voit pas les documents du groupe d'à côté, renouveler une
+> clé fait sortir l'ancienne sans rien perdre, et le rôle public ne peut ni créer
+> de groupe ni lire aucune table.
 
 ## Étape 3 — Vérifier, sans quitter la page
 
@@ -581,34 +685,27 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
   la page pourrait écrire de fausses parties dans la base. Il ne verrait pas les
   vôtres pour autant. Les garde-fous du script SQL limitent la casse ; le cas
   échéant, régénérez la clé depuis Supabase et refaites l'étape 5.
-- **Un lot de parties** — le lien qui en apporte plusieurs d'un coup — ne se crée
-  qu'avec la clé de partage, et ne s'ouvre qu'avec son code à six chiffres, dix
-  essais au maximum. Il ne contient pas les parties, seulement la liste chiffrée
-  de leurs identifiants : même en lisant la ligne dans la base, on ne sait pas
-  quelles parties il désigne. Le chiffrement demande https (l'adresse de l'app en
-  est une) ; sur une adresse en http, la liste est stockée en clair et l'app le
-  dit.
+- **Un groupe est une clé.** Qui l'a peut partager dans ce groupe et voir tout
+  ce qui y est partagé ; qui ne l'a pas ne peut rien y créer. La clé se colle sur
+  chaque appareil, et se renouvelle en une requête si elle fuite.
+- **Contribuer ne demande rien.** Un lien envoyé à quelqu'un d'extérieur lui
+  permet d'ajouter une manche, de cocher une ligne, de répondre à un sondage —
+  et rien d'autre : il ne voit pas le reste du groupe et ne peut rien partager.
+- **Un lot de parties** — le lien qui en apporte plusieurs d'un coup — se crée
+  avec la clé d'un groupe et s'ouvre avec son code à six chiffres, dix essais au
+  maximum. Il ne contient pas les documents, seulement la liste chiffrée de leurs
+  identifiants : même en lisant la ligne dans la base, on ne sait pas ce qu'il
+  désigne. Le chiffrement demande https (l'adresse de l'app en est une) ; sur une
+  adresse en http, la liste est stockée en clair et l'app le dit.
 - **Le code est à dire, pas à écrire dans le même message.** Un lien et son code
   envoyés ensemble ne protègent plus rien : le bouton *Copier* ne copie que le
   lien, exprès.
-- **Révoquer un partage** se fait depuis *Mes partages*, dans la section
-  **Données** : le lien ne donne plus rien à personne, même avec le bon code. Les
-  parties elles-mêmes restent.
-- **Une partie ouverte par un lot reste ouvrable par son propre lien** ensuite,
-  comme toute partie partagée : le code protège le lot, pas chaque partie pour
-  toujours.
+- **Révoquer un partage** se fait depuis *Mes partages*, dans l'onglet Aperçu :
+  le lien ne donne plus rien à personne, même avec le bon code.
+- **Une partie ouverte par un lot reste ouvrable par son propre lien** ensuite :
+  le code protège le lot, pas chaque partie pour toujours.
 - **Les dix essais peuvent être gâchés** par quelqu'un à qui le lien est parvenu
-  sans le code : le lot se ferme, et il faut en refaire un. C'est le prix du
-  plafond, et c'est le bon sens du compromis — mieux vaut un partage à refaire
-  qu'un code à six chiffres essayé un million de fois.
-- **Le bouton *Partager* d'une partie, lui, n'a pas changé** : il reste ouvert à
-  qui utilise l'app, parce qu'une partie partagée doit pouvoir être tenue à
-  plusieurs. Ce sont les liens qui portent *plusieurs* parties qui demandent la
-  clé.
-- **Deux personnes qui marquent la même partie en même temps** : les manches des
-  deux sont conservées — chaque manche a son identifiant, et les deux copies sont
-  fusionnées manche par manche. Seule une *même* manche corrigée des deux côtés
-  au même moment garde la dernière version écrite.
+  sans le code : le lot se ferme, et il faut en refaire un.
 - **Sans configuration, rien ne change** : `src/config.js` laissé vide, l'app
   garde tout dans le navigateur et n'envoie rien nulle part. Le fichier autonome
   `dist/marque-points.html` reste utilisable hors ligne dans tous les cas.

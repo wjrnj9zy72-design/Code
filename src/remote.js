@@ -11,11 +11,15 @@
  * game by id`, which means a game can only be found by someone who has its
  * link.
  *
- * A lot of games — a link that hands over several at once — goes through its
- * own functions, because it is protected differently: writing one takes the
- * sharing key that only the person hosting the database has, and reading one
- * takes the six-digit code drawn for that share, which the database allows ten
- * attempts at.
+ * Sharing is held by groups. A group — the family, the Tuesday card players —
+ * is a circle of people and a key; whoever holds the key can start sharing in
+ * that group and sees everything shared in it. Contributing to something
+ * already shared needs no key at all.
+ *
+ * A lot — a link that hands over several things at once — goes through its own
+ * functions, because it is protected differently: writing one takes a group's
+ * key, and reading one takes the six-digit code drawn for that share, which
+ * the database allows ten attempts at.
  *
  * Every call is defensive. The network fails, the configuration may be wrong,
  * the service may be down: none of that may stop someone keeping score, so a
@@ -79,9 +83,24 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
   }
 
   return {
-    /** Is this the sharing key the database was set up with? */
-    async isOwner(key) {
-      return (await call('marque_points_is_owner', { p_key: key })) === true;
+    /**
+     * The group a key opens — its id and its name — or null when the key
+     * opens nothing. Showing the name is what turns "key accepted" into
+     * "you are in Famille".
+     */
+    async groupOf(key) {
+      const group = await call('marque_points_group_of', { p_key: key });
+      return group && typeof group === 'object' && group.id ? group : null;
+    },
+
+    /**
+     * Everything shared in that group: ids and when each last changed, so a
+     * device that has just joined — or come back from a fortnight away — can
+     * fetch what it is missing and nothing else.
+     */
+    async groupDocs(key) {
+      const rows = await call('marque_points_group_docs', { p_key: key });
+      return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string') : [];
     },
 
     /**
@@ -132,13 +151,21 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return data && typeof data === 'object' ? data : null;
     },
 
-    /** Store a game under its own id. Whoever holds the link may also write. */
-    async put(game) {
-      await call('marque_points_put', { p_id: game.id, p_data: game });
+    /**
+     * Store a document under its own id.
+     *
+     * Starting to share takes a group's key — that is what keeps sharing in
+     * the hands of the people who hold one. Contributing to something already
+     * shared takes none, which is what lets a link be sent to someone outside
+     * the group without giving them the run of it.
+     */
+    async put(document_, key = null) {
+      await call('marque_points_put', { p_id: document_.id, p_data: document_, p_key: key });
     },
 
-    async remove(id) {
-      await call('marque_points_delete', { p_id: id });
+    /** Unshare: the key of the group it belongs to, and nobody else's. */
+    async remove(id, key = null) {
+      await call('marque_points_delete', { p_id: id, p_key: key });
     },
   };
 }

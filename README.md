@@ -1,9 +1,10 @@
 # 🃏 Together
 
-Trois onglets, une seule app : **Parties**, un compteur de points pour Papayoo
-et une vingtaine d'autres jeux ; **Listes**, des listes à cocher et à répartir
-entre plusieurs personnes ; **Sondages**, pour trancher une date ou un choix à
-plusieurs. Une page web, aucune dépendance, aucun build.
+Quatre onglets, une seule app. **Aperçu** : ce qui est en cours, vos groupes, vos
+données. **Listes** : à cocher et à répartir entre plusieurs personnes.
+**Sondages** : pour trancher une date ou un choix. **Parties** : un compteur de
+points pour Papayoo et une vingtaine d'autres jeux. Une page web, aucune
+dépendance, aucun build.
 
 <p>
   <img src="docs/screenshot-light.png" alt="Une partie de Papayoo en thème clair" width="45%" />
@@ -36,16 +37,19 @@ plusieurs. Une page web, aucune dépendance, aucun build.
   Le lien part par la feuille de partage du téléphone, ou s'affiche à copier avec
   un **code QR** ; il reste court quel que soit le nombre de parties, parce qu'il
   ne porte pas les parties mais un identifiant qui les désigne.
-- **Les liens avec parties sont gardés à double tour.** Les créer demande une
-  **clé de partage** que seul celui qui héberge la base détient : personne
-  d'autre ne peut partager de parties, même en récupérant la clé publique dans le
-  code de la page. Les ouvrir demande un **code à six chiffres**, tiré au hasard
-  à chaque partage, que la personne tape à l'arrivée — dix essais, puis le lien
-  se ferme de lui-même. Le lien et le code voyagent séparément, exprès : *Copier*
-  ne copie que le lien. La liste des parties d'un lot est chiffrée avec ce code,
-  donc la base elle-même ne sait pas ce qu'un lot désigne. Et *Mes partages*, dans
-  la section **Données**, rappelle chaque code et permet de **révoquer** un lien
-  déjà envoyé.
+- **Le partage tient dans une idée : le groupe.** Un groupe — la famille, les
+  copains du mardi — est un cercle de personnes et une clé. Qui a la clé voit
+  tout ce qui y est partagé, parties, listes et sondages confondus, et peut y
+  partager à son tour ; qui ne l'a pas ne peut rien y créer, même en récupérant
+  la clé publique dans le code de la page. **Contribuer, en revanche, ne demande
+  rien** : un lien envoyé à quelqu'un d'extérieur lui permet d'ajouter une
+  manche ou de cocher une ligne, sans rien voir du reste.
+- **Et pour faire entrer quelqu'un d'un coup, sans lui donner la clé** : un lien
+  qui porte plusieurs documents, fermé par un **code à six chiffres** tiré au
+  hasard — dix essais, puis il se bloque. Le lien et le code voyagent séparément,
+  exprès : *Copier* ne copie que le lien. Ce que le lot désigne est chiffré avec
+  ce code, donc la base elle-même ne le sait pas. *Mes partages*, dans l'onglet
+  Aperçu, rappelle chaque code et permet de **révoquer** un lien déjà envoyé.
 - **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
