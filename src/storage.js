@@ -66,6 +66,17 @@ export function loadPrefs() {
   return value && typeof value === 'object' ? value : {};
 }
 
+/**
+ * Preferences are written key by key over what is already stored, not as a
+ * wholesale replacement.
+ *
+ * Each tab holds its own copy in memory, so a tab that has been open a while
+ * and then writes one setting would otherwise throw away everything the others
+ * have written since — the groups with their keys, and a ticket handed over
+ * once and stored nowhere else. Merging makes the last writer win over the
+ * setting it touched, and nothing else.
+ */
 export function savePrefs(prefs) {
-  return write(PREFS_KEY, prefs);
+  const stored = loadPrefs();
+  return write(PREFS_KEY, { ...stored, ...prefs });
 }

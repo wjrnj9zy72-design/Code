@@ -136,11 +136,11 @@ export const STRINGS = {
     'groups.inviteWhichHint':
       'Dans les deux cas, personne n’entre sans que vous l’acceptiez : une invitation ne donne que le droit de frapper.',
     'groups.inviteOpen': 'Un lien pour la journée, plusieurs personnes',
-    'groups.inviteOne': 'Une seule personne, une demi-heure',
+    'groups.inviteOne': 'Une seule personne, la journée aussi',
     'groups.inviteHintOpen':
       'Envoyez ce lien à qui vous voulez — la famille, un groupe de discussion. Il vaut {hours} h et plusieurs personnes ; chacune n’aura que son prénom à écrire, et vous verrez sa demande dans l’Aperçu.',
     'groups.inviteHintOne':
-      'Envoyez ce lien à cette personne : elle n’aura que son prénom à écrire. Il vaut {minutes} minutes et une seule demande, que vous devrez accepter.',
+      'Envoyez ce lien à cette personne : elle n’aura que son prénom à écrire. Il vaut {hours} h et une seule demande, que vous devrez accepter — un lien transféré ne servira donc à personne d’autre.',
     'groups.inviteText': 'Un lien pour entrer dans {name}',
     'groups.namePlaceholder': 'nom du groupe',
     'groups.codePlaceholder': 'code à six chiffres',
@@ -193,6 +193,10 @@ export const STRINGS = {
     'join.action': 'Demander à entrer',
     'join.alreadyUpToDate': 'Cet appareil est déjà dans {name}, et à jour.',
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
+    'sync.title': 'Récupérer ce que les autres ont fait',
+    'sync.done': '{count} élément(s) récupéré(s).',
+    'sync.nothing': 'Rien de nouveau : cet appareil est à jour.',
+    'sync.failed': 'La base n’a pas répondu. Réessayez dans un moment.',
     'gate.knock': 'Demander',
     'gate.needNameFirst':
       'Écrivez d’abord votre prénom, dans « Moi » juste au-dessus : le groupe verra qui demande à entrer.',
@@ -627,11 +631,11 @@ export const STRINGS = {
     'groups.inviteWhichHint':
       'Either way nobody gets in until you accept them: an invitation only grants the right to knock.',
     'groups.inviteOpen': 'A link for the day, several people',
-    'groups.inviteOne': 'One person, half an hour',
+    'groups.inviteOne': 'One person, for the day too',
     'groups.inviteHintOpen':
       'Send this link to whoever you like — the family, a group chat. It is good for {hours} h and several people; each writes nothing but their first name, and you see their request in the Overview.',
     'groups.inviteHintOne':
-      'Send this link to that person: all they write is their first name. It is good for {minutes} minutes and one request, which you will have to accept.',
+      'Send this link to that person: all they write is their first name. It is good for {hours} h and one request, which you will have to accept — so a forwarded link is no use to anyone else.',
     'groups.inviteText': 'A link to join {name}',
     'groups.namePlaceholder': 'group name',
     'groups.codePlaceholder': 'six-digit code',
@@ -681,6 +685,10 @@ export const STRINGS = {
     'join.action': 'Ask to join',
     'join.alreadyUpToDate': 'This device is already in {name}, and up to date.',
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
+    'sync.title': 'Fetch what the others have done',
+    'sync.done': '{count} item(s) fetched.',
+    'sync.nothing': 'Nothing new: this device is up to date.',
+    'sync.failed': 'The database did not answer. Try again in a moment.',
     'gate.knock': 'Ask',
     'gate.needNameFirst':
       'Write your first name first, under “Me” just above: the group will see who is asking to join.',

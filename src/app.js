@@ -18,7 +18,7 @@ import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
 } from './polls.js';
-import { recentPeople, withMeFirst } from './people.js';
+import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom } from './remote.js';
@@ -127,15 +127,17 @@ function appLink() {
 }
 
 function flash(message, kind = 'info') {
-  state.flash = { message, kind, at: Date.now() };
+  state.flash = { message, kind, shownAt: null };
 }
 
 /**
- * How long a message stays on screen across redraws.
+ * How long a message stays on screen once it has been read.
  *
  * Long enough to survive what follows it: something is answered, the app asks
  * the database what the answer changed, and redraws when it knows. A message
- * consumed by the first of those two redraws would flash and vanish.
+ * consumed by the first of those two redraws would flash and vanish. Going
+ * somewhere else, on the other hand, ends it — a line about a group accepted is
+ * nothing to a screen of games.
  */
 const FLASH_KEPT = 4000;
 
@@ -1017,8 +1019,13 @@ function navigate(hash) {
 
 function flashHtml() {
   if (!state.flash) return '';
-  const { message, kind, at } = state.flash;
-  if (Date.now() - (at || 0) > FLASH_KEPT) {
+  const { message, kind, shownAt } = state.flash;
+  // Shown for the first time: the clock starts here rather than when the message
+  // was raised, so one that had to wait — for a screen where someone was typing,
+  // say — is still read rather than silently dropped.
+  if (!shownAt) {
+    state.flash = { ...state.flash, shownAt: Date.now() };
+  } else if (Date.now() - shownAt > FLASH_KEPT) {
     state.flash = null;
     return '';
   }
@@ -1175,17 +1182,19 @@ function myKnocksHtml() {
   return `
     <div class="stack stack--tight">${held
       .map(
-        (knock) => `
+        // The ticket is this device's future key: it stays in storage, and the
+        // buttons carry a place in the list instead.
+        (knock, index) => `
           <div class="knock">
             <div>
               <strong>${escapeHtml(knock.groupName)}</strong>
               <span class="muted small">${escapeHtml(t('gate.askedAt', { date: formatDate(knock.at) }))}</span>
             </div>
             <div class="row row--tight">
-              <button type="button" class="button button--small" data-check="${escapeHtml(knock.ticket)}">
+              <button type="button" class="button button--small" data-check="${index}">
                 ${escapeHtml(t('gate.check'))}
               </button>
-              <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(knock.ticket)}">
+              <button type="button" class="button button--small button--ghost" data-drop="${index}">
                 ${escapeHtml(t('gate.dropMine'))}
               </button>
             </div>
@@ -1380,11 +1389,33 @@ function bindOverview() {
     const code = readCode(view.querySelector('#group-code').value);
     if (!name) return joining(line, t('groups.needName'));
     if (!code) return joining(line, t('groups.needCode'));
+    // Everything that can refuse without asking the database is refused before
+    // the button goes dead, or a missing first name would leave it dead.
+    if (!myName()) return joining(line, t('gate.needNameFirst'));
 
     button.disabled = true;
     joining(line, t('groups.checking'));
     const me = myName();
-    if (!me) return joining(line, t('gate.needNameFirst'));
+
+    // Already in this group: knocking again would hand this device a second,
+    // ordinary key — and remembering it would throw away the one it holds,
+    // which on the founder's phone is the only key that lets anyone in.
+    const held = groupNamed(name);
+    if (held) {
+      let taken = 0;
+      try {
+        taken = await catchUpWith(held);
+      } catch {
+        button.disabled = false;
+        return joining(line, t('groups.unsure'));
+      }
+      button.disabled = false;
+      flash(taken
+        ? t('join.alreadyCaughtUp', { name: held.name, count: taken })
+        : t('join.alreadyUpToDate', { name: held.name }));
+      render();
+      return;
+    }
 
     let answer = { status: 'unknown' };
     try {
@@ -1472,7 +1503,6 @@ function bindOverview() {
         title: t('groups.inviteTitle', { name: group.name }),
         hint: t(shape.uses > 1 ? 'groups.inviteHintOpen' : 'groups.inviteHintOne', {
           hours: Math.round(invitation.minutes / 60),
-          minutes: invitation.minutes,
         }),
         text: t('groups.inviteText', { name: group.name }),
         code: invitation.code,
@@ -1529,7 +1559,7 @@ function bindOverview() {
 
   view.querySelectorAll('[data-check]').forEach((button) => {
     button.addEventListener('click', async () => {
-      const knock = pendings().find((held) => held.ticket === button.dataset.check);
+      const knock = pendings()[Number(button.dataset.check)];
       if (!knock) return;
       button.disabled = true;
       const status = await checkPending(knock);
@@ -1541,7 +1571,7 @@ function bindOverview() {
 
   view.querySelectorAll('[data-drop]').forEach((button) => {
     button.addEventListener('click', async () => {
-      const knock = pendings().find((held) => held.ticket === button.dataset.drop);
+      const knock = pendings()[Number(button.dataset.drop)];
       if (!knock) return;
       if (!(await ask(t('gate.confirmDropMine', { name: knock.groupName }),
         { confirmLabel: t('gate.dropMine'), danger: true }))) return;
@@ -1624,7 +1654,7 @@ function joinView(invitation) {
       </label>
 
       <button type="submit" class="button button--primary button--block">
-        ${escapeHtml(t('join.action'))}
+        ${escapeHtml(already ? t('groups.catchUp') : t('join.action'))}
       </button>
       <p class="muted small" id="join-state"></p>
 
@@ -1646,18 +1676,18 @@ function joinView(invitation) {
  * shown that they are not yet entitled to see. It looks in on its own while it
  * is open, so being accepted needs no gesture on this side.
  */
-function waitingView(ask) {
+function waitingView(knock) {
   return `
     ${flashHtml()}
     <div class="spread">
-      <h1>${escapeHtml(t('gate.waitingTitle', { name: ask.groupName }))}</h1>
+      <h1>${escapeHtml(t('gate.waitingTitle', { name: knock.groupName }))}</h1>
       <button type="button" class="button button--small button--ghost" data-goto="#/">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
 
     <div class="card stack">
-      <p>${escapeHtml(t('gate.waitingWhat', { name: ask.groupName, me: ask.me || t('gate.someone') }))}</p>
+      <p>${escapeHtml(t('gate.waitingWhat', { name: knock.groupName, me: knock.me || t('gate.someone') }))}</p>
       <p class="muted small">${escapeHtml(t('gate.waitingHow'))}</p>
       <p class="muted small" id="waiting-state"></p>
       <div class="row">
@@ -1668,9 +1698,10 @@ function waitingView(ask) {
 }
 
 /**
- * Which invitation to draw. The link for the day comes first because it is what
- * a family wants; the single-person one is for someone you would rather not see
- * a link forwarded for.
+ * Which invitation to draw. Both last the day — long enough that nobody has to
+ * hurry, and short enough that a link found later is dead. What separates them
+ * is how many people may knock with it: the first is for a family, the second
+ * for someone you would rather not see a link forwarded for.
  */
 async function askInvitationShape() {
   return new Promise((resolve) => {
@@ -1702,7 +1733,7 @@ async function askInvitationShape() {
     dialog.addEventListener('close', () => done(null));
     dialog.querySelector('#invite-cancel').addEventListener('click', () => done(null));
     dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: 1440, uses: 50 }));
-    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 30, uses: 1 }));
+    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 1440, uses: 1 }));
     dialog.showModal();
   });
 }
@@ -1729,6 +1760,9 @@ function leaveInvitation() {
   }
   navigate('#/');
 }
+
+/** True while a knock is on its way, so no second one leaves for the same form. */
+let knocking = false;
 
 function bindJoin() {
   const waitingLine = view.querySelector('#waiting-state');
@@ -1771,8 +1805,10 @@ function bindJoin() {
     line.textContent = message;
   };
 
+  knocking = false;
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (knocking) return;
     const button = form.querySelector('button[type="submit"]');
     const me = view.querySelector('#join-me').value.trim();
     const group = view.querySelector('#join-group').value.trim();
@@ -1807,15 +1843,18 @@ function bindJoin() {
     }
 
     button.disabled = true;
+    knocking = true;
     say(t('groups.checking'));
     let answer = { status: 'unknown' };
     try {
       answer = await state.remote.ask(group, code, me, deviceLabel());
     } catch {
       button.disabled = false;
+      knocking = false;
       return say(t('groups.unsure'));
     }
     button.disabled = false;
+    knocking = false;
 
     if (answer.status === 'busy') return say(t('gate.busy'));
     if (answer.status !== 'waiting') return say(t('groups.codeRefused'));
@@ -1831,6 +1870,20 @@ function bindJoin() {
   });
 
   view.querySelector('#join-me')?.focus();
+}
+
+/**
+ * While the overview is on screen, ask again for the knocks — fifteen seconds
+ * apart, and only redraw when the answer actually changed, so the screen does
+ * not flicker and the database is not hammered.
+ */
+function watchGate() {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy() || route().name !== 'overview') return;
+    if (await refreshGate()) render();
+  }, 15000);
 }
 
 /** While someone waits to be let in, look in on their own — five seconds apart. */
@@ -1968,6 +2021,16 @@ function statsView() {
 /** Names typed so far, so switching preset does not wipe them. */
 let newGameNames = ['', '', ''];
 
+/**
+ * Whether anyone has touched the entrant fields since the form was emptied.
+ *
+ * My own first name is offered as the first *player*, never as a team, and the
+ * preset is only known once the form is drawn — so the offer is made at draw
+ * time. Which means it must be made once: put back after someone deleted it, it
+ * would put them in a game they had just taken themselves out of.
+ */
+let newGameTouched = false;
+
 function newGameView() {
   const presetId = state.newPresetId || PRESETS[0].id;
   const preset = getPreset(presetId);
@@ -1975,6 +2038,15 @@ function newGameView() {
   const isTeam = config.entrantLabel === 'team';
   const [min, max] = preset.players;
 
+  // A team is not a person: my name is offered to players only, and only while
+  // nothing has been typed — the preset is not known before this point. Switching
+  // from a game of people to a game of teams takes the offer back, since the
+  // first field stops being a person and becomes "Équipe 1".
+  if (!newGameTouched) {
+    newGameNames = isTeam
+      ? withoutMe(newGameNames, myName())
+      : withMeFirst(newGameNames, myName());
+  }
   while (newGameNames.length < min) newGameNames.push('');
   const names = newGameNames.slice(0, Math.max(min, Math.min(newGameNames.length, max)));
 
@@ -2931,14 +3003,9 @@ function setMyName(name) {
 function offerMeInForms() {
   newListPeople = withMeFirst(newListPeople, myName());
   newPollPeople = withMeFirst(newPollPeople, myName());
-  // A team is not a person, so a preset played by teams is left alone.
-  if (!entrantsAreTeams()) newGameNames = withMeFirst(newGameNames, myName());
-}
-
-function entrantsAreTeams() {
-  const preset = getPreset(state.newPresetId || PRESETS[0].id);
-  const config = state.newConfig || presetConfig(preset);
-  return config.entrantLabel === 'team';
+  // Games are left to newGameView: only there is it known whether this preset
+  // is played by people or by teams.
+  newGameTouched = false;
 }
 
 /**
@@ -3015,9 +3082,17 @@ function pendings() {
     : [];
 }
 
+/**
+ * Knocks are kept generously — a ticket is handed over once and stored nowhere
+ * else — but not without end: a device that knocks at door after door without
+ * ever being let in would grow a list nobody reads, and claim every one of them
+ * at each start.
+ */
+const KNOCKS_KEPT = 20;
+
 function rememberPending(knock) {
   const others = pendings().filter((held) => held.ticket !== knock.ticket);
-  state.prefs = { ...state.prefs, pendings: [...others, knock] };
+  state.prefs = { ...state.prefs, pendings: [...others, knock].slice(-KNOCKS_KEPT) };
   savePrefs(state.prefs);
 }
 
@@ -3048,7 +3123,11 @@ async function checkPending(knock) {
   }
 
   if (answer.status === 'ok') {
-    const group = { id: answer.id, name: answer.name || knock.groupName, key: knock.ticket, admits: false };
+    // A device that is somehow already in this group keeps the key it has: the
+    // ticket it was just handed is an ordinary key, and the one it holds may be
+    // the only one in the group that lets anyone in.
+    const alreadyIn = groups().find((item) => item.id === answer.id);
+    const group = alreadyIn || { id: answer.id, name: answer.name || knock.groupName, key: knock.ticket, admits: false };
     rememberGroup(group);
     forgetPending(knock.ticket);
     let taken = 0;
@@ -3095,7 +3174,7 @@ async function checkAllPendings() {
  * redraw does not knock again.
  */
 function gate() {
-  if (!state.gate) state.gate = { requests: {}, devices: {}, asked: {} };
+  if (!state.gate) state.gate = { requests: {}, devices: {}, asked: {}, at: {} };
   return state.gate;
 }
 
@@ -3104,6 +3183,27 @@ function forgetGate(groupId) {
   delete held.requests[groupId];
   delete held.devices[groupId];
   delete held.asked[groupId];
+  delete held.at[groupId];
+}
+
+/**
+ * Ask again for what the gatekeeper is looking at, quietly, while the overview
+ * is open — someone knocking on the other side of the room must not stay
+ * invisible until the app is closed and opened again.
+ */
+async function refreshGate() {
+  let changed = false;
+  for (const group of groups()) {
+    if (group.admits === false) continue;
+    const before = JSON.stringify(gate().requests[group.id] ?? null)
+      + JSON.stringify(gate().devices[group.id] ?? null);
+    gate().asked[group.id] = false;
+    await loadGate(group);
+    const after = JSON.stringify(gate().requests[group.id] ?? null)
+      + JSON.stringify(gate().devices[group.id] ?? null);
+    if (before !== after) changed = true;
+  }
+  return changed;
 }
 
 /**
@@ -3123,11 +3223,18 @@ async function loadGate(group) {
     ]);
     held.requests[group.id] = requests;
     held.devices[group.id] = devices;
+    held.at[group.id] = Date.now();
     return true;
-  } catch {
-    // Not the gatekeeper — or the database is out. Either way: nothing to show.
-    rememberGroup({ ...group, admits: false });
-    return true;
+  } catch (error) {
+    // Two very different refusals, and taking one for the other used to cost
+    // the gatekeeper their own door: the database saying "this key does not let
+    // people in" is settled, while a network that failed says nothing at all.
+    if (/ne fait pas entrer/i.test(String(error?.message || ''))) {
+      rememberGroup({ ...group, admits: false });
+      return true;
+    }
+    held.asked[group.id] = false;
+    return false;
   }
 }
 
@@ -3146,6 +3253,42 @@ async function refreshGroup(group) {
   if (!found) return false;
   rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
   return true;
+}
+
+/**
+ * Fetch what every group shares, for all of them at once.
+ *
+ * This is what "the other phone pushed something" needs: a game played in
+ * Safari and a list ticked off in the app on the home screen are two devices as
+ * far as the database is concerned, and nothing but this brings one's work to
+ * the other when neither has the document open.
+ */
+async function catchUpAll() {
+  let taken = 0;
+  for (const group of groups()) {
+    try {
+      taken += await catchUpWith(group);
+    } catch {
+      // One group out of reach is not a reason to skip the others.
+    }
+  }
+  state.syncedAt = Date.now();
+  return taken;
+}
+
+/** Not more often than this, when it happens on its own. */
+const SYNC_EVERY = 20000;
+
+/**
+ * Catch up by itself: when the app opens, and each time it comes back to the
+ * front — which on a phone is what "I switched from Safari to the app" means.
+ */
+async function catchUpQuietly() {
+  if (!state.remote || !groups().length) return;
+  if (state.syncedAt && Date.now() - state.syncedAt < SYNC_EVERY) return;
+  const taken = await catchUpAll();
+  const changed = route().name === 'overview' ? await refreshGate() : false;
+  if ((taken || changed) && !isBusy()) render();
 }
 
 /**
@@ -4062,6 +4205,14 @@ function bindNewGame() {
     });
   };
 
+  // Typing in a name is what counts as touching the form — not switching preset,
+  // which merely keeps what is there.
+  view.querySelectorAll('[data-name-index]').forEach((input) => {
+    input.addEventListener('input', () => {
+      newGameTouched = true;
+    });
+  });
+
   const readConfigFromForm = () => ({
     direction: view.querySelector('#direction').value,
     endMode: view.querySelector('#end-mode').value,
@@ -4150,7 +4301,8 @@ function bindNewGame() {
     state.games = [...state.games, game];
     persist(game);
 
-    newGameNames = entrantsAreTeams() ? ['', '', ''] : withMeFirst(['', '', ''], myName());
+    newGameNames = ['', '', ''];
+    newGameTouched = false;
     state.newPresetId = null;
     state.newConfig = null;
     state.newName = '';
@@ -4722,6 +4874,28 @@ function bindChrome() {
     applyTheme();
   });
 
+  // One button for "bring me what the others have done", on every screen: the
+  // tabs each show their own list, and a list is not refreshed by looking at it.
+  document.getElementById('sync').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('icon-button--busy');
+    let taken = 0;
+    let failed = false;
+    try {
+      taken = await catchUpAll();
+      if (route().name === 'overview') await refreshGate();
+    } catch {
+      failed = true;
+    }
+    button.disabled = false;
+    button.classList.remove('icon-button--busy');
+    flash(failed ? t('sync.failed') : taken ? t('sync.done', { count: taken }) : t('sync.nothing'),
+      failed ? 'error' : 'info');
+    render();
+  });
+
   document.getElementById('lang-toggle').addEventListener('click', () => {
     const next = getLanguage() === 'fr' ? 'en' : 'fr';
     setLanguage(next);
@@ -4737,6 +4911,9 @@ function bindChrome() {
 function render() {
   const current = route();
   markTab(current);
+  // Nothing to fetch without a database, or before this device is in a group.
+  const sync = document.getElementById('sync');
+  if (sync) sync.hidden = !(state.remote && groups().length);
   if (current.name === 'lists') {
     stopWatching();
     view.innerHTML = listsView();
@@ -4856,9 +5033,10 @@ function render() {
     view.innerHTML = homeView();
     bindHome();
   } else {
-    stopWatching();
     view.innerHTML = overviewView();
     bindOverview();
+    if (state.remote && groups().some((group) => group.admits !== false)) watchGate();
+    else stopWatching();
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
@@ -5028,7 +5206,25 @@ bindChrome();
 window.addEventListener('hashchange', () => {
   state.editingRoundId = null;
   state.listFilter = null;
+  // A message already read belongs to the screen it was read on. One that has
+  // not been seen yet follows, so that nothing is lost on the way.
+  if (state.flash?.shownAt) state.flash = null;
   render();
+});
+
+/**
+ * Another tab of the same app changed what is kept on this device. Take it in:
+ * two tabs each holding their own idea of the keys, and the last one to write
+ * anything would wipe the other's — a ticket that only exists on this device
+ * included.
+ */
+window.addEventListener('storage', (event) => {
+  if (event.key && !event.key.startsWith('marque-points:')) return;
+  state.prefs = loadPrefs();
+  state.games = loadGames();
+  state.lists = loadLists();
+  state.polls = loadPolls();
+  if (!isBusy()) render();
 });
 /**
  * Register the cache that makes the app open without a network. It is absent
@@ -5058,7 +5254,16 @@ if (state.remote) {
     const answered = pendings().length ? await checkAllPendings() : false;
     const changed = await verifyGroups();
     if ((answered || changed) && !isBusy()) render();
+    // And what the others pushed meanwhile, without being asked for it.
+    await catchUpQuietly();
   })();
+
+  // Coming back to the app — from Safari, from another app, from a locked
+  // screen — is exactly the moment to find out what happened elsewhere.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void catchUpQuietly();
+  });
+  window.addEventListener('focus', () => void catchUpQuietly());
 }
 connectToStore();
 registerOfflineCache();

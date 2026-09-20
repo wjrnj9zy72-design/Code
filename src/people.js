@@ -72,3 +72,14 @@ export function withMeFirst(names, me) {
   if (names.some((name) => String(name || '').trim())) return names;
   return [clean, ...names.slice(1)];
 }
+
+/** The other way round: take my name back out of a form nobody has typed in. */
+export function withoutMe(names, me) {
+  const clean = String(me || '').trim().toLowerCase();
+  if (!clean) return names;
+  const index = names.findIndex((name) => String(name || '').trim().toLowerCase() === clean);
+  if (index < 0) return names;
+  const kept = [...names];
+  kept[index] = '';
+  return kept;
+}

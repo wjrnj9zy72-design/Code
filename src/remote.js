@@ -328,9 +328,10 @@ export function pollIdFrom(pasted) {
  * name after them so that nothing has to be typed at all.
  *
  * The two travel together here, which the lot links deliberately avoid — and
- * for the opposite reason: an invitation is good for half an hour and for one
- * device, so what protects it is that it expires, not that it is hard to
- * guess. The name and code can still be said out loud instead.
+ * for the opposite reason: an invitation only grants the right to knock, and it
+ * expires, so what protects the group is that someone in it has to accept —
+ * not that the code is hard to find. The name and code can still be said out
+ * loud instead.
  */
 export function joinLink(location, name, code) {
   const { origin, pathname, search } = location;
