@@ -60,6 +60,12 @@ dépendance, aucun build.
   dernière clé qui fait entrer étant protégée, un groupe ne peut pas se retrouver
   sans portier. Vingt essais ratés ferment l'entrée dix minutes ; cinquante
   demandes en attente et la porte n'en prend plus.
+- **Ce qui est poussé ailleurs arrive ici tout seul** : en ouvrant l'app et
+  chaque fois qu'on y revient, elle va chercher ce que le groupe a partagé
+  depuis — Safari et l'app de l'écran d'accueil sont deux appareils, et ne se
+  parlent que par la base. Le bouton **⟳** de la barre du haut le fait sur
+  commande et dit combien d'éléments sont arrivés ; un document ouvert à l'écran,
+  lui, se met à jour toutes les cinq secondes.
 - **Ce prénom sert ensuite partout** : le groupe voit qui est entré, et vous êtes
   proposé en premier dans une nouvelle liste, un sondage ou une partie — proposé
   une fois, au moment où le formulaire est vide ; effacé, il reste effacé. Il ne

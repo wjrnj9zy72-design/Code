@@ -1147,7 +1147,16 @@ acceptez.
 > noyer sous les lignes.
 
 Faites-le sur chaque appareil : le vôtre, celui des personnes du groupe, Safari
-et l'app de l'écran d'accueil (qui comptent pour deux). Une demande sans réponse
+et l'app de l'écran d'accueil (qui comptent pour deux — ce sont bien deux
+appareils pour la base, chacun avec sa clé).
+
+> **Ce qu'un appareil du groupe va chercher, et quand.** En ouvrant l'app et
+> chaque fois qu'on y revient (depuis Safari, depuis une autre app, après un
+> écran verrouillé), il rapatrie tout seul ce que le groupe a partagé depuis. Le
+> bouton **⟳** de la barre du haut fait la même chose sur commande, depuis
+> n'importe quel onglet, et dit combien d'éléments sont arrivés. Une partie, une
+> liste ou un sondage **ouvert à l'écran** se met à jour de lui-même toutes les
+> cinq secondes, sans rien toucher. Une demande sans réponse
 s'effface au bout de **sept jours** ; une réponse non lue, au bout d'un jour —
 d'ici là elle attend sagement que l'app soit ouverte.
 

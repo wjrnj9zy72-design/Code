@@ -193,6 +193,10 @@ export const STRINGS = {
     'join.action': 'Demander à entrer',
     'join.alreadyUpToDate': 'Cet appareil est déjà dans {name}, et à jour.',
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
+    'sync.title': 'Récupérer ce que les autres ont fait',
+    'sync.done': '{count} élément(s) récupéré(s).',
+    'sync.nothing': 'Rien de nouveau : cet appareil est à jour.',
+    'sync.failed': 'La base n’a pas répondu. Réessayez dans un moment.',
     'gate.knock': 'Demander',
     'gate.needNameFirst':
       'Écrivez d’abord votre prénom, dans « Moi » juste au-dessus : le groupe verra qui demande à entrer.',
@@ -681,6 +685,10 @@ export const STRINGS = {
     'join.action': 'Ask to join',
     'join.alreadyUpToDate': 'This device is already in {name}, and up to date.',
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
+    'sync.title': 'Fetch what the others have done',
+    'sync.done': '{count} item(s) fetched.',
+    'sync.nothing': 'Nothing new: this device is up to date.',
+    'sync.failed': 'The database did not answer. Try again in a moment.',
     'gate.knock': 'Ask',
     'gate.needNameFirst':
       'Write your first name first, under “Me” just above: the group will see who is asking to join.',

@@ -335,6 +335,24 @@ textarea { min-height: 66px; resize: vertical; }
   letter-spacing: 0.12em;
 }
 
+/* The fetch button, while it is fetching. */
+.icon-button--busy {
+  animation: turning 1s linear infinite;
+}
+
+@keyframes turning {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-button--busy {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 .field-grid {
   display: grid;
   gap: 12px;

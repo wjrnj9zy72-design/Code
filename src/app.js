@@ -3256,6 +3256,42 @@ async function refreshGroup(group) {
 }
 
 /**
+ * Fetch what every group shares, for all of them at once.
+ *
+ * This is what "the other phone pushed something" needs: a game played in
+ * Safari and a list ticked off in the app on the home screen are two devices as
+ * far as the database is concerned, and nothing but this brings one's work to
+ * the other when neither has the document open.
+ */
+async function catchUpAll() {
+  let taken = 0;
+  for (const group of groups()) {
+    try {
+      taken += await catchUpWith(group);
+    } catch {
+      // One group out of reach is not a reason to skip the others.
+    }
+  }
+  state.syncedAt = Date.now();
+  return taken;
+}
+
+/** Not more often than this, when it happens on its own. */
+const SYNC_EVERY = 20000;
+
+/**
+ * Catch up by itself: when the app opens, and each time it comes back to the
+ * front — which on a phone is what "I switched from Safari to the app" means.
+ */
+async function catchUpQuietly() {
+  if (!state.remote || !groups().length) return;
+  if (state.syncedAt && Date.now() - state.syncedAt < SYNC_EVERY) return;
+  const taken = await catchUpAll();
+  const changed = route().name === 'overview' ? await refreshGate() : false;
+  if ((taken || changed) && !isBusy()) render();
+}
+
+/**
  * Fetch everything the group shares that this device is missing or behind on.
  * The database hands over ids and their dates, so a device that is up to date
  * asks for nothing more.
@@ -4838,6 +4874,28 @@ function bindChrome() {
     applyTheme();
   });
 
+  // One button for "bring me what the others have done", on every screen: the
+  // tabs each show their own list, and a list is not refreshed by looking at it.
+  document.getElementById('sync').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('icon-button--busy');
+    let taken = 0;
+    let failed = false;
+    try {
+      taken = await catchUpAll();
+      if (route().name === 'overview') await refreshGate();
+    } catch {
+      failed = true;
+    }
+    button.disabled = false;
+    button.classList.remove('icon-button--busy');
+    flash(failed ? t('sync.failed') : taken ? t('sync.done', { count: taken }) : t('sync.nothing'),
+      failed ? 'error' : 'info');
+    render();
+  });
+
   document.getElementById('lang-toggle').addEventListener('click', () => {
     const next = getLanguage() === 'fr' ? 'en' : 'fr';
     setLanguage(next);
@@ -4853,6 +4911,9 @@ function bindChrome() {
 function render() {
   const current = route();
   markTab(current);
+  // Nothing to fetch without a database, or before this device is in a group.
+  const sync = document.getElementById('sync');
+  if (sync) sync.hidden = !(state.remote && groups().length);
   if (current.name === 'lists') {
     stopWatching();
     view.innerHTML = listsView();
@@ -5193,7 +5254,16 @@ if (state.remote) {
     const answered = pendings().length ? await checkAllPendings() : false;
     const changed = await verifyGroups();
     if ((answered || changed) && !isBusy()) render();
+    // And what the others pushed meanwhile, without being asked for it.
+    await catchUpQuietly();
   })();
+
+  // Coming back to the app — from Safari, from another app, from a locked
+  // screen — is exactly the moment to find out what happened elsewhere.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void catchUpQuietly();
+  });
+  window.addEventListener('focus', () => void catchUpQuietly());
 }
 connectToStore();
 registerOfflineCache();
