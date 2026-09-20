@@ -1722,7 +1722,7 @@ function groupNamed(name) {
 function leaveInvitation() {
   // Replacing rather than pushing: the hash really changes, so the redraw comes
   // from the hashchange the way it does everywhere else. Drawing here as well
-  // would show the "you are in Famille" line and then immediately wipe it.
+  // would show the "you are in Mifa" line and then immediately wipe it.
   if (location.hash.startsWith('#/join/')) {
     location.replace(`${location.pathname}${location.search}#/`);
     return;

@@ -93,7 +93,7 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     /**
      * The group a key opens — its id and its name — or null when the key
      * opens nothing. Showing the name is what turns "key accepted" into
-     * "you are in Famille".
+     * "you are in Mifa".
      */
     async groupOf(key) {
       const group = await call('marque_points_group_of', { p_key: key });
@@ -353,9 +353,9 @@ export function joinFrom(pasted) {
 
 /**
  * The sentence a link was pasted in from ends somewhere, and its full stop
- * sticks to the group's name: "…/#/join/123456/Famille." would then be a
+ * sticks to the group's name: "…/#/join/123456/Mifa." would then be a
  * group nobody has. Brackets are only dropped when they close nothing, since
- * a group may well be called "Famille (maison)".
+ * a group may well be called "Mifa (maison)".
  */
 function unpunctuate(name) {
   let clean = String(name || '').trim();

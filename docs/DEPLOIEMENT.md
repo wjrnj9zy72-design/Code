@@ -981,12 +981,48 @@ Deux conséquences à connaître :
 - **Si la clé qui fait entrer n'est pas celle que vous voulez** — une base montée
   à la main, par exemple —, désignez-en une autre avec l'`update` de l'étape 4.
 
+### 1 bis. Tout remettre à zéro
+
+**À ne faire que si vous voulez repartir de rien** — un groupe créé pour essayer,
+des partages de test, une clé qui traîne. Effacez la zone de texte et lancez :
+
+```sql
+-- Repartir de zéro : plus aucun groupe, aucune clé, aucune demande, aucune
+-- invitation, et plus rien de partagé dans la base.
+delete from public.marque_points_request;
+delete from public.marque_points_invite;
+delete from public.marque_points_join_miss;
+delete from public.marque_points_group_key;
+delete from public.marque_points_group;
+delete from public.marque_points_games;
+```
+
+Attendu : six lignes `DELETE n`. Ce que cela efface, dit franchement :
+
+- **tous les groupes et toutes les clés** : aucun appareil n'appartient plus à
+  rien, et les clés copiées jusqu'ici ne servent plus à rien ;
+- **tout ce qui était partagé** — parties, listes, sondages — *dans la base* ;
+- **tous les liens déjà envoyés**, y compris les lots à six chiffres : ils ne
+  s'ouvriront plus.
+
+Ce que cela n'efface pas : **ce qui est sur les appareils**. Chaque app garde sa
+propre copie de ses parties, listes et sondages ; elle continue de les afficher,
+simplement plus rien n'est partagé. À la prochaine ouverture, chaque appareil
+constate que sa clé n'ouvre plus rien, retire le groupe de sa liste et le dit —
+vous n'avez rien à faire sur les téléphones.
+
+> Le deuxième `delete` de la liste vide la table qui porte les documents
+> partagés. Si vous voulez garder ce qui est partagé et ne refaire que les
+> groupes, retirez la ligne `delete from public.marque_points_games;` — mais
+> lancez alors la requête de rattachement (**2 bis** ci-dessous) après avoir créé
+> le nouveau groupe, sinon ces documents n'appartiendront à personne.
+
 ### 2. Créer votre premier groupe
 
 Effacez la zone de texte et lancez :
 
 ```sql
-select * from public.marque_points_new_group('Famille');
+select * from public.marque_points_new_group('Mifa');
 ```
 
 Elle affiche deux colonnes : le **nom** et la **clé**, une suite de 32
@@ -1006,7 +1042,7 @@ le range dans le groupe que vous venez de créer :
 
 ```sql
 update public.marque_points_games
-   set group_id = (select id from public.marque_points_group where name = 'Famille')
+   set group_id = (select id from public.marque_points_group where name = 'Mifa')
  where group_id is null;
 ```
 
@@ -1089,7 +1125,7 @@ fait entrer :
 
 ```sql
 select id, label, admits, created_at from public.marque_points_group_key
- where group_id = (select id from public.marque_points_group where name = 'Famille');
+ where group_id = (select id from public.marque_points_group where name = 'Mifa');
 
 delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
 ```
@@ -1106,7 +1142,7 @@ groupe sont coupées et une seule est refaite, qui fait entrer ; ce qui est part
 reste :
 
 ```sql
-select public.marque_points_new_group_key('Famille');
+select public.marque_points_new_group_key('Mifa');
 ```
 
 Recollez la clé affichée sur votre appareil (étape 3), puis réinvitez les autres.
@@ -1119,7 +1155,7 @@ Une requête à la fois, en remplaçant `VOTRE_CLE` par la clé copiée :
 select public.marque_points_group_of('VOTRE_CLE');
 ```
 
-Attendu : `{"id": "...", "name": "Famille", "admits": true}` — `admits` étant ce
+Attendu : `{"id": "...", "name": "Mifa", "admits": true}` — `admits` étant ce
 qui fait de cette clé celle qui accepte les demandes. Avec n'importe quoi d'autre
 à la place : une cellule vide.
 
@@ -1127,7 +1163,7 @@ Pour voir la porte fonctionner sans quitter l'éditeur :
 
 ```sql
 select public.marque_points_invite('VOTRE_CLE', 1440, 50);
-select public.marque_points_ask('Famille', 'LE_CODE_AFFICHE', 'Test', 'navigateur');
+select public.marque_points_ask('Mifa', 'LE_CODE_AFFICHE', 'Test', 'navigateur');
 select public.marque_points_requests('VOTRE_CLE');
 select public.marque_points_answer('VOTRE_CLE', 'ID_DE_LA_DEMANDE', false);
 select jsonb_array_length(public.marque_points_group_keys('VOTRE_CLE'));
