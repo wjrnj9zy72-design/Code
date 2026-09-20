@@ -475,6 +475,22 @@ Recommencez avec un autre nom pour un autre cercle — `'Copains du mardi'`, par
 exemple. Un appareil peut appartenir à plusieurs groupes ; l'app demande alors
 dans lequel partager.
 
+### 2 bis. Rattacher ce qui était déjà partagé
+
+**À ne faire que si vous aviez déjà partagé des parties** avec la version
+précédente. Ce qui l'était n'appartient à aucun groupe : le bouton *Tout
+récupérer* l'ignorerait, et l'app ne pourrait plus le supprimer. Cette requête
+le range dans le groupe que vous venez de créer :
+
+```sql
+update public.marque_points_games
+   set group_id = (select id from public.marque_points_group where name = 'Famille')
+ where group_id is null;
+```
+
+Attendu : **UPDATE n**, où n est le nombre de choses déjà partagées. Les liens
+déjà envoyés continuent de fonctionner, avant comme après.
+
 ### 3. Donner la clé à l'app, une fois par appareil
 
 Dans l'app : onglet **Aperçu** → section **Mes groupes** → collez la clé →
