@@ -246,6 +246,11 @@ listes sont fusionnées par identifiant, la version la plus récemment modifiée
 l'emportant, et ce que le magasin n'avait pas lui est envoyé. La section
 *Données* de l'accueil dit où les parties sont enregistrées.
 
+Deux appareils, ou un navigateur et l'app installée sur l'écran d'accueil, ont
+chacun leur propre stockage : une app installée ne voit pas les parties saisies
+dans le navigateur. *Exporter* d'un côté et **Coller un export** de l'autre font
+passer les parties de l'un à l'autre, sans fichier à manipuler.
+
 Le bouton *Exporter* reste le filet de sécurité : il produit un JSON
 réimportable (ou, là où l'hôte interdit les téléchargements, le même texte à
 copier).
