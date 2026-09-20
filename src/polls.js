@@ -20,7 +20,7 @@ export const VALUES = ['yes', 'maybe', 'no'];
 /** The key a single answer is stored under: one person, one choice. */
 const answerKey = (personId, optionId) => `${personId}|${optionId}`;
 
-export function createPoll({ question = '', options = [], names = [], shared = false } = {}) {
+export function createPoll({ question = '', names = [], shared = false } = {}) {
   const now = Date.now();
   return {
     id: uid('v'),
@@ -209,6 +209,18 @@ export function mergePolls(a, b) {
   }
 
   const people = (newer.peopleAt || 0) >= (older.peopleAt || 0) ? newer.people : older.people;
+
+  // Nothing to learn: hand back the very same object, so a caller can tell an
+  // answer arrived from a poll that simply came back unchanged — five seconds
+  // at a time, all evening.
+  const sameOptions =
+    options.length === newer.options.length &&
+    options.every((option, index) => option === newer.options[index]);
+  const sameVotes =
+    Object.keys(votes).length === Object.keys(newer.votes).length &&
+    Object.entries(votes).every(([key, vote]) => newer.votes[key] === vote);
+  const sameRemoved = Object.keys(removed).length === Object.keys(newer.removed || {}).length;
+  if (sameOptions && sameVotes && sameRemoved && people === newer.people) return newer;
 
   return {
     ...newer,

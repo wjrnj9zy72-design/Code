@@ -160,7 +160,11 @@ function pollCardHtml(poll) {
       </span>
       ${
         leading
-          ? `<span class="game-card__meta">${escapeHtml(t('polls.leading', { option: leading.option.text, count: leading.yes }))}</span>`
+          ? `<span class="game-card__meta">${escapeHtml(
+              leading.yes
+                ? t('polls.leading', { option: leading.option.text, count: leading.yes })
+                : t('polls.leadingMaybe', { option: leading.option.text, count: leading.maybe }),
+            )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
       <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
@@ -776,7 +780,9 @@ function listsView() {
 }
 
 function newListView() {
-  const suggestions = [...new Set([...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  const suggestions = [...new Set([
+    ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
+  ])].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">

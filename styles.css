@@ -110,7 +110,8 @@ a { color: inherit; }
 
 .app-bar__brand strong { display: block; font-size: 1.05rem; }
 .app-bar__brand small { display: block; color: var(--muted); font-size: 0.75rem; }
-.app-bar__logo { font-size: 1.5rem; }
+/* The mark: two tokens side by side, in the accent, at the size of a word. */
+.app-bar__logo { display: flex; flex: none; color: var(--accent); }
 .app-bar__actions { display: flex; gap: 6px; flex: none; }
 
 .icon-button {
@@ -595,8 +596,9 @@ table.scores .meta-cell { color: var(--muted); }
 
 /* ------------------------------------------------------------------ tabs --- */
 /*
- * The two halves of the app. Two of them, so they get the full width and the
- * thumb never has to aim.
+ * The parts of the app, side by side across the full width: few enough that
+ * the thumb never has to aim, and the columns divide themselves however many
+ * there are.
  */
 .tabs {
   /* Not sticky: the bar above it is, and guessing that bar's height — which

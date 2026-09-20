@@ -253,3 +253,19 @@ test('what comes back from storage is looked at before it is trusted', () => {
     'a choice with no text');
   assert.ok(!isValidPoll({ kind: 'poll', id: 'v_1', people: [], options: [] }), 'no answers at all');
 });
+
+test('a poll that came back unchanged is the very same poll', () => {
+  const poll = setVote(sample(), idsOf(sample()).people[0], idsOf(sample()).options[0], 'yes');
+  const asStored = JSON.parse(JSON.stringify(poll));
+
+  assert.equal(mergePolls(poll, poll), poll, 'itself');
+  assert.equal(mergePolls(poll, asStored), poll,
+    'and a copy that went through the database and came back the same');
+  assert.notEqual(mergePolls(poll, setVote(asStored, asStored.people[1].id, asStored.options[0].id, 'no')), poll,
+    'but a real change is a change');
+});
+
+test('a poll starts with no choices, whatever it is handed', () => {
+  const poll = createPoll({ question: 'Quel soir ?', names: ['Gui'] });
+  assert.deepEqual(poll.options, [], 'choices are added with addOptions, and only there');
+});
