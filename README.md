@@ -19,9 +19,20 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
+- **Elle s'installe et marche hors ligne** : ajoutée à l'écran d'accueil, elle
+  s'ouvre sans réseau — dans un train, une cave, un gîte — et se resynchronise
+  au retour de la connexion.
+- **Les résultats s'exportent** : un récapitulatif en texte à coller dans une
+  conversation, ou un fichier **Word** et **PDF** du classement et des manches.
+- **Statistiques par joueur** : parties jouées, gagnées, moyenne et meilleur
+  score, jeu par jeu.
+- **Rejouer** relance une partie avec les mêmes joueurs et les mêmes règles, et
+  les noms déjà utilisés sont proposés à la saisie.
+- **Le donneur tourne** : l'app rappelle à qui c'est de donner.
 - **Passer l'app à quelqu'un** : un bouton *Partager l'app* sur l'accueil ouvre
   la feuille de partage du téléphone — un appui, et le lien part par message.
-  Là où elle n'existe pas, le lien s'affiche à copier.
+  Là où elle n'existe pas, le lien s'affiche à copier, avec un **code QR** que
+  les autres scannent.
 - **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
@@ -169,6 +180,13 @@ styles.css        thème clair/sombre, mise en page mobile d'abord
 src/games.js      définition des jeux (presets) et de leurs compteurs
 src/helpers.js    arithmétique du compteur de cartes
 src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
+src/stats.js      statistiques par joueur, jeu par jeu
+src/recap.js      le récapitulatif texte d'une partie
+src/export-docx.js  génération du .docx (zip et XML écrits à la main)
+src/export-pdf.js   génération du .pdf (objets et table de références)
+src/qr.js         encodeur de codes QR, versions 1 à 6
+sw.js             cache applicatif : l'app s'ouvre sans réseau
+manifest.webmanifest  ce qui la rend installable
 src/model.js      création et modification d'une partie (fonctions pures)
 src/scoring.js    totaux, classement, état de la partie, validation
 src/storage.js    persistance localStorage (tolérante aux erreurs)

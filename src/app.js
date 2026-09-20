@@ -1,10 +1,15 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, isValidGame } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
+import { presetsPlayed, statsFor } from './stats.js';
+import { recapText } from './recap.js';
+import { buildDocx } from './export-docx.js';
+import { buildPdf } from './export-pdf.js';
+import { qrSvg, qrMatrix } from './qr.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink } from './remote.js';
@@ -19,6 +24,7 @@ const state = {
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
   // New-game form draft, kept across re-renders of that view.
+  search: '',
   newPresetId: null,
   newConfig: null,
   newName: '',
@@ -127,6 +133,7 @@ function route() {
   const hash = location.hash.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'new') return { name: 'new' };
+  if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
   return { name: 'home' };
 }
@@ -171,7 +178,17 @@ function gameCardHtml(game) {
 }
 
 function homeView() {
-  const sorted = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  const query = (state.search || '').trim().toLowerCase();
+  const matches = (game) => {
+    if (!query) return true;
+    const preset = getPreset(game.presetId);
+    const haystack = [gameTitle(game), preset ? presetLabel(preset) : '', ...game.players.map((p) => p.name)]
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  };
+
+  const sorted = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
   const ongoing = sorted.filter((game) => !gameStatus(game).finished);
   const finished = sorted.filter((game) => gameStatus(game).finished);
 
@@ -184,7 +201,19 @@ function homeView() {
       <button type="button" class="button button--small button--ghost" id="share-app">
         ${escapeHtml(t('action.shareApp'))}
       </button>
+      ${
+        state.games.length
+          ? `<button type="button" class="button button--small button--ghost" data-goto="#/stats">${escapeHtml(t('action.stats'))}</button>`
+          : ''
+      }
     </div>
+
+    ${
+      state.games.length > 4
+        ? `<label class="visually-hidden" for="search">${escapeHtml(t('home.search'))}</label>
+           <input type="text" id="search" placeholder="${escapeHtml(t('home.search'))}" value="${escapeHtml(state.search || '')}" />`
+        : ''
+    }
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
@@ -226,6 +255,64 @@ function homeView() {
     </section>`;
 }
 
+function statsView() {
+  const played = presetsPlayed(state.games);
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('stats.title'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">${escapeHtml(t('action.back'))}</button>
+    </div>
+
+    ${
+      played.length
+        ? played
+            .map(({ presetId, played: count }) => {
+              const preset = getPreset(presetId);
+              const rows = statsFor(state.games, presetId);
+              return `
+                <section class="section card">
+                  <div class="section__head">
+                    <h2>${escapeHtml(preset ? presetLabel(preset) : presetId)}</h2>
+                    <span class="muted small">${escapeHtml(t('stats.games', { count }))}</span>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="scores">
+                      <thead>
+                        <tr>
+                          <th>${escapeHtml(t('new.players'))}</th>
+                          <th>${escapeHtml(t('stats.played'))}</th>
+                          <th>${escapeHtml(t('stats.won'))}</th>
+                          <th>${escapeHtml(t('stats.average'))}</th>
+                          <th>${escapeHtml(t('stats.best'))}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${rows
+                          .map(
+                            (row) => `
+                            <tr>
+                              <td>${escapeHtml(row.name)}</td>
+                              <td>${row.played}</td>
+                              <td>${row.won}</td>
+                              <td>${row.average}</td>
+                              <td>${row.best}</td>
+                            </tr>`,
+                          )
+                          .join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>`;
+            })
+            .join('')
+        : `<p class="muted small">${escapeHtml(t('stats.empty'))}</p>`
+    }
+
+    <p class="notes">${escapeHtml(t('stats.note'))}</p>`;
+}
+
 /* -------------------------------------------------------- new game view --- */
 
 /** Names typed so far, so switching preset does not wipe them. */
@@ -241,11 +328,12 @@ function newGameView() {
   while (newGameNames.length < min) newGameNames.push('');
   const names = newGameNames.slice(0, Math.max(min, Math.min(newGameNames.length, max)));
 
+  const known = recentNames(state.games);
   const nameRows = names
     .map(
       (value, index) => `
         <div class="score-row">
-          <input type="text" data-name-index="${index}" value="${escapeHtml(value)}"
+          <input type="text" data-name-index="${index}" ${known.length ? 'list="known-names"' : ''} value="${escapeHtml(value)}"
                  placeholder="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}"
                  aria-label="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}" />
           <button type="button" class="button button--small button--ghost" data-remove-name="${index}"
@@ -287,6 +375,11 @@ function newGameView() {
       <div class="stack">
         <h3>${escapeHtml(t(isTeam ? 'new.teams' : 'new.players'))}</h3>
         <div class="score-rows">${nameRows}</div>
+        ${
+          known.length
+            ? `<datalist id="known-names">${known.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('')}</datalist>`
+            : ''
+        }
         <button type="button" class="button button--small" id="add-name" ${names.length >= max ? 'disabled' : ''}>
           + ${escapeHtml(t(isTeam ? 'action.addTeam' : 'action.addPlayer'))}
         </button>
@@ -384,9 +477,12 @@ function roundFormHtml(game) {
        </label>`
     : '';
 
+  const dealer = getPreset(game.presetId)?.group === 'cards' ? dealerFor(game, index - 1) : null;
+
   return `
     <form id="round-form" class="card stack">
       <h2>${escapeHtml(editing ? t('game.editRound', { n: index }) : t('game.newRound', { n: index }))}</h2>
+      ${dealer ? `<p class="muted small">${escapeHtml(t('game.dealer', { name: dealer.name }))}</p>` : ''}
       <div class="score-rows">${rows}</div>
       <p class="banner banner--warn" id="round-issues" hidden></p>
       <div class="sum-line">
@@ -514,6 +610,20 @@ function gameView(game) {
     </section>
 
     ${roundFormHtml(game)}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('results.title'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="recap">${escapeHtml(t('action.recap'))}</button>
+        ${
+          EXPORT_MODE === 'download'
+            ? `<button type="button" class="button button--small" id="export-docx">${escapeHtml(t('action.exportDocx'))}</button>
+               <button type="button" class="button button--small" id="export-pdf">${escapeHtml(t('action.exportPdf'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="replay">${escapeHtml(t('action.replay'))}</button>
+      </div>
+    </section>
 
     <section class="row">
       ${
@@ -685,7 +795,19 @@ function showExportDialog(json) {
   showCopyDialog({ title: t('export.title'), hint: t('export.hint'), text: json });
 }
 
-function showCopyDialog({ title, hint, text: content }) {
+/**
+ * A QR code sized to whole pixels per module: a fractional size blurs the
+ * edges and readers give up — something a reference encoder does too.
+ */
+function qrFor(text) {
+  const modules = qrMatrix(text);
+  if (!modules) return null;
+  const side = modules.length + 8;
+  const scale = Math.max(4, Math.floor(260 / side));
+  return qrSvg(text, { size: side * scale });
+}
+
+function showCopyDialog({ title, hint, text: content, qr = false }) {
   let dialog = document.getElementById('export-dialog');
   if (!dialog) {
     dialog = document.createElement('dialog');
@@ -695,6 +817,7 @@ function showCopyDialog({ title, hint, text: content }) {
       <div class="stack">
         <h2 id="export-title"></h2>
         <p class="muted small" id="export-hint"></p>
+        <div id="export-qr" class="qr" hidden></div>
         <textarea id="export-text" readonly rows="8"></textarea>
         <div class="row">
           <button type="button" class="button button--primary" id="export-copy"></button>
@@ -726,12 +849,30 @@ function showCopyDialog({ title, hint, text: content }) {
   const text = dialog.querySelector('#export-text');
   text.value = content;
   text.setAttribute('aria-label', title);
+
+  const code = dialog.querySelector('#export-qr');
+  const svg = qr ? qrFor(content) : null;
+  code.innerHTML = svg || '';
+  code.hidden = !svg;
+  if (svg) code.setAttribute('aria-label', t('share.qrLabel'));
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
 }
 
 function bindHome() {
+  const search = view.querySelector('#search');
+  search?.addEventListener('input', (event) => {
+    state.search = event.target.value;
+    const at = event.target.selectionStart;
+    render();
+    const again = view.querySelector('#search');
+    if (again) {
+      again.focus();
+      try { again.setSelectionRange(at, at); } catch { /* not a text field */ }
+    }
+  });
+
   view.querySelector('#share-app')?.addEventListener('click', async () => {
     const url = appLink();
     // The phone's own share sheet is the easy way — one tap to a message.
@@ -745,7 +886,7 @@ function bindHome() {
         // Anything else: fall through to the text everyone can copy.
       }
     }
-    showCopyDialog({ title: t('shareApp.title'), hint: t('shareApp.hint'), text: url });
+    showCopyDialog({ title: t('shareApp.title'), hint: t('shareApp.hint'), text: url, qr: true });
   });
 
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
@@ -1172,6 +1313,53 @@ function submitDeal(game) {
   render();
 }
 
+/** Hand the viewer a file. Where the page is not allowed to, nothing happens. */
+function download(filename, bytes, type) {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** A safe-ish file name built from the game's own title. */
+function fileNameFor(game, extension) {
+  const base = `${gameTitle(game)} ${formatDate(game.updatedAt)}`
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return `${base || 'marque-points'}.${extension}`;
+}
+
+/** Everything a results file needs, already translated. */
+function reportFor(game) {
+  const status = gameStatus(game);
+  const preset = getPreset(game.presetId);
+  return {
+    title: gameTitle(game),
+    subtitle: [
+      preset ? presetLabel(preset) : '',
+      formatDate(game.updatedAt),
+      t('home.rounds', { count: game.rounds.length }),
+    ].filter(Boolean).join(' · '),
+    winner: status.finished && status.winners.length
+      ? t(status.winners.length > 1 ? 'home.winners' : 'home.winner', {
+          name: status.winners.map((row) => row.name).join(', '),
+        })
+      : '',
+    standingsTitle: t('game.standings'),
+    standingsHeader: [t('game.rank'), t('new.players'), t('game.total')],
+    standings: status.standings.map((row) => [String(row.rank), row.name, String(row.total)]),
+    roundsTitle: t('game.perRound'),
+    roundsHeader: [t('game.round'), ...game.players.map((player) => player.name)],
+    rounds: game.rounds.map((round, index) => [
+      String(index + 1),
+      ...game.players.map((player) => String(roundScore(round, player.id))),
+    ]),
+  };
+}
+
 /** Fix a mistyped name, mid-game, without touching a single score. */
 function openRenameDialog(game) {
   const dialog = document.createElement('dialog');
@@ -1334,7 +1522,32 @@ function bindGame(game) {
       title: t('share.title'),
       hint: t('share.hint'),
       text: shareLink(location, current.id),
+      qr: true,
     });
+  });
+
+  view.querySelector('#recap')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: t('results.recapTitle'),
+      hint: t('results.recapHint'),
+      text: recapText(game, t, { title: gameTitle(game), withRounds: true }),
+    });
+  });
+
+  view.querySelector('#export-docx')?.addEventListener('click', () => {
+    download(fileNameFor(game, 'docx'), buildDocx(reportFor(game)),
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  });
+
+  view.querySelector('#export-pdf')?.addEventListener('click', () => {
+    download(fileNameFor(game, 'pdf'), buildPdf(reportFor(game)), 'application/pdf');
+  });
+
+  view.querySelector('#replay')?.addEventListener('click', () => {
+    const next = replayGame(game);
+    state.games = [...state.games, next];
+    persist(next);
+    navigate(`#/game/${next.id}`);
   });
 
   view.querySelector('#rename')?.addEventListener('click', () => openRenameDialog(game));
@@ -1398,7 +1611,10 @@ function bindChrome() {
 
 function render() {
   const current = route();
-  if (current.name === 'new') {
+  if (current.name === 'stats') {
+    stopWatching();
+    view.innerHTML = statsView();
+  } else if (current.name === 'new') {
     stopWatching();
     view.innerHTML = newGameView();
     bindNewGame();
@@ -1450,9 +1666,12 @@ async function pullGame(id) {
   if (!isValidGame(stored)) return false;
 
   const local = getGame(id);
-  if (pickNewer(local, stored) !== 'remote') return false;
+  // Merge rather than replace: two people scoring the same evening on two
+  // phones would otherwise lose whichever round was written second.
+  const merged = local ? mergeGames(local, stored) : stored;
+  if (local && merged === local) return false;
 
-  const adopted = { ...stored, shared: true };
+  const adopted = { ...merged, shared: true };
   state.games = local
     ? state.games.map((game) => (game.id === id ? adopted : game))
     : [...state.games, adopted];
@@ -1542,6 +1761,25 @@ window.addEventListener('hashchange', () => {
   state.editingRoundId = null;
   render();
 });
+/**
+ * Register the cache that makes the app open without a network. It is absent
+ * from a file opened off the disk and from a page served without https, and
+ * the app must not care either way.
+ */
+function registerOfflineCache() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  // The served app carries a manifest; the single-file build has it stripped,
+  // and has no sw.js beside it to register either.
+  if (!document.querySelector('link[rel="manifest"]')) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // No offline cache, then: everything else still works.
+    });
+  });
+}
+
 adoptOlderGames();
 render();
 connectToStore();
+registerOfflineCache();

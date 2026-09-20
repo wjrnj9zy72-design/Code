@@ -486,3 +486,14 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .deal-scores b { font-weight: 600; }
+
+/* -------------------------------------------------------------- qr code --- */
+.qr {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: #fff; /* a code must stay black on white to be readable */
+}
+
+.qr svg { max-width: 100%; height: auto; }

@@ -19,10 +19,14 @@ import { join, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'storage.js', 'config.js', 'remote.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stats.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'remote.js', 'cloud.js', 'app.js'];
 
 const IMPORT_LINE = /^import\s.*?;\s*$/gm;
 const EXPORT_KEYWORD = /^export\s+(?=(?:const|let|function|class|async)\b)/gm;
+/** `export { a, b };` and `export default …` — forms with nothing to keep. */
+const EXPORT_LIST = /^export\s*\{[^}]*\}\s*;?\s*$/gm;
+/** Anything still looking like a module statement after the stripping. */
+const LEFTOVER_MODULE = /^\s*(?:import|export)\b/m;
 /** Top-level declarations, used to catch a name defined by two modules. */
 const TOP_LEVEL_DECLARATION = /^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
 
@@ -51,8 +55,18 @@ async function buildScript() {
   for (const name of MODULES) {
     const code = (await readFile(join(root, 'src', name), 'utf8'))
       .replace(IMPORT_LINE, '')
+      .replace(EXPORT_LIST, '')
       .replace(EXPORT_KEYWORD, '')
       .trim();
+
+    // A module statement left in would make the whole bundle fail to parse,
+    // and the page would come up blank with one line in the console.
+    const leftover = code.match(LEFTOVER_MODULE);
+    if (leftover) {
+      throw new Error(
+        `Cannot bundle: src/${name} still has a module statement the bundler does not know how to strip: ${leftover[0].trim()}`,
+      );
+    }
 
     for (const [, identifier] of code.matchAll(TOP_LEVEL_DECLARATION)) {
       const previous = declaredIn.get(identifier);
@@ -87,6 +101,13 @@ export async function bundle(target = 'page') {
 
   const scriptTag = /^([ \t]*)<script type="module" src="src\/app\.js"><\/script>$/m;
   const styleLink = /^([ \t]*)<link rel="stylesheet" href="styles\.css" \/>$/m;
+  // The manifest and the touch icon are files sitting next to the served app.
+  // A single self-contained page has no such neighbours, so they are dropped
+  // rather than left pointing at nothing.
+  const strip = (html) =>
+    html
+      .replace(/^[ \t]*<link rel="manifest"[^>]*>\n/m, '')
+      .replace(/^[ \t]*<link rel="apple-touch-icon"[^>]*>\n/m, '');
   const run = (preamble, indent) =>
     `${indent}<script>\n${preamble}(() => {\n${script}\n})();\n${indent}</script>`;
 
@@ -94,13 +115,13 @@ export async function bundle(target = 'page') {
     // The host supplies <head> and <body>, so hand it the title, the styles
     // and the page content — and nothing else.
     const title = extract(html, /<title>([^<]*)<\/title>/, 'title');
-    const body = extract(html, /<body>\n([\s\S]*?)\n[ \t]*<\/body>/, 'body');
+    const body = extract(strip(html), /<body>\n([\s\S]*?)\n[ \t]*<\/body>/, 'body');
     const content = substitute(body, scriptTag, (_, indent) =>
       run("window.MARQUE_POINTS_EXPORT_MODE = 'copy';\n", indent), 'module script tag');
     return `<title>${title}</title>\n<style>\n${css.trimEnd()}\n</style>\n${GENERATED}\n${content}\n`;
   }
 
-  let output = substitute(html, styleLink, (_, indent) =>
+  let output = substitute(strip(html), styleLink, (_, indent) =>
     `${indent}<style>\n${css.trimEnd()}\n${indent}</style>`, 'stylesheet link');
   output = substitute(output, scriptTag, (_, indent) => run('', indent), 'module script tag');
   return substitute(output, '<head>', `<head>\n    ${GENERATED}`, 'head tag');
