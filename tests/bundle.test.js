@@ -73,3 +73,18 @@ test('the app never reaches for a browser modal', async () => {
     assert.equal(found, null, `src/${name} calls ${found?.[0]} — use ask() instead`);
   }
 });
+
+for (const [target, name] of BUILDS) {
+  test(`the ${target} build parses as a plain script`, async () => {
+    // A module statement surviving into the bundle makes the browser refuse
+    // the whole file — a blank page, and one line in a console nobody reads.
+    const output = await bundle(target);
+    const script = output.slice(output.indexOf('<script>'), output.lastIndexOf('</script>'));
+    assert.equal(/^\s*import\s/m.test(script), false, 'an import survived');
+    assert.equal(/^\s*export\s/m.test(script), false, 'an export survived');
+
+    // And it really is parseable, not merely free of those two words.
+    const body = script.replace(/^[\s\S]*?<script>/, '').replace(/<\/script>[\s\S]*$/, '');
+    assert.doesNotThrow(() => new Function(body), 'the bundled script does not parse');
+  });
+}
