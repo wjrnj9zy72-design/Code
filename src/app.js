@@ -10,9 +10,13 @@ import { recapText } from './recap.js';
 import { buildDocx } from './export-docx.js';
 import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
-import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
+import {
+  createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
+  addPerson, renamePerson, removePerson, shareOut, progress, mergeLists, isValidList, recentPeople,
+} from './lists.js';
+import { loadGames, saveGames, loadLists, saveLists, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, setLink, setIdFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, setLink, setIdFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -21,6 +25,7 @@ const view = document.getElementById('view');
 
 const state = {
   games: loadGames(),
+  lists: loadLists(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -37,7 +42,18 @@ const state = {
   poll: null,
   // The set of games being fetched, so a redraw does not start a second fetch.
   openingSet: null,
+  // The same, for a shared list opened from its link.
+  openingList: null,
+  // Whose lines are on screen in a list: null for everyone, 'none' for the
+  // ones nobody has taken.
+  listFilter: null,
 };
+
+// The new-list form's draft, kept across re-renders like the new-game one:
+// adding a person must not throw away the lines already typed.
+let newListName = '';
+let newListPeople = ['', ''];
+let newListLines = '';
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -72,6 +88,11 @@ function gameTitle(game) {
   return preset ? presetLabel(preset) : t('new.customLabel');
 }
 
+/** The title of a game or of a list, whichever this is. */
+function documentTitle(document_) {
+  return isValidList(document_) ? listTitle(document_) : gameTitle(document_);
+}
+
 function formatDate(timestamp) {
   try {
     return new Date(timestamp).toLocaleDateString(getLanguage(), {
@@ -95,6 +116,220 @@ function flash(message, kind = 'info') {
 }
 
 /* ------------------------------------------------------------- persisting --- */
+
+/* ------------------------------------------------------------------ lists --- */
+
+/**
+ * A list is a title, the people it concerns, and lines to hand out. The views
+ * below are deliberately few: all the lines, or one person's — because what a
+ * shared list is asked in practice is "what do I still have to do".
+ */
+
+function listTitle(list) {
+  return list.name || t('lists.untitled');
+}
+
+function personName(list, who) {
+  return list.people.find((person) => person.id === who)?.name || '';
+}
+
+function listCardHtml(list) {
+  const { done, total } = progress(list);
+  const people = list.people.map((person) => person.name).join(' · ');
+  return `
+    <button type="button" class="game-card" data-goto="#/list/${escapeHtml(list.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(listTitle(list))}
+        <span class="pill ${total && done === total ? 'pill--done' : ''}">
+          ${escapeHtml(total ? t('lists.progress', { done, total }) : t('lists.empty'))}
+        </span>
+      </span>
+      ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
+      <span class="game-card__meta">${escapeHtml(formatDate(list.updatedAt))}</span>
+    </button>`;
+}
+
+function listsView() {
+  const sorted = [...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
+  const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
+      + ${escapeHtml(t('lists.new'))}
+    </button>
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(listCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('lists.none'))}</p>`
+      }
+    </section>
+
+    ${
+      finished.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('lists.done'))}</h2></div>
+             <div class="game-list">${finished.map(listCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }`;
+}
+
+function newListView() {
+  const suggestions = [...new Set([...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('lists.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-list" class="card stack">
+      <label>
+        ${escapeHtml(t('lists.name'))}
+        <input type="text" id="list-name" placeholder="${escapeHtml(t('lists.namePlaceholder'))}"
+               value="${escapeHtml(newListName)}" required />
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('lists.peopleHint'))}</span>
+        ${newListPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newListPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <label>
+        ${escapeHtml(t('lists.firstLines'))}
+        <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}">${escapeHtml(newListLines)}</textarea>
+      </label>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('lists.create'))}</button>
+    </form>`;
+}
+
+function listItemHtml(list, item) {
+  const who = personName(list, item.who);
+  return `
+    <li class="line ${item.done ? 'line--done' : ''}">
+      <label class="line__tick">
+        <input type="checkbox" data-tick="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}
+               aria-label="${escapeHtml(item.text)}" />
+      </label>
+      <button type="button" class="line__text" data-edit="${escapeHtml(item.id)}">
+        <span>${escapeHtml(item.text)}</span>
+      </button>
+      <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
+        ${escapeHtml(who || t('lists.nobody'))}
+      </button>
+    </li>`;
+}
+
+function listView(list) {
+  const filter = state.listFilter;
+  const known = filter === null || filter === 'none' || list.people.some((person) => person.id === filter);
+  const shown = !known || filter === null
+    ? list.items
+    : list.items.filter((item) => (filter === 'none' ? !item.who : item.who === filter));
+  const { done, total } = progress(list);
+
+  const chip = (value, label, count) => `
+    <button type="button" class="chip ${(!known ? null : filter) === value ? 'chip--on' : ''}" data-filter="${value === null ? '' : escapeHtml(value)}">
+      ${escapeHtml(label)}${count === undefined ? '' : ` <span class="muted">${count}</span>`}
+    </button>`;
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(listTitle(list))}</h1>
+        <p class="muted small">
+          ${escapeHtml(total ? t('lists.progress', { done, total }) : t('lists.empty'))}
+          ${list.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="add-line" class="card stack stack--tight">
+      <label class="visually-hidden" for="new-line">${escapeHtml(t('lists.addLine'))}</label>
+      <div class="row row--tight">
+        <input type="text" id="new-line" placeholder="${escapeHtml(t('lists.addLine'))}" autocomplete="off" />
+        <button type="submit" class="button button--primary">+</button>
+      </div>
+    </form>
+
+    ${
+      list.people.length
+        ? `<div class="row">
+             ${chip(null, t('lists.everyone'), progress(list).left)}
+             ${list.people
+               .map((person) => chip(person.id, person.name, progress(list, person.id).left))
+               .join('')}
+             ${chip('none', t('lists.nobody'), progress(list, null).left)}
+           </div>`
+        : ''
+    }
+
+    ${
+      shown.length
+        ? `<ul class="lines">${shown.map((item) => listItemHtml(list, item)).join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        ${
+          list.people.length
+            ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="list-share">${escapeHtml(t('lists.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
+        ${
+          done
+            ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
 
 /**
  * Keep the local copy, and hand the changed game to the store when there is
@@ -139,6 +374,9 @@ function route() {
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
   if (name === 'set' && param) return { name: 'set', id: param };
+  if (name === 'lists' && param === 'new') return { name: 'new-list' };
+  if (name === 'lists') return { name: 'lists' };
+  if (name === 'list' && param) return { name: 'list', id: param };
   return { name: 'home' };
 }
 
@@ -814,7 +1052,7 @@ async function submitRound(game) {
 const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
 
 function exportGames() {
-  const json = JSON.stringify({ version: 1, games: state.games }, null, 2);
+  const json = JSON.stringify({ version: 1, games: state.games, lists: state.lists }, null, 2);
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
     return;
@@ -937,19 +1175,29 @@ function importGames(source) {
     return false;
   }
 
-  const incoming = (Array.isArray(parsed) ? parsed : parsed?.games || []).filter(isValidGame);
-  if (!incoming.length) {
+  const all = Array.isArray(parsed) ? parsed : [...(parsed?.games || []), ...(parsed?.lists || [])];
+  const games = all.filter(isValidGame);
+  const lists = all.filter(isValidList);
+  if (!games.length && !lists.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
 
-  const known = new Set(state.games.map((game) => game.id));
-  const fresh = incoming.filter((game) => !known.has(game.id));
-  state.games = [...state.games, ...fresh];
+  const knownGames = new Set(state.games.map((game) => game.id));
+  const freshGames = games.filter((game) => !knownGames.has(game.id));
+  state.games = [...state.games, ...freshGames];
   saveGames(state.games);
-  if (state.store) for (const game of fresh) void state.store.save(game);
-  if (state.remote) for (const game of fresh) if (game.shared) state.remote.put(game).catch(() => {});
-  flash(t('home.importDone', { count: fresh.length }));
+
+  const knownLists = new Set(state.lists.map((list) => list.id));
+  const freshLists = lists.filter((list) => !knownLists.has(list.id));
+  state.lists = [...state.lists, ...freshLists];
+  saveLists(state.lists);
+
+  for (const document_ of [...freshGames, ...freshLists]) {
+    if (state.store) void state.store.save(document_);
+    if (state.remote && document_.shared) state.remote.put(document_).catch(() => {});
+  }
+  flash(t('home.importDone', { count: freshGames.length + freshLists.length }));
   return true;
 }
 
@@ -1039,6 +1287,16 @@ function openLinkDialog() {
       return;
     }
 
+    const listId = listIdFrom(pasted);
+    if (listId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      if (!getList(listId) && !(await pullList(listId))) return fail(t('openLink.notFound'));
+      close();
+      navigate(`#/list/${listId}`);
+      return;
+    }
+
     const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
@@ -1050,10 +1308,18 @@ function openLinkDialog() {
       navigate(`#/game/${id}`);
       return;
     }
-    if (!(await pullGame(id))) return fail(t('openLink.notFound'));
-
-    close();
-    navigate(`#/game/${id}`);
+    // A bare identifier says nothing about what it stands for.
+    if (await pullGame(id)) {
+      close();
+      navigate(`#/game/${id}`);
+      return;
+    }
+    if (await pullList(id)) {
+      close();
+      navigate(`#/list/${id}`);
+      return;
+    }
+    return fail(t('openLink.notFound'));
   });
 
   dialog.showModal();
@@ -1132,7 +1398,9 @@ function remoteReason(error) {
  * share — so a link passed on to someone else is worth nothing on its own.
  */
 function openShareAppDialog() {
-  const games = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt);
+  // Games and lists travel together: they are documents of the same kind to
+  // the database, and "everything I have" is what the link is asked for.
+  const games = [...state.games, ...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
   const key = state.prefs.shareKey || '';
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -1174,7 +1442,7 @@ function openShareAppDialog() {
             (game) => `
               <label class="choice">
                 <input type="checkbox" data-share-id="${escapeHtml(game.id)}" />
-                <span>${escapeHtml(gameTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
+                <span>${escapeHtml(documentTitle(game))}<span class="muted small"> — ${escapeHtml(formatDate(game.updatedAt))}</span></span>
               </label>`,
           )
           .join('')}
@@ -1227,7 +1495,7 @@ function openShareAppDialog() {
       choice === 'all'
         ? games
         : [...dialog.querySelectorAll('input[data-share-id]:checked')]
-            .map((input) => getGame(input.dataset.shareId))
+            .map((input) => getGame(input.dataset.shareId) || getList(input.dataset.shareId))
             .filter(Boolean);
     if (!chosen.length) return fail(t('shareApp.pickNone'));
 
@@ -1283,16 +1551,20 @@ function showLotLink(setId, code, count) {
  */
 async function shareGames(games) {
   try {
-    for (const game of games) {
-      const next = game.shared ? game : setShared(game, true);
+    for (const document_ of games) {
+      const next = document_.shared
+        ? document_
+        : { ...document_, shared: true, updatedAt: Date.now() };
       await state.remote.put(next);
-      if (next === game) continue;
-      state.games = state.games.map((item) => (item.id === game.id ? next : item));
+      if (next === document_) continue;
+      state.games = state.games.map((item) => (item.id === next.id ? next : item));
+      state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
       if (state.store) void state.store.save(next);
     }
   } finally {
     // Whatever went through is written down, so a failure halfway is not lost.
     saveGames(state.games);
+    saveLists(state.lists);
   }
 }
 
@@ -1480,11 +1752,11 @@ async function openSet(id) {
   const ids = await askLotCode(id);
   if (!ids) return;
 
-  // Every game, even one already here: the point of a lot re-shared is to
-  // bring the rounds played since, and pullGame merges rather than replaces.
-  for (const gameId of ids) await pullGame(gameId);
+  // Everything, even what is already here: the point of a lot shared again is
+  // to bring what has happened since, and pulling merges rather than replaces.
+  for (const id_ of ids) await pullAny(id_);
 
-  const held = ids.filter((gameId) => getGame(gameId)).length;
+  const held = ids.filter((id_) => getGame(id_) || getList(id_)).length;
   if (!held) {
     flash(t('shareSet.notFound'), 'error');
     return;
@@ -1571,6 +1843,425 @@ function bindHome() {
     }
     render();
   });
+}
+
+/* ------------------------------------------------------- lists: behaviour --- */
+
+/** Keep the list where it lives, and send it on if it has been shared. */
+function persistList(changed) {
+  const ok = saveLists(state.lists);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getList(id) {
+  return state.lists.find((list) => list.id === id) || null;
+}
+
+/** Put a changed list back in place, write it down, and redraw. */
+function replaceList(next, { redraw = true } = {}) {
+  state.lists = state.lists.map((list) => (list.id === next.id ? next : list));
+  persistList(next);
+  if (redraw) render();
+}
+
+function bindNewList() {
+  const form = view.querySelector('#new-list');
+  if (!form) return;
+
+  const snapshot = () => {
+    newListName = view.querySelector('#list-name').value;
+    newListLines = view.querySelector('#list-lines').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newListPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newListPeople = [...newListPeople, ''];
+    render();
+    view.querySelector(`[data-person-index="${newListPeople.length - 1}"]`)?.focus();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newListPeople = newListPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newListPeople.includes(suggest)) return;
+      const empty = newListPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newListPeople[empty] = suggest;
+      else newListPeople = [...newListPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+
+    let list = createList({
+      name: newListName,
+      names: newListPeople,
+      // A device that sends everything by choice sends its lists too.
+      shared: Boolean(state.prefs.autoShare && state.remote),
+    });
+    list = addItems(list, newListLines);
+
+    state.lists = [...state.lists, list];
+    persistList(list);
+    newListName = '';
+    newListPeople = ['', ''];
+    newListLines = '';
+    navigate(`#/list/${list.id}`);
+  });
+}
+
+function bindList(list) {
+  view.querySelector('#add-line')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const field = view.querySelector('#new-line');
+    const next = addItems(list, field.value);
+    if (next === list) return;
+    replaceList(next);
+    // Straight back to the field: a list is written in one go, not one
+    // reopened dialog at a time.
+    const again = view.querySelector('#new-line');
+    again?.focus();
+  });
+
+  view.querySelectorAll('[data-tick]').forEach((box) => {
+    box.addEventListener('change', () => replaceList(toggleItem(list, box.dataset.tick)));
+  });
+
+  view.querySelectorAll('[data-assign]').forEach((button) => {
+    button.addEventListener('click', () => openAssignDialog(list, button.dataset.assign));
+  });
+
+  view.querySelectorAll('[data-edit]').forEach((button) => {
+    button.addEventListener('click', () => openLineDialog(list, button.dataset.edit));
+  });
+
+  view.querySelectorAll('[data-filter]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const { filter } = chip.dataset;
+      state.listFilter = filter === '' ? null : filter;
+      render();
+    });
+  });
+
+  view.querySelector('#share-out')?.addEventListener('click', () => {
+    const next = shareOut(list);
+    if (next === list) {
+      // Saying nothing here would read as a dead button.
+      flash(t('lists.nothingToShareOut'));
+      render();
+      return;
+    }
+    replaceList(next);
+  });
+
+  view.querySelector('#list-people')?.addEventListener('click', () => openPeopleDialog(list));
+
+  view.querySelector('#list-text')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: listTitle(list),
+      hint: t('lists.textHint'),
+      text: listText(list),
+    });
+  });
+
+  view.querySelector('#clear-done')?.addEventListener('click', async () => {
+    if (!(await ask(t('lists.confirmClearDone'), { confirmLabel: t('lists.clearDone'), danger: true }))) return;
+    const next = list.items.filter((item) => item.done).reduce((carry, item) => removeItem(carry, item.id), list);
+    replaceList(next);
+  });
+
+  view.querySelector('#list-reuse')?.addEventListener('click', () => {
+    const next = reuseList(list);
+    state.lists = [...state.lists, next];
+    persistList(next);
+    navigate(`#/list/${next.id}`);
+  });
+
+  view.querySelector('#list-rename')?.addEventListener('click', () => openListNameDialog(list));
+
+  view.querySelector('#list-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('lists.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.lists = state.lists.filter((item) => item.id !== list.id);
+    saveLists(state.lists);
+    if (state.store) void state.store.remove(list.id);
+    if (state.remote) state.remote.remove(list.id).catch(() => {});
+    navigate('#/lists');
+  });
+
+  view.querySelector('#list-share')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    let current = list;
+
+    if (!current.shared) {
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      current = { ...current, shared: true, updatedAt: Date.now() };
+      try {
+        await state.remote.put(current);
+      } catch {
+        button.disabled = false;
+        button.textContent = t('lists.share');
+        flash(t('share.sendFailed'), 'error');
+        render();
+        return;
+      }
+      replaceList(current);
+    }
+
+    showCopyDialog({
+      title: t('lists.shareTitle'),
+      hint: t('lists.shareHint'),
+      text: listLink(location, current.id),
+      qr: true,
+    });
+  });
+}
+
+/** Hand a line to someone, or take it back. */
+function openAssignDialog(list, itemId) {
+  const item = list.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  const dialog = makeDialog('dialog dialog--ask');
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('lists.assignTitle'))}</h2>
+      <p class="muted small">${escapeHtml(item.text)}</p>
+      <div class="stack stack--tight">
+        ${list.people
+          .map(
+            (person) => `
+              <button type="button" class="button button--block" data-who="${escapeHtml(person.id)}">
+                ${escapeHtml(person.name)}${item.who === person.id ? ' ✓' : ''}
+              </button>`,
+          )
+          .join('')}
+        <button type="button" class="button button--block" data-who="">
+          ${escapeHtml(t('lists.nobody'))}${item.who ? '' : ' ✓'}
+        </button>
+      </div>
+      <div class="row">
+        <button type="button" class="button" id="assign-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--ghost" id="assign-people">${escapeHtml(t('lists.people'))}</button>
+      </div>
+    </div>`;
+
+  dialog.querySelector('#assign-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#assign-people').addEventListener('click', () => {
+    dialog.close();
+    openPeopleDialog(list);
+  });
+  dialog.querySelectorAll('[data-who]').forEach((button) => {
+    button.addEventListener('click', () => {
+      dialog.close();
+      replaceList(assignItem(list, itemId, button.dataset.who || null));
+    });
+  });
+
+  dialog.showModal();
+}
+
+/** Correct a line, or drop it. */
+function openLineDialog(list, itemId) {
+  const item = list.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('lists.lineTitle'))}</h2>
+      <label class="visually-hidden" for="line-text">${escapeHtml(t('lists.lineTitle'))}</label>
+      <input type="text" id="line-text" value="${escapeHtml(item.text)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="line-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#line-text');
+  const save = () => {
+    dialog.close();
+    replaceList(renameItem(list, itemId, field.value));
+  };
+
+  dialog.querySelector('#line-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#line-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#line-delete').addEventListener('click', () => {
+    dialog.close();
+    replaceList(removeItem(list, itemId));
+  });
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** Who this list concerns: add, rename, remove. */
+function openPeopleDialog(list) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getList(list.id) || list;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <p class="muted small">${escapeHtml(t('lists.peopleHint'))}</p>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="row row--tight">
+                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
+                         aria-label="${escapeHtml(person.name)}" />
+                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                    ${escapeHtml(t('action.delete'))}
+                  </button>
+                </div>`,
+            )
+            .join('')}
+          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
+          <button type="button" class="button button--primary" id="person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    const field = dialog.querySelector('#person-new');
+    const add = () => {
+      const next = addPerson(getList(list.id) || list, field.value);
+      replaceList(next, { redraw: false });
+      draw();
+      dialog.querySelector('#person-new').focus();
+    };
+    dialog.querySelector('#person-add').addEventListener('click', add);
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      add();
+    });
+
+    dialog.querySelectorAll('[data-person]').forEach((input) => {
+      input.addEventListener('change', () => {
+        replaceList(renamePerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+      });
+    });
+
+    dialog.querySelectorAll('[data-remove]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
+        replaceList(removePerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
+  };
+
+  // The view behind is only redrawn once, when the dialog is done with.
+  dialog.addEventListener('close', () => render());
+  draw();
+  dialog.showModal();
+}
+
+function openListNameDialog(list) {
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('lists.rename'))}</h2>
+      <label class="visually-hidden" for="list-new-name">${escapeHtml(t('lists.name'))}</label>
+      <input type="text" id="list-new-name" value="${escapeHtml(list.name)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="name-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="name-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#list-new-name');
+  const save = () => {
+    dialog.close();
+    replaceList({ ...list, name: field.value.trim(), updatedAt: Date.now() });
+  };
+  dialog.querySelector('#name-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#name-cancel').addEventListener('click', () => dialog.close());
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** The list as text, to paste into a message. */
+function listText(list) {
+  const line = (item) =>
+    `${item.done ? '[x]' : '[ ]'} ${item.text}${item.who ? ` — ${personName(list, item.who)}` : ''}`;
+  const { done, total } = progress(list);
+  return [
+    listTitle(list),
+    t('lists.progress', { done, total }),
+    '',
+    ...list.items.map(line),
+  ].join('\n');
+}
+
+/**
+ * Fetch a list from the shared database and take what it knows — the same
+ * merge a game gets, for the same reason: two people tick at the same time.
+ */
+async function pullList(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidList(stored) ? adoptList(stored) : false;
+}
+
+/** The same, for a list: line by line, so nobody's tick is lost. */
+function adoptList(stored) {
+  const local = getList(stored.id);
+  const merged = local ? mergeLists(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.lists = local
+    ? state.lists.map((list) => (list.id === stored.id ? adopted : list))
+    : [...state.lists, adopted];
+  saveLists(state.lists);
+  return true;
 }
 
 function bindNewGame() {
@@ -2264,7 +2955,41 @@ function bindChrome() {
 
 function render() {
   const current = route();
-  if (current.name === 'stats') {
+  markTab(current);
+  if (current.name === 'lists') {
+    stopWatching();
+    view.innerHTML = listsView();
+  } else if (current.name === 'new-list') {
+    stopWatching();
+    view.innerHTML = newListView();
+    bindNewList();
+  } else if (current.name === 'list') {
+    const list = getList(current.id);
+    if (!list) {
+      stopWatching();
+      // Perhaps a list someone shared: ask the database before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('lists.loading'))}</p>`;
+        // A redraw while it is on its way must not ask for it twice.
+        if (state.openingList !== current.id) {
+          const asked = current.id;
+          state.openingList = asked;
+          pullList(asked).then((found) => {
+            if (state.openingList !== asked) return;
+            state.openingList = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/lists');
+          });
+        }
+        return;
+      }
+      navigate('#/lists');
+      return;
+    }
+    watchList(list.id);
+    view.innerHTML = listView(list);
+    bindList(list);
+  } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
   } else if (current.name === 'new') {
@@ -2333,20 +3058,65 @@ async function pullGame(id) {
   } catch {
     return false;
   }
-  if (!isValidGame(stored)) return false;
+  return isValidGame(stored) ? adoptGame(stored) : false;
+}
 
-  const local = getGame(id);
-  // Merge rather than replace: two people scoring the same evening on two
-  // phones would otherwise lose whichever round was written second.
+/**
+ * Take in a game the database handed over. Merge rather than replace: two
+ * people scoring the same evening on two phones would otherwise lose whichever
+ * round was written second.
+ */
+function adoptGame(stored) {
+  const local = getGame(stored.id);
   const merged = local ? mergeGames(local, stored) : stored;
   if (local && merged === local) return false;
 
   const adopted = { ...merged, shared: true };
   state.games = local
-    ? state.games.map((game) => (game.id === id ? adopted : game))
+    ? state.games.map((game) => (game.id === stored.id ? adopted : game))
     : [...state.games, adopted];
   saveGames(state.games);
   return true;
+}
+
+/** Which half of the app we are in, so the tab bar says so. */
+function markTab(current) {
+  const bar = document.getElementById('tabs');
+  if (!bar) return;
+  const here = ['lists', 'new-list', 'list'].includes(current.name) ? 'lists' : 'games';
+  bar.querySelectorAll('[data-tab]').forEach((tab) => {
+    if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  });
+}
+
+/**
+ * Fetch by identifier without being told what it is: a lot holds games and
+ * lists side by side, and a link pasted in says even less.
+ */
+async function pullAny(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  // One request, then whichever kind it turns out to be — a lot of twenty
+  // would otherwise cost forty.
+  if (isValidGame(stored)) return adoptGame(stored);
+  if (isValidList(stored)) return adoptList(stored);
+  return false;
+}
+
+/** While a shared list is on screen, watch for what the others are ticking. */
+function watchList(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullList(id)) render();
+  }, 5000);
 }
 
 /** While a game is on screen, watch for rounds someone else has entered. */
@@ -2429,6 +3199,7 @@ applyTheme();
 bindChrome();
 window.addEventListener('hashchange', () => {
   state.editingRoundId = null;
+  state.listFilter = null;
   render();
 });
 /**

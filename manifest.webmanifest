@@ -1,7 +1,7 @@
 {
-  "name": "Marque-Points",
-  "short_name": "Marque-Points",
-  "description": "Compteur de points pour Papayoo et d'autres jeux.",
+  "name": "Together",
+  "short_name": "Together",
+  "description": "Compteur de points et listes partagées, pour la famille et les amis.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

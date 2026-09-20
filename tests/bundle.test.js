@@ -88,3 +88,12 @@ for (const [target, name] of BUILDS) {
     assert.doesNotThrow(() => new Function(body), 'the bundled script does not parse');
   });
 }
+
+test('an import spread over several lines is stripped like any other', async () => {
+  const { bundle } = await import('../tools/bundle.js');
+  const page = await bundle('page');
+  const body = page.slice(page.indexOf('<script>') + 8, page.indexOf('</script>'));
+
+  assert.ok(!/^\s*import\s/m.test(body), 'no import survived the bundling');
+  assert.ok(body.includes('createList'), 'and what it imported is in there');
+});

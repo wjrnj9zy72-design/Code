@@ -174,6 +174,18 @@ export function shareLink(location, gameId) {
   return `${origin}${pathname}${search}#/game/${gameId}`;
 }
 
+/** The link to give someone so they open this very list. */
+export function listLink(location, listId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/list/${listId}`;
+}
+
+/** The list id inside whatever was pasted, or null. */
+export function listIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/list\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
+}
+
 /** The link that hands over a set of games at once. */
 export function setLink(location, setId) {
   const { origin, pathname, search } = location;
