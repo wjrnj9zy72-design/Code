@@ -102,6 +102,18 @@ export function pickNewer(local, remote) {
   return a > b ? 'local' : 'remote';
 }
 
+/**
+ * The game id inside whatever was pasted — a full link, a link with other
+ * things around it, or the id on its own. Null when there is none.
+ */
+export function gameIdFrom(pasted) {
+  const text = String(pasted || '').trim();
+  const inLink = text.match(/#\/game\/([A-Za-z0-9_.~:@+-]+)/);
+  if (inLink) return inLink[1];
+  // A bare id, as copied from the database's table editor.
+  return /^[A-Za-z0-9_.~:@+-]{8,128}$/.test(text) ? text : null;
+}
+
 /** The link to give someone so they open this very game. */
 export function shareLink(location, gameId) {
   const { origin, pathname, search } = location;

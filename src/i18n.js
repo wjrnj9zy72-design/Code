@@ -145,6 +145,14 @@ export const STRINGS = {
     'paste.title': 'Coller un export',
     'paste.hint':
       'Collez ici le texte donné par Exporter, depuis un autre navigateur ou un autre appareil. Les parties déjà présentes ne seront pas dupliquées.',
+    'action.openLink': 'Ouvrir par un lien',
+    'openLink.title': 'Ouvrir une partie partagée',
+    'openLink.hint':
+      'Collez le lien d’une partie, ou son identifiant. L’app la récupère dans la base partagée et l’ajoute à cette liste.',
+    'openLink.open': 'Ouvrir',
+    'openLink.noId': 'Aucun identifiant de partie reconnu dans ce texte.',
+    'openLink.notFound':
+      'Aucune partie trouvée pour ce lien. Vérifiez qu’il est complet, et que la partie a bien été partagée.',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -383,6 +391,14 @@ export const STRINGS = {
     'paste.title': 'Paste an export',
     'paste.hint':
       'Paste the text that Export gave you, from another browser or another device. Games already here will not be duplicated.',
+    'action.openLink': 'Open from a link',
+    'openLink.title': 'Open a shared game',
+    'openLink.hint':
+      'Paste a game link, or its id. The app fetches it from the shared database and adds it to this list.',
+    'openLink.open': 'Open',
+    'openLink.noId': 'No game id recognised in that text.',
+    'openLink.notFound':
+      'No game found for that link. Check that it is complete, and that the game was shared.',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':

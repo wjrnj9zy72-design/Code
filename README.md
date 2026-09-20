@@ -246,6 +246,12 @@ listes sont fusionnées par identifiant, la version la plus récemment modifiée
 l'emportant, et ce que le magasin n'avait pas lui est envoyé. La section
 *Données* de l'accueil dit où les parties sont enregistrées.
 
+La base partagée n'est **pas listable** — c'est ce qui empêche quiconque a la
+clé publique d'énumérer les parties, et cela vaut aussi pour vous. Une partie
+partagée se retrouve donc par son lien : *Données* → **Ouvrir par un lien**
+accepte le lien complet ou le seul identifiant, récupère la partie et l'ajoute
+à la liste de cet appareil.
+
 Deux appareils, ou un navigateur et l'app installée sur l'écran d'accueil, ont
 chacun leur propre stockage : une app installée ne voit pas les parties saisies
 dans le navigateur. *Exporter* d'un côté et **Coller un export** de l'autre font

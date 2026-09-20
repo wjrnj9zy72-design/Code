@@ -141,3 +141,20 @@ test('the REST endpoint form reaches the same function as the project url', asyn
   assert.equal(seen[0], seen[1]);
   assert.equal(seen[0], 'https://abcdefgh.supabase.co/rest/v1/rpc/marque_points_get');
 });
+
+test('a game id is recognised however it was pasted', async () => {
+  const { gameIdFrom } = await import('../src/remote.js');
+  const id = 'g_c1f81ad1-730f-4f2b-ba39-b0d94a205b98';
+
+  assert.equal(gameIdFrom(`https://gui.github.io/Code/#/game/${id}`), id, 'a full link');
+  assert.equal(gameIdFrom(`  https://gui.github.io/Code/#/game/${id}  `), id, 'with spaces around');
+  assert.equal(gameIdFrom(`Viens compter : https://gui.github.io/Code/#/game/${id} à ce soir`), id,
+    'a link inside a message');
+  assert.equal(gameIdFrom(id), id, 'the id alone, as copied from the database');
+  assert.equal(gameIdFrom('http://localhost:8080/index.html?x=1#/game/g_12345678'), 'g_12345678');
+
+  assert.equal(gameIdFrom(''), null);
+  assert.equal(gameIdFrom('bonjour'), null, 'too short to be an id');
+  assert.equal(gameIdFrom('https://gui.github.io/Code/'), null, 'a link to the app, not to a game');
+  assert.equal(gameIdFrom(null), null);
+});
