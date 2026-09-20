@@ -60,6 +60,12 @@ dépendance, aucun build.
   dernière clé qui fait entrer étant protégée, un groupe ne peut pas se retrouver
   sans portier. Vingt essais ratés ferment l'entrée dix minutes ; cinquante
   demandes en attente et la porte n'en prend plus.
+- **Elle se met à jour toute seule, et le dit.** L'app demande à chaque retour au
+  premier plan s'il existe une version plus récente et se recharge une fois quand
+  c'est le cas ; chaque fichier est revalidé plutôt que pris dans le cache du
+  navigateur. La version est affichée dans l'Aperçu, sous *Données*, avec un
+  bouton pour chercher une mise à jour — parce qu'une app posée sur un écran
+  d'accueil est reprise, jamais rechargée, et peut rester bloquée sans rien dire.
 - **Ce qui est poussé ailleurs arrive ici tout seul** : en ouvrant l'app et
   chaque fois qu'on y revient, elle va chercher ce que le groupe a partagé
   depuis — Safari et l'app de l'écran d'accueil sont deux appareils, et ne se

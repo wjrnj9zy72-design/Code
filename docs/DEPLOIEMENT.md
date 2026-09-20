@@ -1413,6 +1413,41 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
 
 ---
 
+### Quand l'app de l'écran d'accueil montre une version dépassée
+
+Safari et l'app de l'écran d'accueil sont deux installations séparées : chacune
+garde ses fichiers de son côté, et l'app posée sur l'écran d'accueil est
+**reprise** plutôt que rechargée — elle peut donc rester sur une vieille version
+sans que rien ne le dise. Ce que l'app fait désormais d'elle-même :
+
+- elle demande à chaque retour au premier plan s'il existe une version plus
+  récente, et **se recharge une fois** quand c'est le cas ;
+- chaque fichier qu'elle va chercher est revalidé, au lieu de faire confiance à
+  la copie gardée par le navigateur (GitHub Pages autorise dix minutes de
+  conservation : c'était assez pour qu'une app tout juste ajoutée s'ouvre sur ce
+  que Safari avait sous la main) ;
+- l'onglet **Aperçu** affiche la **version** en bas, sous *Données*, avec un
+  bouton **Chercher une mise à jour** qui dit ce qu'il a trouvé.
+
+Si malgré cela une installation reste bloquée — c'est arrivé sur iOS avant ces
+garde-fous —, la sortie est mécanique :
+
+1. dans l'app, **Aperçu → Chercher une mise à jour**, et attendez le
+   rechargement ;
+2. sinon, ouvrez la page **dans Safari**, tirez vers le bas pour recharger, et
+   vérifiez la version affichée ;
+3. en dernier recours, **retirez l'app de l'écran d'accueil et rajoutez-la** :
+   comparez la version affichée avant et après. Rien n'est perdu au passage, ce
+   qui compte est dans la base du groupe — mais **ce qui n'a jamais été partagé
+   ne l'est pas** : servez-vous de *Tout récupérer* et du bouton ⟳ avant, ou
+   exportez depuis *Données*.
+
+> Ce que je n'ai pas pu éprouver : **iOS et Safari**. Les garde-fous ci-dessus
+> sont vérifiés dans Chromium — première visite qui ne se recharge pas, version
+> publiée pendant que l'app tourne qui est prise, rechargement unique, ancien
+> cache remplacé — et reposent sur des mécanismes standard, mais WebKit a ses
+> propres habitudes.
+
 ## Ce que ce montage implique
 
 - **Rien ne part tout seul.** Une partie reste sur l'appareil qui l'a créée

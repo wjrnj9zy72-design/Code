@@ -1031,6 +1031,13 @@ const STRINGS = {
     'join.action': 'Demander à entrer',
     'join.alreadyUpToDate': 'Cet appareil est déjà dans {name}, et à jour.',
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
+    'data.version': 'Version de l’app : {version}.',
+    'data.lookForUpdate': 'Chercher une mise à jour',
+    'data.updateComing':
+      'Une nouvelle version arrive : l’app se recharge d’elle-même dans un instant.',
+    'data.updateNone': 'C’est déjà la dernière version publiée.',
+    'data.updateUnknown':
+      'Impossible de vérifier pour l’instant — sans réseau, ou depuis un fichier ouvert hors ligne.',
     'sync.title': 'Récupérer ce que les autres ont fait',
     'sync.done': '{count} élément(s) récupéré(s).',
     'sync.nothing': 'Rien de nouveau : cet appareil est à jour.',
@@ -1523,6 +1530,11 @@ const STRINGS = {
     'join.action': 'Ask to join',
     'join.alreadyUpToDate': 'This device is already in {name}, and up to date.',
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
+    'data.version': 'App version: {version}.',
+    'data.lookForUpdate': 'Look for an update',
+    'data.updateComing': 'A new version is on its way: the app reloads itself in a moment.',
+    'data.updateNone': 'This is already the latest published version.',
+    'data.updateUnknown': 'Cannot check right now — no network, or a file opened offline.',
     'sync.title': 'Fetch what the others have done',
     'sync.done': '{count} item(s) fetched.',
     'sync.nothing': 'Nothing new: this device is up to date.',
@@ -6326,6 +6338,20 @@ function overviewView() {
         t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
       )}</p>
       ${
+        appVersion()
+          ? `<p class="muted small">
+               ${escapeHtml(t('data.version', { version: appVersion() }))}
+               ${
+                 'serviceWorker' in navigator
+                   ? `<button type="button" class="button button--small button--ghost" id="look-update">
+                        ${escapeHtml(t('data.lookForUpdate'))}
+                      </button>`
+                   : ''
+               }
+             </p>`
+          : ''
+      }
+      ${
         state.remote
           ? `<label class="checkbox">
                <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
@@ -8730,6 +8756,17 @@ function bindHome() {
  * app's own link, what leaves the device and what comes back.
  */
 function bindData() {
+  view.querySelector('#look-update')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    const answer = await lookForUpdate();
+    button.disabled = false;
+    if (answer === 'coming') flash(t('data.updateComing'));
+    else if (answer === 'current') flash(t('data.updateNone'));
+    else flash(t('data.updateUnknown'), 'error');
+    render();
+  });
+
   view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
   view.querySelector('#my-shares')?.addEventListener('click', openMySharesDialog);
 
@@ -10210,11 +10247,73 @@ function registerOfflineCache() {
   // The served app carries a manifest; the single-file build has it stripped,
   // and has no sw.js beside it to register either.
   if (!document.querySelector('link[rel="manifest"]')) return;
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {
-      // No offline cache, then: everything else still works.
+    // `updateViaCache: 'none'` is what makes a published update arrive at all:
+    // without it the browser may hand the *old* sw.js back from its own HTTP
+    // cache, and an app added to the home screen then stays on that version for
+    // as long as the cache holds it.
+    navigator.serviceWorker
+      .register('sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        state.worker = registration;
+        // Coming back to the app is when to ask whether a new one was published
+        // — an app on a home screen is opened far more often than it is
+        // reloaded, and may never be reloaded at all.
+        const look = () => {
+          if (document.visibilityState === 'visible') registration.update().catch(() => {});
+        };
+        document.addEventListener('visibilitychange', look);
+        window.addEventListener('focus', look);
+      })
+      .catch(() => {
+        // No offline cache, then: everything else still works.
+      });
+
+    // A new worker has taken over: the page is showing the old version's code,
+    // so it is reloaded once — never twice, whatever happens next.
+    //
+    // Only when a worker was already in charge, though. On a page's very first
+    // visit the brand-new worker claims it too, and reloading there would make
+    // every first visit reload itself — under the fingers of someone who may
+    // already be typing.
+    let controlled = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!controlled) {
+        // The first worker taking charge of a page that had none: nothing to
+        // reload, and the page is now controlled — so the *next* hand-over is
+        // a new version, and that one is worth a reload.
+        controlled = true;
+        return;
+      }
+      if (state.reloading) return;
+      state.reloading = true;
+      location.reload();
     });
   });
+}
+
+/** Which copy of the app this is — the version sw.js names its cache after. */
+function appVersion() {
+  return document.querySelector('meta[name="app-version"]')?.content || '';
+}
+
+/**
+ * Go and see whether a newer copy has been published, and say what came of it.
+ *
+ * The app is network-first, so a reload with a network is usually enough — but
+ * "usually" is not something to leave someone guessing about, least of all on a
+ * phone where the app is resumed rather than opened.
+ */
+async function lookForUpdate() {
+  if (!state.worker) return 'unsupported';
+  try {
+    await state.worker.update();
+  } catch {
+    return 'failed';
+  }
+  if (state.worker.installing || state.worker.waiting) return 'coming';
+  return 'current';
 }
 
 adoptOlderGames();
