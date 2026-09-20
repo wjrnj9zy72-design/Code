@@ -45,7 +45,7 @@ dépendance, aucun build.
   rien** : un lien envoyé à quelqu'un d'extérieur lui permet d'ajouter une
   manche ou de cocher une ligne, sans rien voir du reste.
 - **On frappe à un groupe, et quelqu'un ouvre.** Vous envoyez un lien —
-  d'une journée et pour plusieurs personnes, ou d'une demi-heure pour une seule.
+  d'une journée, pour plusieurs personnes ou pour une seule.
   En face, il n'y a qu'**un prénom à écrire** : rien ne s'ouvre, la demande
   arrive chez vous, et vous **acceptez ou refusez** d'une touche. Une invitation
   ne donne donc que le droit de frapper : transférée ou capturée, elle ne fait

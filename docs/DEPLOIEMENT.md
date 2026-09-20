@@ -287,10 +287,10 @@ $$;
 alter table public.marque_points_group drop column if exists key_hash;
 alter table public.marque_points_group drop column if exists key_salt;
 
--- Les invitations : six chiffres, une durée, et un nombre d'entrées. Un lien
--- ouvert vaut une journée et plusieurs personnes ; une invitation pour une seule
--- personne vaut une demi-heure et une entrée. L'un comme l'autre ne donnent que
--- le droit de **frapper** : ce qui fait entrer, c'est votre acceptation.
+-- Les invitations : six chiffres, une durée, et un nombre de demandes. Les deux
+-- formes valent une journée ; ce qui les sépare, c'est le nombre de personnes qui
+-- peuvent frapper avec — plusieurs, ou une seule. L'une comme l'autre ne donnent
+-- que le droit de **frapper** : ce qui fait entrer, c'est votre acceptation.
 create table if not exists public.marque_points_invite (
   code text primary key,
   group_id text not null references public.marque_points_group(id) on delete cascade,
@@ -1065,8 +1065,9 @@ n'acceptent personne.
    choisissez :
    - **un lien pour la journée, plusieurs personnes** — celui qu'on envoie dans
      la conversation de famille ;
-   - **une seule personne, une demi-heure** — pour quelqu'un d'extérieur au
-     cercle, quand vous préférez qu'un lien transféré ne serve à rien ;
+   - **une seule personne, la journée aussi** — pour quelqu'un d'extérieur au
+     cercle : la première demande consomme le lien, donc un lien transféré ne
+     sert à personne d'autre ;
 2. envoyez le lien — message, courriel, QR code montré à l'écran ;
 3. en face, le lien ouvre une page qui ne demande qu'**un prénom**, puis
    **Entrer**. Rien ne s'ouvre : la demande arrive chez vous ;

@@ -1472,7 +1472,6 @@ function bindOverview() {
         title: t('groups.inviteTitle', { name: group.name }),
         hint: t(shape.uses > 1 ? 'groups.inviteHintOpen' : 'groups.inviteHintOne', {
           hours: Math.round(invitation.minutes / 60),
-          minutes: invitation.minutes,
         }),
         text: t('groups.inviteText', { name: group.name }),
         code: invitation.code,
@@ -1668,9 +1667,10 @@ function waitingView(ask) {
 }
 
 /**
- * Which invitation to draw. The link for the day comes first because it is what
- * a family wants; the single-person one is for someone you would rather not see
- * a link forwarded for.
+ * Which invitation to draw. Both last the day — long enough that nobody has to
+ * hurry, and short enough that a link found later is dead. What separates them
+ * is how many people may knock with it: the first is for a family, the second
+ * for someone you would rather not see a link forwarded for.
  */
 async function askInvitationShape() {
   return new Promise((resolve) => {
@@ -1702,7 +1702,7 @@ async function askInvitationShape() {
     dialog.addEventListener('close', () => done(null));
     dialog.querySelector('#invite-cancel').addEventListener('click', () => done(null));
     dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: 1440, uses: 50 }));
-    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 30, uses: 1 }));
+    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 1440, uses: 1 }));
     dialog.showModal();
   });
 }

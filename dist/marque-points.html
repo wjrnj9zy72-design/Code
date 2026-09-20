@@ -963,11 +963,11 @@ const STRINGS = {
     'groups.inviteWhichHint':
       'Dans les deux cas, personne n’entre sans que vous l’acceptiez : une invitation ne donne que le droit de frapper.',
     'groups.inviteOpen': 'Un lien pour la journée, plusieurs personnes',
-    'groups.inviteOne': 'Une seule personne, une demi-heure',
+    'groups.inviteOne': 'Une seule personne, la journée aussi',
     'groups.inviteHintOpen':
       'Envoyez ce lien à qui vous voulez — la famille, un groupe de discussion. Il vaut {hours} h et plusieurs personnes ; chacune n’aura que son prénom à écrire, et vous verrez sa demande dans l’Aperçu.',
     'groups.inviteHintOne':
-      'Envoyez ce lien à cette personne : elle n’aura que son prénom à écrire. Il vaut {minutes} minutes et une seule demande, que vous devrez accepter.',
+      'Envoyez ce lien à cette personne : elle n’aura que son prénom à écrire. Il vaut {hours} h et une seule demande, que vous devrez accepter — un lien transféré ne servira donc à personne d’autre.',
     'groups.inviteText': 'Un lien pour entrer dans {name}',
     'groups.namePlaceholder': 'nom du groupe',
     'groups.codePlaceholder': 'code à six chiffres',
@@ -1454,11 +1454,11 @@ const STRINGS = {
     'groups.inviteWhichHint':
       'Either way nobody gets in until you accept them: an invitation only grants the right to knock.',
     'groups.inviteOpen': 'A link for the day, several people',
-    'groups.inviteOne': 'One person, half an hour',
+    'groups.inviteOne': 'One person, for the day too',
     'groups.inviteHintOpen':
       'Send this link to whoever you like — the family, a group chat. It is good for {hours} h and several people; each writes nothing but their first name, and you see their request in the Overview.',
     'groups.inviteHintOne':
-      'Send this link to that person: all they write is their first name. It is good for {minutes} minutes and one request, which you will have to accept.',
+      'Send this link to that person: all they write is their first name. It is good for {hours} h and one request, which you will have to accept — so a forwarded link is no use to anyone else.',
     'groups.inviteText': 'A link to join {name}',
     'groups.namePlaceholder': 'group name',
     'groups.codePlaceholder': 'six-digit code',
@@ -4775,9 +4775,10 @@ function pollIdFrom(pasted) {
  * name after them so that nothing has to be typed at all.
  *
  * The two travel together here, which the lot links deliberately avoid — and
- * for the opposite reason: an invitation is good for half an hour and for one
- * device, so what protects it is that it expires, not that it is hard to
- * guess. The name and code can still be said out loud instead.
+ * for the opposite reason: an invitation only grants the right to knock, and it
+ * expires, so what protects the group is that someone in it has to accept —
+ * not that the code is hard to find. The name and code can still be said out
+ * loud instead.
  */
 function joinLink(location, name, code) {
   const { origin, pathname, search } = location;
@@ -6403,7 +6404,6 @@ function bindOverview() {
         title: t('groups.inviteTitle', { name: group.name }),
         hint: t(shape.uses > 1 ? 'groups.inviteHintOpen' : 'groups.inviteHintOne', {
           hours: Math.round(invitation.minutes / 60),
-          minutes: invitation.minutes,
         }),
         text: t('groups.inviteText', { name: group.name }),
         code: invitation.code,
@@ -6599,9 +6599,10 @@ function waitingView(ask) {
 }
 
 /**
- * Which invitation to draw. The link for the day comes first because it is what
- * a family wants; the single-person one is for someone you would rather not see
- * a link forwarded for.
+ * Which invitation to draw. Both last the day — long enough that nobody has to
+ * hurry, and short enough that a link found later is dead. What separates them
+ * is how many people may knock with it: the first is for a family, the second
+ * for someone you would rather not see a link forwarded for.
  */
 async function askInvitationShape() {
   return new Promise((resolve) => {
@@ -6633,7 +6634,7 @@ async function askInvitationShape() {
     dialog.addEventListener('close', () => done(null));
     dialog.querySelector('#invite-cancel').addEventListener('click', () => done(null));
     dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: 1440, uses: 50 }));
-    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 30, uses: 1 }));
+    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 1440, uses: 1 }));
     dialog.showModal();
   });
 }
