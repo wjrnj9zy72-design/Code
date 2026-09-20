@@ -1499,9 +1499,19 @@ porter : une ligne de plus dans *Qui est dans le groupe*, que vous pouvez
 **Couper** sans rien déranger. C'est d'ailleurs le bon réflexe si un téléphone est
 perdu.
 
-Et la clé qu'ils gardent est **la leur** : une clé ordinaire, qui voit et partage
-mais ne fait entrer personne. Ne leur donnez jamais la vôtre — celle qui fait
-entrer — sinon ils pourraient accepter qui ils veulent.
+**Chaque appareil a sa propre clé, et ce ne sont pas les mêmes.** C'est le point à
+retenir : quand vous acceptez quelqu'un, le jeton *de son appareil* devient *sa*
+clé — la vôtre ne bouge pas et ne lui est jamais montrée. Sa clé à lui voit et
+partage, mais **ne fait entrer personne** : la base refuse (« cette cle ne fait pas
+entrer ») s'il essaie de lire les demandes, d'accepter, de lister les appareils ou
+d'en couper un. *Voir ma clé*, sur son téléphone, lui montre la sienne, et le
+dialogue le lui dit en clair.
+
+La seule façon pour quelqu'un d'autre de pouvoir accepter du monde serait que vous
+lui donniez **votre** clé, celle qu'a affichée l'éditeur SQL. Ne la donnez à
+personne : la donner, c'est donner la porte. (Si c'est délibéré — un deuxième
+adulte de la maison qui doit pouvoir accepter —, l'étape 4 montre comment
+désigner une autre clé, ce qui vaut mieux que de partager la vôtre.)
 
 > ⚠️ Avant de retirer l'app, deux précautions : **récupérez** (⟳) ou **exportez**
 > (*Données*) ce qui n'a jamais été partagé, car cela n'existe que là ; et

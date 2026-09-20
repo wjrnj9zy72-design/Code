@@ -1654,7 +1654,9 @@ function bindOverview() {
       if (!(await ask(t('groups.confirmShowKey', { name: group.name }), { confirmLabel: t('groups.showKey') }))) return;
       showCopyDialog({
         title: t('groups.keyTitle', { name: group.name }),
-        hint: t('groups.keyWarning'),
+        // Which key this is matters more than the key itself: the one printed at
+        // the group's creation lets people in, every other one does not.
+        hint: `${t('groups.keyWarning')} ${t(group.admits ? 'groups.keyAdmits' : 'groups.keyPlain')}`,
         text: group.key,
       });
     });
