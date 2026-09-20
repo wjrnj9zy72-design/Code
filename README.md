@@ -44,12 +44,17 @@ dépendance, aucun build.
   publique dans le code de la page. **Contribuer, en revanche, ne demande
   rien** : un lien envoyé à quelqu'un d'extérieur lui permet d'ajouter une
   manche ou de cocher une ligne, sans rien voir du reste.
-- **On entre dans un groupe avec six chiffres.** Quelqu'un qui en fait partie
-  touche *Inviter*, dit le nom du groupe et le code — de vive voix, au téléphone
-  —, et l'app d'en face échange ça contre **une clé à elle**, propre à cet
-  appareil et coupable sans déranger les autres. L'invitation vaut une
-  demi-heure et une seule entrée ; vingt essais ratés ferment l'entrée du groupe
-  pendant dix minutes.
+- **On entre dans un groupe par un lien.** Quelqu'un qui en fait partie touche
+  *Inviter* et envoie le lien affiché ; en face, il n'y a qu'**un prénom à
+  écrire**. L'app échange alors l'invitation contre **une clé à elle**, propre à
+  cet appareil, étiquetée de ce prénom et coupable sans déranger les autres.
+  L'invitation vaut une demi-heure et une seule entrée ; vingt essais ratés
+  ferment l'entrée du groupe pendant dix minutes. Le lien ne passe pas ? Le nom
+  du groupe et les six chiffres, dits de vive voix, font exactement la même
+  chose.
+- **Ce prénom sert ensuite partout** : le groupe voit qui est entré, et vous êtes
+  proposé en premier dans une nouvelle liste, un sondage ou une partie. Il ne
+  quitte jamais l'appareil, sinon comme étiquette de sa clé.
 - **Et pour faire entrer quelqu'un d'un coup, sans lui donner la clé** : un lien
   qui porte plusieurs documents, fermé par un **code à six chiffres** tiré au
   hasard — dix essais, puis il se bloque. Le lien et le code voyagent séparément,

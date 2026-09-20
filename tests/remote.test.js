@@ -173,6 +173,40 @@ test('a set travels as one short link, whatever it holds', async () => {
   assert.equal(gameIdFrom(link), null, 'and the two are never confused');
 });
 
+test('an invitation travels as a link, so nothing has to be typed', async () => {
+  const { joinLink, joinFrom, setIdFrom, gameIdFrom } = await import('../src/remote.js');
+  const place = { origin: 'https://gui.github.io', pathname: '/Code/', search: '' };
+
+  const link = joinLink(place, 'Famille', '123456');
+  assert.equal(link, 'https://gui.github.io/Code/#/join/123456/Famille');
+  assert.deepEqual(joinFrom(link), { code: '123456', name: 'Famille' });
+  assert.deepEqual(joinFrom(`Tiens : ${link} à ce soir`), { code: '123456', name: 'Famille' });
+
+  const spaced = joinLink(place, 'Copains du mardi', '000042');
+  assert.equal(spaced, 'https://gui.github.io/Code/#/join/000042/Copains%20du%20mardi',
+    'a name with spaces still makes one unbroken link');
+  assert.deepEqual(joinFrom(spaced), { code: '000042', name: 'Copains du mardi' },
+    'and comes back as it was written');
+  assert.deepEqual(joinFrom(joinLink(place, 'Été 2026 / sud', '999999')),
+    { code: '999999', name: 'Été 2026 / sud' }, 'accents and slashes included');
+
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/12345/Famille'), null, 'five digits is not a code');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456'), null, 'a code without its group');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456/'), null, 'nor an empty group name');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/set/lot_abcdefgh'), null, 'a lot is not an invitation');
+  assert.equal(joinFrom(null), null);
+  assert.equal(setIdFrom(link), null, 'and an invitation is never taken for something else');
+  assert.equal(gameIdFrom(link), null);
+});
+
+test('a link mangled on its way through a message still carries the digits', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  // A stray percent sign is what a message app leaves behind when it decides
+  // to shorten a link: the name is then read as it stands rather than lost.
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/Famille%'),
+    { code: '123456', name: 'Famille%' });
+});
+
 test('a lot takes a group key to write, and a code to read', async () => {
   const calls = [];
   const remote = createRemote(CONFIG, async (url, options) => {

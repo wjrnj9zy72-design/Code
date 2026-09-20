@@ -21,7 +21,7 @@ import {
 import { recentPeople } from './people.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -202,7 +202,8 @@ function pollsView() {
 }
 
 function newPollView() {
-  const suggestions = [...new Set([...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  newPollPeople = withMeFirst(newPollPeople);
+  const suggestions = [...new Set([myName(), ...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)].filter(Boolean))].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">
@@ -773,9 +774,10 @@ function listsView() {
 }
 
 function newListView() {
+  newListPeople = withMeFirst(newListPeople);
   const suggestions = [...new Set([
-    ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
-  ])].slice(0, 12);
+    myName(), ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
   return `
     ${flashHtml()}
     <div class="spread">
@@ -967,6 +969,12 @@ function route() {
   const hash = location.hash.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'games') return { name: 'home' };
+  // An invitation link carries both the six digits and the group's name, so
+  // the person who receives it has nothing to read out and nothing to type.
+  if (name === 'join' && param) {
+    const invitation = joinFrom(location.hash);
+    return { name: 'join', code: invitation?.code || readCode(param), group: invitation?.name || '' };
+  }
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -1132,6 +1140,25 @@ function groupsHtml() {
     </section>`;
 }
 
+/**
+ * Who this device belongs to. Shown here rather than buried in a setting,
+ * because it is what the app puts in a group's list of keys and what it offers
+ * as the first person of every new list.
+ */
+function meHtml() {
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('me.title'))}</h2></div>
+      <p class="muted small">${escapeHtml(t(state.remote ? 'me.hint' : 'me.hintAlone'))}</p>
+      <div class="row row--tight">
+        <input type="text" id="me-name" autocomplete="given-name" maxlength="40"
+               value="${escapeHtml(myName())}" placeholder="${escapeHtml(t('me.placeholder'))}"
+               aria-label="${escapeHtml(t('me.title'))}" />
+        <button type="button" class="button" id="me-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+    </section>`;
+}
+
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -1156,6 +1183,8 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
+
+    ${meHtml()}
 
     ${state.remote ? groupsHtml() : ''}
 
@@ -1196,6 +1225,17 @@ function overviewView() {
 function bindOverview() {
   bindData();
 
+  view.querySelector('#me-save')?.addEventListener('click', () => {
+    const name = setMyName(view.querySelector('#me-name').value);
+    flash(name ? t('me.saved', { name }) : t('me.cleared'));
+    render();
+  });
+  view.querySelector('#me-name')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#me-save')?.click();
+  });
+
   const joining = (line, message) => {
     line.textContent = message;
   };
@@ -1212,7 +1252,7 @@ function bindOverview() {
     joining(line, t('groups.checking'));
     let answer = { status: 'unknown' };
     try {
-      answer = await state.remote.join(name, code, deviceLabel());
+      answer = await takeInvitation({ group: name, code, me: myName() });
     } catch {
       button.disabled = false;
       return joining(line, t('groups.unsure'));
@@ -1221,9 +1261,6 @@ function bindOverview() {
 
     if (answer.status === 'busy') return joining(line, t('groups.busy'));
     if (answer.status !== 'ok') return joining(line, t('groups.codeRefused'));
-
-    rememberGroup({ id: answer.id, name: answer.name, key: answer.key });
-    flash(t('groups.joined', { name: answer.name }));
     render();
   });
 
@@ -1277,10 +1314,13 @@ function bindOverview() {
         return;
       }
       render();
-      showCopyDialog({
+      // One link, and whoever receives it types their first name and nothing
+      // else. The digits stay on show underneath, to be said out loud instead.
+      await shareUrl({
+        url: joinLink(location, group.name, invitation.code),
         title: t('groups.inviteTitle', { name: group.name }),
         hint: t('groups.inviteHint', { minutes: invitation.minutes }),
-        text: t('groups.inviteText', { name: group.name, code: invitation.code }),
+        text: t('groups.inviteText', { name: group.name }),
         code: invitation.code,
       });
     });
@@ -1312,6 +1352,111 @@ function bindOverview() {
       render();
     });
   });
+}
+
+/* ------------------------------------------------------- joining a group --- */
+
+/**
+ * The page an invitation link opens: one field, the first name of whoever is
+ * joining, and a button. The group's name and the six digits arrived in the
+ * link, and are shown so that a link mangled by a messaging app can still be
+ * corrected by hand rather than being a dead end.
+ */
+function joinView(invitation) {
+  const already = groups().find(
+    (group) => group.name.trim().toLowerCase() === invitation.group.trim().toLowerCase(),
+  );
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="join-form" class="card stack">
+      <p class="muted small">${escapeHtml(already ? t('join.already', { name: already.name }) : t('join.hint'))}</p>
+      <label>
+        ${escapeHtml(t('join.me'))}
+        <input type="text" id="join-me" autocomplete="given-name" maxlength="40" required
+               value="${escapeHtml(myName())}" placeholder="${escapeHtml(t('me.placeholder'))}" />
+      </label>
+
+      <button type="submit" class="button button--primary button--block">
+        ${escapeHtml(already ? t('groups.catchUp') : t('join.action'))}
+      </button>
+      <p class="muted small" id="join-state"></p>
+
+      <details class="details">
+        <summary>${escapeHtml(t('join.byHand'))}</summary>
+        <div class="row row--tight">
+          <input type="text" id="join-group" autocomplete="off" value="${escapeHtml(invitation.group)}"
+                 placeholder="${escapeHtml(t('groups.namePlaceholder'))}" aria-label="${escapeHtml(t('groups.namePlaceholder'))}" />
+          <input type="text" id="join-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="7" value="${escapeHtml(invitation.code || '')}" placeholder="000000"
+                 aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
+        </div>
+      </details>
+    </form>`;
+}
+
+function bindJoin() {
+  const form = view.querySelector('#join-form');
+  const line = view.querySelector('#join-state');
+  const say = (message) => {
+    line.textContent = message;
+  };
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const me = view.querySelector('#join-me').value.trim();
+    const group = view.querySelector('#join-group').value.trim();
+    const code = readCode(view.querySelector('#join-code').value);
+    if (!me) return say(t('join.needMe'));
+    if (!group) return say(t('groups.needName'));
+    if (!code) return say(t('groups.needCode'));
+
+    setMyName(me);
+
+    // Already in this group: the invitation is worth keeping for someone else,
+    // so take what the group shares instead of spending it.
+    const held = groups().find((item) => item.name.trim().toLowerCase() === group.toLowerCase());
+    if (held) {
+      button.disabled = true;
+      say(t('groups.checking'));
+      let taken = 0;
+      try {
+        taken = await catchUpWith(held);
+      } catch {
+        button.disabled = false;
+        return say(t('groups.unsure'));
+      }
+      flash(taken ? t('groups.caughtUp', { count: taken }) : t('groups.upToDate'));
+      navigate('#/');
+      return;
+    }
+
+    if (!state.remote) return say(t('join.noDatabase'));
+
+    button.disabled = true;
+    say(t('groups.checking'));
+    let answer = { status: 'unknown' };
+    try {
+      answer = await takeInvitation({ group, code, me });
+    } catch {
+      button.disabled = false;
+      return say(t('groups.unsure'));
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return say(t('groups.busy'));
+    if (answer.status !== 'ok') return say(t('groups.codeRefused'));
+    navigate('#/');
+  });
+
+  view.querySelector('#join-me')?.focus();
 }
 
 function homeView() {
@@ -1440,10 +1585,12 @@ function newGameView() {
   const isTeam = config.entrantLabel === 'team';
   const [min, max] = preset.players;
 
+  // A team is not a person, so only players are offered my own name.
+  if (!isTeam) newGameNames = withMeFirst(newGameNames);
   while (newGameNames.length < min) newGameNames.push('');
   const names = newGameNames.slice(0, Math.max(min, Math.min(newGameNames.length, max)));
 
-  const known = recentNames(state.games);
+  const known = [...new Set([myName(), ...recentNames(state.games)].filter(Boolean))];
   const nameRows = names
     .map(
       (value, index) => `
@@ -2139,6 +2286,14 @@ function openLinkDialog() {
 
     // A link to a whole set of games is pasted here too: on a phone the
     // installed app has no address bar, so this is the only way in.
+    // An invitation pasted rather than tapped: the same screen, prefilled.
+    const invitation = joinFrom(pasted);
+    if (invitation) {
+      close();
+      navigate(`#/join/${invitation.code}/${encodeURIComponent(invitation.name)}`);
+      return;
+    }
+
     const setId = setIdFrom(pasted);
     if (setId) {
       event.currentTarget.disabled = true;
@@ -2207,7 +2362,7 @@ function openLinkDialog() {
  * Hand a link over the easy way when the device offers one — one tap to a
  * message — and fall back to the text with its QR code everywhere else.
  */
-async function shareUrl({ url, title, hint, text }) {
+async function shareUrl({ url, title, hint, text, code = null }) {
   if (navigator.share) {
     try {
       await navigator.share({ title: t('app.title'), text, url });
@@ -2218,7 +2373,7 @@ async function shareUrl({ url, title, hint, text }) {
       // Anything else: fall through to the text everyone can copy.
     }
   }
-  showCopyDialog({ title, hint, text: url, qr: true });
+  showCopyDialog({ title, hint, text: url, qr: true, code });
 }
 
 /* ----------------------------------------------------------------- groups --- */
@@ -2338,13 +2493,74 @@ async function startSharing(document_) {
 }
 
 /**
- * How this device shows up in a group's list of keys. Not a name, not an
- * identity: just enough for whoever hosts the database to tell one line from
- * another when cutting one off.
+ * Who is holding this device — a first name, nothing more.
+ *
+ * It is asked once, when joining a group, because that is the moment it is
+ * actually wanted: the group needs to know who has just come in, and the
+ * person is going to type their name into the first list anyway. It never
+ * leaves this device except as the label on that device's key.
+ */
+function myName() {
+  const value = state.prefs.me;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function setMyName(name) {
+  const clean = String(name || '').trim().slice(0, 40);
+  if (clean === myName()) return clean;
+  state.prefs = { ...state.prefs, me: clean };
+  savePrefs(state.prefs);
+  return clean;
+}
+
+/**
+ * Me first, in a form nothing has been typed into yet — because the person
+ * filling in a list is almost always on it. As soon as any name is there the
+ * list is left exactly as it stands.
+ */
+function withMeFirst(names) {
+  const me = myName();
+  if (!me) return names;
+  if (names.some((name) => name.trim().toLowerCase() === me.toLowerCase())) return names;
+  if (names.some((name) => name.trim())) return names;
+  return [me, ...names.slice(1)];
+}
+
+/**
+ * How this device shows up in a group's list of keys: the first name of
+ * whoever joined, and where from — enough for whoever hosts the database to
+ * tell one line from another when cutting one off.
  */
 function deviceLabel() {
   const standalone = matchMedia?.('(display-mode: standalone)')?.matches;
-  return `${standalone ? t('groups.onHomeScreen') : t('groups.inBrowser')} · ${formatDate(Date.now())}`;
+  const where = standalone ? t('groups.onHomeScreen') : t('groups.inBrowser');
+  const me = myName();
+  return `${me ? `${me} · ` : ''}${where} · ${formatDate(Date.now())}`;
+}
+
+/**
+ * Come into a group with an invitation: the six digits and the group's name,
+ * both of which a link carries. The first name goes in first, so the key this
+ * device gets is labelled with it.
+ *
+ * Returns the answer the database gave, after taking in what the group already
+ * shares — joining a family and finding its lists empty would say nothing.
+ */
+async function takeInvitation({ group, code, me }) {
+  setMyName(me);
+  const answer = await state.remote.join(group, code, deviceLabel());
+  if (answer.status !== 'ok') return answer;
+
+  const joined = { id: answer.id, name: answer.name, key: answer.key };
+  rememberGroup(joined);
+  let taken = 0;
+  try {
+    taken = await catchUpWith(joined);
+  } catch {
+    // The group is joined either way; what it shares can be fetched later.
+  }
+  flash(taken ? t('groups.joinedWith', { name: joined.name, count: taken }) : t('groups.joined', { name: joined.name }));
+  return answer;
 }
 
 /** Take in a key: the database says which group it opens, or refuses it. */
@@ -4055,6 +4271,10 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'join') {
+    stopWatching();
+    view.innerHTML = joinView(current);
+    bindJoin();
   } else if (current.name === 'home') {
     stopWatching();
     view.innerHTML = homeView();

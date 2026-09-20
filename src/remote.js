@@ -255,6 +255,35 @@ export function pollIdFrom(pasted) {
   return found ? found[1] : null;
 }
 
+/**
+ * The link that brings someone into a group: the six digits, and the group's
+ * name after them so that nothing has to be typed at all.
+ *
+ * The two travel together here, which the lot links deliberately avoid — and
+ * for the opposite reason: an invitation is good for half an hour and for one
+ * device, so what protects it is that it expires, not that it is hard to
+ * guess. The name and code can still be said out loud instead.
+ */
+export function joinLink(location, name, code) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/join/${code}/${encodeURIComponent(name)}`;
+}
+
+/** The invitation inside whatever was pasted: { code, name }, or null. */
+export function joinFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/join\/(\d{6})\/([^\s/?#]+)/);
+  if (!found) return null;
+  let name = '';
+  try {
+    name = decodeURIComponent(found[2]);
+  } catch {
+    // A link mangled on its way through a message: the digits are still good.
+    name = found[2];
+  }
+  name = name.trim();
+  return name ? { code: found[1], name } : null;
+}
+
 /** The link that hands over a set of games at once. */
 export function setLink(location, setId) {
   const { origin, pathname, search } = location;

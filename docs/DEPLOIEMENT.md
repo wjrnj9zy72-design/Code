@@ -168,9 +168,10 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 -- tour.
 --
 -- On entre dans un groupe avec **le nom du groupe et six chiffres** : quelqu'un
--- qui en est déjà membre crée l'invitation depuis l'app, la dit de vive voix, et
--- l'app d'en face échange ça contre une clé à elle — propre à cet appareil, et
--- révocable sans toucher aux autres.
+-- qui en est déjà membre crée l'invitation depuis l'app, l'envoie sous forme de
+-- lien (ou la dit de vive voix), et l'app d'en face échange ça contre une clé à
+-- elle — propre à cet appareil, étiquetée du prénom de qui entre, et révocable
+-- sans toucher aux autres.
 --
 -- Deux règles, et elles suffisent :
 --   * créer un partage demande la clé d'un groupe ;
@@ -666,16 +667,28 @@ déjà envoyés continuent de fonctionner, avant comme après.
 vous venez de copier. Dans l'app, onglet **Aperçu** → **Mes groupes** → dépliez
 *Je n'ai pas de code, mais une clé* → collez → **Entrer**.
 
-**Tous les autres entrent avec six chiffres**, et c'est tout :
+**Tous les autres entrent par un lien**, et c'est tout :
 
 1. sur un appareil déjà dans le groupe, touchez **Inviter** à côté du nom du
    groupe ;
-2. dites le nom du groupe et les six chiffres affichés — de vive voix, au
-   téléphone, comme vous voulez ;
-3. en face : onglet **Aperçu**, le nom du groupe, le code, **Entrer**.
+2. envoyez le lien affiché — message, courriel, QR code montré à l'écran ;
+3. en face, le lien ouvre une page qui ne demande qu'**un prénom**, puis
+   **Entrer**. Le nom du groupe et les six chiffres étaient dans le lien.
+
+Si le lien ne passe pas — un message qui l'abîme, quelqu'un au téléphone —
+**dites le nom du groupe et les six chiffres** affichés sous le lien : l'onglet
+**Aperçu** de l'autre appareil les accepte tels quels, et la page d'entrée aussi,
+en dépliant *Nom du groupe et code*.
 
 L'invitation vaut **une demi-heure et une seule entrée**. L'appareil qui entre
-reçoit **sa propre clé** : la couper plus tard ne dérange aucun autre.
+reçoit **sa propre clé** : la couper plus tard ne dérange aucun autre. Le prénom
+demandé à l'entrée devient l'étiquette de cette clé — c'est ce que vous lirez à
+l'étape suivante pour savoir quelle ligne couper.
+
+> Le lien porte les six chiffres : qui le lit dans la demi-heure qui suit peut
+> entrer à la place de la personne. C'est le même risque qu'un « Famille /
+> 123456 » envoyé dans un message, et la même parade : l'invitation expire, ne
+> sert qu'une fois, et une clé entrée par erreur se coupe à l'étape 4.
 
 > Le code ne fait que six chiffres, mais on ne les devine pas : au-delà de vingt
 > essais ratés en dix minutes sur un même groupe, la base n'ouvre plus du tout

@@ -13,7 +13,7 @@
  * changes — tools/bundle.js checks that it matches the files it built.
  */
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `marque-points-${VERSION}`;
 
 const SHELL = [
