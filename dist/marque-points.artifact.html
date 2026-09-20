@@ -538,6 +538,63 @@ table.scores .meta-cell { color: var(--muted); }
 .row--tight { flex-wrap: nowrap; gap: 8px; }
 .row--tight input { flex: 1; }
 
+/* ----------------------------------------------------------------- votes --- */
+/*
+ * The poll grid: choices down the side, people across. Cells are square and
+ * finger-sized, because tapping them is the whole interaction.
+ */
+.votes { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+.votes th, .votes td { padding: 4px; text-align: center; }
+
+.votes thead th {
+  padding-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.votes tbody th {
+  text-align: left;
+  font-weight: 550;
+}
+
+.votes tbody tr { border-top: 1px solid var(--border); }
+
+.votes__leader { background: var(--accent-soft); }
+
+.votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.votes__score { font-variant-numeric: tabular-nums; font-weight: 650; }
+
+.vote {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
+.vote--maybe { border-color: #b8761a; background: var(--accent-soft); color: #8a5712; }
+.vote--no { border-color: #a33c32; background: #f7e7e5; color: #8c2f26; }
+.vote[disabled] { cursor: default; opacity: 0.75; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
+  :root:not([data-theme="light"]) .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
+  :root:not([data-theme="light"]) .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+}
+
+:root[data-theme="dark"] .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
+:root[data-theme="dark"] .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
+:root[data-theme="dark"] .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+
 /* ------------------------------------------------------------------ tabs --- */
 /*
  * The two halves of the app. Two of them, so they get the full width and the
@@ -548,7 +605,8 @@ table.scores .meta-cell { color: var(--muted); }
      changes with the tagline's wrapping — would put the two on top of each
      other on exactly the narrow screens this is for. */
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -703,6 +761,7 @@ table.scores .meta-cell { color: var(--muted); }
     <nav class="tabs" id="tabs" aria-label="Sections">
       <a class="tab" href="#/" data-tab="games" data-i18n="tab.games">Parties</a>
       <a class="tab" href="#/lists" data-tab="lists" data-i18n="tab.lists">Listes</a>
+      <a class="tab" href="#/polls" data-tab="polls" data-i18n="tab.polls">Sondages</a>
     </nav>
 
     <main id="view" class="view" aria-live="polite"></main>
@@ -716,7 +775,7 @@ window.MARQUE_POINTS_EXPORT_MODE = 'copy';
 const STRINGS = {
   fr: {
     'app.title': 'Together',
-    'app.tagline': 'Les points et les listes, à plusieurs',
+    'app.tagline': 'Points, listes et sondages, à plusieurs',
     'action.newGame': 'Nouvelle partie',
     'action.back': 'Retour',
     'action.save': 'Enregistrer',
@@ -831,6 +890,42 @@ const STRINGS = {
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.stats': 'Statistiques',
     'tab.games': 'Parties',
+    'tab.polls': 'Sondages',
+    'polls.new': 'Nouveau sondage',
+    'polls.question': 'La question',
+    'polls.questionPlaceholder': 'Quel soir pour la raclette ?',
+    'polls.choices': 'Les choix (un par ligne)',
+    'polls.choicesPlaceholder': 'Vendredi 12\nSamedi 13\nDimanche 14',
+    'polls.peopleHint': 'Les personnes à qui on demande. On peut en ajouter plus tard.',
+    'polls.create': 'Créer le sondage',
+    'polls.untitled': 'Sondage sans question',
+    'polls.ongoing': 'En cours',
+    'polls.done': 'Clos',
+    'polls.none': 'Aucun sondage pour l’instant. Posez une question : un soir, un lieu, un cadeau.',
+    'polls.answered': '{count} réponse(s) sur {total}',
+    'polls.noAnswerYet': 'Personne n’a encore répondu.',
+    'polls.leading': 'En tête : {option} ({count} oui)',
+    'polls.closed': 'clos',
+    'polls.close': 'Clore le sondage',
+    'polls.reopen': 'Rouvrir le sondage',
+    'polls.choice': 'Choix',
+    'polls.count': 'Oui',
+    'polls.iAm': 'Je suis :',
+    'polls.tapHint': 'Touchez une case pour passer de oui à peut-être, puis non, puis rien.',
+    'polls.addChoice': 'Ajouter un choix',
+    'polls.addChoices': 'Ajoutez les choix ci-dessous.',
+    'polls.addPeople': 'Ajoutez d’abord les personnes à qui vous demandez.',
+    'polls.choiceTitle': 'Modifier le choix',
+    'polls.confirmRemoveChoice': 'Supprimer ce choix ? Les réponses qui le concernaient partiront avec.',
+    'polls.confirmRemovePerson': 'Retirer cette personne ? Ses réponses partiront avec elle.',
+    'polls.confirmDelete': 'Supprimer ce sondage ? Il disparaîtra aussi pour les personnes avec qui il est partagé.',
+    'polls.rename': 'Modifier la question',
+    'polls.share': 'Partager le sondage',
+    'polls.shareTitle': 'Lien vers ce sondage',
+    'polls.shareHint':
+      'Scannez le code, ou envoyez le lien : la personne répond de son côté, et le compte se met à jour ici.',
+    'polls.loading': 'Ouverture du sondage…',
+    'polls.countLine': '{yes} oui, {maybe} peut-être, {no} non',
     'tab.lists': 'Listes',
     'lists.new': 'Nouvelle liste',
     'lists.name': 'Titre de la liste',
@@ -895,7 +990,7 @@ const STRINGS = {
     'shareApp.title': 'Lien vers l’app',
     'shareApp.hint':
       'Scannez le code, ou envoyez le lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
-    'shareApp.text': 'Together — les points et les listes, à plusieurs',
+    'shareApp.text': 'Together — points, listes et sondages, à plusieurs',
     'shareApp.kindApp': 'L’app seule',
     'shareApp.kindAppHint': 'la personne repart de zéro, avec ses propres parties',
     'shareApp.kindAll': 'L’app et toutes mes parties ({count})',
@@ -1066,7 +1161,7 @@ const STRINGS = {
 
   en: {
     'app.title': 'Together',
-    'app.tagline': 'Scores and lists, together',
+    'app.tagline': 'Scores, lists and polls, together',
     'action.newGame': 'New game',
     'action.back': 'Back',
     'action.save': 'Save',
@@ -1181,6 +1276,42 @@ const STRINGS = {
     'share.sendFailed': 'The game could not be sent. Try again.',
     'action.stats': 'Statistics',
     'tab.games': 'Games',
+    'tab.polls': 'Polls',
+    'polls.new': 'New poll',
+    'polls.question': 'The question',
+    'polls.questionPlaceholder': 'Which evening for the raclette?',
+    'polls.choices': 'The choices (one per line)',
+    'polls.choicesPlaceholder': 'Friday 12\nSaturday 13\nSunday 14',
+    'polls.peopleHint': 'The people being asked. More can be added later.',
+    'polls.create': 'Create the poll',
+    'polls.untitled': 'Poll with no question',
+    'polls.ongoing': 'Open',
+    'polls.done': 'Closed',
+    'polls.none': 'No polls yet. Ask something: an evening, a place, a present.',
+    'polls.answered': '{count} of {total} answered',
+    'polls.noAnswerYet': 'Nobody has answered yet.',
+    'polls.leading': 'Leading: {option} ({count} yes)',
+    'polls.closed': 'closed',
+    'polls.close': 'Close the poll',
+    'polls.reopen': 'Reopen the poll',
+    'polls.choice': 'Choice',
+    'polls.count': 'Yes',
+    'polls.iAm': 'I am:',
+    'polls.tapHint': 'Tap a cell to go from yes to maybe, then no, then nothing.',
+    'polls.addChoice': 'Add a choice',
+    'polls.addChoices': 'Add the choices below.',
+    'polls.addPeople': 'Start by adding the people you are asking.',
+    'polls.choiceTitle': 'Edit the choice',
+    'polls.confirmRemoveChoice': 'Delete this choice? The answers about it go with it.',
+    'polls.confirmRemovePerson': 'Remove this person? Their answers go with them.',
+    'polls.confirmDelete': 'Delete this poll? It will go for the people it is shared with too.',
+    'polls.rename': 'Edit the question',
+    'polls.share': 'Share the poll',
+    'polls.shareTitle': 'Link to this poll',
+    'polls.shareHint':
+      'Scan the code, or send the link: they answer on their side, and the count updates here.',
+    'polls.loading': 'Opening the poll…',
+    'polls.countLine': '{yes} yes, {maybe} maybe, {no} no',
     'tab.lists': 'Lists',
     'lists.new': 'New list',
     'lists.name': 'List title',
@@ -1245,7 +1376,7 @@ const STRINGS = {
     'shareApp.title': 'Link to the app',
     'shareApp.hint':
       'Scan the code, or send the link: they open the app and keep their own games, on their own device.',
-    'shareApp.text': 'Together — scores and lists, shared',
+    'shareApp.text': 'Together — scores, lists and polls, together',
     'shareApp.kindApp': 'The app alone',
     'shareApp.kindAppHint': 'they start empty, with games of their own',
     'shareApp.kindAll': 'The app and all my games ({count})',
@@ -2803,6 +2934,104 @@ function qrSvg(text, { size = 220, quiet = 4 } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${count} ${count}" width="${size}" height="${size}" role="img"><rect width="${count}" height="${count}" fill="#fff"/><g fill="#000">${rects.join('')}</g></svg>`;
 }
 
+  // ---- src/stamp.js ----------------------------------------------------
+/**
+ * Clocks and tombstones, for the documents several people edit at once.
+ *
+ * Lists and polls are merged the same way and for the same reason — two phones
+ * touching the same thing within a second of each other — so the two rules
+ * that make those merges work live here, once.
+ */
+
+/**
+ * The next stamp for something that has just changed: now, or one more than it
+ * carried, whichever is later. Never returning the same value twice is what
+ * lets a merge tell "someone changed this" from "nobody touched it", even when
+ * both happen inside the same millisecond.
+ */
+function later(previous) {
+  return Math.max(Date.now(), (previous || 0) + 1);
+}
+
+/** A changed document, stamped. */
+function touch(document_, patch) {
+  return { ...document_, ...patch, updatedAt: later(document_.updatedAt) };
+}
+
+/**
+ * How long a deletion is remembered. A line deleted here has to stay deleted
+ * when the other phone — which still holds it — syncs again; a month is longer
+ * than any phone stays away, and short enough that the traces never pile up.
+ */
+const FORGET_AFTER = 30 * 24 * 60 * 60 * 1000;
+
+function prune(removed, now = Date.now()) {
+  const kept = {};
+  for (const [id, at] of Object.entries(removed || {})) {
+    if (now - at < FORGET_AFTER) kept[id] = at;
+  }
+  return kept;
+}
+
+  // ---- src/people.js ---------------------------------------------------
+/**
+ * The people a shared document concerns — a list's, a poll's.
+ *
+ * They behave the same everywhere: added by name, renamed without losing what
+ * hangs off them, and removed together with whatever the document held about
+ * them. What differs is only that last part, so each document says how to
+ * forget someone and the rest is written once, here.
+ *
+ * They also carry their own clock, `peopleAt`. A merge needs it: without it,
+ * "Alice was just removed" and "this copy has never heard of Alice" look
+ * exactly alike, and removing someone gets undone by the next sync.
+ */
+
+
+
+function addPerson(document_, name) {
+  const clean = String(name || '').trim();
+  if (!clean) return document_;
+  return touch(document_, {
+    people: [...document_.people, { id: uid('w'), name: clean }],
+    peopleAt: later(document_.peopleAt),
+  });
+}
+
+function renamePerson(document_, personId, name) {
+  const clean = String(name || '').trim();
+  if (!clean) return document_;
+  return touch(document_, {
+    people: document_.people.map((person) =>
+      (person.id === personId ? { ...person, name: clean } : person)),
+    peopleAt: later(document_.peopleAt),
+  });
+}
+
+/**
+ * Remove someone. `forget` returns whatever else the document must change —
+ * the lines that were theirs, the answers they gave — as a patch.
+ */
+function removePerson(document_, personId, forget = () => ({})) {
+  return touch(document_, {
+    people: document_.people.filter((person) => person.id !== personId),
+    peopleAt: later(document_.peopleAt),
+    ...forget(document_, personId),
+  });
+}
+
+/** The names already used, most recent first, to offer when starting another. */
+function recentPeople(documents, limit = 12) {
+  const seen = [];
+  for (const document_ of [...documents].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) {
+    for (const person of document_.people || []) {
+      if (!seen.includes(person.name)) seen.push(person.name);
+      if (seen.length >= limit) return seen;
+    }
+  }
+  return seen;
+}
+
   // ---- src/lists.js ----------------------------------------------------
 /**
  * Lists: a title, the people it concerns, and lines to hand out.
@@ -2818,6 +3047,8 @@ function qrSvg(text, { size = 220, quiet = 4 } = {}) {
  *
  * Pure, like the game model: every mutator returns a new list.
  */
+
+
 
 
 /** A new list. `names` are the people it is shared between; it can be nobody. */
@@ -2847,14 +3078,6 @@ function createList({ name = '', names = [], shared = false } = {}) {
   };
 }
 
-/**
- * Every change moves the clock forward, even when two of them land in the same
- * millisecond: a stamp that never repeats is what lets a merge tell a line
- * someone changed from the same line nobody touched.
- */
-const later = (previous) => Math.max(Date.now(), (previous || 0) + 1);
-
-const touch = (list, items) => ({ ...list, items, updatedAt: later(list.updatedAt) });
 
 /**
  * Add a line. Several lines at once when a whole list is pasted in — which is
@@ -2876,7 +3099,7 @@ function addItems(list, text) {
       createdAt: now,
       updatedAt: now,
     }));
-  return fresh.length ? touch(list, [...list.items, ...fresh]) : list;
+  return fresh.length ? touch(list, { items: [...list.items, ...fresh] }) : list;
 }
 
 function patchItem(list, itemId, patch) {
@@ -2886,7 +3109,7 @@ function patchItem(list, itemId, patch) {
     changed = true;
     return { ...item, ...patch, updatedAt: later(item.updatedAt) };
   });
-  return changed ? touch(list, items) : list;
+  return changed ? touch(list, { items }) : list;
 }
 
 function renameItem(list, itemId, text) {
@@ -2913,22 +3136,9 @@ function toggleItem(list, itemId) {
 function removeItem(list, itemId) {
   const items = list.items.filter((item) => item.id !== itemId);
   if (items.length === list.items.length) return list;
-  return {
-    ...touch(list, items),
-    removed: { ...list.removed, [itemId]: Date.now() },
-  };
+  return touch(list, { items, removed: { ...list.removed, [itemId]: Date.now() } });
 }
 
-/** Tombstones worth keeping: a month is longer than any phone stays away. */
-const FORGET_AFTER = 30 * 24 * 60 * 60 * 1000;
-
-function prune(removed, now = Date.now()) {
-  const kept = {};
-  for (const [id, at] of Object.entries(removed || {})) {
-    if (now - at < FORGET_AFTER) kept[id] = at;
-  }
-  return kept;
-}
 
 /** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
 function reuseList(list) {
@@ -2941,40 +3151,18 @@ function reuseList(list) {
   };
 }
 
-function addPerson(list, name) {
-  const clean = String(name || '').trim();
-  if (!clean) return list;
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: [...list.people, { id: uid('w'), name: clean }],
-    peopleAt: at,
-    updatedAt: later(list.updatedAt),
-  };
-}
+/**
+ * The people this list concerns. Named for the list so that a bundle holding
+ * every document type in one scope has no two functions fighting over a name.
+ */
+const addListPerson = addPerson;
+const renameListPerson = renamePerson;
 
-function renamePerson(list, personId, name) {
-  const clean = String(name || '').trim();
-  if (!clean) return list;
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: list.people.map((person) => (person.id === personId ? { ...person, name: clean } : person)),
-    peopleAt: at,
-    updatedAt: later(list.updatedAt),
-  };
-}
-
-/** Drop someone. What was theirs goes back to nobody rather than disappearing. */
-function removePerson(list, personId) {
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: list.people.filter((person) => person.id !== personId),
-    peopleAt: at,
-    items: list.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
-    updatedAt: later(list.updatedAt),
-  };
+/** Remove someone: what was theirs goes back to nobody, rather than vanishing. */
+function removeListPerson(list, personId) {
+  return removePerson(list, personId, (current) => ({
+    items: current.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
+  }));
 }
 
 /**
@@ -3000,7 +3188,7 @@ function shareOut(list) {
     load.set(lightest, load.get(lightest) + 1);
     return { ...item, who: lightest, updatedAt: now };
   });
-  return touch(list, items);
+  return touch(list, { items });
 }
 
 /** How far along: { done, total, left } — and per person where asked. */
@@ -3084,16 +3272,242 @@ function isValidList(value) {
   );
 }
 
-/** The names already used, most recent first, to offer when starting a list. */
-function recentPeople(lists, limit = 12) {
-  const seen = [];
-  for (const list of [...lists].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) {
-    for (const person of list.people) {
-      if (!seen.includes(person.name)) seen.push(person.name);
-      if (seen.length >= limit) return seen;
-    }
+  // ---- src/polls.js ----------------------------------------------------
+/**
+ * Polls: a question, the choices it offers, and who is up for what.
+ *
+ * The shape everyone actually needs is the "which evening suits you?" one, so
+ * a vote is not a single pick but a value per person and per choice — yes,
+ * maybe, no. Picking one option out of several is that same grid with a single
+ * yes in it, so there is no second kind of poll to build, and no setting to
+ * choose before asking the question.
+ *
+ * Like games and lists: pure, merged cell by cell, and it travels as one
+ * document through the same database.
+ */
+
+
+
+
+const VALUES = ['yes', 'maybe', 'no'];
+
+/** The key a single answer is stored under: one person, one choice. */
+const answerKey = (personId, optionId) => `${personId}|${optionId}`;
+
+function createPoll({ question = '', options = [], names = [], shared = false } = {}) {
+  const now = Date.now();
+  return {
+    id: uid('v'),
+    kind: 'poll',
+    question: String(question).trim(),
+    createdAt: now,
+    updatedAt: now,
+    peopleAt: now,
+    closedAt: null,
+    shared: Boolean(shared),
+    removed: {},
+    people: names
+      .map((raw) => String(raw || '').trim())
+      .filter(Boolean)
+      .map((name) => ({ id: uid('w'), name })),
+    options: [],
+    // { "personId|optionId": { v: 'yes' | 'maybe' | 'no', at } }
+    votes: {},
+  };
+}
+
+/** Add choices, one per line — a poll is usually pasted, not typed. */
+function addOptions(poll, text) {
+  const now = Date.now();
+  const fresh = String(text || '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•–—]+|\d+\s*[.)])\s+/, '').trim())
+    .filter(Boolean)
+    .map((line) => ({ id: uid('o'), text: line, createdAt: now, updatedAt: now }));
+  return fresh.length ? touch(poll, { options: [...poll.options, ...fresh] }) : poll;
+}
+
+function renameOption(poll, optionId, text) {
+  const clean = String(text || '').trim();
+  if (!clean) return poll;
+  let changed = false;
+  const options = poll.options.map((option) => {
+    if (option.id !== optionId) return option;
+    changed = true;
+    return { ...option, text: clean, updatedAt: later(option.updatedAt) };
+  });
+  return changed ? touch(poll, { options }) : poll;
+}
+
+/** Drop a choice, and the answers that went with it. */
+function removeOption(poll, optionId) {
+  const options = poll.options.filter((option) => option.id !== optionId);
+  if (options.length === poll.options.length) return poll;
+
+  const votes = {};
+  for (const [key, vote] of Object.entries(poll.votes)) {
+    if (!key.endsWith(`|${optionId}`)) votes[key] = vote;
   }
-  return seen;
+  return touch(poll, { options, votes, removed: { ...poll.removed, [optionId]: Date.now() } });
+}
+
+/**
+ * Answer for someone, on one choice. `value` is one of yes / maybe / no, or
+ * null to take the answer back — an answered "no" and no answer at all are
+ * not the same thing to whoever reads the result.
+ */
+function setVote(poll, personId, optionId, value) {
+  if (poll.closedAt) return poll;
+  if (!poll.people.some((person) => person.id === personId)) return poll;
+  if (!poll.options.some((option) => option.id === optionId)) return poll;
+  if (value !== null && !VALUES.includes(value)) return poll;
+
+  const key = answerKey(personId, optionId);
+  const held = poll.votes[key];
+  if (!held && value === null) return poll;
+  if (held?.v === value) return poll;
+
+  const votes = { ...poll.votes };
+  if (value === null) votes[key] = { v: null, at: later(held?.at) };
+  else votes[key] = { v: value, at: later(held?.at) };
+  return touch(poll, { votes });
+}
+
+/** What someone answered on one choice: 'yes' | 'maybe' | 'no' | null. */
+function voteOf(poll, personId, optionId) {
+  return poll.votes[answerKey(personId, optionId)]?.v ?? null;
+}
+
+/** The next answer when the same cell is tapped again. */
+function nextValue(value) {
+  if (value === null) return 'yes';
+  if (value === 'yes') return 'maybe';
+  if (value === 'maybe') return 'no';
+  return null;
+}
+
+/** The people being asked — named for the poll, so no two modules clash. */
+const addPollPerson = addPerson;
+const renamePollPerson = renamePerson;
+
+/** Remove someone, and everything they answered. */
+function removePollPerson(poll, personId) {
+  return removePerson(poll, personId, (current) => {
+    const votes = {};
+    for (const [key, vote] of Object.entries(current.votes)) {
+      if (!key.startsWith(`${personId}|`)) votes[key] = vote;
+    }
+    return { votes };
+  });
+}
+
+function setClosed(poll, closed) {
+  const closedAt = closed ? Date.now() : null;
+  return poll.closedAt === closedAt ? poll : touch(poll, { closedAt });
+}
+
+/**
+ * The count, choice by choice, best first.
+ *
+ * A "maybe" is half a yes when ranking — enough to break a tie between two
+ * evenings everyone can half-make, never enough to beat one they can all make.
+ * The counts themselves are reported whole, because that is what a table looks
+ * at before deciding.
+ */
+function tally(poll) {
+  const rows = poll.options.map((option) => {
+    const counts = { yes: 0, maybe: 0, no: 0, missing: 0 };
+    for (const person of poll.people) {
+      const value = voteOf(poll, person.id, option.id);
+      if (value) counts[value] += 1;
+      else counts.missing += 1;
+    }
+    return { option, ...counts, score: counts.yes + counts.maybe / 2 };
+  });
+
+  // Ranked by how many can make it, counting a maybe as half a yes: enough to
+  // separate two evenings everyone can half-make, never enough to beat one
+  // they can all make. Level on that, the firmer yeses win.
+  const ranked = [...rows].sort((a, b) => b.score - a.score || b.yes - a.yes);
+  const best = ranked[0];
+  return {
+    rows: ranked,
+    // Nobody leads a poll nobody has answered.
+    leaders:
+      best && best.score > 0
+        ? rows
+            .filter((row) => row.score === best.score && row.yes === best.yes)
+            .map((row) => row.option.id)
+        : [],
+    answered: poll.people.filter((person) =>
+      poll.options.some((option) => voteOf(poll, person.id, option.id)),
+    ).length,
+  };
+}
+
+/**
+ * Merge two copies of the same poll: choices by id with their tombstones,
+ * answers cell by cell keeping whichever was given last, and the people from
+ * whichever copy touched them last.
+ */
+function mergePolls(a, b) {
+  if (!isValidPoll(a)) return b;
+  if (!isValidPoll(b)) return a;
+  if (a.id !== b.id) return a;
+
+  const [newer, older] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+  const removed = prune({ ...older.removed, ...newer.removed });
+
+  const byId = new Map();
+  for (const option of [...older.options, ...newer.options]) {
+    if (removed[option.id]) continue;
+    const held = byId.get(option.id);
+    if (!held || (option.updatedAt || 0) >= (held.updatedAt || 0)) byId.set(option.id, option);
+  }
+  const options = [
+    ...newer.options.filter((option) => byId.has(option.id)).map((option) => byId.get(option.id)),
+    ...older.options.filter(
+      (option) => byId.has(option.id) && !newer.options.some((other) => other.id === option.id),
+    ),
+  ];
+
+  const votes = { ...older.votes };
+  for (const [key, vote] of Object.entries(newer.votes)) {
+    const held = votes[key];
+    if (!held || (vote.at || 0) >= (held.at || 0)) votes[key] = vote;
+  }
+  // An answer to a choice nobody offers any more is not an answer.
+  const live = new Set(options.map((option) => option.id));
+  for (const key of Object.keys(votes)) {
+    if (!live.has(key.split('|')[1])) delete votes[key];
+  }
+
+  const people = (newer.peopleAt || 0) >= (older.peopleAt || 0) ? newer.people : older.people;
+
+  return {
+    ...newer,
+    people,
+    peopleAt: Math.max(newer.peopleAt || 0, older.peopleAt || 0),
+    closedAt: newer.closedAt,
+    removed,
+    options,
+    votes,
+    updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+  };
+}
+
+function isValidPoll(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      value.kind === 'poll' &&
+      typeof value.id === 'string' &&
+      Array.isArray(value.people) &&
+      Array.isArray(value.options) &&
+      value.options.every((option) => option && typeof option.id === 'string' && typeof option.text === 'string') &&
+      value.votes &&
+      typeof value.votes === 'object',
+  );
 }
 
   // ---- src/stats.js ----------------------------------------------------
@@ -3521,10 +3935,12 @@ function buildPdf(report) {
 
 
 
+
 // The keys keep the old name on purpose: renaming them would lose every game
 // and every list already on people's phones, to no one's benefit.
 const GAMES_KEY = 'marque-points:games:v1';
 const LISTS_KEY = 'marque-points:lists:v1';
+const POLLS_KEY = 'marque-points:polls:v1';
 const PREFS_KEY = 'marque-points:prefs:v1';
 
 function read(key, fallback) {
@@ -3562,6 +3978,15 @@ function loadLists() {
 
 function saveLists(lists) {
   return write(LISTS_KEY, lists);
+}
+
+function loadPolls() {
+  const value = read(POLLS_KEY, []);
+  return Array.isArray(value) ? value.filter(isValidPoll) : [];
+}
+
+function savePolls(polls) {
+  return write(POLLS_KEY, polls);
 }
 
 function loadPrefs() {
@@ -3914,6 +4339,18 @@ function listIdFrom(pasted) {
   return found ? found[1] : null;
 }
 
+/** The link to give someone so they answer this very poll. */
+function pollLink(location, pollId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/poll/${pollId}`;
+}
+
+/** The poll id inside whatever was pasted, or null. */
+function pollIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/poll\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
+}
+
 /** The link that hands over a set of games at once. */
 function setLink(location, setId) {
   const { origin, pathname, search } = location;
@@ -4048,11 +4485,14 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
+
 const view = document.getElementById('view');
 
 const state = {
   games: loadGames(),
   lists: loadLists(),
+  polls: loadPolls(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -4071,6 +4511,8 @@ const state = {
   openingSet: null,
   // The same, for a shared list opened from its link.
   openingList: null,
+  // And for a poll.
+  openingPoll: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -4081,6 +4523,11 @@ const state = {
 let newListName = '';
 let newListPeople = ['', ''];
 let newListLines = '';
+
+// And the new-poll form's.
+let newPollQuestion = '';
+let newPollChoices = '';
+let newPollPeople = ['', ''];
 
 /* ------------------------------------------------------------- utilities --- */
 
@@ -4117,7 +4564,9 @@ function gameTitle(game) {
 
 /** The title of a game or of a list, whichever this is. */
 function documentTitle(document_) {
-  return isValidList(document_) ? listTitle(document_) : gameTitle(document_);
+  if (isValidList(document_)) return listTitle(document_);
+  if (isValidPoll(document_)) return pollTitle(document_);
+  return gameTitle(document_);
 }
 
 function formatDate(timestamp) {
@@ -4143,6 +4592,587 @@ function flash(message, kind = 'info') {
 }
 
 /* ------------------------------------------------------------- persisting --- */
+
+/* ------------------------------------------------------------------ polls --- */
+
+/**
+ * A poll is a question, the choices it offers, and a grid: one answer per
+ * person and per choice. The "which evening suits you" case is the one worth
+ * building, and picking one thing out of several is the same grid with a
+ * single yes in it.
+ */
+
+function pollTitle(poll) {
+  return poll.question || t('polls.untitled');
+}
+
+const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
+
+function pollCardHtml(poll) {
+  const { answered, leaders, rows } = tally(poll);
+  const leading = rows.find((row) => leaders.includes(row.option.id));
+  return `
+    <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(pollTitle(poll))}
+        <span class="pill ${poll.closedAt ? 'pill--done' : ''}">
+          ${escapeHtml(poll.closedAt ? t('polls.closed') : t('polls.answered', { count: answered, total: poll.people.length }))}
+        </span>
+      </span>
+      ${
+        leading
+          ? `<span class="game-card__meta">${escapeHtml(t('polls.leading', { option: leading.option.text, count: leading.yes }))}</span>`
+          : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
+      }
+      <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
+    </button>`;
+}
+
+function pollsView() {
+  const sorted = [...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = sorted.filter((poll) => !poll.closedAt);
+  const closed = sorted.filter((poll) => poll.closedAt);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
+      + ${escapeHtml(t('polls.new'))}
+    </button>
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(pollCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('polls.none'))}</p>`
+      }
+    </section>
+
+    ${
+      closed.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('polls.done'))}</h2></div>
+             <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }`;
+}
+
+function newPollView() {
+  const suggestions = [...new Set([...recentPeople(state.polls), ...recentPeople(state.lists), ...recentNames(state.games)])].slice(0, 12);
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('polls.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-poll" class="card stack">
+      <label>
+        ${escapeHtml(t('polls.question'))}
+        <input type="text" id="poll-question" placeholder="${escapeHtml(t('polls.questionPlaceholder'))}"
+               value="${escapeHtml(newPollQuestion)}" required />
+      </label>
+
+      <label>
+        ${escapeHtml(t('polls.choices'))}
+        <textarea id="poll-choices" rows="5" placeholder="${escapeHtml(t('polls.choicesPlaceholder'))}">${escapeHtml(newPollChoices)}</textarea>
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('polls.peopleHint'))}</span>
+        ${newPollPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newPollPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('polls.create'))}</button>
+    </form>`;
+}
+
+function pollView(poll) {
+  const me = state.prefs.voter?.[poll.id] || null;
+  const { rows, leaders, answered } = tally(poll);
+  const closed = Boolean(poll.closedAt);
+
+  const cellHtml = (option, person) => {
+    const value = voteOf(poll, person.id, option.id);
+    return `
+      <td class="${person.id === me ? 'votes__mine' : ''}">
+        <button type="button" class="vote ${value ? `vote--${value}` : 'vote--none'}"
+                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+                aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
+          ${escapeHtml(value ? VOTE_MARK[value] : '·')}
+        </button>
+      </td>`;
+  };
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(pollTitle(poll))}</h1>
+        <p class="muted small">
+          ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
+          ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
+          ${poll.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${
+      poll.people.length
+        ? `<div class="row">
+             <span class="muted small">${escapeHtml(t('polls.iAm'))}</span>
+             ${poll.people
+               .map(
+                 (person) => `<button type="button" class="chip ${person.id === me ? 'chip--on' : ''}" data-me="${escapeHtml(person.id)}">${escapeHtml(person.name)}</button>`,
+               )
+               .join('')}
+           </div>`
+        : ''
+    }
+
+    ${
+      poll.options.length && poll.people.length
+        ? `<div class="table-wrap">
+             <table class="votes">
+               <thead>
+                 <tr>
+                   <th>${escapeHtml(t('polls.choice'))}</th>
+                   ${poll.people.map((person) => `<th class="${person.id === me ? 'votes__mine' : ''}">${escapeHtml(person.name)}</th>`).join('')}
+                   <th>${escapeHtml(t('polls.count'))}</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 ${rows
+                   .map(
+                     (row) => `
+                       <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
+                         <th scope="row">
+                           <button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
+                             ${escapeHtml(row.option.text)}
+                           </button>
+                         </th>
+                         ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
+                         <td class="votes__score">${row.yes}${row.maybe ? `<span class="muted small"> +${row.maybe}~</span>` : ''}</td>
+                       </tr>`,
+                   )
+                   .join('')}
+               </tbody>
+             </table>
+           </div>
+           <p class="muted small">${escapeHtml(t('polls.tapHint'))}</p>`
+        : `<p class="muted small">${escapeHtml(poll.people.length ? t('polls.addChoices') : t('polls.addPeople'))}</p>`
+    }
+
+    ${
+      closed
+        ? ''
+        : `<form id="add-choice" class="card stack stack--tight">
+             <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
+             <div class="row row--tight">
+               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
+               <button type="submit" class="button button--primary">+</button>
+             </div>
+           </form>`
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="poll-share">${escapeHtml(t('polls.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
+        <button type="button" class="button button--small" id="poll-close">
+          ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
+
+/* ------------------------------------------------------ polls: behaviour --- */
+
+function persistPoll(changed) {
+  const ok = savePolls(state.polls);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getPoll(id) {
+  return state.polls.find((poll) => poll.id === id) || null;
+}
+
+function replacePoll(next, { redraw = true } = {}) {
+  state.polls = state.polls.map((poll) => (poll.id === next.id ? next : poll));
+  persistPoll(next);
+  if (redraw) render();
+}
+
+function bindNewPoll() {
+  const form = view.querySelector('#new-poll');
+  if (!form) return;
+
+  const snapshot = () => {
+    newPollQuestion = view.querySelector('#poll-question').value;
+    newPollChoices = view.querySelector('#poll-choices').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newPollPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newPollPeople = [...newPollPeople, ''];
+    render();
+    view.querySelector(`[data-person-index="${newPollPeople.length - 1}"]`)?.focus();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newPollPeople = newPollPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newPollPeople.includes(suggest)) return;
+      const empty = newPollPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newPollPeople[empty] = suggest;
+      else newPollPeople = [...newPollPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+
+    let poll = createPoll({
+      question: newPollQuestion,
+      names: newPollPeople,
+      shared: Boolean(state.prefs.autoShare && state.remote),
+    });
+    poll = addOptions(poll, newPollChoices);
+
+    state.polls = [...state.polls, poll];
+    persistPoll(poll);
+    newPollQuestion = '';
+    newPollChoices = '';
+    newPollPeople = ['', ''];
+    navigate(`#/poll/${poll.id}`);
+  });
+}
+
+function bindPoll(poll) {
+  view.querySelectorAll('[data-vote]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const [personId, optionId] = button.dataset.vote.split('|');
+      const next = setVote(poll, personId, optionId, nextValue(voteOf(poll, personId, optionId)));
+      if (next === poll) return;
+      // Remember who this device answers as, so its column stands out.
+      if (!state.prefs.voter?.[poll.id]) {
+        state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: personId } };
+        savePrefs(state.prefs);
+      }
+      replacePoll(next);
+    });
+  });
+
+  view.querySelectorAll('[data-me]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const chosen = state.prefs.voter?.[poll.id] === chip.dataset.me ? null : chip.dataset.me;
+      state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: chosen } };
+      savePrefs(state.prefs);
+      render();
+    });
+  });
+
+  view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const field = view.querySelector('#new-choice');
+    const next = addOptions(poll, field.value);
+    if (next === poll) return;
+    replacePoll(next);
+    view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-option]').forEach((button) => {
+    button.addEventListener('click', () => openChoiceDialog(poll, button.dataset.option));
+  });
+
+  view.querySelector('#poll-people')?.addEventListener('click', () => openPollPeopleDialog(poll));
+
+  view.querySelector('#poll-text')?.addEventListener('click', () => {
+    showCopyDialog({ title: pollTitle(poll), hint: t('lists.textHint'), text: pollText(poll) });
+  });
+
+  view.querySelector('#poll-close')?.addEventListener('click', () => {
+    replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
+
+  view.querySelector('#poll-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('polls.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.polls = state.polls.filter((item) => item.id !== poll.id);
+    savePolls(state.polls);
+    if (state.store) void state.store.remove(poll.id);
+    if (state.remote) state.remote.remove(poll.id).catch(() => {});
+    navigate('#/polls');
+  });
+
+  view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    let current = poll;
+
+    if (!current.shared) {
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      current = { ...current, shared: true, updatedAt: Date.now() };
+      try {
+        await state.remote.put(current);
+      } catch {
+        button.disabled = false;
+        button.textContent = t('polls.share');
+        flash(t('share.sendFailed'), 'error');
+        render();
+        return;
+      }
+      replacePoll(current);
+    }
+
+    showCopyDialog({
+      title: t('polls.shareTitle'),
+      hint: t('polls.shareHint'),
+      text: pollLink(location, current.id),
+      qr: true,
+    });
+  });
+}
+
+/** Correct a choice, or drop it. */
+function openChoiceDialog(poll, optionId) {
+  const option = poll.options.find((entry) => entry.id === optionId);
+  if (!option) return;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('polls.choiceTitle'))}</h2>
+      <label class="visually-hidden" for="choice-text">${escapeHtml(t('polls.choiceTitle'))}</label>
+      <input type="text" id="choice-text" value="${escapeHtml(option.text)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="choice-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="choice-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="choice-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#choice-text');
+  const save = () => {
+    dialog.close();
+    replacePoll(renameOption(poll, optionId, field.value));
+  };
+  dialog.querySelector('#choice-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#choice-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#choice-delete').addEventListener('click', async () => {
+    if (!(await ask(t('polls.confirmRemoveChoice'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    dialog.close();
+    replacePoll(removeOption(poll, optionId));
+  });
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** Who is being asked. */
+function openPollPeopleDialog(poll) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getPoll(poll.id) || poll;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <p class="muted small">${escapeHtml(t('polls.peopleHint'))}</p>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="row row--tight">
+                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
+                         aria-label="${escapeHtml(person.name)}" />
+                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                    ${escapeHtml(t('action.delete'))}
+                  </button>
+                </div>`,
+            )
+            .join('')}
+          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
+          <button type="button" class="button button--primary" id="person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    const field = dialog.querySelector('#person-new');
+    const add = () => {
+      replacePoll(addPollPerson(getPoll(poll.id) || poll, field.value), { redraw: false });
+      draw();
+      dialog.querySelector('#person-new').focus();
+    };
+    dialog.querySelector('#person-add').addEventListener('click', add);
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      add();
+    });
+
+    dialog.querySelectorAll('[data-person]').forEach((input) => {
+      input.addEventListener('change', () => {
+        replacePoll(renamePollPerson(getPoll(poll.id) || poll, input.dataset.person, input.value), { redraw: false });
+      });
+    });
+
+    dialog.querySelectorAll('[data-remove]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!(await ask(t('polls.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
+        replacePoll(removePollPerson(getPoll(poll.id) || poll, button.dataset.remove), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
+  };
+
+  dialog.addEventListener('close', () => render());
+  draw();
+  dialog.showModal();
+}
+
+function openPollNameDialog(poll) {
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('polls.rename'))}</h2>
+      <label class="visually-hidden" for="poll-new-name">${escapeHtml(t('polls.question'))}</label>
+      <input type="text" id="poll-new-name" value="${escapeHtml(poll.question)}" />
+      <div class="row">
+        <button type="button" class="button button--primary" id="poll-name-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="poll-name-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#poll-new-name');
+  const save = () => {
+    dialog.close();
+    replacePoll({ ...poll, question: field.value.trim(), updatedAt: Date.now() });
+  };
+  dialog.querySelector('#poll-name-save').addEventListener('click', save);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    save();
+  });
+  dialog.querySelector('#poll-name-cancel').addEventListener('click', () => dialog.close());
+
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/** The poll as text, to paste into a message. */
+function pollText(poll) {
+  const { rows } = tally(poll);
+  const line = (row) =>
+    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, maybe: row.maybe, no: row.no })}`;
+  return [pollTitle(poll), '', ...rows.map(line)].join('\n');
+}
+
+/** Fetch a poll from the shared database and take what it knows. */
+async function pullPoll(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidPoll(stored) ? adoptPoll(stored) : false;
+}
+
+/** Answers arrive cell by cell, so nobody's answer is lost to someone else's. */
+function adoptPoll(stored) {
+  const local = getPoll(stored.id);
+  const merged = local ? mergePolls(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.polls = local
+    ? state.polls.map((poll) => (poll.id === stored.id ? adopted : poll))
+    : [...state.polls, adopted];
+  savePolls(state.polls);
+  return true;
+}
+
+/** While a shared poll is on screen, watch for the answers coming in. */
+function watchPoll(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullPoll(id)) render();
+  }, 5000);
+}
 
 /* ------------------------------------------------------------------ lists --- */
 
@@ -4404,6 +5434,9 @@ function route() {
   if (name === 'lists' && param === 'new') return { name: 'new-list' };
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
+  if (name === 'polls' && param === 'new') return { name: 'new-poll' };
+  if (name === 'polls') return { name: 'polls' };
+  if (name === 'poll' && param) return { name: 'poll', id: param };
   return { name: 'home' };
 }
 
@@ -5079,7 +6112,9 @@ async function submitRound(game) {
 const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : 'download';
 
 function exportGames() {
-  const json = JSON.stringify({ version: 1, games: state.games, lists: state.lists }, null, 2);
+  const json = JSON.stringify(
+    { version: 1, games: state.games, lists: state.lists, polls: state.polls }, null, 2,
+  );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
     return;
@@ -5202,10 +6237,13 @@ function importGames(source) {
     return false;
   }
 
-  const all = Array.isArray(parsed) ? parsed : [...(parsed?.games || []), ...(parsed?.lists || [])];
+  const all = Array.isArray(parsed)
+    ? parsed
+    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || [])];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
-  if (!games.length && !lists.length) {
+  const polls = all.filter(isValidPoll);
+  if (!games.length && !lists.length && !polls.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -5220,11 +6258,16 @@ function importGames(source) {
   state.lists = [...state.lists, ...freshLists];
   saveLists(state.lists);
 
-  for (const document_ of [...freshGames, ...freshLists]) {
+  const knownPolls = new Set(state.polls.map((poll) => poll.id));
+  const freshPolls = polls.filter((poll) => !knownPolls.has(poll.id));
+  state.polls = [...state.polls, ...freshPolls];
+  savePolls(state.polls);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) state.remote.put(document_).catch(() => {});
   }
-  flash(t('home.importDone', { count: freshGames.length + freshLists.length }));
+  flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
   return true;
 }
 
@@ -5324,6 +6367,16 @@ function openLinkDialog() {
       return;
     }
 
+    const pollId = pollIdFrom(pasted);
+    if (pollId) {
+      event.currentTarget.disabled = true;
+      event.currentTarget.textContent = t('share.sending');
+      if (!getPoll(pollId) && !(await pullPoll(pollId))) return fail(t('openLink.notFound'));
+      close();
+      navigate(`#/poll/${pollId}`);
+      return;
+    }
+
     const id = gameIdFrom(pasted);
     if (!id) return fail(t('openLink.noId'));
 
@@ -5344,6 +6397,11 @@ function openLinkDialog() {
     if (await pullList(id)) {
       close();
       navigate(`#/list/${id}`);
+      return;
+    }
+    if (await pullPoll(id)) {
+      close();
+      navigate(`#/poll/${id}`);
       return;
     }
     return fail(t('openLink.notFound'));
@@ -5427,7 +6485,7 @@ function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
   const key = state.prefs.shareKey || '';
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -5522,7 +6580,8 @@ function openShareAppDialog() {
       choice === 'all'
         ? games
         : [...dialog.querySelectorAll('input[data-share-id]:checked')]
-            .map((input) => getGame(input.dataset.shareId) || getList(input.dataset.shareId))
+            .map((input) =>
+              getGame(input.dataset.shareId) || getList(input.dataset.shareId) || getPoll(input.dataset.shareId))
             .filter(Boolean);
     if (!chosen.length) return fail(t('shareApp.pickNone'));
 
@@ -5586,12 +6645,14 @@ async function shareGames(games) {
       if (next === document_) continue;
       state.games = state.games.map((item) => (item.id === next.id ? next : item));
       state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
+      state.polls = state.polls.map((item) => (item.id === next.id ? next : item));
       if (state.store) void state.store.save(next);
     }
   } finally {
     // Whatever went through is written down, so a failure halfway is not lost.
     saveGames(state.games);
     saveLists(state.lists);
+    savePolls(state.polls);
   }
 }
 
@@ -5783,7 +6844,7 @@ async function openSet(id) {
   // to bring what has happened since, and pulling merges rather than replaces.
   for (const id_ of ids) await pullAny(id_);
 
-  const held = ids.filter((id_) => getGame(id_) || getList(id_)).length;
+  const held = ids.filter((id_) => getGame(id_) || getList(id_) || getPoll(id_)).length;
   if (!held) {
     flash(t('shareSet.notFound'), 'error');
     return;
@@ -6183,7 +7244,7 @@ function openPeopleDialog(list) {
 
     const field = dialog.querySelector('#person-new');
     const add = () => {
-      const next = addPerson(getList(list.id) || list, field.value);
+      const next = addListPerson(getList(list.id) || list, field.value);
       replaceList(next, { redraw: false });
       draw();
       dialog.querySelector('#person-new').focus();
@@ -6197,14 +7258,14 @@ function openPeopleDialog(list) {
 
     dialog.querySelectorAll('[data-person]').forEach((input) => {
       input.addEventListener('change', () => {
-        replaceList(renamePerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+        replaceList(renameListPerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
       });
     });
 
     dialog.querySelectorAll('[data-remove]').forEach((button) => {
       button.addEventListener('click', async () => {
         if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replaceList(removePerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        replaceList(removeListPerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
         draw();
       });
     });
@@ -7016,6 +8077,37 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
+  } else if (current.name === 'polls') {
+    stopWatching();
+    view.innerHTML = pollsView();
+  } else if (current.name === 'new-poll') {
+    stopWatching();
+    view.innerHTML = newPollView();
+    bindNewPoll();
+  } else if (current.name === 'poll') {
+    const poll = getPoll(current.id);
+    if (!poll) {
+      stopWatching();
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('polls.loading'))}</p>`;
+        if (state.openingPoll !== current.id) {
+          const asked = current.id;
+          state.openingPoll = asked;
+          pullPoll(asked).then((found) => {
+            if (state.openingPoll !== asked) return;
+            state.openingPoll = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/polls');
+          });
+        }
+        return;
+      }
+      navigate('#/polls');
+      return;
+    }
+    watchPoll(poll.id);
+    view.innerHTML = pollView(poll);
+    bindPoll(poll);
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
@@ -7110,7 +8202,11 @@ function adoptGame(stored) {
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
-  const here = ['lists', 'new-list', 'list'].includes(current.name) ? 'lists' : 'games';
+  const here = ['lists', 'new-list', 'list'].includes(current.name)
+    ? 'lists'
+    : ['polls', 'new-poll', 'poll'].includes(current.name)
+      ? 'polls'
+      : 'games';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -7133,6 +8229,7 @@ async function pullAny(id) {
   // would otherwise cost forty.
   if (isValidGame(stored)) return adoptGame(stored);
   if (isValidList(stored)) return adoptList(stored);
+  if (isValidPoll(stored)) return adoptPoll(stored);
   return false;
 }
 

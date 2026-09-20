@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
-  addPerson, renamePerson, removePerson, shareOut, progress, mergeLists, isValidList, recentPeople,
+  addListPerson as addPerson, renameListPerson as renamePerson, removeListPerson as removePerson,
+  shareOut, progress, mergeLists, isValidList,
 } from '../src/lists.js';
+import { recentPeople } from '../src/people.js';
 
 const sample = () => addItems(createList({ name: 'Courses', names: ['Gui', 'Alice'] }), 'Pain\nLait\nŒufs');
 

@@ -1,8 +1,9 @@
 # 🃏 Together
 
-Deux onglets, une seule app : **Parties**, un compteur de points pour Papayoo et
-une vingtaine d'autres jeux ; **Listes**, des listes à cocher et à répartir entre
-plusieurs personnes. Une page web, aucune dépendance, aucun build.
+Trois onglets, une seule app : **Parties**, un compteur de points pour Papayoo
+et une vingtaine d'autres jeux ; **Listes**, des listes à cocher et à répartir
+entre plusieurs personnes ; **Sondages**, pour trancher une date ou un choix à
+plusieurs. Une page web, aucune dépendance, aucun build.
 
 <p>
   <img src="docs/screenshot-light.png" alt="Une partie de Papayoo en thème clair" width="45%" />
@@ -84,6 +85,22 @@ mélangés si besoin.
 
 Ce qui n'y est délibérément pas : catégories, échéances, récurrences, charge à
 équilibrer. Ça s'ajoutera si l'usage le réclame, et pour ce qu'il réclame.
+
+## Ce que ça fait — onglet Sondages
+
+Une question, des choix, et une grille : **une réponse par personne et par
+choix** — oui, peut-être, non. C'est la forme du « quel soir ? », et choisir une
+chose parmi plusieurs, c'est la même grille avec un seul oui dedans. Donc pas de
+type de sondage à choisir avant de poser la question.
+
+- On touche une case : oui, puis peut-être, puis non, puis plus rien. **Ne pas
+  avoir répondu n'est pas un non** — la grille le montre, et le compte aussi.
+- Le classement met en tête ce qui arrange le plus de monde, un *peut-être*
+  valant un demi-oui : assez pour départager deux soirs que tout le monde peut à
+  moitié, jamais assez pour battre un soir que tout le monde peut.
+- **Clore** le sondage fige les réponses ; on peut le rouvrir.
+- **Partager** comme le reste : un lien, un code QR, chacun répond de son côté,
+  et les réponses de chacun arrivent sans écraser celles des autres.
 
 ## Jeux fournis
 

@@ -1,7 +1,7 @@
 {
   "name": "Together",
   "short_name": "Together",
-  "description": "Compteur de points et listes partagées, pour la famille et les amis.",
+  "description": "Compteur de points, listes et sondages partagés, pour la famille et les amis.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

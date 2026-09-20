@@ -14,6 +14,8 @@
  */
 
 import { uid } from './model.js';
+import { later, touch, prune } from './stamp.js';
+import { addPerson, renamePerson, removePerson } from './people.js';
 
 /** A new list. `names` are the people it is shared between; it can be nobody. */
 export function createList({ name = '', names = [], shared = false } = {}) {
@@ -42,14 +44,6 @@ export function createList({ name = '', names = [], shared = false } = {}) {
   };
 }
 
-/**
- * Every change moves the clock forward, even when two of them land in the same
- * millisecond: a stamp that never repeats is what lets a merge tell a line
- * someone changed from the same line nobody touched.
- */
-const later = (previous) => Math.max(Date.now(), (previous || 0) + 1);
-
-const touch = (list, items) => ({ ...list, items, updatedAt: later(list.updatedAt) });
 
 /**
  * Add a line. Several lines at once when a whole list is pasted in — which is
@@ -71,7 +65,7 @@ export function addItems(list, text) {
       createdAt: now,
       updatedAt: now,
     }));
-  return fresh.length ? touch(list, [...list.items, ...fresh]) : list;
+  return fresh.length ? touch(list, { items: [...list.items, ...fresh] }) : list;
 }
 
 function patchItem(list, itemId, patch) {
@@ -81,7 +75,7 @@ function patchItem(list, itemId, patch) {
     changed = true;
     return { ...item, ...patch, updatedAt: later(item.updatedAt) };
   });
-  return changed ? touch(list, items) : list;
+  return changed ? touch(list, { items }) : list;
 }
 
 export function renameItem(list, itemId, text) {
@@ -108,22 +102,9 @@ export function toggleItem(list, itemId) {
 export function removeItem(list, itemId) {
   const items = list.items.filter((item) => item.id !== itemId);
   if (items.length === list.items.length) return list;
-  return {
-    ...touch(list, items),
-    removed: { ...list.removed, [itemId]: Date.now() },
-  };
+  return touch(list, { items, removed: { ...list.removed, [itemId]: Date.now() } });
 }
 
-/** Tombstones worth keeping: a month is longer than any phone stays away. */
-const FORGET_AFTER = 30 * 24 * 60 * 60 * 1000;
-
-function prune(removed, now = Date.now()) {
-  const kept = {};
-  for (const [id, at] of Object.entries(removed || {})) {
-    if (now - at < FORGET_AFTER) kept[id] = at;
-  }
-  return kept;
-}
 
 /** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
 export function reuseList(list) {
@@ -136,40 +117,18 @@ export function reuseList(list) {
   };
 }
 
-export function addPerson(list, name) {
-  const clean = String(name || '').trim();
-  if (!clean) return list;
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: [...list.people, { id: uid('w'), name: clean }],
-    peopleAt: at,
-    updatedAt: later(list.updatedAt),
-  };
-}
+/**
+ * The people this list concerns. Named for the list so that a bundle holding
+ * every document type in one scope has no two functions fighting over a name.
+ */
+export const addListPerson = addPerson;
+export const renameListPerson = renamePerson;
 
-export function renamePerson(list, personId, name) {
-  const clean = String(name || '').trim();
-  if (!clean) return list;
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: list.people.map((person) => (person.id === personId ? { ...person, name: clean } : person)),
-    peopleAt: at,
-    updatedAt: later(list.updatedAt),
-  };
-}
-
-/** Drop someone. What was theirs goes back to nobody rather than disappearing. */
-export function removePerson(list, personId) {
-  const at = later(list.peopleAt);
-  return {
-    ...list,
-    people: list.people.filter((person) => person.id !== personId),
-    peopleAt: at,
-    items: list.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
-    updatedAt: later(list.updatedAt),
-  };
+/** Remove someone: what was theirs goes back to nobody, rather than vanishing. */
+export function removeListPerson(list, personId) {
+  return removePerson(list, personId, (current) => ({
+    items: current.items.map((item) => (item.who === personId ? { ...item, who: null } : item)),
+  }));
 }
 
 /**
@@ -195,7 +154,7 @@ export function shareOut(list) {
     load.set(lightest, load.get(lightest) + 1);
     return { ...item, who: lightest, updatedAt: now };
   });
-  return touch(list, items);
+  return touch(list, { items });
 }
 
 /** How far along: { done, total, left } — and per person where asked. */
@@ -279,14 +238,3 @@ export function isValidList(value) {
   );
 }
 
-/** The names already used, most recent first, to offer when starting a list. */
-export function recentPeople(lists, limit = 12) {
-  const seen = [];
-  for (const list of [...lists].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) {
-    for (const person of list.people) {
-      if (!seen.includes(person.name)) seen.push(person.name);
-      if (seen.length >= limit) return seen;
-    }
-  }
-  return seen;
-}

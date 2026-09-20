@@ -1,0 +1,255 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue,
+  addPollPerson as addPerson, renamePollPerson as renamePerson, removePollPerson as removePerson,
+  setClosed, tally, mergePolls, isValidPoll, VALUES,
+} from '../src/polls.js';
+
+const sample = () =>
+  addOptions(createPoll({ question: 'Quel soir ?', names: ['Gui', 'Alice', 'Bob'] }), 'Vendredi\nSamedi\nDimanche');
+
+const idsOf = (poll) => ({
+  people: poll.people.map((person) => person.id),
+  options: poll.options.map((option) => option.id),
+});
+
+test('a poll is a question, choices, and people', () => {
+  const poll = createPoll({ question: '  Quel soir ?  ', names: ['Gui', ' ', 'Alice'] });
+  assert.equal(poll.question, 'Quel soir ?');
+  assert.equal(poll.kind, 'poll');
+  assert.deepEqual(poll.people.map((p) => p.name), ['Gui', 'Alice']);
+  assert.deepEqual(poll.options, []);
+  assert.deepEqual(poll.votes, {});
+  assert.equal(poll.closedAt, null);
+  assert.equal(poll.shared, false);
+});
+
+test('choices are pasted in like any list, quantities and dates intact', () => {
+  const poll = addOptions(createPoll(), '- Vendredi 12\n2) Samedi 13\n\n  \n• Dimanche 14\n18 h 30');
+  assert.deepEqual(poll.options.map((o) => o.text),
+    ['Vendredi 12', 'Samedi 13', 'Dimanche 14', '18 h 30']);
+});
+
+test('an answer is one of three, per person and per choice', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[0], options[1], 'maybe');
+  poll = setVote(poll, people[1], options[0], 'no');
+
+  assert.equal(voteOf(poll, people[0], options[0]), 'yes');
+  assert.equal(voteOf(poll, people[0], options[1]), 'maybe');
+  assert.equal(voteOf(poll, people[1], options[0]), 'no');
+  assert.equal(voteOf(poll, people[2], options[0]), null, 'no answer is not a no');
+
+  poll = setVote(poll, people[0], options[0], null);
+  assert.equal(voteOf(poll, people[0], options[0]), null, 'and an answer can be taken back');
+});
+
+test('an answer nobody can give is refused rather than stored', () => {
+  const poll = sample();
+  const { people, options } = idsOf(poll);
+
+  assert.equal(setVote(poll, 'w_inconnu', options[0], 'yes'), poll, 'a stranger');
+  assert.equal(setVote(poll, people[0], 'o_inconnue', 'yes'), poll, 'a choice that is not offered');
+  assert.equal(setVote(poll, people[0], options[0], 'peut-être'), poll, 'a value that is not one of three');
+  assert.deepEqual(VALUES, ['yes', 'maybe', 'no']);
+});
+
+test('answering the same thing twice changes nothing', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  assert.equal(setVote(poll, people[0], options[0], 'yes'), poll);
+});
+
+test('tapping a cell goes round: yes, maybe, no, nothing', () => {
+  assert.equal(nextValue(null), 'yes');
+  assert.equal(nextValue('yes'), 'maybe');
+  assert.equal(nextValue('maybe'), 'no');
+  assert.equal(nextValue('no'), null);
+});
+
+test('a closed poll takes no more answers', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setClosed(poll, true);
+
+  assert.ok(poll.closedAt);
+  assert.equal(setVote(poll, people[1], options[0], 'yes'), poll, 'closed means closed');
+  assert.equal(voteOf(poll, people[0], options[0]), 'yes', 'and what was answered stays');
+
+  const open = setClosed(poll, false);
+  assert.equal(open.closedAt, null);
+  assert.notEqual(setVote(open, people[1], options[0], 'yes'), open, 'reopening lets people answer again');
+});
+
+test('the count puts the evening that suits most people first', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  // Vendredi : un oui. Samedi : deux oui. Dimanche : un oui et deux peut-être.
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[0], options[1], 'yes');
+  poll = setVote(poll, people[1], options[1], 'yes');
+  poll = setVote(poll, people[1], options[2], 'yes');
+  poll = setVote(poll, people[0], options[2], 'maybe');
+  poll = setVote(poll, people[2], options[2], 'maybe');
+
+  const result = tally(poll);
+  assert.deepEqual(result.rows.map((row) => row.option.text), ['Samedi', 'Dimanche', 'Vendredi'],
+    'level on the count, the firmer yeses come first');
+  assert.equal(result.rows[1].yes, 1);
+  assert.equal(result.rows[1].maybe, 2);
+  assert.equal(result.rows[1].missing, 0);
+  assert.deepEqual(result.leaders, [options[1]], 'and only the firmest of the two leads');
+  assert.equal(result.answered, 3, 'everyone has answered something');
+});
+
+test('a maybe is what separates two evenings otherwise level', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[0], options[1], 'yes');
+  poll = setVote(poll, people[1], options[1], 'maybe');
+
+  const result = tally(poll);
+  assert.equal(result.rows[0].option.text, 'Samedi', 'one yes and a maybe beats one yes alone');
+  assert.deepEqual(result.leaders, [options[1]]);
+});
+
+test('a poll nobody has answered has no leader', () => {
+  const result = tally(sample());
+  assert.deepEqual(result.leaders, []);
+  assert.equal(result.answered, 0);
+  assert.equal(result.rows[0].missing, 3, 'and everyone is still expected');
+});
+
+test('two choices that tie both lead', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[0], options[1], 'yes');
+
+  assert.deepEqual(tally(poll).leaders.sort(), [options[0], options[1]].sort());
+});
+
+test('a choice taken away takes its answers with it', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[0], options[1], 'yes');
+
+  poll = removeOption(poll, options[0]);
+  assert.equal(poll.options.length, 2);
+  assert.equal(Object.keys(poll.votes).length, 1, 'the answers to the dropped choice are gone');
+  assert.equal(voteOf(poll, people[0], options[1]), 'yes', 'the others are untouched');
+  assert.ok(poll.removed[options[0]], 'and it leaves a trace, so it does not come back');
+});
+
+test('someone removed takes their answers with them', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = setVote(poll, people[1], options[0], 'no');
+
+  poll = removePerson(poll, people[0]);
+  assert.equal(poll.people.length, 2);
+  assert.equal(voteOf(poll, people[1], options[0]), 'no');
+  assert.equal(Object.keys(poll.votes).length, 1);
+});
+
+test('a choice is renamed without losing what people answered', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = renameOption(poll, options[0], '  Vendredi 12, 20 h ');
+
+  assert.equal(poll.options[0].text, 'Vendredi 12, 20 h');
+  assert.equal(voteOf(poll, people[0], options[0]), 'yes');
+  assert.equal(renameOption(poll, options[0], '  ').options[0].text, 'Vendredi 12, 20 h');
+});
+
+test('renaming a person keeps their answers', () => {
+  let poll = sample();
+  const { people, options } = idsOf(poll);
+  poll = setVote(poll, people[0], options[0], 'yes');
+  poll = renamePerson(poll, people[0], 'Guillaume');
+
+  assert.equal(poll.people[0].name, 'Guillaume');
+  assert.equal(voteOf(poll, people[0], options[0]), 'yes');
+});
+
+test('two people answering at the same moment both count', () => {
+  const start = sample();
+  const { people, options } = idsOf(start);
+
+  const here = setVote(start, people[0], options[0], 'yes');
+  const there = setVote(start, people[1], options[1], 'no');
+
+  const merged = mergePolls(here, there);
+  assert.equal(voteOf(merged, people[0], options[0]), 'yes');
+  assert.equal(voteOf(merged, people[1], options[1]), 'no');
+});
+
+test('the same person answering twice keeps their last answer', () => {
+  const start = sample();
+  const { people, options } = idsOf(start);
+
+  const here = setVote(start, people[0], options[0], 'yes');
+  const there = setVote(setVote(start, people[0], options[0], 'yes'), people[0], options[0], 'no');
+
+  assert.equal(voteOf(mergePolls(here, there), people[0], options[0]), 'no');
+  assert.equal(voteOf(mergePolls(there, here), people[0], options[0]), 'no', 'whichever way round');
+});
+
+test('a choice dropped here does not come back from the other phone', () => {
+  const start = sample();
+  const { people, options } = idsOf(start);
+
+  const here = removeOption(start, options[0]);
+  const there = setVote(start, people[0], options[0], 'yes');
+
+  const merged = mergePolls(here, there);
+  assert.equal(merged.options.length, 2, 'the choice stays dropped');
+  assert.equal(voteOf(merged, people[0], options[0]), null, 'and so do the answers to it');
+  assert.equal(mergePolls(there, here).options.length, 2, 'whichever way round');
+});
+
+test('a choice added elsewhere arrives, with its answers', () => {
+  const start = sample();
+  const here = setVote(start, idsOf(start).people[0], idsOf(start).options[0], 'yes');
+  const there = addOptions(start, 'Lundi');
+  const added = there.options[3].id;
+  const voted = setVote(there, idsOf(there).people[1], added, 'yes');
+
+  const merged = mergePolls(here, voted);
+  assert.equal(merged.options.length, 4);
+  assert.equal(voteOf(merged, idsOf(merged).people[1], added), 'yes');
+  assert.equal(voteOf(merged, idsOf(merged).people[0], idsOf(merged).options[0]), 'yes');
+});
+
+test('whoever touched the people last is right about them', () => {
+  const start = sample();
+  const alice = start.people[1].id;
+
+  const here = removePerson(start, alice);
+  const there = setVote(start, start.people[0].id, start.options[0].id, 'yes');
+
+  assert.equal(mergePolls(here, there).people.length, 2, 'Alice stays removed');
+  assert.equal(mergePolls(there, here).people.length, 2, 'whichever way round');
+  assert.equal(voteOf(mergePolls(there, here), start.people[0].id, start.options[0].id), 'yes',
+    'and the answer given meanwhile survives');
+});
+
+test('what comes back from storage is looked at before it is trusted', () => {
+  assert.ok(isValidPoll(sample()));
+  assert.ok(!isValidPoll(null));
+  assert.ok(!isValidPoll({ kind: 'list', id: 'l_1', people: [], items: [] }), 'a list is not a poll');
+  assert.ok(!isValidPoll({ kind: 'poll', id: 'v_1', people: [], options: [{ id: 'o' }], votes: {} }),
+    'a choice with no text');
+  assert.ok(!isValidPoll({ kind: 'poll', id: 'v_1', people: [], options: [] }), 'no answers at all');
+});

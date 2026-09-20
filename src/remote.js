@@ -186,6 +186,18 @@ export function listIdFrom(pasted) {
   return found ? found[1] : null;
 }
 
+/** The link to give someone so they answer this very poll. */
+export function pollLink(location, pollId) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/poll/${pollId}`;
+}
+
+/** The poll id inside whatever was pasted, or null. */
+export function pollIdFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/poll\/([A-Za-z0-9_.~:@+-]+)/);
+  return found ? found[1] : null;
+}
+
 /** The link that hands over a set of games at once. */
 export function setLink(location, setId) {
   const { origin, pathname, search } = location;
