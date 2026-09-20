@@ -1248,7 +1248,15 @@ function groupsHtml() {
                   </div>`,
               )
               .join('')}</div>`
-          : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>`
+          : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>
+             ${
+               // An app added to the home screen keeps its own files and its own
+               // storage: it is a second device, not the same one, and the first
+               // time that surprises someone is when their group is not there.
+               onHomeScreen()
+                 ? `<p class="muted small">${escapeHtml(t('groups.standaloneNew'))}</p>`
+                 : ''
+             }`
       }
 
       ${
@@ -3028,8 +3036,13 @@ function offerMeInForms() {
  * travels beside it, and the database puts the two together, so a line reads
  * "Alice · écran d'accueil · 20 sept. 2026" and never "Alice · Alice · …".
  */
+/** Whether this is the app added to a home screen rather than a browser tab. */
+function onHomeScreen() {
+  return Boolean(matchMedia?.('(display-mode: standalone)')?.matches || navigator.standalone);
+}
+
 function deviceLabel() {
-  const standalone = matchMedia?.('(display-mode: standalone)')?.matches;
+  const standalone = onHomeScreen();
   const where = standalone ? t('groups.onHomeScreen') : t('groups.inBrowser');
   return `${where} · ${formatDate(Date.now())}`;
 }

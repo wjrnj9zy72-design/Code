@@ -129,6 +129,8 @@ export const STRINGS = {
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
+    'groups.standaloneNew':
+      'Cette app posée sur l’écran d’accueil est une installation à part de Safari : elle a son propre stockage, et doit entrer dans le groupe de son côté. Le plus simple, sur votre propre téléphone : collez la clé du groupe ci-dessous. Sinon, demandez à entrer, et acceptez depuis Safari.',
     'groups.add': 'Entrer dans un groupe',
     'groups.invite': 'Inviter',
     'groups.inviteTitle': 'Entrer dans {name}',
@@ -631,6 +633,8 @@ export const STRINGS = {
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
     'groups.none': 'This device is in no group: it keeps everything to itself.',
+    'groups.standaloneNew':
+      'This app on your home screen is a separate installation from Safari: it has its own storage, and has to join the group on its own. On your own phone the easy way is to paste the group\'s key below. Otherwise ask to join, and accept it from Safari.',
     'groups.add': 'Join a group',
     'groups.invite': 'Invite',
     'groups.inviteTitle': 'Join {name}',
