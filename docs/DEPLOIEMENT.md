@@ -1413,6 +1413,26 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
 
 ---
 
+### L'app de l'écran d'accueil est un deuxième appareil
+
+Ajouter l'app à l'écran d'accueil depuis Safari crée une **installation à part** :
+ses fichiers et son stockage sont les siens. Elle s'ouvre donc vide — aucun
+groupe, et pas de bouton **⟳**, qui n'apparaît qu'une fois l'appareil dans un
+groupe (sans groupe, il n'y a rien à aller chercher). L'app le dit elle-même, dans
+*Mes groupes*, quand elle tourne depuis l'écran d'accueil et n'appartient à rien.
+
+Deux façons de la faire entrer :
+
+- **sur votre propre téléphone, le plus simple** : *Aperçu* → *Mes groupes* →
+  dépliez *Je n'ai pas de code, mais une clé* → collez la clé de Mifa → **Entrer**.
+  Vos deux installations tiennent alors la même clé, et toutes deux peuvent
+  accepter les demandes ;
+- **sinon** : depuis l'app, écrivez votre prénom et **Demander**, puis acceptez la
+  demande depuis Safari (qui tient la clé qui fait entrer).
+
+Une fois entrée, elle récupère d'elle-même ce que le groupe partage, et le **⟳**
+apparaît dans la barre du haut.
+
 ### Quand l'app de l'écran d'accueil montre une version dépassée
 
 Safari et l'app de l'écran d'accueil sont deux installations séparées : chacune
