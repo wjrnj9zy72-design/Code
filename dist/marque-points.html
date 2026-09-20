@@ -1085,6 +1085,14 @@ const STRINGS = {
     'gate.thisDevice': 'cet appareil',
     'gate.admitsToo': 'fait entrer',
     'gate.unnamedDevice': 'appareil sans nom',
+    'gate.giveAdmits': 'Peut faire entrer',
+    'gate.dropAdmits': 'Ne plus faire entrer',
+    'gate.confirmGiveAdmits':
+      'Cet appareil pourra accepter les demandes et couper les autres, comme le vôtre. À réserver à quelqu’un avec qui vous tenez la porte à deux.',
+    'gate.confirmDropAdmits':
+      'Retirer à cet appareil le droit de faire entrer ? Il continuera de voir et de partager.',
+    'gate.gaveAdmits': 'C’est fait : cet appareil peut désormais faire entrer.',
+    'gate.droppedAdmits': 'C’est fait : cet appareil ne fait plus entrer.',
     'gate.cut': 'Couper',
     'gate.confirmCut':
       'Couper cet appareil ? Il ne verra plus rien de nouveau et ne pourra plus rien partager ici. Ce qu’il a déjà récupéré reste chez lui.',
@@ -1598,6 +1606,14 @@ const STRINGS = {
     'gate.thisDevice': 'this device',
     'gate.admitsToo': 'lets people in',
     'gate.unnamedDevice': 'unnamed device',
+    'gate.giveAdmits': 'May let people in',
+    'gate.dropAdmits': 'No longer lets people in',
+    'gate.confirmGiveAdmits':
+      'This device will be able to accept requests and cut others off, like yours. Keep it for someone you hold the door with.',
+    'gate.confirmDropAdmits':
+      'Take away this device\'s right to let people in? It will go on seeing and sharing.',
+    'gate.gaveAdmits': 'Done: that device can let people in now.',
+    'gate.droppedAdmits': 'Done: that device no longer lets people in.',
     'gate.cut': 'Cut off',
     'gate.confirmCut':
       'Cut this device off? It will see nothing new and share nothing here. What it already has stays with it.',
@@ -4727,6 +4743,20 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     },
 
     /**
+     * Let a device let people in, or stop it. Returns 'ok' | 'last' | 'unknown'
+     * — 'last' when it would leave the group with nobody to accept anyone.
+     */
+    async setAdmits(key, id, allow) {
+      const answer = await call('marque_points_set_admits', {
+        p_key: key,
+        p_id: id,
+        p_allow: Boolean(allow),
+      });
+      const status = answer?.status;
+      return status === 'ok' || status === 'last' ? status : 'unknown';
+    },
+
+    /**
      * Cut one device off. Returns 'ok' | 'last' | 'unknown' — 'last' being the
      * one key that lets people in, which the database refuses to remove.
      */
@@ -6192,14 +6222,21 @@ function devicesHtml(group) {
                 .join(' · '),
             )}</span>
           </div>
-          ${
-            row.mine
-              ? ''
-              : `<button type="button" class="button button--small button--ghost"
-                         data-cut="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}">
-                   ${escapeHtml(t('gate.cut'))}
-                 </button>`
-          }
+          <div class="row row--tight">
+            <button type="button" class="button button--small button--ghost"
+                    data-admits="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}"
+                    data-allow="${row.admits ? 'no' : 'yes'}">
+              ${escapeHtml(t(row.admits ? 'gate.dropAdmits' : 'gate.giveAdmits'))}
+            </button>
+            ${
+              row.mine
+                ? ''
+                : `<button type="button" class="button button--small button--ghost"
+                           data-cut="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}">
+                     ${escapeHtml(t('gate.cut'))}
+                   </button>`
+            }
+          </div>
         </div>`,
     )
     .join('')}</div>`;
@@ -6590,6 +6627,37 @@ function bindOverview() {
       await loadGate(group);
       if (status === 'ok') flash(t('gate.admitted'));
       else if (status === 'refused') flash(t('gate.refused'));
+      else flash(t('gate.gone'), 'error');
+      render();
+    });
+  });
+
+  // Who may let people in, decided from the app: the same thing the guide used to
+  // ask for an `update` in the SQL editor for.
+  view.querySelectorAll('[data-admits]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.admits);
+      if (!group) return;
+      const allow = button.dataset.allow === 'yes';
+      const sure = await ask(t(allow ? 'gate.confirmGiveAdmits' : 'gate.confirmDropAdmits'),
+        { confirmLabel: t(allow ? 'gate.giveAdmits' : 'gate.dropAdmits'), danger: !allow });
+      if (!sure) return;
+
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        status = await state.remote.setAdmits(group.key, button.dataset.key, allow);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      // This device may have just changed what it is allowed to do.
+      await refreshGroup(group);
+      if (status === 'ok') flash(t(allow ? 'gate.gaveAdmits' : 'gate.droppedAdmits'));
+      else if (status === 'last') flash(t('gate.cutLast'), 'error');
       else flash(t('gate.gone'), 'error');
       render();
     });

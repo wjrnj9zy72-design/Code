@@ -1162,14 +1162,21 @@ function devicesHtml(group) {
                 .join(' · '),
             )}</span>
           </div>
-          ${
-            row.mine
-              ? ''
-              : `<button type="button" class="button button--small button--ghost"
-                         data-cut="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}">
-                   ${escapeHtml(t('gate.cut'))}
-                 </button>`
-          }
+          <div class="row row--tight">
+            <button type="button" class="button button--small button--ghost"
+                    data-admits="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}"
+                    data-allow="${row.admits ? 'no' : 'yes'}">
+              ${escapeHtml(t(row.admits ? 'gate.dropAdmits' : 'gate.giveAdmits'))}
+            </button>
+            ${
+              row.mine
+                ? ''
+                : `<button type="button" class="button button--small button--ghost"
+                           data-cut="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}">
+                     ${escapeHtml(t('gate.cut'))}
+                   </button>`
+            }
+          </div>
         </div>`,
     )
     .join('')}</div>`;
@@ -1560,6 +1567,37 @@ function bindOverview() {
       await loadGate(group);
       if (status === 'ok') flash(t('gate.admitted'));
       else if (status === 'refused') flash(t('gate.refused'));
+      else flash(t('gate.gone'), 'error');
+      render();
+    });
+  });
+
+  // Who may let people in, decided from the app: the same thing the guide used to
+  // ask for an `update` in the SQL editor for.
+  view.querySelectorAll('[data-admits]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.admits);
+      if (!group) return;
+      const allow = button.dataset.allow === 'yes';
+      const sure = await ask(t(allow ? 'gate.confirmGiveAdmits' : 'gate.confirmDropAdmits'),
+        { confirmLabel: t(allow ? 'gate.giveAdmits' : 'gate.dropAdmits'), danger: !allow });
+      if (!sure) return;
+
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        status = await state.remote.setAdmits(group.key, button.dataset.key, allow);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      // This device may have just changed what it is allowed to do.
+      await refreshGroup(group);
+      if (status === 'ok') flash(t(allow ? 'gate.gaveAdmits' : 'gate.droppedAdmits'));
+      else if (status === 'last') flash(t('gate.cutLast'), 'error');
       else flash(t('gate.gone'), 'error');
       render();
     });

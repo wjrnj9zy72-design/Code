@@ -935,6 +935,55 @@ begin
 end;
 $$;
 
+-- Désigner l'appareil qui fait entrer, depuis l'app plutôt que d'ici. Il faut
+-- déjà faire entrer soi-même pour l'accorder ou le retirer — sinon n'importe quel
+-- appareil se donnerait la porte — et la dernière clé qui admet ne se retire pas.
+create or replace function public.marque_points_set_admits(p_key text, p_id text, p_allow boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_admits boolean;
+  v_left integer;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  select k.admits into v_admits
+    from public.marque_points_group_key k
+   where k.id = coalesce(p_id, '') and k.group_id = v_group
+     for update;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  if v_admits = coalesce(p_allow, false) then
+    return jsonb_build_object('status', 'ok');
+  end if;
+
+  if not coalesce(p_allow, false) then
+    select count(*) into v_left
+      from public.marque_points_group_key k
+     where k.group_id = v_group and k.admits;
+    if v_left <= 1 then
+      return jsonb_build_object('status', 'last');
+    end if;
+  end if;
+
+  update public.marque_points_group_key
+     set admits = coalesce(p_allow, false)
+   where id = p_id and group_id = v_group;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- Couper un appareil, depuis l'app. La dernière clé qui admet ne se coupe pas :
 -- le groupe n'aurait plus de portier, et plus personne n'y entrerait jamais.
 create or replace function public.marque_points_cut_key(p_key text, p_id text)
@@ -1001,6 +1050,7 @@ grant execute on function public.marque_points_requests(text) to anon, authentic
 grant execute on function public.marque_points_answer(text, text, boolean) to anon, authenticated;
 grant execute on function public.marque_points_group_keys(text) to anon, authenticated;
 grant execute on function public.marque_points_cut_key(text, text) to anon, authenticated;
+grant execute on function public.marque_points_set_admits(text, text, boolean) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
@@ -1200,8 +1250,12 @@ select id, label, admits, created_at from public.marque_points_group_key
 delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
 ```
 
-Pour désigner une autre clé comme celle qui fait entrer — un deuxième appareil à
-vous, par exemple :
+**Pour désigner qui fait entrer, l'app suffit** : Aperçu → le groupe → *Qui est
+dans le groupe* → **Peut faire entrer** sur la ligne voulue, et **Ne plus faire
+entrer** pour le retirer. Il faut faire entrer soi-même pour l'accorder, et la
+dernière clé qui admet ne se retire pas.
+
+Depuis l'éditeur SQL, si vous préférez :
 
 ```sql
 update public.marque_points_group_key set admits = true where id = 'ID_DE_LA_LIGNE';

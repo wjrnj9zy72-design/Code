@@ -234,6 +234,14 @@ export const STRINGS = {
     'gate.thisDevice': 'cet appareil',
     'gate.admitsToo': 'fait entrer',
     'gate.unnamedDevice': 'appareil sans nom',
+    'gate.giveAdmits': 'Peut faire entrer',
+    'gate.dropAdmits': 'Ne plus faire entrer',
+    'gate.confirmGiveAdmits':
+      'Cet appareil pourra accepter les demandes et couper les autres, comme le vôtre. À réserver à quelqu’un avec qui vous tenez la porte à deux.',
+    'gate.confirmDropAdmits':
+      'Retirer à cet appareil le droit de faire entrer ? Il continuera de voir et de partager.',
+    'gate.gaveAdmits': 'C’est fait : cet appareil peut désormais faire entrer.',
+    'gate.droppedAdmits': 'C’est fait : cet appareil ne fait plus entrer.',
     'gate.cut': 'Couper',
     'gate.confirmCut':
       'Couper cet appareil ? Il ne verra plus rien de nouveau et ne pourra plus rien partager ici. Ce qu’il a déjà récupéré reste chez lui.',
@@ -747,6 +755,14 @@ export const STRINGS = {
     'gate.thisDevice': 'this device',
     'gate.admitsToo': 'lets people in',
     'gate.unnamedDevice': 'unnamed device',
+    'gate.giveAdmits': 'May let people in',
+    'gate.dropAdmits': 'No longer lets people in',
+    'gate.confirmGiveAdmits':
+      'This device will be able to accept requests and cut others off, like yours. Keep it for someone you hold the door with.',
+    'gate.confirmDropAdmits':
+      'Take away this device\'s right to let people in? It will go on seeing and sharing.',
+    'gate.gaveAdmits': 'Done: that device can let people in now.',
+    'gate.droppedAdmits': 'Done: that device no longer lets people in.',
     'gate.cut': 'Cut off',
     'gate.confirmCut':
       'Cut this device off? It will see nothing new and share nothing here. What it already has stays with it.',
