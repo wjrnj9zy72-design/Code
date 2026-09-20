@@ -4,8 +4,10 @@
  * Fill these in to turn on sharing (see docs/DEPLOIEMENT.md). Left empty, the
  * app works exactly as before: games stay in the browser, and nothing is sent
  * anywhere. The key below is a *public* key — it is meant to be readable by
- * everyone who opens the page, and the database is protected by only exposing
- * two functions, not the table.
+ * everyone who opens the page, and the database is protected by exposing a few
+ * functions rather than the table itself — and, for the links that carry
+ * several games at once, by a sharing key this file never holds (see
+ * docs/DEPLOIEMENT.md, étape 2 bis).
  */
 export const REMOTE = {
   url: 'https://ikndckzjhhdlnwtvfkvx.supabase.co/rest/v1/',

@@ -1496,6 +1496,13 @@ function bindHome() {
 
   view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
 
+  // Enter does what the button does: a field that answers nothing reads as broken.
+  view.querySelector('#share-key')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#save-key')?.click();
+  });
+
   view.querySelector('#save-key')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     const field = view.querySelector('#share-key');

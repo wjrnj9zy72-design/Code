@@ -63,14 +63,26 @@ alter table public.marque_points_games enable row level security;
 -- Aucune règle d'accès n'est déclarée : la table est donc inatteignable
 -- directement. C'est voulu.
 
--- Lire une partie, à condition d'en connaître l'identifiant exact.
+-- Ces trois colonnes ne servent qu'aux lots de parties (étape 2 bis). Elles
+-- sont créées ici, et les trois fonctions ci-dessous les respectent dès
+-- maintenant, pour que relancer ce bloc plus tard ne puisse jamais défaire la
+-- protection des lots. Sans l'étape 2 bis, elles restent vides et ne changent
+-- rien.
+alter table public.marque_points_games
+  add column if not exists code_hash text,
+  add column if not exists code_salt text,
+  add column if not exists tries integer not null default 0;
+
+-- Lire une partie, à condition d'en connaître l'identifiant exact. Un lot
+-- protégé par un code n'est pas lisible ici : il a sa propre fonction.
 create or replace function public.marque_points_get(p_id text)
 returns jsonb
 language sql
 security definer
 set search_path = public
 as $$
-  select data from public.marque_points_games where id = p_id;
+  select data from public.marque_points_games
+   where id = p_id and code_hash is null;
 $$;
 
 -- Écrire une partie, avec deux garde-fous : un identifiant de taille plausible
@@ -92,18 +104,20 @@ begin
   insert into public.marque_points_games (id, data, updated_at)
   values (p_id, p_data, now())
   on conflict (id) do update
-    set data = excluded.data, updated_at = now();
+    set data = excluded.data, updated_at = now()
+    where marque_points_games.code_hash is null;
 end;
 $$;
 
--- Supprimer une partie.
+-- Supprimer une partie. Un lot ne s'efface pas ainsi : il se révoque.
 create or replace function public.marque_points_delete(p_id text)
 returns void
 language sql
 security definer
 set search_path = public
 as $$
-  delete from public.marque_points_games where id = p_id;
+  delete from public.marque_points_games
+   where id = p_id and code_hash is null;
 $$;
 
 grant execute on function public.marque_points_get(text) to anon, authenticated;
@@ -202,8 +216,11 @@ as $$
   );
 $$;
 
--- Un lot protégé devient invisible à la lecture ordinaire : la seule porte est
--- marque_points_open_set, qui exige le code et compte les essais.
+-- Les trois fonctions ordinaires, à nouveau : identiques à celles de l'étape 2,
+-- répétées ici pour que ce bloc suffise à lui seul si votre base date d'une
+-- version antérieure du guide. Un lot protégé est invisible à la lecture
+-- ordinaire : la seule porte est marque_points_open_set, qui exige le code et
+-- compte les essais.
 create or replace function public.marque_points_get(p_id text)
 returns jsonb
 language sql

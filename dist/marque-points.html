@@ -3085,8 +3085,10 @@ function savePrefs(prefs) {
  * Fill these in to turn on sharing (see docs/DEPLOIEMENT.md). Left empty, the
  * app works exactly as before: games stay in the browser, and nothing is sent
  * anywhere. The key below is a *public* key — it is meant to be readable by
- * everyone who opens the page, and the database is protected by only exposing
- * two functions, not the table.
+ * everyone who opens the page, and the database is protected by exposing a few
+ * functions rather than the table itself — and, for the links that carry
+ * several games at once, by a sharing key this file never holds (see
+ * docs/DEPLOIEMENT.md, étape 2 bis).
  */
 const REMOTE = {
   url: 'https://ikndckzjhhdlnwtvfkvx.supabase.co/rest/v1/',
@@ -5016,6 +5018,13 @@ function bindHome() {
   });
 
   view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
+
+  // Enter does what the button does: a field that answers nothing reads as broken.
+  view.querySelector('#share-key')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#save-key')?.click();
+  });
 
   view.querySelector('#save-key')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
