@@ -75,6 +75,12 @@ function formatDate(timestamp) {
   }
 }
 
+/** The app's own address, with no game attached to it. */
+function appLink() {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}`;
+}
+
 function flash(message, kind = 'info') {
   state.flash = { message, kind };
 }
@@ -174,6 +180,11 @@ function homeView() {
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
+    <div class="row">
+      <button type="button" class="button button--small button--ghost" id="share-app">
+        ${escapeHtml(t('action.shareApp'))}
+      </button>
+    </div>
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
@@ -721,6 +732,22 @@ function showCopyDialog({ title, hint, text: content }) {
 }
 
 function bindHome() {
+  view.querySelector('#share-app')?.addEventListener('click', async () => {
+    const url = appLink();
+    // The phone's own share sheet is the easy way — one tap to a message.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: t('app.title'), text: t('shareApp.text'), url });
+        return;
+      } catch (error) {
+        // Cancelling is not a failure, and nothing should be shown for it.
+        if (error?.name === 'AbortError') return;
+        // Anything else: fall through to the text everyone can copy.
+      }
+    }
+    showCopyDialog({ title: t('shareApp.title'), hint: t('shareApp.hint'), text: url });
+  });
+
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
     state.prefs = { ...state.prefs, autoShare: event.target.checked };
     savePrefs(state.prefs);
