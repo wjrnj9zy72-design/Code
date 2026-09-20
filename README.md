@@ -44,14 +44,22 @@ dépendance, aucun build.
   publique dans le code de la page. **Contribuer, en revanche, ne demande
   rien** : un lien envoyé à quelqu'un d'extérieur lui permet d'ajouter une
   manche ou de cocher une ligne, sans rien voir du reste.
-- **On entre dans un groupe par un lien.** Quelqu'un qui en fait partie touche
-  *Inviter* et envoie le lien affiché ; en face, il n'y a qu'**un prénom à
-  écrire**. L'app échange alors l'invitation contre **une clé à elle**, propre à
-  cet appareil, étiquetée de ce prénom et coupable sans déranger les autres.
-  L'invitation vaut une demi-heure et une seule entrée ; vingt essais ratés
-  ferment l'entrée du groupe pendant dix minutes. Le lien ne passe pas ? Le nom
-  du groupe et les six chiffres, dits de vive voix, font exactement la même
-  chose.
+- **On frappe à un groupe, et quelqu'un ouvre.** Vous envoyez un lien —
+  d'une journée et pour plusieurs personnes, ou d'une demi-heure pour une seule.
+  En face, il n'y a qu'**un prénom à écrire** : rien ne s'ouvre, la demande
+  arrive chez vous, et vous **acceptez ou refusez** d'une touche. Une invitation
+  ne donne donc que le droit de frapper : transférée ou capturée, elle ne fait
+  entrer personne sans vous. Accepté, l'appareil reçoit **une clé à lui**,
+  étiquetée de ce prénom et coupable sans déranger les autres ; refusé, il n'a
+  jamais rien vu. Le lien ne passe pas ? Le nom du groupe et les six chiffres,
+  dits de vive voix, font exactement la même chose.
+- **La porte reste entre vos mains.** Seule la clé affichée à la création du
+  groupe accepte les demandes ; celles distribuées ensuite voient et partagent,
+  mais n'ouvrent à personne. *Qui est dans le groupe* liste les appareils, un par
+  ligne, et **Couper** met l'un d'eux dehors sans toucher aux autres — la
+  dernière clé qui fait entrer étant protégée, un groupe ne peut pas se retrouver
+  sans portier. Vingt essais ratés ferment l'entrée dix minutes ; cinquante
+  demandes en attente et la porte n'en prend plus.
 - **Ce prénom sert ensuite partout** : le groupe voit qui est entré, et vous êtes
   proposé en premier dans une nouvelle liste, un sondage ou une partie — proposé
   une fois, au moment où le formulaire est vide ; effacé, il reste effacé. Il ne

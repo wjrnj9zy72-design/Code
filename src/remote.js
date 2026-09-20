@@ -16,9 +16,12 @@
  * everything shared in it. Contributing to something already shared needs
  * nothing at all.
  *
- * A device joins with the group's name and six digits said out loud, and gets
- * back a key of its own, which it keeps. Each device has its own, so one can
- * be cut off without disturbing the others.
+ * A device does not let itself in. It knocks — with the group's name, six
+ * digits from an invitation, and the first name of whoever is asking — and
+ * someone in the group accepts or refuses. Accepted, the ticket it was given
+ * becomes its own key; refused, it never opened anything. Each device has its
+ * own key, so one can be cut off without disturbing the others, and only the
+ * keys marked as admitting can let anyone in.
  *
  * A lot — a link that hands over several things at once — goes through its own
  * functions, because it is protected differently: writing one takes a group's
@@ -94,33 +97,98 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
      */
     async groupOf(key) {
       const group = await call('marque_points_group_of', { p_key: key });
-      return group && typeof group === 'object' && group.id ? group : null;
+      if (!group || typeof group !== 'object' || !group.id) return null;
+      return { ...group, admits: Boolean(group.admits) };
     },
 
     /**
-     * Invite someone: the database draws six digits, good for half an hour and
-     * for one device. Being in the group is what allows it.
-     * Returns { code, name, minutes }.
+     * Invite: the database draws six digits, good for as long and for as many
+     * people as asked. Being in the group is what allows it.
+     * Returns { code, name, minutes, uses }.
      */
-    async invite(key, minutes = 30) {
-      const answer = await call('marque_points_invite', { p_key: key, p_minutes: minutes });
+    async invite(key, minutes = 30, uses = 1) {
+      const answer = await call('marque_points_invite', {
+        p_key: key,
+        p_minutes: minutes,
+        p_uses: uses,
+      });
       return answer && typeof answer.code === 'string' ? answer : null;
     },
 
     /**
-     * Join with the group's name and those six digits. What comes back is a
-     * key of this device's own — revoking it later disturbs nobody else.
+     * Knock: the group's name, the six digits, and the first name of whoever is
+     * asking. Nothing is opened by this — what comes back is a ticket this
+     * device keeps, and which becomes its key the day someone in the group
+     * accepts. Until then it sees nothing at all.
      *
-     * Returns { status: 'ok', id, name, key } | { status: 'unknown' }
+     * Returns { status: 'waiting', ticket, id, name } | { status: 'unknown' }
      *       | { status: 'busy' }
      */
-    async join(name, code, label = '') {
-      const answer = await call('marque_points_join', { p_name: name, p_code: code, p_label: label });
+    async ask(name, code, who = '', label = '') {
+      const answer = await call('marque_points_ask', {
+        p_name: name,
+        p_code: code,
+        p_who: who,
+        p_label: label,
+      });
       const status = answer?.status;
-      if (status === 'ok' && answer.key) {
-        return { status, id: answer.id, name: answer.name, key: answer.key };
+      if (status === 'waiting' && typeof answer.ticket === 'string') {
+        return { status, ticket: answer.ticket, id: answer.id, name: answer.name };
       }
       return { status: status === 'busy' ? 'busy' : 'unknown' };
+    },
+
+    /**
+     * "Well? Am I in?" — asked with the ticket. Accepted, that ticket is this
+     * device's key from then on, so there is nothing to receive.
+     *
+     * Returns { status: 'ok', id, name } | { status: 'waiting', name }
+     *       | { status: 'refused' } | { status: 'unknown' }
+     */
+    async claim(ticket) {
+      const answer = await call('marque_points_claim', { p_ticket: ticket });
+      const status = answer?.status;
+      if (status === 'ok' && answer.id) return { status, id: answer.id, name: answer.name || '' };
+      if (status === 'waiting') return { status, name: answer.name || '' };
+      if (status === 'refused') return { status };
+      return { status: 'unknown' };
+    },
+
+    /**
+     * Who is knocking: the requests still waiting, for a key that admits. An
+     * ordinary key is refused by the database, which is how a device knows it
+     * is not the one who lets people in.
+     */
+    async requests(key) {
+      const rows = await call('marque_points_requests', { p_key: key });
+      return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string') : [];
+    },
+
+    /** Accept, or refuse. Returns 'ok' | 'refused' | 'unknown'. */
+    async answer(key, id, accept) {
+      const answer = await call('marque_points_answer', {
+        p_key: key,
+        p_id: id,
+        p_accept: Boolean(accept),
+      });
+      const status = answer?.status;
+      return status === 'ok' || status === 'refused' ? status : 'unknown';
+    },
+
+    /** The devices in the group, one line each — for a key that admits. */
+    async groupKeys(key) {
+      const rows = await call('marque_points_group_keys', { p_key: key });
+      return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string') : [];
+    },
+
+    /**
+     * Cut one device off. Returns 'ok' | 'last' | 'unknown' — 'last' being the
+     * one key that lets people in, which the database refuses to remove.
+     */
+    async cutKey(key, id) {
+      const answer = await call('marque_points_cut_key', { p_key: key, p_id: id });
+      const status = answer?.status;
+      return status === 'ok' || status === 'last' ? status : 'unknown';
     },
 
     /**

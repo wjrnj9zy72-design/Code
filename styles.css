@@ -300,6 +300,34 @@ textarea { min-height: 66px; resize: vertical; }
   border-radius: var(--radius);
 }
 
+/* One person knocking, or one device already in: who on one side, what to do
+   about them on the other. Inside a group's row, so it steps in a little. */
+.knock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.knock strong {
+  display: block;
+}
+
+/* A group now holds its own blocks, so it stacks instead of sitting on a line. */
+.group {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.group > .row {
+  justify-content: flex-start;
+}
+
 .lot__code {
   margin-right: 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
