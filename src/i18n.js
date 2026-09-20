@@ -374,8 +374,10 @@ export const STRINGS = {
       'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
     'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
     'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
+    'shareApp.needsSql':
+      'La base n’a pas cette fonction : relancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
     'shareApp.needsUpdate':
-      'La base n’a pas encore la fonction des lots : lancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
+      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans l’Aperçu, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
     'shareSet.codeLabel': 'Code à communiquer',
     'shareSet.codeApart':
       'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
@@ -870,8 +872,10 @@ export const STRINGS = {
       'This copy of the app has no shared database, so it cannot fetch those games.',
     'shareSet.opened': '{count} game(s) added from the link.',
     'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
+    'shareApp.needsSql':
+      'The database does not have that function: run the SQL block from step 2b of the deployment guide again.',
     'shareApp.needsUpdate':
-      'The database does not have the lot functions yet: run the SQL block from step 2b of the deployment guide.',
+      'This app, or the database, is out of date. Tap “Look for an update” in the Overview, under Données; if that changes nothing, tell whoever set the database up.',
     'shareSet.codeLabel': 'Code to pass on',
     'shareSet.codeApart':
       'Do not send it in the same message as the link: say it out loud, or use another route.',

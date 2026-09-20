@@ -1413,6 +1413,33 @@ chaque écran se rafraîchit seul toutes les cinq secondes.
 
 ---
 
+### Ce qu'une nouvelle version coûte aux autres : rien
+
+Quand l'app change de version, les personnes du groupe **n'ont rien à refaire** :
+ni redemander à entrer, ni recoller une clé, ni réinstaller. Ce qu'un appareil
+garde lui reste — sa clé, ses parties, ses listes, ses sondages — et la nouvelle
+version arrive d'elle-même (voir la section suivante).
+
+Les seules choses qui obligeraient quelqu'un à recommencer, et elles ne sont
+jamais des mises à jour :
+
+| | qui doit refaire quoi |
+| --- | --- |
+| Une **nouvelle version** de l'app | personne |
+| Un **bloc SQL** relancé (étape 2 bis) | personne — il est fait pour se relancer |
+| `marque_points_new_group_key(...)` | **tout le monde** : c'est le bouton d'alarme, il coupe toutes les clés |
+| Le bloc de **remise à zéro** (1 bis) | tout le monde, et ce qui était partagé disparaît de la base |
+| **Couper** un appareil (étape 4) | celui-là seulement |
+| Quelqu'un qui **efface les données du site** ou retire l'app de son écran d'accueil | celui-là seulement, et il perd ce qu'il n'avait jamais partagé |
+
+Un cas mérite d'être connu, parce qu'il ressemble à une panne : si le SQL change
+et qu'un appareil tourne encore sur une **vieille version de l'app**, cette
+version peut appeler une fonction qui n'existe plus. Elle le dit — « cette app ou
+la base n'est pas à jour » — et le remède est *Chercher une mise à jour*, dans
+l'Aperçu sous *Données*. Sa clé, elle, n'a jamais cessé d'être valable. Sur votre
+appareil, celui qui tient la clé qui fait entrer, le même message renvoie au bloc
+SQL, puisque c'est vous qui pouvez le lancer.
+
 ### L'app de l'écran d'accueil est un deuxième appareil
 
 Ajouter l'app à l'écran d'accueil depuis Safari crée une **installation à part** :

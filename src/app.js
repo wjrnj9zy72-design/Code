@@ -3368,7 +3368,13 @@ function forgetLot(id) {
 /** Why the database refused, in words that say what to do about it. */
 function remoteReason(error) {
   const text = String(error?.message || '');
-  if (error?.status === 404 || /PGRST202/.test(text)) return t('shareApp.needsUpdate');
+  // "That function does not exist" has two causes, and they call for opposite
+  // things: the database has not been brought up to date, or this copy of the app
+  // has not. Only whoever set the database up can do the first, so the message
+  // names both and points at the update button rather than at the SQL guide.
+  if (error?.status === 404 || /PGRST202/.test(text)) {
+    return t(groups().some((group) => group.admits) ? 'shareApp.needsSql' : 'shareApp.needsUpdate');
+  }
   if (/cle de (partage|groupe)/i.test(text)) return t('groups.refused');
   return t('shareApp.failed');
 }
