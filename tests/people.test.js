@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { withMeFirst } from '../src/people.js';
+import { withMeFirst, withoutMe } from '../src/people.js';
 
 test('an empty form offers me as its first person', () => {
   assert.deepEqual(withMeFirst(['', ''], 'Gui'), ['Gui', '']);
@@ -33,4 +33,13 @@ test('a device with no first name changes nothing', () => {
 test('what comes out is a form, not a longer one', () => {
   assert.equal(withMeFirst(['', '', ''], 'Gui').length, 3);
   assert.equal(withMeFirst([''], 'Gui').length, 1);
+});
+
+test('and my name is taken back out when the form stops being about people', () => {
+  assert.deepEqual(withoutMe(['Gui', ''], 'Gui'), ['', '']);
+  assert.deepEqual(withoutMe(['', 'gui'], 'Gui'), ['', ''], 'whatever the case');
+  const others = ['Bob', 'Alice'];
+  assert.equal(withoutMe(others, 'Gui'), others, 'a form that never held my name is untouched');
+  assert.equal(withoutMe(others, ''), others, 'and a device with no first name changes nothing');
+  assert.deepEqual(withoutMe(['Gui', 'Bob'], 'Gui'), ['', 'Bob'], 'the others stay where they are');
 });

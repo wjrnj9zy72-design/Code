@@ -213,7 +213,7 @@ begin
     select 1 from public.marque_points_group
      group by lower(btrim(name)) having count(*) > 1
   ) then
-    raise notice 'deux groupes portent le meme nom : renommez-en un, puis relancez';
+    raise warning 'deux groupes portent le meme nom : renommez-en un, puis relancez ce bloc';
   else
     create unique index if not exists marque_points_group_name
       on public.marque_points_group (lower(btrim(name)));
@@ -245,21 +245,40 @@ alter table public.marque_points_group_key
 -- Une base montée avant l'acceptation : une de ses clés doit devenir celle qui
 -- admet, sinon plus personne ne pourrait faire entrer qui que ce soit.
 --
--- Laquelle : celle que l'éditeur SQL a affichée à la création du groupe, qui se
--- reconnaît à son étiquette — c'est la vôtre. À défaut, la plus ancienne. (Le
--- seul départage par date serait un tirage au sort quand deux clés ont été
--- créées dans la même transaction, ce qui arrive sur une base montée d'un coup.)
+-- Laquelle : **seulement** celle que l'éditeur SQL a affichée à la création du
+-- groupe, qui se reconnaît à son étiquette. Jamais un appareil entré ensuite —
+-- ce bloc se relance à volonté, et promouvoir « la plus ancienne clé » finirait
+-- par donner votre porte au téléphone de quelqu'un d'autre le jour où la vôtre
+-- aurait été supprimée.
 update public.marque_points_group_key k
    set admits = true
- where k.id = (select k2.id
+ where k.label in ('première clé', 'clé refaite')
+   and k.id = (select k2.id
                  from public.marque_points_group_key k2
                 where k2.group_id = k.group_id
-                order by (k2.label in ('première clé', 'clé refaite')) desc,
-                         k2.created_at, k2.id
+                  and k2.label in ('première clé', 'clé refaite')
+                order by k2.created_at, k2.id
                 limit 1)
    and not exists (select 1
                      from public.marque_points_group_key k3
                     where k3.group_id = k.group_id and k3.admits);
+
+-- Un groupe dont la clé de création a été supprimée n'a plus personne pour
+-- faire entrer, et rien ici ne doit promouvoir l'appareil de quelqu'un d'autre
+-- à votre place : on le signale, et c'est à vous de désigner la clé (étape 4).
+do $$
+declare
+  v_orphelins text;
+begin
+  select string_agg(g.name, ', ') into v_orphelins
+    from public.marque_points_group g
+   where not exists (select 1 from public.marque_points_group_key k
+                      where k.group_id = g.id and k.admits);
+  if v_orphelins is not null then
+    raise warning 'aucune cle ne fait entrer dans : % — designez-en une (etape 4 du guide)', v_orphelins;
+  end if;
+end;
+$$;
 
 -- Une base montée avant les invitations garde sa clé sur le groupe : elle
 -- devient la première clé de ce groupe, et la colonne disparaît. Écrit ainsi
@@ -385,7 +404,8 @@ declare
   v_salt text := md5(gen_random_uuid()::text);
   v_id text;
 begin
-  select id into v_id from public.marque_points_group where name = btrim(coalesce(p_name, ''));
+  select id into v_id from public.marque_points_group
+   where lower(btrim(name)) = lower(btrim(coalesce(p_name, '')));
   if v_id is null then
     raise exception 'aucun groupe de ce nom';
   end if;
@@ -665,9 +685,11 @@ set search_path = public
 as $$
 declare
   v_invite public.marque_points_invite;
-  v_name text := lower(btrim(coalesce(p_name, '')));
+  v_group_name text;
+  v_name text := left(lower(btrim(coalesce(p_name, ''))), 60);
   v_ticket text := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
   v_salt text := md5(gen_random_uuid()::text);
+  v_bucket text;
   v_misses integer;
   v_waiting integer;
 begin
@@ -678,25 +700,43 @@ begin
    where (state = 'waiting' and created_at < now() - interval '7 days')
       or (state <> 'waiting' and answered_at < now() - interval '1 day');
 
+  -- Le code d'abord, le nom ensuite. Chercher par les deux à la fois amenait à
+  -- compter les essais ratés sous le nom *fourni* : il suffisait d'en inventer
+  -- un différent à chaque fois pour n'être jamais compté, et de faire fermer
+  -- l'invitation de tout le monde au bout de dix essais.
+  select i.* into v_invite
+    from public.marque_points_invite i
+   where i.code = coalesce(p_code, '')
+     and i.expires_at > now()
+     and i.uses > 0;
+
+  -- Un code qui n'existe pas se compte dans un seau commun : celui qui en tire
+  -- au hasard s'arrête au vingtième, et ceux qui ont un vrai code ne sont pas
+  -- gênés puisqu'ils ne passent jamais par ici. Un code qui existe mais dont le
+  -- nom de groupe est faux se compte sur ce groupe, qui existe vraiment.
+  v_bucket := case when v_invite.code is null then '' else
+    (select left(lower(btrim(g.name)), 60) from public.marque_points_group g where g.id = v_invite.group_id) end;
+
   select count(*) into v_misses
     from public.marque_points_join_miss
-   where name = v_name and at > now() - interval '10 minutes';
+   where name = v_bucket and at > now() - interval '10 minutes';
   if v_misses >= 20 then
     return jsonb_build_object('status', 'busy');
   end if;
 
-  select i.* into v_invite
-    from public.marque_points_invite i
-    join public.marque_points_group g on g.id = i.group_id
-   where i.code = coalesce(p_code, '')
-     and lower(btrim(g.name)) = v_name
-     and i.expires_at > now()
-     and i.uses > 0
-     and i.tries < 10;
+  if v_invite.code is null then
+    insert into public.marque_points_join_miss (name) values ('');
+    return jsonb_build_object('status', 'unknown');
+  end if;
 
-  if not found then
-    insert into public.marque_points_join_miss (name) values (v_name);
-    update public.marque_points_invite set tries = tries + 1 where code = coalesce(p_code, '');
+  select left(lower(btrim(g.name)), 60) into v_group_name
+    from public.marque_points_group g where g.id = v_invite.group_id;
+
+  if v_group_name is distinct from v_name then
+    -- Le nom ne va pas avec le code. Compté sur le groupe visé, et l'invitation
+    -- n'en souffre pas : la fermer ici serait offrir à quiconque a lu le lien
+    -- le moyen de la rendre inutilisable pour tous les autres.
+    insert into public.marque_points_join_miss (name) values (v_bucket);
     return jsonb_build_object('status', 'unknown');
   end if;
 
@@ -715,7 +755,7 @@ begin
 
   update public.marque_points_invite set uses = uses - 1 where code = v_invite.code;
   delete from public.marque_points_invite where uses <= 0;
-  delete from public.marque_points_join_miss where name = v_name;
+  delete from public.marque_points_join_miss where name = v_bucket;
 
   return jsonb_build_object(
     'status', 'waiting',
@@ -818,9 +858,13 @@ begin
     raise exception 'cette cle ne fait pas entrer';
   end if;
 
+  -- Verrouillée le temps de répondre : deux acceptations qui se croisent — deux
+  -- onglets, ou deux appareils qui font entrer — créaient sinon deux clés pour
+  -- la même demande, et couper l'appareil n'en retirait qu'une.
   select r.* into v_request
     from public.marque_points_request r
-   where r.id = coalesce(p_id, '') and r.group_id = v_group and r.state = 'waiting';
+   where r.id = coalesce(p_id, '') and r.group_id = v_group and r.state = 'waiting'
+     for update;
   if not found then
     return jsonb_build_object('status', 'unknown');
   end if;
@@ -828,7 +872,7 @@ begin
   if not coalesce(p_accept, false) then
     update public.marque_points_request
        set state = 'refused', answered_at = now()
-     where id = v_request.id;
+     where id = v_request.id and state = 'waiting';
     return jsonb_build_object('status', 'refused');
   end if;
 
@@ -839,7 +883,7 @@ begin
 
   update public.marque_points_request
      set state = 'ok', answered_at = now()
-   where id = v_request.id;
+   where id = v_request.id and state = 'waiting';
 
   return jsonb_build_object('status', 'ok');
 end;
@@ -915,9 +959,11 @@ begin
   end if;
 
   delete from public.marque_points_group_key where id = p_id and group_id = v_group;
-  -- Ce que cet appareil avait demandé n'a plus de raison d'être.
+  -- La demande acceptée de cet appareil n'a plus de raison d'être. Un refus, en
+  -- revanche, reste : l'effacer ferait dire à l'appareil refusé « votre demande
+  -- a expiré » au lieu de « elle a été refusée ».
   delete from public.marque_points_request
-   where group_id = v_group and state <> 'waiting'
+   where group_id = v_group and state = 'ok'
      and not exists (select 1 from public.marque_points_group_key k
                       where k.group_id = v_group
                         and k.key_hash = public.marque_points_request.ticket_hash);
@@ -1011,8 +1057,8 @@ simplement plus rien n'est partagé. À la prochaine ouverture, chaque appareil
 constate que sa clé n'ouvre plus rien, retire le groupe de sa liste et le dit —
 vous n'avez rien à faire sur les téléphones.
 
-> Le deuxième `delete` de la liste vide la table qui porte les documents
-> partagés. Si vous voulez garder ce qui est partagé et ne refaire que les
+> Le **dernier** `delete` de la liste — celui sur `marque_points_games` — vide la
+> table qui porte les documents partagés. Si vous voulez garder ce qui est partagé et ne refaire que les
 > groupes, retirez la ligne `delete from public.marque_points_games;` — mais
 > lancez alors la requête de rattachement (**2 bis** ci-dessous) après avoir créé
 > le nouveau groupe, sinon ces documents n'appartiendront à personne.
