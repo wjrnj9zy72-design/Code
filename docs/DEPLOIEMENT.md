@@ -203,6 +203,24 @@ create table if not exists public.marque_points_group (
 
 alter table public.marque_points_group enable row level security;
 
+-- Deux groupes du même nom seraient indiscernables : on entre dans un groupe en
+-- disant son nom, et un lien d'invitation ne porte que ce nom. Sur une base qui
+-- en aurait déjà deux, l'index n'est pas créé et un message le dit — renommez-en
+-- un, puis relancez ce bloc.
+do $$
+begin
+  if exists (
+    select 1 from public.marque_points_group
+     group by lower(btrim(name)) having count(*) > 1
+  ) then
+    raise notice 'deux groupes portent le meme nom : renommez-en un, puis relancez';
+  else
+    create unique index if not exists marque_points_group_name
+      on public.marque_points_group (lower(btrim(name)));
+  end if;
+end;
+$$;
+
 -- Un groupe a autant de clés que d'appareils entrés : chacune se révoque sans
 -- déranger les autres.
 create table if not exists public.marque_points_group_key (
@@ -218,12 +236,27 @@ alter table public.marque_points_group_key enable row level security;
 create index if not exists marque_points_group_key_group on public.marque_points_group_key (group_id);
 
 -- Une base montée avant les invitations garde sa clé sur le groupe : elle
--- devient la première clé de ce groupe, et la colonne disparaît.
-insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, created_at)
-select replace(gen_random_uuid()::text, '-', ''), g.id, 'première clé', g.key_hash, g.key_salt, g.created_at
-  from public.marque_points_group g
- where g.key_hash is not null
-   and not exists (select 1 from public.marque_points_group_key k where k.group_id = g.id);
+-- devient la première clé de ce groupe, et la colonne disparaît. Écrit ainsi
+-- pour que **relancer ce bloc** ne bute pas sur une colonne déjà disparue : tout
+-- ce bloc doit pouvoir être repassé tel quel, autant de fois que nécessaire.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'marque_points_group'
+       and column_name = 'key_hash'
+  ) then
+    execute $migration$
+      insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, created_at)
+      select replace(gen_random_uuid()::text, '-', ''), g.id, 'première clé', g.key_hash, g.key_salt, g.created_at
+        from public.marque_points_group g
+       where g.key_hash is not null
+         and not exists (select 1 from public.marque_points_group_key k where k.group_id = g.id)
+    $migration$;
+  end if;
+end;
+$$;
 
 alter table public.marque_points_group drop column if exists key_hash;
 alter table public.marque_points_group drop column if exists key_salt;
@@ -594,7 +627,7 @@ begin
 
   insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
   values (replace(gen_random_uuid()::text, '-', ''), v_invite.group_id,
-          left(coalesce(btrim(p_label), ''), 40), md5(v_key || v_salt), v_salt);
+          left(coalesce(btrim(p_label), ''), 80), md5(v_key || v_salt), v_salt);
 
   update public.marque_points_invite set uses = uses - 1 where code = v_invite.code;
   delete from public.marque_points_invite where uses <= 0;

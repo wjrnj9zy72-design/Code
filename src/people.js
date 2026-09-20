@@ -56,3 +56,19 @@ export function recentPeople(documents, limit = 12) {
   }
   return seen;
 }
+
+/**
+ * Me first, in a form nothing has been typed into yet — because whoever fills
+ * in a list is nearly always on it.
+ *
+ * Only ever called on a form that has just been emptied, never on every
+ * redraw: a name put back after someone deleted it would put them on a list
+ * they had just taken themselves off.
+ */
+export function withMeFirst(names, me) {
+  const clean = String(me || '').trim();
+  if (!clean) return names;
+  if (names.some((name) => String(name || '').trim().toLowerCase() === clean.toLowerCase())) return names;
+  if (names.some((name) => String(name || '').trim())) return names;
+  return [clean, ...names.slice(1)];
+}

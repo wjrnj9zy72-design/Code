@@ -199,6 +199,34 @@ test('an invitation travels as a link, so nothing has to be typed', async () => 
   assert.equal(gameIdFrom(link), null);
 });
 
+test('an invitation link read out of a sentence loses the sentence with it', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  const link = 'https://gui.github.io/Code/#/join/123456/Famille';
+  const famille = { code: '123456', name: 'Famille' };
+
+  assert.deepEqual(joinFrom(`Voici le lien : ${link}.`), famille, 'a full stop');
+  assert.deepEqual(joinFrom(`Le lien (${link}) à ce soir`), famille, 'a bracket that closes nothing');
+  assert.deepEqual(joinFrom(`«${link}»`), famille, 'the quotes a phone puts round it');
+  assert.deepEqual(joinFrom(`${link}!!`), famille);
+  assert.deepEqual(joinFrom(`${link}\u2026`), famille, 'and an ellipsis');
+
+  // A group really called that keeps its brackets: they close what they open.
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/Famille%20(maison)'),
+    { code: '123456', name: 'Famille (maison)' });
+});
+
+test('an invitation is six digits, in a hash, or it is not one', async () => {
+  const { joinFrom } = await import('../src/remote.js');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/1234567/Famille'), null,
+    'seven digits is not a code, and must not be read as six');
+  assert.equal(joinFrom('https://gui.github.io/Code/join/123456/Famille'), null,
+    'a path that merely looks like one is not an invitation');
+  assert.equal(joinFrom('https://gui.github.io/Code/#/join/123456/%20'), null,
+    'a name made of blanks names nothing');
+  assert.deepEqual(joinFrom('https://gui.github.io/Code/#/join/123456/%20Famille%20'),
+    { code: '123456', name: 'Famille' }, 'and one written with blanks round it is trimmed');
+});
+
 test('a link mangled on its way through a message still carries the digits', async () => {
   const { joinFrom } = await import('../src/remote.js');
   // A stray percent sign is what a message app leaves behind when it decides

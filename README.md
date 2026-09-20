@@ -53,8 +53,11 @@ dépendance, aucun build.
   du groupe et les six chiffres, dits de vive voix, font exactement la même
   chose.
 - **Ce prénom sert ensuite partout** : le groupe voit qui est entré, et vous êtes
-  proposé en premier dans une nouvelle liste, un sondage ou une partie. Il ne
-  quitte jamais l'appareil, sinon comme étiquette de sa clé.
+  proposé en premier dans une nouvelle liste, un sondage ou une partie — proposé
+  une fois, au moment où le formulaire est vide ; effacé, il reste effacé. Il ne
+  part de l'appareil que de deux façons : comme étiquette de sa clé, et comme
+  n'importe quel prénom écrit dans une liste, qui suit cette liste quand elle
+  est partagée.
 - **Et pour faire entrer quelqu'un d'un coup, sans lui donner la clé** : un lien
   qui porte plusieurs documents, fermé par un **code à six chiffres** tiré au
   hasard — dix essais, puis il se bloque. Le lien et le code voyagent séparément,

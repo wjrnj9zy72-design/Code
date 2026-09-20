@@ -271,7 +271,7 @@ export function joinLink(location, name, code) {
 
 /** The invitation inside whatever was pasted: { code, name }, or null. */
 export function joinFrom(pasted) {
-  const found = String(pasted || '').trim().match(/#\/join\/(\d{6})\/([^\s/?#]+)/);
+  const found = String(pasted || '').trim().match(/#\/join\/(\d{6})(?!\d)\/([^\s/?#]+)/);
   if (!found) return null;
   let name = '';
   try {
@@ -280,9 +280,31 @@ export function joinFrom(pasted) {
     // A link mangled on its way through a message: the digits are still good.
     name = found[2];
   }
-  name = name.trim();
-  return name ? { code: found[1], name } : null;
+  return unpunctuate(name) ? { code: found[1], name: unpunctuate(name) } : null;
 }
+
+/**
+ * The sentence a link was pasted in from ends somewhere, and its full stop
+ * sticks to the group's name: "…/#/join/123456/Famille." would then be a
+ * group nobody has. Brackets are only dropped when they close nothing, since
+ * a group may well be called "Famille (maison)".
+ */
+function unpunctuate(name) {
+  let clean = String(name || '').trim();
+  let last = '';
+  const count = (text, character) => text.split(character).length - 1;
+  while (clean && clean !== last) {
+    last = clean;
+    clean = clean.replace(/[.,;:!?\u2026\u00ab\u00bb"'\u2018\u2019\u201c\u201d]+$/, '').trim();
+    for (const [open, close] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+      if (clean.endsWith(close) && count(clean, close) > count(clean, open)) {
+        clean = clean.slice(0, -1).trim();
+      }
+    }
+  }
+  return clean;
+}
+
 
 /** The link that hands over a set of games at once. */
 export function setLink(location, setId) {
