@@ -45,6 +45,12 @@ liste de projets, soit un écran de bienvenue.
 
 ## Étape 2 — Créer la table et les fonctions
 
+> ⚠️ **À passer une fois, et jamais après l'étape 2 bis.** L'étape 2 bis remplace
+> deux de ces fonctions par des versions qui demandent une clé de groupe ;
+> repasser l'étape 2 par-dessus remettrait les anciennes à côté des nouvelles, et
+> la base répondrait `function is not unique` à chaque écriture de l'app. Si cela
+> arrive : relancez **le bloc de l'étape 2 bis**, il nettoie et répare.
+
 1. Dans la colonne de gauche, cliquez **SQL Editor** (icône en forme de
    terminal). Puis **New query** si un éditeur vide ne s'ouvre pas tout seul.
 2. Collez **tout** le bloc ci-dessous dans la grande zone de texte.
@@ -631,6 +637,14 @@ $$;
 -- entrer sans être accepté.
 drop function if exists public.marque_points_join(text, text, text);
 drop function if exists public.marque_points_invite(text, integer);
+
+-- Et les versions à deux arguments de l'étape 2, que cette étape remplace par
+-- des versions qui demandent une clé. Les laisser en place rendrait l'appel
+-- ambigu pour la base (« function is not unique ») et l'app cesserait d'écrire :
+-- c'est ce qui arrive si l'étape 2 est repassée après celle-ci, et relancer ce
+-- bloc répare.
+drop function if exists public.marque_points_put(text, jsonb);
+drop function if exists public.marque_points_delete(text);
 
 create or replace function public.marque_points_invite(
   p_key text,
