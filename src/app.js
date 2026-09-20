@@ -5,7 +5,7 @@ import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinish
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
-import { presetsPlayed, statsFor } from './stats.js';
+import { presetsPlayed, statsFor, sameName } from './stats.js';
 import { recapText } from './recap.js';
 import { buildDocx } from './export-docx.js';
 import { buildPdf } from './export-pdf.js';
@@ -1988,6 +1988,76 @@ function watchPending() {
   }, 5000);
 }
 
+/**
+ * Rename a player in every game they appear in.
+ *
+ * The statistics gather players by name, because a game mints fresh ids for its
+ * own players and nothing ties them together otherwise. So a name that changed —
+ * "Alex" who comes back as "Alexandre" — is two people in the table, and only
+ * the person concerned can say it is one. This is how they say it.
+ */
+async function renameEverywhere(before) {
+  const after = await askForText({
+    title: t('stats.renameTitle'),
+    hint: t('stats.renameHint', { name: before }),
+    value: before,
+    confirmLabel: t('stats.rename'),
+  });
+  const clean = String(after || '').trim();
+  if (!clean || clean === before) return;
+
+  const key = sameName(before);
+  let touched = 0;
+  for (const game of state.games) {
+    const players = game.players.filter((player) => sameName(player.name) === key);
+    if (!players.length) continue;
+    let next = game;
+    for (const player of players) next = renamePlayer(next, player.id, clean);
+    if (next === game) continue;
+    state.games = state.games.map((held) => (held.id === next.id ? next : held));
+    persist(next);
+    touched += 1;
+  }
+  flash(touched ? t('stats.renamed', { name: clean, count: touched }) : t('stats.renamedNone'));
+  render();
+}
+
+/**
+ * Ask for one line of text, the same way the app asks anything else: a dialog
+ * that removes itself, Escape answering null.
+ */
+function askForText({ title, hint, value = '', confirmLabel }) {
+  return new Promise((resolve) => {
+    const dialog = makeDialog('dialog dialog--ask');
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(title)}</h2>
+        <p class="muted small">${escapeHtml(hint)}</p>
+        <input type="text" id="asked-text" value="${escapeHtml(value)}" maxlength="40" />
+        <div class="row">
+          <button type="button" class="button button--primary" id="asked-ok">${escapeHtml(confirmLabel)}</button>
+          <button type="button" class="button" id="asked-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+
+    let answered = false;
+    const done = (answer) => {
+      if (answered) return;
+      answered = true;
+      resolve(answer);
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => done(null));
+    dialog.querySelector('#asked-cancel').addEventListener('click', () => done(null));
+    dialog.querySelector('#asked-ok').addEventListener('click', () => done(dialog.querySelector('#asked-text').value));
+    dialog.querySelector('#asked-text').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') done(dialog.querySelector('#asked-text').value);
+    });
+    dialog.showModal();
+    dialog.querySelector('#asked-text').select();
+  });
+}
+
 function homeView() {
   const query = (state.search || '').trim().toLowerCase();
   const matches = (game) => {
@@ -2082,7 +2152,12 @@ function statsView() {
                           .map(
                             (row) => `
                             <tr>
-                              <td>${escapeHtml(row.name)}</td>
+                              <td>
+                                ${escapeHtml(row.name)}
+                                <button type="button" class="button button--small button--ghost"
+                                        data-rename-everywhere="${escapeHtml(row.name)}"
+                                        title="${escapeHtml(t('stats.renameTitle'))}">✎</button>
+                              </td>
                               <td>${row.played}</td>
                               <td>${row.won}</td>
                               <td>${row.average}</td>
@@ -5089,6 +5164,9 @@ function render() {
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
+    view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
+      button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
+    });
   } else if (current.name === 'new') {
     stopWatching();
     view.innerHTML = newGameView();

@@ -1215,6 +1215,12 @@ const STRINGS = {
     'stats.average': 'Moyenne',
     'stats.best': 'Meilleur',
     'stats.empty': 'Jouez une première partie et les statistiques apparaîtront ici.',
+    'stats.rename': 'Renommer partout',
+    'stats.renameTitle': 'Renommer ce joueur dans toutes les parties',
+    'stats.renameHint':
+      'Les statistiques regroupent les joueurs par prénom. Si {name} a été écrit autrement ailleurs — ou a changé —, renommez-le ici : toutes les parties où il apparaît suivent, et les lignes se réunissent.',
+    'stats.renamed': '{name} : {count} partie(s) renommée(s).',
+    'stats.renamedNone': 'Rien à renommer.',
     'stats.note':
       'Les joueurs sont reconnus par leur nom, et les totaux comparés jeu par jeu. Seules les parties terminées comptent une victoire.',
     'share.qrLabel': 'Code QR du lien, à scanner',
@@ -1734,6 +1740,12 @@ const STRINGS = {
     'stats.average': 'Average',
     'stats.best': 'Best',
     'stats.empty': 'Play a first game and the statistics will appear here.',
+    'stats.rename': 'Rename everywhere',
+    'stats.renameTitle': 'Rename this player in every game',
+    'stats.renameHint':
+      'The statistics gather players by first name. If {name} was written differently elsewhere — or has changed — rename them here: every game they appear in follows, and the lines come together.',
+    'stats.renamed': '{name}: {count} game(s) renamed.',
+    'stats.renamedNone': 'Nothing to rename.',
     'stats.note':
       'Players are matched by name, and totals compared game by game. Only finished games count a win.',
     'share.qrLabel': 'QR code of the link, to scan',
@@ -3915,8 +3927,25 @@ function isValidPoll(value) {
  * evening and across months, "Alice" is Alice. Totals only mean something
  * within one game — 250 is a rout at Papayoo and nothing at Mille Bornes — so
  * everything here is computed per preset.
+ *
+ * Matched by name means matched *forgivingly*: one person typing their own name
+ * on two phones, or the same phone six months apart, writes "Alice", "alice" and
+ * "  Alice" — and two lines in the table for one person would be wrong, not
+ * pedantic. Case, accents and surrounding blanks are ignored; the spelling shown
+ * is the one most recently played, because that is the one they chose last.
+ * "Alex" and "Alexandre" stay two people: they are two names, and only whoever
+ * played can say otherwise — by renaming the player.
  */
 
+
+/** The key two spellings of one name share. */
+function sameName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+}
 
 /** The presets actually played, most played first. */
 function presetsPlayed(games) {
@@ -3939,21 +3968,25 @@ function statsFor(games, presetId) {
   const rows = new Map();
   const played = games.filter((game) => game.presetId === presetId && game.rounds.length);
 
-  for (const game of played) {
+  // Oldest first, so the last spelling written is the one the table shows.
+  const inOrder = [...played].sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+  for (const game of inOrder) {
     const status = gameStatus(game);
-    const winners = new Set(status.winners.map((row) => row.name));
+    const winners = new Set(status.winners.map((row) => sameName(row.name)));
 
     for (const row of standings(game)) {
-      const stat = rows.get(row.name) || {
+      const key = sameName(row.name);
+      const stat = rows.get(key) || {
         name: row.name,
         played: 0,
         won: 0,
         totals: [],
       };
+      stat.name = row.name;
       stat.played += 1;
-      if (winners.has(row.name)) stat.won += 1;
+      if (winners.has(key)) stat.won += 1;
       stat.totals.push(row.total);
-      rows.set(row.name, stat);
+      rows.set(key, stat);
     }
   }
 
@@ -7048,6 +7081,76 @@ function watchPending() {
   }, 5000);
 }
 
+/**
+ * Rename a player in every game they appear in.
+ *
+ * The statistics gather players by name, because a game mints fresh ids for its
+ * own players and nothing ties them together otherwise. So a name that changed —
+ * "Alex" who comes back as "Alexandre" — is two people in the table, and only
+ * the person concerned can say it is one. This is how they say it.
+ */
+async function renameEverywhere(before) {
+  const after = await askForText({
+    title: t('stats.renameTitle'),
+    hint: t('stats.renameHint', { name: before }),
+    value: before,
+    confirmLabel: t('stats.rename'),
+  });
+  const clean = String(after || '').trim();
+  if (!clean || clean === before) return;
+
+  const key = sameName(before);
+  let touched = 0;
+  for (const game of state.games) {
+    const players = game.players.filter((player) => sameName(player.name) === key);
+    if (!players.length) continue;
+    let next = game;
+    for (const player of players) next = renamePlayer(next, player.id, clean);
+    if (next === game) continue;
+    state.games = state.games.map((held) => (held.id === next.id ? next : held));
+    persist(next);
+    touched += 1;
+  }
+  flash(touched ? t('stats.renamed', { name: clean, count: touched }) : t('stats.renamedNone'));
+  render();
+}
+
+/**
+ * Ask for one line of text, the same way the app asks anything else: a dialog
+ * that removes itself, Escape answering null.
+ */
+function askForText({ title, hint, value = '', confirmLabel }) {
+  return new Promise((resolve) => {
+    const dialog = makeDialog('dialog dialog--ask');
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(title)}</h2>
+        <p class="muted small">${escapeHtml(hint)}</p>
+        <input type="text" id="asked-text" value="${escapeHtml(value)}" maxlength="40" />
+        <div class="row">
+          <button type="button" class="button button--primary" id="asked-ok">${escapeHtml(confirmLabel)}</button>
+          <button type="button" class="button" id="asked-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+
+    let answered = false;
+    const done = (answer) => {
+      if (answered) return;
+      answered = true;
+      resolve(answer);
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => done(null));
+    dialog.querySelector('#asked-cancel').addEventListener('click', () => done(null));
+    dialog.querySelector('#asked-ok').addEventListener('click', () => done(dialog.querySelector('#asked-text').value));
+    dialog.querySelector('#asked-text').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') done(dialog.querySelector('#asked-text').value);
+    });
+    dialog.showModal();
+    dialog.querySelector('#asked-text').select();
+  });
+}
+
 function homeView() {
   const query = (state.search || '').trim().toLowerCase();
   const matches = (game) => {
@@ -7142,7 +7245,12 @@ function statsView() {
                           .map(
                             (row) => `
                             <tr>
-                              <td>${escapeHtml(row.name)}</td>
+                              <td>
+                                ${escapeHtml(row.name)}
+                                <button type="button" class="button button--small button--ghost"
+                                        data-rename-everywhere="${escapeHtml(row.name)}"
+                                        title="${escapeHtml(t('stats.renameTitle'))}">✎</button>
+                              </td>
                               <td>${row.played}</td>
                               <td>${row.won}</td>
                               <td>${row.average}</td>
@@ -10149,6 +10257,9 @@ function render() {
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
+    view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
+      button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
+    });
   } else if (current.name === 'new') {
     stopWatching();
     view.innerHTML = newGameView();

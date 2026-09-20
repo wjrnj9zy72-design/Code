@@ -364,6 +364,12 @@ export const STRINGS = {
     'stats.average': 'Moyenne',
     'stats.best': 'Meilleur',
     'stats.empty': 'Jouez une première partie et les statistiques apparaîtront ici.',
+    'stats.rename': 'Renommer partout',
+    'stats.renameTitle': 'Renommer ce joueur dans toutes les parties',
+    'stats.renameHint':
+      'Les statistiques regroupent les joueurs par prénom. Si {name} a été écrit autrement ailleurs — ou a changé —, renommez-le ici : toutes les parties où il apparaît suivent, et les lignes se réunissent.',
+    'stats.renamed': '{name} : {count} partie(s) renommée(s).',
+    'stats.renamedNone': 'Rien à renommer.',
     'stats.note':
       'Les joueurs sont reconnus par leur nom, et les totaux comparés jeu par jeu. Seules les parties terminées comptent une victoire.',
     'share.qrLabel': 'Code QR du lien, à scanner',
@@ -883,6 +889,12 @@ export const STRINGS = {
     'stats.average': 'Average',
     'stats.best': 'Best',
     'stats.empty': 'Play a first game and the statistics will appear here.',
+    'stats.rename': 'Rename everywhere',
+    'stats.renameTitle': 'Rename this player in every game',
+    'stats.renameHint':
+      'The statistics gather players by first name. If {name} was written differently elsewhere — or has changed — rename them here: every game they appear in follows, and the lines come together.',
+    'stats.renamed': '{name}: {count} game(s) renamed.',
+    'stats.renamedNone': 'Nothing to rename.',
     'stats.note':
       'Players are matched by name, and totals compared game by game. Only finished games count a win.',
     'share.qrLabel': 'QR code of the link, to scan',

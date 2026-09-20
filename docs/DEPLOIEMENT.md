@@ -1563,6 +1563,22 @@ clé** (c'est ce qui vous fait reconnaître la ligne dans *Qui est dans le group
 il est **proposé en premier** dans les listes, sondages et parties créés sur cet
 appareil, et il s'affiche quand quelqu'un frappe.
 
+**Les parties, elles, méritent une précision.** À l'intérieur d'une partie, les
+scores suivent le joueur de cette partie-là, pas un prénom : la partie revient
+entière, avec ses noms et ses points. Mais les **statistiques** traversent les
+parties, et là il n'y a que le prénom pour dire qu'« Alice » de janvier et
+« Alice » de mars sont la même personne.
+
+L'app est donc indulgente sur l'orthographe — majuscules, accents et espaces sont
+ignorés, `alice`, `Alice` et `  ALICE ` ne font qu'une ligne, affichée comme elle
+a été écrite la dernière fois. Deux prénoms différents restent deux personnes :
+« Alex » n'est pas « Alexandre », et l'app n'a pas à le deviner.
+
+Si quelqu'un revient sous un autre prénom, la réunion se fait d'une touche :
+onglet **Parties → Statistiques**, le crayon à côté du nom, **Renommer partout**.
+Toutes les parties où il apparaît suivent, et les deux lignes n'en font plus
+qu'une. Rien n'est perdu entre-temps — juste deux lignes au lieu d'une.
+
 Dans une liste, les personnes sont des lignes du document lui-même — « Alex » et
 ce qui lui est attribué appartiennent à la liste, pas à son téléphone. Elles sont
 donc toujours là quand il revient, et il retrouve ses lignes en touchant sa
