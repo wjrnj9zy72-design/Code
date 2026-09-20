@@ -1467,6 +1467,19 @@ bougent pas, et les autres continuent de se synchroniser entre eux pendant ce
 temps. Il n'y a que **votre** installation à faire rentrer, et le plus court est
 de recoller la clé.
 
+**Peut-on voir la clé de quelqu'un d'autre ? Non, et personne ne peut** — pas même
+vous, qui hébergez la base. Une clé n'y est jamais écrite : la table ne garde
+qu'une **empreinte salée** (`key_hash`), de quoi reconnaître la bonne clé sans
+pouvoir la reconstituer. Ce que vous voyez d'un appareil, dans *Qui est dans le
+groupe*, c'est son étiquette — le prénom donné à la porte, d'où il vient, quand il
+est arrivé — et le bouton pour le couper. Jamais son secret.
+
+Donc : **une clé ne se retrouve pas, elle se remplace.** Sur l'appareil qui la
+détient encore, *Voir la clé* la relit depuis son propre stockage ; ailleurs, la
+seule voie est une nouvelle invitation. C'est voulu : si la base pouvait rendre
+les clés, un accès à la base suffirait pour se faire passer pour n'importe quel
+appareil du groupe.
+
 Pour l'avoir sous la main : dans *Mes groupes*, **Voir la clé** l'affiche depuis un
 appareil qui la détient — à garder dans un gestionnaire de mots de passe. C'est
 elle qui fait revenir un de vos appareils sans invitation ni acceptation ; ne
