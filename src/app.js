@@ -12,7 +12,7 @@ import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
 import { loadGames, saveGames, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom } from './remote.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
@@ -239,6 +239,11 @@ function homeView() {
         <button type="button" class="button button--small" id="export">${escapeHtml(t('action.export'))}</button>
         <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
         <button type="button" class="button button--small" id="import-paste">${escapeHtml(t('action.importPaste'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="open-link">${escapeHtml(t('action.openLink'))}</button>`
+            : ''
+        }
         <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
       </div>
       <p class="muted small">${escapeHtml(
@@ -930,6 +935,63 @@ function openPasteDialog() {
   dialog.querySelector('#paste-text').focus();
 }
 
+/**
+ * Open a shared game from its link.
+ *
+ * The database can only be asked for a game by its exact id — that is what
+ * keeps anyone from listing someone else's games, and it means a game already
+ * in the database still has to be *named* to be found. On a phone there is no
+ * other way in: tapping a link opens the browser, never the installed app,
+ * which has no address bar of its own.
+ */
+function openLinkDialog() {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog';
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('openLink.title'))}</h2>
+      <p class="muted small">${escapeHtml(t('openLink.hint'))}</p>
+      <textarea id="link-text" rows="3" aria-label="${escapeHtml(t('openLink.title'))}"></textarea>
+      <p class="banner banner--warn" id="link-error" hidden></p>
+      <div class="row">
+        <button type="button" class="button button--primary" id="link-open">${escapeHtml(t('openLink.open'))}</button>
+        <button type="button" class="button" id="link-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  document.body.append(dialog);
+
+  const close = () => { dialog.close(); dialog.remove(); };
+  const fail = (message) => {
+    const error = dialog.querySelector('#link-error');
+    error.textContent = message;
+    error.hidden = false;
+    dialog.querySelector('#link-open').disabled = false;
+    dialog.querySelector('#link-open').textContent = t('openLink.open');
+  };
+
+  dialog.querySelector('#link-cancel').addEventListener('click', close);
+  dialog.querySelector('#link-open').addEventListener('click', async (event) => {
+    const id = gameIdFrom(dialog.querySelector('#link-text').value);
+    if (!id) return fail(t('openLink.noId'));
+
+    event.currentTarget.disabled = true;
+    event.currentTarget.textContent = t('share.sending');
+
+    if (getGame(id)) {
+      close();
+      navigate(`#/game/${id}`);
+      return;
+    }
+    if (!(await pullGame(id))) return fail(t('openLink.notFound'));
+
+    close();
+    navigate(`#/game/${id}`);
+  });
+
+  dialog.showModal();
+  dialog.querySelector('#link-text').focus();
+}
+
 function bindHome() {
   const search = view.querySelector('#search');
   search?.addEventListener('input', (event) => {
@@ -967,6 +1029,7 @@ function bindHome() {
   view.querySelector('#export')?.addEventListener('click', exportGames);
 
   view.querySelector('#import-paste')?.addEventListener('click', openPasteDialog);
+  view.querySelector('#open-link')?.addEventListener('click', openLinkDialog);
 
   const fileInput = view.querySelector('#import-file');
   view.querySelector('#import')?.addEventListener('click', () => fileInput?.click());
