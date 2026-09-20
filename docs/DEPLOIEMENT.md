@@ -388,9 +388,16 @@ select public.marque_points_open_set('lot_de_test_1', '123456');
 select public.marque_points_forget_set('lot_de_test_1', 'VOTRE_CLE');
 ```
 
-Attendu, dans l'ordre : une cellule vide (la fonction ne renvoie rien),
-`{"left": 9, "status": "wrong"}`, puis `{"status": "ok", "set": {…}}`, puis
-`{"status": "ok"}`.
+Attendu, dans l'ordre :
+
+1. une cellule vide — `put_set` ne renvoie rien ;
+2. `{"left": 9, "status": "wrong"}` — le mauvais code est compté ;
+3. `{"set": {"ids": ["test"], "kind": "set"}, "status": "ok"}` — le bon code
+   rend le lot ;
+4. `{"status": "ok"}` — le lot de test est révoqué.
+
+PostgreSQL range les champs par longueur de nom, donc `set` s'affiche avant
+`status` : c'est normal, et l'ordre n'a aucune importance.
 
 > Ce bloc et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16 avec
 > les mêmes rôles que chez Supabase. Sans la clé, la création d'un lot est
