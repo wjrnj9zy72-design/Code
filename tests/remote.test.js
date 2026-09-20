@@ -71,7 +71,7 @@ test('deleting names the game', async () => {
   const { fetchImpl, calls } = stubFetch({ ok: true, status: 204, text: async () => '' });
   await createRemote(CONFIG, fetchImpl).remove('g_1');
   assert.match(calls[0].url, /marque_points_delete$/);
-  assert.deepEqual(calls[0].body, { p_id: 'g_1' });
+  assert.deepEqual(calls[0].body, { p_id: 'g_1', p_key: null });
 });
 
 test('a refusal carries its status, so the caller can tell why', async () => {
@@ -173,32 +173,68 @@ test('a set travels as one short link, whatever it holds', async () => {
   assert.equal(gameIdFrom(link), null, 'and the two are never confused');
 });
 
-test('a lot takes the sharing key to write, and a code to read', async () => {
+test('a lot takes a group key to write, and a code to read', async () => {
   const calls = [];
   const remote = createRemote(CONFIG, async (url, options) => {
     calls.push({ fn: url.split('/').pop(), body: JSON.parse(options.body) });
     if (url.endsWith('marque_points_open_set')) {
       return ok({ status: 'ok', set: { kind: 'set', ids: ['g_1', 'g_2'] } });
     }
-    if (url.endsWith('marque_points_is_owner')) return ok(true);
+    if (url.endsWith('marque_points_group_of')) return ok({ id: 'grp_1', name: 'Famille' });
     return ok(undefined, 204);
   });
 
-  await remote.putSet('lot_1', { ids: ['g_1', 'g_2'] }, '123456', 'the-sharing-key');
+  await remote.putSet('lot_1', { ids: ['g_1', 'g_2'] }, '123456', 'la-cle-famille');
   assert.equal(calls[0].fn, 'marque_points_put_set');
   assert.equal(calls[0].body.p_code, '123456');
-  assert.equal(calls[0].body.p_key, 'the-sharing-key', 'no key, no lot');
-  assert.equal(calls[0].body.p_data.kind, 'set');
-  assert.deepEqual(calls[0].body.p_data.ids, ['g_1', 'g_2']);
+  assert.equal(calls[0].body.p_key, 'la-cle-famille', 'no key, no lot');
 
   const answer = await remote.openSet('lot_1', '123456');
   assert.deepEqual(answer, { status: 'ok', contents: { kind: 'set', ids: ['g_1', 'g_2'] } });
-  assert.equal(calls[1].body.p_code, '123456');
   assert.ok(!('p_key' in calls[1].body), 'the receiver has no key to give');
 
-  assert.equal(await remote.isOwner('the-sharing-key'), true);
-  assert.equal(await remote.forgetSet('lot_1', 'the-sharing-key'), false, 'no answer means not gone');
-  assert.equal(calls[3].body.p_key, 'the-sharing-key', 'revoking takes the key, not the code');
+  assert.deepEqual(await remote.groupOf('la-cle-famille'), { id: 'grp_1', name: 'Famille' });
+  assert.equal(await remote.forgetSet('lot_1', 'la-cle-famille'), false, 'no answer means not gone');
+  assert.equal(calls[3].body.p_key, 'la-cle-famille', 'revoking takes the key, not the code');
+});
+
+test('a key says which group it opens, or none', async () => {
+  const answering = (body) => createRemote(CONFIG, async () => ok(body));
+  assert.deepEqual(await answering({ id: 'grp_1', name: 'Famille' }).groupOf('k'), { id: 'grp_1', name: 'Famille' });
+  assert.equal(await answering(null).groupOf('k'), null, 'a key that opens nothing');
+  assert.equal(await answering({ name: 'Sans identifiant' }).groupOf('k'), null, 'nor an answer missing its id');
+});
+
+test('a group hands back what is shared in it, and nothing else', async () => {
+  const sent = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    sent.push(JSON.parse(options.body));
+    return ok([{ id: 'g_1', updatedAt: 10 }, { id: 'l_2', updatedAt: 20 }, null, { nope: true }]);
+  });
+
+  assert.deepEqual(await remote.groupDocs('la-cle'), [{ id: 'g_1', updatedAt: 10 }, { id: 'l_2', updatedAt: 20 }],
+    'games and lists together, and only rows that are rows');
+  assert.equal(sent[0].p_key, 'la-cle');
+
+  const empty = createRemote(CONFIG, async () => ok(null));
+  assert.deepEqual(await empty.groupDocs('la-cle'), [], 'a group with nothing in it is not a crash');
+});
+
+test('starting to share takes a key, contributing does not', async () => {
+  const sent = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    sent.push({ fn: url.split('/').pop(), body: JSON.parse(options.body) });
+    return ok(undefined, 204);
+  });
+
+  await remote.put({ id: 'g_1', rounds: [] }, 'la-cle');
+  assert.equal(sent[0].body.p_key, 'la-cle');
+  await remote.put({ id: 'g_1', rounds: [1] });
+  assert.equal(sent[1].body.p_key, null, 'a round added to a game someone else shared');
+
+  await remote.remove('g_1', 'la-cle');
+  assert.equal(sent[2].fn, 'marque_points_delete');
+  assert.equal(sent[2].body.p_key, 'la-cle');
 });
 
 test('a sealed lot travels as sealed bytes, never as its game ids', async () => {
@@ -227,15 +263,15 @@ test('every way a lot can refuse says which one it was', async () => {
     { status: 'ok', contents: null }, 'an empty lot is still an answer');
   assert.equal(await answering({ status: 'ok' }).forgetSet('lot_1', 'k'), true);
   assert.equal(await answering({ status: 'unknown' }).forgetSet('lot_1', 'k'), false);
-  assert.equal(await answering(false).isOwner('k'), false);
 });
 
 test('a refused key is a refusal, not a silent success', async () => {
   const remote = createRemote(CONFIG, async () => ({
     ok: false,
     status: 400,
-    text: async () => JSON.stringify({ message: 'cle de partage invalide' }),
+    text: async () => JSON.stringify({ message: 'cle de groupe invalide' }),
   }));
+  await assert.rejects(() => remote.put({ id: 'g_1' }, 'wrong'), /cle de groupe invalide/);
   await assert.rejects(() => remote.putSet('lot_1', { ids: ['g_1'] }, '123456', 'wrong'),
-    /cle de partage invalide/);
+    /cle de groupe invalide/);
 });

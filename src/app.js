@@ -372,7 +372,7 @@ function persistPoll(changed) {
   if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -431,7 +431,8 @@ function bindNewPoll() {
     let poll = createPoll({
       question: newPollQuestion,
       names: newPollPeople,
-      shared: Boolean(state.prefs.autoShare && state.remote),
+      shared: Boolean(autoGroup()),
+      groupId: autoGroup()?.id || null,
     });
     poll = addOptions(poll, newPollChoices);
 
@@ -498,7 +499,7 @@ function bindPoll(poll) {
     state.polls = state.polls.filter((item) => item.id !== poll.id);
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
-    if (state.remote) state.remote.remove(poll.id).catch(() => {});
+    if (state.remote) state.remote.remove(poll.id, keyFor(poll)).catch(() => {});
     navigate('#/polls');
   });
 
@@ -509,16 +510,8 @@ function bindPoll(poll) {
     if (!current.shared) {
       button.disabled = true;
       button.textContent = t('share.sending');
-      current = { ...current, shared: true, updatedAt: Date.now() };
-      try {
-        await state.remote.put(current);
-      } catch {
-        button.disabled = false;
-        button.textContent = t('polls.share');
-        flash(t('share.sendFailed'), 'error');
-        render();
-        return;
-      }
+      current = await startSharing(current);
+      if (!current) return;
       replacePoll(current);
     }
 
@@ -947,15 +940,16 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
 
-function forget(id) {
+/** `game` is the one just removed from the list: it says which group it was in. */
+function forget(id, game = null) {
   saveGames(state.games);
   if (state.store) void state.store.remove(id);
-  if (state.remote) state.remote.remove(id).catch(() => {});
+  if (state.remote) state.remote.remove(id, keyFor(game)).catch(() => {});
 }
 
 function getGame(id) {
@@ -972,6 +966,7 @@ function replaceGame(next) {
 function route() {
   const hash = location.hash.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
+  if (name === 'games') return { name: 'home' };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -982,7 +977,7 @@ function route() {
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
-  return { name: 'home' };
+  return { name: 'overview' };
 }
 
 function navigate(hash) {
@@ -1024,6 +1019,229 @@ function gameCardHtml(game) {
     </button>`;
 }
 
+/* --------------------------------------------------------------- overview --- */
+
+/**
+ * The page the app opens on: what is going on, and what the app is made of.
+ *
+ * It holds what belongs to no one tab — the groups this device is in, the
+ * data, the app's own link — and the few things actually in progress across
+ * the three, so that opening the app answers "where were we" before it asks
+ * anything.
+ */
+function pendingHtml() {
+  const lines = [];
+
+  const ongoing = state.games.filter((game) => !gameStatus(game).finished)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = state.lists.filter((list) => progress(list).left > 0)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const asked = state.polls.filter((poll) => !poll.closedAt)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
+  for (const list of open.slice(0, 3)) {
+    const { left } = progress(list);
+    lines.push({
+      goto: `#/list/${list.id}`,
+      title: listTitle(list),
+      meta: t('lists.leftToDo', { count: left }),
+    });
+  }
+  for (const poll of asked.slice(0, 3)) {
+    const { answered } = tally(poll);
+    lines.push({
+      goto: `#/poll/${poll.id}`,
+      title: pollTitle(poll),
+      meta: t('polls.answered', { count: answered, total: poll.people.length }),
+    });
+  }
+  for (const game of ongoing.slice(0, 3)) {
+    lines.push({
+      goto: `#/game/${game.id}`,
+      title: gameTitle(game),
+      meta: t('home.rounds', { count: game.rounds.length }),
+    });
+  }
+
+  if (!lines.length) return `<p class="muted small">${escapeHtml(t('overview.nothing'))}</p>`;
+  return `<div class="game-list">${lines
+    .map(
+      (line) => `
+        <button type="button" class="game-card" data-goto="${escapeHtml(line.goto)}">
+          <span class="game-card__title">${escapeHtml(line.title)}</span>
+          <span class="game-card__meta">${escapeHtml(line.meta)}</span>
+        </button>`,
+    )
+    .join('')}</div>`;
+}
+
+function groupsHtml() {
+  const held = groups();
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('groups.title'))}</h2></div>
+      <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
+      ${
+        held.length
+          ? `<div class="stack stack--tight">${held
+              .map(
+                (group) => `
+                  <div class="group">
+                    <div>
+                      <strong>${escapeHtml(group.name)}</strong>
+                      <span class="muted small">${escapeHtml(t('groups.shared', {
+                        count: [...state.games, ...state.lists, ...state.polls]
+                          .filter((document_) => document_.groupId === group.id).length,
+                      }))}</span>
+                    </div>
+                    <div class="row">
+                      <button type="button" class="button button--small" data-catch-up="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.catchUp'))}
+                      </button>
+                      <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.leave'))}
+                      </button>
+                    </div>
+                  </div>`,
+              )
+              .join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>`
+      }
+      <label for="group-key">${escapeHtml(t('groups.add'))}</label>
+      <div class="row row--tight">
+        <input type="password" id="group-key" autocomplete="off" spellcheck="false"
+               placeholder="${escapeHtml(t('groups.keyPlaceholder'))}" />
+        <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('groups.join'))}</button>
+      </div>
+      <p class="muted small" id="group-state">${escapeHtml(t('groups.keyHint'))}</p>
+    </section>`;
+}
+
+function overviewView() {
+  const counts = {
+    lists: state.lists.filter((list) => progress(list).left > 0).length,
+    polls: state.polls.filter((poll) => !poll.closedAt).length,
+    games: state.games.filter((game) => !gameStatus(game).finished).length,
+  };
+
+  return `
+    ${flashHtml()}
+    <p class="lead">${escapeHtml(t('overview.what'))}</p>
+
+    <div class="row">
+      <button type="button" class="button button--small" data-goto="#/lists/new">+ ${escapeHtml(t('lists.new'))}</button>
+      <button type="button" class="button button--small" data-goto="#/polls/new">+ ${escapeHtml(t('polls.new'))}</button>
+      <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
+    </div>
+
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('overview.pending'))}</h2>
+        <span class="muted small">${escapeHtml(t('overview.counts', counts))}</span>
+      </div>
+      ${pendingHtml()}
+    </section>
+
+    ${state.remote ? groupsHtml() : ''}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small button--ghost" id="share-app">${escapeHtml(t('action.shareApp'))}</button>
+        <button type="button" class="button button--small" id="export">${escapeHtml(t('action.export'))}</button>
+        <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
+        <button type="button" class="button button--small" id="import-paste">${escapeHtml(t('action.importPaste'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="open-link">${escapeHtml(t('action.openLink'))}</button>`
+            : ''
+        }
+        ${
+          lots().length
+            ? `<button type="button" class="button button--small" id="my-shares">${escapeHtml(t('lots.title', { count: lots().length }))}</button>`
+            : ''
+        }
+        <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
+      </div>
+      <p class="muted small">${escapeHtml(
+        t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
+      )}</p>
+      ${
+        state.remote
+          ? `<label class="checkbox">
+               <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
+               ${escapeHtml(t('data.autoShare'))}
+             </label>
+             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>`
+          : ''
+      }
+    </section>`;
+}
+
+function bindOverview() {
+  bindData();
+
+  view.querySelector('#group-join')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const field = view.querySelector('#group-key');
+    const line = view.querySelector('#group-state');
+    const key = field.value.trim();
+    if (!key) return;
+
+    button.disabled = true;
+    line.textContent = t('groups.checking');
+    let group = null;
+    try {
+      group = await joinGroup(key);
+    } catch {
+      button.disabled = false;
+      line.textContent = t('groups.unsure');
+      return;
+    }
+    if (!group) {
+      button.disabled = false;
+      line.textContent = t('groups.refused');
+      return;
+    }
+
+    flash(t('groups.joined', { name: group.name }));
+    render();
+  });
+
+  view.querySelector('#group-key')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#group-join')?.click();
+  });
+
+  view.querySelectorAll('[data-catch-up]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.catchUp);
+      if (!group) return;
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      let taken = 0;
+      try {
+        taken = await catchUpWith(group);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      flash(taken ? t('groups.caughtUp', { count: taken }) : t('groups.upToDate'));
+      render();
+    });
+  });
+
+  view.querySelectorAll('[data-leave]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!(await ask(t('groups.confirmLeave'), { confirmLabel: t('groups.leave'), danger: true }))) return;
+      forgetGroup(button.dataset.leave);
+      render();
+    });
+  });
+}
+
 function homeView() {
   const query = (state.search || '').trim().toLowerCase();
   const matches = (game) => {
@@ -1044,16 +1262,13 @@ function homeView() {
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
-    <div class="row">
-      <button type="button" class="button button--small button--ghost" id="share-app">
-        ${escapeHtml(t('action.shareApp'))}
-      </button>
-      ${
-        state.games.length
-          ? `<button type="button" class="button button--small button--ghost" data-goto="#/stats">${escapeHtml(t('action.stats'))}</button>`
-          : ''
-      }
-    </div>
+    ${
+      state.games.length
+        ? `<div class="row">
+             <button type="button" class="button button--small button--ghost" data-goto="#/stats">${escapeHtml(t('action.stats'))}</button>
+           </div>`
+        : ''
+    }
 
     ${
       state.games.length > 4
@@ -1080,47 +1295,7 @@ function homeView() {
         : ''
     }
 
-    <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
-      <div class="row">
-        <button type="button" class="button button--small" id="export">${escapeHtml(t('action.export'))}</button>
-        <button type="button" class="button button--small" id="import">${escapeHtml(t('action.import'))}</button>
-        <button type="button" class="button button--small" id="import-paste">${escapeHtml(t('action.importPaste'))}</button>
-        ${
-          state.remote
-            ? `<button type="button" class="button button--small" id="open-link">${escapeHtml(t('action.openLink'))}</button>`
-            : ''
-        }
-        <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden" />
-      </div>
-      <p class="muted small">${escapeHtml(
-        t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
-      )}</p>
-      ${
-        state.remote
-          ? `<label class="checkbox">
-               <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
-               ${escapeHtml(t('data.autoShare'))}
-             </label>
-             <p class="muted small">${escapeHtml(t('data.autoShareHint'))}</p>
-             <label for="share-key">${escapeHtml(t('data.shareKey'))}</label>
-             <input type="password" id="share-key" autocomplete="off" spellcheck="false"
-                    value="${escapeHtml(state.prefs.shareKey || '')}"
-                    placeholder="${escapeHtml(t('data.shareKeyPlaceholder'))}" />
-             <div class="row">
-               <button type="button" class="button button--small" id="save-key">${escapeHtml(t('data.shareKeySave'))}</button>
-               ${
-                 lots().length
-                   ? `<button type="button" class="button button--small" id="my-shares">${escapeHtml(t('lots.title', { count: lots().length }))}</button>`
-                   : ''
-               }
-             </div>
-             <p class="muted small" id="share-key-state">${escapeHtml(
-               state.prefs.shareKey ? t('data.shareKeySet') : t('data.shareKeyHint'),
-             )}</p>`
-          : ''
-      }
-    </section>`;
+    `;
 }
 
 function statsView() {
@@ -1130,7 +1305,7 @@ function statsView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('stats.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
 
     ${
@@ -1214,7 +1389,7 @@ function newGameView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('new.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
 
     <form id="new-game" class="card stack">
@@ -1445,7 +1620,7 @@ function gameView(game) {
         <h1>${escapeHtml(gameTitle(game))}</h1>
         <p class="muted small">${escapeHtml(preset ? presetLabel(preset) : '')} · ${escapeHtml(t('home.rounds', { count: game.rounds.length }))}</p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
 
     ${winnerBanner}
@@ -1810,7 +1985,7 @@ function importGames(source) {
 
   for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
     if (state.store) void state.store.save(document_);
-    if (state.remote && document_.shared) state.remote.put(document_).catch(() => {});
+    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
   }
   flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
   return true;
@@ -1974,6 +2149,149 @@ async function shareUrl({ url, title, hint, text }) {
   showCopyDialog({ title, hint, text: url, qr: true });
 }
 
+/* ----------------------------------------------------------------- groups --- */
+
+/**
+ * A group is a circle of people and a key: the family, the Tuesday card
+ * players. Holding its key is what lets this device start sharing, and what
+ * shows it everything the group shares — games, lists and polls together.
+ *
+ * The keys live on this device and nowhere else: not in the repository, not in
+ * the page, not in an export.
+ */
+function groups() {
+  const value = state.prefs.groups;
+  return Array.isArray(value)
+    ? value.filter((group) => group && typeof group.key === 'string' && group.key)
+    : [];
+}
+
+function rememberGroup(group) {
+  const others = groups().filter((held) => held.id !== group.id);
+  state.prefs = { ...state.prefs, groups: [...others, group] };
+  savePrefs(state.prefs);
+}
+
+function forgetGroup(id) {
+  state.prefs = { ...state.prefs, groups: groups().filter((group) => group.id !== id) };
+  savePrefs(state.prefs);
+}
+
+/**
+ * The group a device sends its new things to on its own, when it was asked to.
+ * Only when there is exactly one: with several, the app asks each time rather
+ * than choosing for you.
+ */
+function autoGroup() {
+  if (!state.prefs.autoShare || !state.remote) return null;
+  const held = groups();
+  return held.length === 1 ? held[0] : null;
+}
+
+/** The key a document was shared with, or the only group's, or none. */
+function keyFor(document_) {
+  const held = groups();
+  if (document_?.groupId) {
+    const group = held.find((item) => item.id === document_.groupId);
+    if (group) return group.key;
+  }
+  return held.length === 1 ? held[0].key : null;
+}
+
+/**
+ * Which group to share this in. Answers straight away when there is only one
+ * — the usual case — and asks when there are several.
+ */
+async function askGroup() {
+  const held = groups();
+  if (!held.length) return null;
+  if (held.length === 1) return held[0];
+
+  return new Promise((resolve) => {
+    const dialog = makeDialog('dialog dialog--ask');
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('groups.which'))}</h2>
+        <div class="stack stack--tight">
+          ${held
+            .map(
+              (group) => `<button type="button" class="button button--block" data-group="${escapeHtml(group.id)}">${escapeHtml(group.name)}</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="group-cancel">${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </div>`;
+
+    let answered = false;
+    const done = (group) => {
+      if (answered) return;
+      answered = true;
+      resolve(group);
+      dialog.close();
+    };
+    dialog.addEventListener('close', () => done(null));
+    dialog.querySelector('#group-cancel').addEventListener('click', () => done(null));
+    dialog.querySelectorAll('[data-group]').forEach((button) => {
+      button.addEventListener('click', () => done(held.find((group) => group.id === button.dataset.group)));
+    });
+    dialog.showModal();
+  });
+}
+
+/**
+ * Share a document for the first time: pick the group, send it, and remember
+ * which group it went to. Returns the shared document, or null when there was
+ * no group to share it in or the database refused.
+ */
+async function startSharing(document_) {
+  if (document_.shared) return document_;
+  const group = await askGroup();
+  if (!group) {
+    flash(t('groups.needOne'), 'error');
+    render();
+    return null;
+  }
+
+  const shared = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
+  try {
+    await state.remote.put(shared, group.key);
+  } catch (error) {
+    flash(remoteReason(error), 'error');
+    render();
+    return null;
+  }
+  return shared;
+}
+
+/** Take in a key: the database says which group it opens, or refuses it. */
+async function joinGroup(key) {
+  const clean = String(key || '').trim();
+  if (!clean || !state.remote) return null;
+  const group = await state.remote.groupOf(clean);
+  if (!group) return null;
+  rememberGroup({ id: group.id, name: group.name, key: clean });
+  return group;
+}
+
+/**
+ * Fetch everything the group shares that this device is missing or behind on.
+ * The database hands over ids and their dates, so a device that is up to date
+ * asks for nothing more.
+ */
+async function catchUpWith(group) {
+  if (!state.remote) return 0;
+  const rows = await state.remote.groupDocs(group.key);
+  let taken = 0;
+  for (const row of rows) {
+    const held = getGame(row.id) || getList(row.id) || getPoll(row.id);
+    if (held && (row.updatedAt || 0) <= (held.updatedAt || 0)) continue;
+    if (await pullAny(row.id)) taken += 1;
+  }
+  return taken;
+}
+
 /* ------------------------------------------------------------------- lots --- */
 
 /**
@@ -2008,7 +2326,7 @@ function forgetLot(id) {
 function remoteReason(error) {
   const text = String(error?.message || '');
   if (error?.status === 404 || /PGRST202/.test(text)) return t('shareApp.needsUpdate');
-  if (/cle de partage/i.test(text)) return t('shareApp.badKey');
+  if (/cle de (partage|groupe)/i.test(text)) return t('groups.refused');
   return t('shareApp.failed');
 }
 
@@ -2031,7 +2349,7 @@ function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
   const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
-  const key = state.prefs.shareKey || '';
+  const held = groups();
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
     void shareUrl({
@@ -2043,7 +2361,7 @@ function openShareAppDialog() {
     return;
   }
 
-  const off = key ? '' : ' disabled';
+  const off = held.length ? '' : ' disabled';
   const dialog = makeDialog();
   dialog.innerHTML = `
     <div class="stack">
@@ -2053,17 +2371,17 @@ function openShareAppDialog() {
           <input type="radio" name="share-kind" value="app" checked />
           <span>${escapeHtml(t('shareApp.kindApp'))}<span class="muted small"> — ${escapeHtml(t('shareApp.kindAppHint'))}</span></span>
         </label>
-        <label class="choice${key ? '' : ' choice--off'}">
+        <label class="choice${held.length ? '' : ' choice--off'}">
           <input type="radio" name="share-kind" value="all"${off} />
           <span>${escapeHtml(t('shareApp.kindAll', { count: games.length }))}</span>
         </label>
-        <label class="choice${key ? '' : ' choice--off'}">
+        <label class="choice${held.length ? '' : ' choice--off'}">
           <input type="radio" name="share-kind" value="some"${off} />
           <span>${escapeHtml(t('shareApp.kindSome'))}</span>
         </label>
       </div>
 
-      ${key ? '' : `<p class="banner">${escapeHtml(t('shareApp.needsKey'))}</p>`}
+      ${held.length ? '' : `<p class="banner">${escapeHtml(t('groups.needOne'))}</p>`}
 
       <div class="stack stack--tight" id="share-pick" hidden>
         <p class="muted small">${escapeHtml(t('shareApp.pickHint'))}</p>
@@ -2136,16 +2454,19 @@ function openShareAppDialog() {
     const setId = uid('lot');
     const code = newCode();
     const ids = chosen.map((game) => game.id);
+    const group = await askGroup();
+    if (!group) return fail(t('groups.needOne'));
+
     try {
-      // The key first, and only then the games: a key the database no longer
-      // recognises must not cost an evening its privacy on the way to being
-      // told so.
-      if (!(await state.remote.isOwner(key))) return fail(t('shareApp.badKey'));
-      // Sealed where the browser can: then the stored lot holds no game
-      // identifier at all, only their encrypted form.
+      // The key first, and only then the documents: a key the database no
+      // longer recognises must not cost an evening its privacy on the way to
+      // being told so.
+      if (!(await state.remote.groupOf(group.key))) return fail(t('groups.refused'));
+      // Sealed where the browser can: then the stored lot holds no identifier
+      // at all, only their encrypted form.
       const contents = canSeal() ? { sealed: await seal(ids, code) } : { ids };
-      await shareGames(chosen);
-      await state.remote.putSet(setId, contents, code, key);
+      await shareGames(chosen, group);
+      await state.remote.putSet(setId, contents, code, group.key);
     } catch (error_) {
       return fail(remoteReason(error_));
     }
@@ -2180,13 +2501,13 @@ function showLotLink(setId, code, count) {
  * Put every one of these games in the shared database, marking as shared those
  * that were not — a link that hands over a game no one sent would open nothing.
  */
-async function shareGames(games) {
+async function shareGames(games, group) {
   try {
     for (const document_ of games) {
       const next = document_.shared
         ? document_
-        : { ...document_, shared: true, updatedAt: Date.now() };
-      await state.remote.put(next);
+        : { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
+      await state.remote.put(next, group.key);
       if (next === document_) continue;
       state.games = state.games.map((item) => (item.id === next.id ? next : item));
       state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
@@ -2263,7 +2584,7 @@ function openMySharesDialog() {
         node.textContent = t('share.sending');
         let gone = false;
         try {
-          gone = await state.remote.forgetSet(id, state.prefs.shareKey || '');
+          gone = await state.remote.forgetSet(id, groups()[0]?.key || '');
         } catch (error) {
           const line = dialog.querySelector('#lots-error');
           line.textContent = remoteReason(error);
@@ -2413,45 +2734,14 @@ function bindHome() {
       try { again.setSelectionRange(at, at); } catch { /* not a text field */ }
     }
   });
+}
 
+/**
+ * The data section, which belongs to the app rather than to any one tab: the
+ * app's own link, what leaves the device and what comes back.
+ */
+function bindData() {
   view.querySelector('#share-app')?.addEventListener('click', openShareAppDialog);
-
-  // Enter does what the button does: a field that answers nothing reads as broken.
-  view.querySelector('#share-key')?.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    view.querySelector('#save-key')?.click();
-  });
-
-  view.querySelector('#save-key')?.addEventListener('click', async (event) => {
-    const button = event.currentTarget;
-    const field = view.querySelector('#share-key');
-    const line = view.querySelector('#share-key-state');
-    const key = field.value.trim();
-
-    state.prefs = { ...state.prefs, shareKey: key };
-    savePrefs(state.prefs);
-
-    if (!key) {
-      line.textContent = t('data.shareKeyCleared');
-      return;
-    }
-
-    // Say whether the database recognises it, rather than leaving it to be
-    // found out at the worst moment — when a link is being created.
-    button.disabled = true;
-    line.textContent = t('data.shareKeyChecking');
-    let good = false;
-    try {
-      good = await state.remote.isOwner(key);
-    } catch {
-      good = null; // could not ask
-    }
-    button.disabled = false;
-    line.textContent =
-      good === true ? t('data.shareKeyGood') : good === false ? t('data.shareKeyBad') : t('data.shareKeyUnsure');
-  });
-
   view.querySelector('#my-shares')?.addEventListener('click', openMySharesDialog);
 
   view.querySelector('#auto-share')?.addEventListener('change', (event) => {
@@ -2460,7 +2750,6 @@ function bindHome() {
   });
 
   view.querySelector('#export')?.addEventListener('click', exportGames);
-
   view.querySelector('#import-paste')?.addEventListener('click', openPasteDialog);
   view.querySelector('#open-link')?.addEventListener('click', openLinkDialog);
 
@@ -2486,7 +2775,7 @@ function persistList(changed) {
   if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -2547,7 +2836,8 @@ function bindNewList() {
       name: newListName,
       names: newListPeople,
       // A device that sends everything by choice sends its lists too.
-      shared: Boolean(state.prefs.autoShare && state.remote),
+      shared: Boolean(autoGroup()),
+      groupId: autoGroup()?.id || null,
     });
     list = addItems(list, newListLines);
 
@@ -2634,7 +2924,7 @@ function bindList(list) {
     state.lists = state.lists.filter((item) => item.id !== list.id);
     saveLists(state.lists);
     if (state.store) void state.store.remove(list.id);
-    if (state.remote) state.remote.remove(list.id).catch(() => {});
+    if (state.remote) state.remote.remove(list.id, keyFor(list)).catch(() => {});
     navigate('#/lists');
   });
 
@@ -2645,16 +2935,8 @@ function bindList(list) {
     if (!current.shared) {
       button.disabled = true;
       button.textContent = t('share.sending');
-      current = { ...current, shared: true, updatedAt: Date.now() };
-      try {
-        await state.remote.put(current);
-      } catch {
-        button.disabled = false;
-        button.textContent = t('lists.share');
-        flash(t('share.sendFailed'), 'error');
-        render();
-        return;
-      }
+      current = await startSharing(current);
+      if (!current) return;
       replaceList(current);
     }
 
@@ -2989,7 +3271,8 @@ function bindNewGame() {
       names,
       overrides: config,
       name: view.querySelector('#game-name').value,
-      shared: Boolean(state.prefs.autoShare),
+      shared: Boolean(autoGroup()),
+      groupId: autoGroup()?.id || null,
     });
     state.games = [...state.games, game];
     persist(game);
@@ -3478,16 +3761,8 @@ function bindGame(game) {
       // Send it before handing out a link to it, or the link opens nothing.
       button.disabled = true;
       button.textContent = t('share.sending');
-      current = setShared(current, true);
-      try {
-        await state.remote.put(current);
-      } catch {
-        button.disabled = false;
-        button.textContent = t('action.share');
-        flash(t('share.sendFailed'), 'error');
-        render();
-        return;
-      }
+      current = await startSharing(current);
+      if (!current) return;
       replaceGame(current);
       // Redraw so every handler below works on the now-shared game: without
       // this, the round form still holds the copy captured before sharing,
@@ -3537,8 +3812,8 @@ function bindGame(game) {
   view.querySelector('#delete-game')?.addEventListener('click', async () => {
     if (!(await ask(t('game.confirmDeleteGame'), { confirmLabel: t('action.delete'), danger: true }))) return;
     state.games = state.games.filter((item) => item.id !== game.id);
-    forget(game.id);
-    navigate('#/');
+    forget(game.id, game);
+    navigate('#/games');
   });
 }
 
@@ -3685,11 +3960,11 @@ function render() {
         view.innerHTML = `<p class="muted small">${escapeHtml(t('share.loading'))}</p>`;
         pullGame(current.id).then((found) => {
           if (found) render();
-          else if (route().id === current.id) navigate('#/');
+          else if (route().id === current.id) navigate('#/games');
         });
         return;
       }
-      navigate('#/');
+      navigate('#/games');
       return;
     }
     watchGame(game.id);
@@ -3698,10 +3973,14 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
-  } else {
+  } else if (current.name === 'home') {
     stopWatching();
     view.innerHTML = homeView();
     bindHome();
+  } else {
+    stopWatching();
+    view.innerHTML = overviewView();
+    bindOverview();
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
@@ -3751,7 +4030,9 @@ function markTab(current) {
     ? 'lists'
     : ['polls', 'new-poll', 'poll'].includes(current.name)
       ? 'polls'
-      : 'games';
+      : ['home', 'new', 'game', 'stats'].includes(current.name)
+        ? 'games'
+        : 'overview';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');

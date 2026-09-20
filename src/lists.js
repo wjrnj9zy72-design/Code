@@ -18,7 +18,7 @@ import { later, touch, prune } from './stamp.js';
 import { addPerson, renamePerson, removePerson } from './people.js';
 
 /** A new list. `names` are the people it is shared between; it can be nobody. */
-export function createList({ name = '', names = [], shared = false } = {}) {
+export function createList({ name = '', names = [], shared = false, groupId = null } = {}) {
   const now = Date.now();
   return {
     id: uid('l'),
@@ -33,6 +33,7 @@ export function createList({ name = '', names = [], shared = false } = {}) {
     // copy simply has not heard of them yet".
     peopleAt: now,
     shared: Boolean(shared),
+    groupId: groupId || null,
     // The lines deleted here, and when — without this a deletion is undone by
     // the next copy that still holds the line.
     removed: {},
@@ -110,7 +111,7 @@ export function removeItem(list, itemId) {
 export function reuseList(list) {
   const now = Date.now();
   return {
-    ...createList({ name: list.name, shared: list.shared }),
+    ...createList({ name: list.name, shared: list.shared, groupId: list.groupId }),
     people: list.people,
     peopleAt: list.peopleAt || now,
     items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, updatedAt: now })),
