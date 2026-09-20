@@ -116,6 +116,11 @@ export const STRINGS = {
       'Décoché, vos parties restent sur cet appareil. Le bouton Partager envoie une partie précise quand vous le décidez.',
     'share.sending': 'Envoi…',
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
+    'action.shareApp': 'Partager l’app',
+    'shareApp.title': 'Lien vers l’app',
+    'shareApp.hint':
+      'Envoyez ce lien : la personne ouvre l’app et tient ses propres parties, sur son appareil.',
+    'shareApp.text': 'Marque-Points — compteur de points pour Papayoo et d’autres jeux',
     'action.share': 'Partager la partie',
     'share.title': 'Lien vers cette partie',
     'share.hint':
@@ -325,6 +330,11 @@ export const STRINGS = {
       'Unticked, your games stay on this device. The Share button sends one game when you decide to.',
     'share.sending': 'Sending…',
     'share.sendFailed': 'The game could not be sent. Try again.',
+    'action.shareApp': 'Share the app',
+    'shareApp.title': 'Link to the app',
+    'shareApp.hint':
+      'Send this link: they open the app and keep their own games, on their own device.',
+    'shareApp.text': 'Marque-Points — a score keeper for Papayoo and other games',
     'action.share': 'Share this game',
     'share.title': 'Link to this game',
     'share.hint':

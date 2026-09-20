@@ -19,6 +19,9 @@ manches, elle tient le classement.
 - **Contrôle de saisie** : à Papayoo une manche distribue exactement 250 points
   de pénalité — si le compte n'y est pas, l'appli le signale avant d'enregistrer.
   Le bouton *Compléter* remplit automatiquement le dernier score manquant.
+- **Passer l'app à quelqu'un** : un bouton *Partager l'app* sur l'accueil ouvre
+  la feuille de partage du téléphone — un appui, et le lien part par message.
+  Là où elle n'existe pas, le lien s'affiche à copier.
 - **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
