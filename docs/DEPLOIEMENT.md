@@ -45,6 +45,12 @@ liste de projets, soit un écran de bienvenue.
 
 ## Étape 2 — Créer la table et les fonctions
 
+> ⚠️ **À passer une fois, et jamais après l'étape 2 bis.** L'étape 2 bis remplace
+> deux de ces fonctions par des versions qui demandent une clé de groupe ;
+> repasser l'étape 2 par-dessus remettrait les anciennes à côté des nouvelles, et
+> la base répondrait `function is not unique` à chaque écriture de l'app. Si cela
+> arrive : relancez **le bloc de l'étape 2 bis**, il nettoie et répare.
+
 1. Dans la colonne de gauche, cliquez **SQL Editor** (icône en forme de
    terminal). Puis **New query** si un éditeur vide ne s'ouvre pas tout seul.
 2. Collez **tout** le bloc ci-dessous dans la grande zone de texte.
@@ -631,6 +637,14 @@ $$;
 -- entrer sans être accepté.
 drop function if exists public.marque_points_join(text, text, text);
 drop function if exists public.marque_points_invite(text, integer);
+
+-- Et les versions à deux arguments de l'étape 2, que cette étape remplace par
+-- des versions qui demandent une clé. Les laisser en place rendrait l'appel
+-- ambigu pour la base (« function is not unique ») et l'app cesserait d'écrire :
+-- c'est ce qui arrive si l'étape 2 est repassée après celle-ci, et relancer ce
+-- bloc répare.
+drop function if exists public.marque_points_put(text, jsonb);
+drop function if exists public.marque_points_delete(text);
 
 create or replace function public.marque_points_invite(
   p_key text,
@@ -1398,6 +1412,41 @@ joueurs. Ils ouvrent la partie telle quelle et peuvent y ajouter des manches ;
 chaque écran se rafraîchit seul toutes les cinq secondes.
 
 ---
+
+### Quand l'app de l'écran d'accueil montre une version dépassée
+
+Safari et l'app de l'écran d'accueil sont deux installations séparées : chacune
+garde ses fichiers de son côté, et l'app posée sur l'écran d'accueil est
+**reprise** plutôt que rechargée — elle peut donc rester sur une vieille version
+sans que rien ne le dise. Ce que l'app fait désormais d'elle-même :
+
+- elle demande à chaque retour au premier plan s'il existe une version plus
+  récente, et **se recharge une fois** quand c'est le cas ;
+- chaque fichier qu'elle va chercher est revalidé, au lieu de faire confiance à
+  la copie gardée par le navigateur (GitHub Pages autorise dix minutes de
+  conservation : c'était assez pour qu'une app tout juste ajoutée s'ouvre sur ce
+  que Safari avait sous la main) ;
+- l'onglet **Aperçu** affiche la **version** en bas, sous *Données*, avec un
+  bouton **Chercher une mise à jour** qui dit ce qu'il a trouvé.
+
+Si malgré cela une installation reste bloquée — c'est arrivé sur iOS avant ces
+garde-fous —, la sortie est mécanique :
+
+1. dans l'app, **Aperçu → Chercher une mise à jour**, et attendez le
+   rechargement ;
+2. sinon, ouvrez la page **dans Safari**, tirez vers le bas pour recharger, et
+   vérifiez la version affichée ;
+3. en dernier recours, **retirez l'app de l'écran d'accueil et rajoutez-la** :
+   comparez la version affichée avant et après. Rien n'est perdu au passage, ce
+   qui compte est dans la base du groupe — mais **ce qui n'a jamais été partagé
+   ne l'est pas** : servez-vous de *Tout récupérer* et du bouton ⟳ avant, ou
+   exportez depuis *Données*.
+
+> Ce que je n'ai pas pu éprouver : **iOS et Safari**. Les garde-fous ci-dessus
+> sont vérifiés dans Chromium — première visite qui ne se recharge pas, version
+> publiée pendant que l'app tourne qui est prise, rechargement unique, ancien
+> cache remplacé — et reposent sur des mécanismes standard, mais WebKit a ses
+> propres habitudes.
 
 ## Ce que ce montage implique
 

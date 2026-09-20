@@ -7,10 +7,15 @@
  * the app already knows how to handle.
  *
  * The trap with this kind of cache is leaving people stranded on an old
- * version. So: the cache name carries a version, a new worker takes over as
- * soon as it is installed rather than waiting for every tab to close, and
- * older caches are deleted on activation. Bump VERSION whenever the app
- * changes — tools/bundle.js checks that it matches the files it built.
+ * version — and on a phone, where the app on the home screen is resumed rather
+ * than reloaded, being stranded can last for ever. So, in order: the cache name
+ * carries a version and older caches are deleted on activation; a new worker
+ * takes over as soon as it is installed rather than waiting for every tab to
+ * close; every network attempt revalidates instead of trusting the browser's own
+ * copy; the app registers this file with `updateViaCache: 'none'`, asks for an
+ * update each time it comes back to the front, and reloads itself once a new
+ * worker takes over. Bump VERSION whenever the app changes — tools/bundle.js
+ * checks that it matches both the files it built and the version the page shows.
  */
 
 const VERSION = 'v6';
@@ -78,7 +83,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     // Network first, so a published update is picked up as soon as there is a
     // network; the cache is what makes the app work when there is none.
-    fetch(request)
+    //
+    // `cache: 'no-cache'` makes that first step revalidate rather than take the
+    // browser's own copy: GitHub Pages lets a page be held for ten minutes, and
+    // an app just added to a home screen would otherwise open on whatever
+    // Safari happened to have kept. It costs one conditional request, answered
+    // with a 304 when nothing changed.
+    fetch(new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }))
       .then((response) => {
         if (response && response.ok) {
           const copy = response.clone();

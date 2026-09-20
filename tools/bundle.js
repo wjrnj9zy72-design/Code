@@ -47,6 +47,18 @@ async function checkOfflineShell(root) {
   if (missing.length) {
     throw new Error(`Cannot bundle: sw.js does not cache ${missing.join(', ')} — add them to SHELL and bump VERSION.`);
   }
+
+  // The version is written twice — in sw.js, which names the cache, and in the
+  // page, which shows it so anyone can tell which copy they are looking at.
+  // Two places that must agree, so they are checked rather than trusted.
+  const page = await readFile(join(root, 'index.html'), 'utf8');
+  const inWorker = /const VERSION = '([^']+)'/.exec(worker)?.[1];
+  const inPage = /name="app-version" content="([^"]+)"/.exec(page)?.[1];
+  if (!inWorker || !inPage || inWorker !== inPage) {
+    throw new Error(
+      `Cannot bundle: sw.js says version ${inWorker ?? '(none)'} and index.html says ${inPage ?? '(none)'} — make them match.`,
+    );
+  }
 }
 
 /** Every substitution must fire: a silent no-op would ship a broken page. */
