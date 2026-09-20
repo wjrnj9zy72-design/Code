@@ -242,14 +242,20 @@ create index if not exists marque_points_group_key_group on public.marque_points
 alter table public.marque_points_group_key
   add column if not exists admits boolean not null default false;
 
--- Une base montée avant l'acceptation : sa plus vieille clé devient celle qui
+-- Une base montée avant l'acceptation : une de ses clés doit devenir celle qui
 -- admet, sinon plus personne ne pourrait faire entrer qui que ce soit.
+--
+-- Laquelle : celle que l'éditeur SQL a affichée à la création du groupe, qui se
+-- reconnaît à son étiquette — c'est la vôtre. À défaut, la plus ancienne. (Le
+-- seul départage par date serait un tirage au sort quand deux clés ont été
+-- créées dans la même transaction, ce qui arrive sur une base montée d'un coup.)
 update public.marque_points_group_key k
    set admits = true
  where k.id = (select k2.id
                  from public.marque_points_group_key k2
                 where k2.group_id = k.group_id
-                order by k2.created_at, k2.id
+                order by (k2.label in ('première clé', 'clé refaite')) desc,
+                         k2.created_at, k2.id
                 limit 1)
    and not exists (select 1
                      from public.marque_points_group_key k3
@@ -949,6 +955,31 @@ Attendu : **Success. No rows returned.**
 > unique, sans groupe —, ce bloc l'efface proprement : la clé d'avant ne servira
 > plus, et les appareils devront recevoir une clé de groupe. Ce qui était déjà
 > partagé reste.
+
+#### Et les groupes qui existent déjà ?
+
+Ils restent, et personne n'a rien à refaire. Éprouvé en montant une base avec la
+version précédente de cette étape — un groupe, trois appareils entrés par
+l'ancien chemin, trois documents partagés, une invitation en cours — puis en
+appliquant ce bloc par-dessus :
+
+| | après le bloc |
+| --- | --- |
+| Le groupe et son nom | inchangés |
+| Les clés des appareils | **toutes valables**, rien à recoller |
+| Ce qui était partagé | toujours là, et toujours dans son groupe |
+| Partager, contribuer, supprimer | comme avant, sans rien retoucher |
+| Une invitation déjà envoyée | sert encore — elle fait désormais **frapper** |
+| Qui fait entrer | **la clé affichée à la création du groupe** ; les appareils entrés avant ne font entrer personne |
+
+Deux conséquences à connaître :
+
+- **Une copie de l'app ouverte depuis longtemps** appelle encore l'ancienne
+  entrée directe, qui n'existe plus : elle dira que la base n'a pas répondu.
+  Rechargez la page — l'app se sert d'abord du réseau, la nouvelle version
+  arrive d'elle-même.
+- **Si la clé qui fait entrer n'est pas celle que vous voulez** — une base montée
+  à la main, par exemple —, désignez-en une autre avec l'`update` de l'étape 4.
 
 ### 2. Créer votre premier groupe
 
