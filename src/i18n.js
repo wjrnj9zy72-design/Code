@@ -128,6 +128,8 @@ export const STRINGS = {
     'groups.title': 'Mes groupes',
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
+    'groups.keepKey':
+      'Gardez la clé de votre groupe quelque part — le bouton « Voir la clé » ci-dessous — : c’est elle qui vous fait revenir tout seul après avoir réinstallé l’app, sans avoir à être réinvité ni accepté.',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
     'groups.standaloneNew':
       'Cette app posée sur l’écran d’accueil est une installation à part de Safari : elle a son propre stockage, et doit entrer dans le groupe de son côté. Le plus simple, sur votre propre téléphone : collez la clé du groupe ci-dessous. Sinon, demandez à entrer, et acceptez depuis Safari.',
@@ -171,6 +173,12 @@ export const STRINGS = {
     'groups.catchUp': 'Tout récupérer',
     'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
     'groups.upToDate': 'Rien de nouveau : cet appareil est à jour.',
+    'groups.showKey': 'Voir la clé',
+    'groups.confirmShowKey':
+      'Afficher la clé de {name} ? Elle fait entrer n’importe quel appareil où elle est collée — gardez-la pour vous.',
+    'groups.keyTitle': 'La clé de {name}',
+    'groups.keyWarning':
+      'À garder en lieu sûr : un gestionnaire de mots de passe, par exemple. C’est avec elle qu’un de vos appareils revient dans le groupe sans invitation — après avoir réinstallé l’app, ou sur un téléphone neuf. Ne l’envoyez à personne : qui la colle entre.',
     'groups.leave': 'Quitter',
     'groups.confirmLeave':
       'Quitter ce groupe sur cet appareil ? Ce qui est déjà ici y reste, mais vous ne pourrez plus rien y partager ni récupérer sans recoller la clé.',
@@ -374,8 +382,10 @@ export const STRINGS = {
       'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
     'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
     'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
+    'shareApp.needsSql':
+      'La base n’a pas cette fonction : relancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
     'shareApp.needsUpdate':
-      'La base n’a pas encore la fonction des lots : lancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
+      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans l’Aperçu, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
     'shareSet.codeLabel': 'Code à communiquer',
     'shareSet.codeApart':
       'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
@@ -632,6 +642,8 @@ export const STRINGS = {
     'groups.title': 'My groups',
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
+    'groups.keepKey':
+      'Keep your group\'s key somewhere — the “Show the key” button below —: it is what brings you back on your own after reinstalling the app, with nobody to invite or accept you.',
     'groups.none': 'This device is in no group: it keeps everything to itself.',
     'groups.standaloneNew':
       'This app on your home screen is a separate installation from Safari: it has its own storage, and has to join the group on its own. On your own phone the easy way is to paste the group\'s key below. Otherwise ask to join, and accept it from Safari.',
@@ -673,6 +685,12 @@ export const STRINGS = {
     'groups.catchUp': 'Fetch everything',
     'groups.caughtUp': '{count} item(s) fetched from the group.',
     'groups.upToDate': 'Nothing new: this device is up to date.',
+    'groups.showKey': 'Show the key',
+    'groups.confirmShowKey':
+      'Show the key to {name}? It lets in any device it is pasted into — keep it to yourself.',
+    'groups.keyTitle': 'The key to {name}',
+    'groups.keyWarning':
+      'Keep it somewhere safe, a password manager for instance. It is what brings one of your own devices back into the group with no invitation — after reinstalling the app, or on a new phone. Send it to nobody: whoever pastes it is in.',
     'groups.leave': 'Leave',
     'groups.confirmLeave':
       'Leave this group on this device? What is already here stays, but you will not be able to share or fetch anything there without pasting the key again.',
@@ -870,8 +888,10 @@ export const STRINGS = {
       'This copy of the app has no shared database, so it cannot fetch those games.',
     'shareSet.opened': '{count} game(s) added from the link.',
     'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
+    'shareApp.needsSql':
+      'The database does not have that function: run the SQL block from step 2b of the deployment guide again.',
     'shareApp.needsUpdate':
-      'The database does not have the lot functions yet: run the SQL block from step 2b of the deployment guide.',
+      'This app, or the database, is out of date. Tap “Look for an update” in the Overview, under Données; if that changes nothing, tell whoever set the database up.',
     'shareSet.codeLabel': 'Code to pass on',
     'shareSet.codeApart':
       'Do not send it in the same message as the link: say it out loud, or use another route.',

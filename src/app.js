@@ -1211,6 +1211,11 @@ function groupsHtml() {
       <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
       ${
         held.length
+          ? `<p class="muted small">${escapeHtml(t('groups.keepKey'))}</p>`
+          : ''
+      }
+      ${
+        held.length
           ? `<div class="stack stack--tight">${held
               .map(
                 (group) => `
@@ -1228,6 +1233,9 @@ function groupsHtml() {
                       </button>
                       <button type="button" class="button button--small" data-catch-up="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.catchUp'))}
+                      </button>
+                      <button type="button" class="button button--small button--ghost" data-show-key="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.showKey'))}
                       </button>
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
@@ -1633,6 +1641,22 @@ function bindOverview() {
       }
       flash(taken ? t('groups.caughtUp', { count: taken }) : t('groups.upToDate'));
       render();
+    });
+  });
+
+  // The key this device holds, readable again — so it can be kept somewhere safe,
+  // or put into a second installation (the app on a home screen, a new phone)
+  // without inviting anyone or asking anyone to accept anything.
+  view.querySelectorAll('[data-show-key]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.showKey);
+      if (!group) return;
+      if (!(await ask(t('groups.confirmShowKey', { name: group.name }), { confirmLabel: t('groups.showKey') }))) return;
+      showCopyDialog({
+        title: t('groups.keyTitle', { name: group.name }),
+        hint: t('groups.keyWarning'),
+        text: group.key,
+      });
     });
   });
 
@@ -3368,7 +3392,13 @@ function forgetLot(id) {
 /** Why the database refused, in words that say what to do about it. */
 function remoteReason(error) {
   const text = String(error?.message || '');
-  if (error?.status === 404 || /PGRST202/.test(text)) return t('shareApp.needsUpdate');
+  // "That function does not exist" has two causes, and they call for opposite
+  // things: the database has not been brought up to date, or this copy of the app
+  // has not. Only whoever set the database up can do the first, so the message
+  // names both and points at the update button rather than at the SQL guide.
+  if (error?.status === 404 || /PGRST202/.test(text)) {
+    return t(groups().some((group) => group.admits) ? 'shareApp.needsSql' : 'shareApp.needsUpdate');
+  }
   if (/cle de (partage|groupe)/i.test(text)) return t('groups.refused');
   return t('shareApp.failed');
 }
