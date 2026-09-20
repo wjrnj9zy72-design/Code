@@ -275,3 +275,37 @@ test('a refused key is a refusal, not a silent success', async () => {
   await assert.rejects(() => remote.putSet('lot_1', { ids: ['g_1'] }, '123456', 'wrong'),
     /cle de groupe invalide/);
 });
+
+test('an invitation is six digits, and joining hands back a key of one\'s own', async () => {
+  const calls = [];
+  const remote = createRemote(CONFIG, async (url, options) => {
+    calls.push({ fn: url.split('/').pop(), body: JSON.parse(options.body) });
+    if (url.endsWith('marque_points_invite')) return ok({ code: '482913', name: 'Famille', minutes: 30 });
+    return ok({ status: 'ok', id: 'grp_1', name: 'Famille', key: 'la-cle-de-cet-appareil' });
+  });
+
+  const invitation = await remote.invite('la-cle-famille');
+  assert.deepEqual(invitation, { code: '482913', name: 'Famille', minutes: 30 });
+  assert.equal(calls[0].body.p_key, 'la-cle-famille', 'inviting takes being in the group');
+  assert.equal(calls[0].body.p_minutes, 30);
+
+  const joined = await remote.join('Famille', '482913', 'écran d’accueil');
+  assert.deepEqual(joined, { status: 'ok', id: 'grp_1', name: 'Famille', key: 'la-cle-de-cet-appareil' });
+  assert.equal(calls[1].body.p_name, 'Famille');
+  assert.equal(calls[1].body.p_code, '482913');
+  assert.equal(calls[1].body.p_label, 'écran d’accueil', 'so a key can be told from another later');
+  assert.ok(!('p_key' in calls[1].body), 'joining holds no key yet — that is the point');
+});
+
+test('every way joining can fail says which one it was', async () => {
+  const answering = (body) => createRemote(CONFIG, async () => ok(body));
+
+  assert.deepEqual(await answering({ status: 'unknown' }).join('Famille', '000000'), { status: 'unknown' });
+  assert.deepEqual(await answering({ status: 'busy' }).join('Famille', '000000'), { status: 'busy' },
+    'too many attempts on that group just now');
+  assert.deepEqual(await answering({ status: 'ok', id: 'g', name: 'F' }).join('Famille', '000000'),
+    { status: 'unknown' }, 'an "ok" with no key in it is not a way in');
+  assert.deepEqual(await answering(null).join('Famille', '000000'), { status: 'unknown' });
+  assert.equal(await answering(null).invite('k'), null);
+  assert.equal(await answering({ name: 'Famille' }).invite('k'), null, 'an answer with no code is none');
+});

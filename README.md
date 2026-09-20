@@ -38,12 +38,18 @@ dépendance, aucun build.
   un **code QR** ; il reste court quel que soit le nombre de parties, parce qu'il
   ne porte pas les parties mais un identifiant qui les désigne.
 - **Le partage tient dans une idée : le groupe.** Un groupe — la famille, les
-  copains du mardi — est un cercle de personnes et une clé. Qui a la clé voit
-  tout ce qui y est partagé, parties, listes et sondages confondus, et peut y
-  partager à son tour ; qui ne l'a pas ne peut rien y créer, même en récupérant
-  la clé publique dans le code de la page. **Contribuer, en revanche, ne demande
+  copains du mardi — est un cercle de personnes. On y voit tout ce qui est
+  partagé, parties, listes et sondages confondus, et on peut y partager à son
+  tour ; qui n'en est pas ne peut rien y créer, même en récupérant la clé
+  publique dans le code de la page. **Contribuer, en revanche, ne demande
   rien** : un lien envoyé à quelqu'un d'extérieur lui permet d'ajouter une
   manche ou de cocher une ligne, sans rien voir du reste.
+- **On entre dans un groupe avec six chiffres.** Quelqu'un qui en fait partie
+  touche *Inviter*, dit le nom du groupe et le code — de vive voix, au téléphone
+  —, et l'app d'en face échange ça contre **une clé à elle**, propre à cet
+  appareil et coupable sans déranger les autres. L'invitation vaut une
+  demi-heure et une seule entrée ; vingt essais ratés ferment l'entrée du groupe
+  pendant dix minutes.
 - **Et pour faire entrer quelqu'un d'un coup, sans lui donner la clé** : un lien
   qui porte plusieurs documents, fermé par un **code à six chiffres** tiré au
   hasard — dix essais, puis il se bloque. Le lien et le code voyagent séparément,

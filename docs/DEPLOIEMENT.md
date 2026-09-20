@@ -167,6 +167,11 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 -- partagé, parties, listes et sondages confondus, et peut y partager à son
 -- tour.
 --
+-- On entre dans un groupe avec **le nom du groupe et six chiffres** : quelqu'un
+-- qui en est déjà membre crée l'invitation depuis l'app, la dit de vive voix, et
+-- l'app d'en face échange ça contre une clé à elle — propre à cet appareil, et
+-- révocable sans toucher aux autres.
+--
 -- Deux règles, et elles suffisent :
 --   * créer un partage demande la clé d'un groupe ;
 --   * contribuer à un partage qui existe déjà n'en demande pas — c'est ce qui
@@ -190,12 +195,62 @@ drop table if exists public.marque_points_owner;
 create table if not exists public.marque_points_group (
   id text primary key,
   name text not null,
+  key_hash text,
+  key_salt text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marque_points_group enable row level security;
+
+-- Un groupe a autant de clés que d'appareils entrés : chacune se révoque sans
+-- déranger les autres.
+create table if not exists public.marque_points_group_key (
+  id text primary key,
+  group_id text not null references public.marque_points_group(id) on delete cascade,
+  label text not null default '',
   key_hash text not null,
   key_salt text not null,
   created_at timestamptz not null default now()
 );
 
-alter table public.marque_points_group enable row level security;
+alter table public.marque_points_group_key enable row level security;
+create index if not exists marque_points_group_key_group on public.marque_points_group_key (group_id);
+
+-- Une base montée avant les invitations garde sa clé sur le groupe : elle
+-- devient la première clé de ce groupe, et la colonne disparaît.
+insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, created_at)
+select replace(gen_random_uuid()::text, '-', ''), g.id, 'première clé', g.key_hash, g.key_salt, g.created_at
+  from public.marque_points_group g
+ where g.key_hash is not null
+   and not exists (select 1 from public.marque_points_group_key k where k.group_id = g.id);
+
+alter table public.marque_points_group drop column if exists key_hash;
+alter table public.marque_points_group drop column if exists key_salt;
+
+-- Les invitations : six chiffres, une demi-heure, une seule entrée.
+create table if not exists public.marque_points_invite (
+  code text primary key,
+  group_id text not null references public.marque_points_group(id) on delete cascade,
+  expires_at timestamptz not null,
+  uses integer not null default 1,
+  tries integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marque_points_invite enable row level security;
+
+-- Les entrées ratées, par nom de groupe. C'est ici que se joue la solidité de
+-- six chiffres : compter les essais sur une invitation ne protégerait de rien,
+-- puisque qui devine tape des codes qui n'existent pas. Au-delà de vingt ratés
+-- en dix minutes sur un même groupe, on n'ouvre plus du tout pendant un moment.
+create table if not exists public.marque_points_join_miss (
+  id bigserial primary key,
+  name text not null,
+  at timestamptz not null default now()
+);
+
+alter table public.marque_points_join_miss enable row level security;
+create index if not exists marque_points_join_miss_name on public.marque_points_join_miss (name, at);
 
 -- Chaque document partagé appartient au groupe qui l'a créé.
 alter table public.marque_points_games
@@ -215,20 +270,26 @@ declare
   v_key text := replace(gen_random_uuid()::text, '-', '');
   v_salt text := md5(gen_random_uuid()::text);
   v_name text := nullif(btrim(coalesce(p_name, '')), '');
+  v_id text;
 begin
   if v_name is null then
     raise exception 'donnez un nom au groupe';
   end if;
 
-  insert into public.marque_points_group (id, name, key_hash, key_salt)
-  values (replace(gen_random_uuid()::text, '-', ''), v_name, md5(v_key || v_salt), v_salt);
+  insert into public.marque_points_group (id, name)
+  values (replace(gen_random_uuid()::text, '-', ''), v_name)
+  returning id into v_id;
+
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
+  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'première clé', md5(v_key || v_salt), v_salt);
 
   return query select v_name, v_key;
 end;
 $$;
 
--- Renouvelle la clé d'un groupe : les appareils qui avaient l'ancienne en
--- sortent, ce qui y est partagé reste.
+-- Coupe toutes les clés d'un groupe et en refait une seule : tous les appareils
+-- en sortent, ce qui y est partagé reste. C'est le bouton d'alarme ; pour ne
+-- faire sortir qu'un appareil, supprimez sa clé dans marque_points_group_key.
 create or replace function public.marque_points_new_group_key(p_name text)
 returns text
 language plpgsql
@@ -245,9 +306,9 @@ begin
     raise exception 'aucun groupe de ce nom';
   end if;
 
-  update public.marque_points_group
-     set key_hash = md5(v_key || v_salt), key_salt = v_salt, created_at = now()
-   where id = v_id;
+  delete from public.marque_points_group_key where group_id = v_id;
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
+  values (replace(gen_random_uuid()::text, '-', ''), v_id, 'clé refaite', md5(v_key || v_salt), v_salt);
   return v_key;
 end;
 $$;
@@ -260,9 +321,10 @@ language sql
 security definer
 set search_path = public
 as $$
-  select jsonb_build_object('id', id, 'name', name)
-    from public.marque_points_group
-   where key_hash = md5(coalesce(p_key, '') || key_salt)
+  select jsonb_build_object('id', g.id, 'name', g.name)
+    from public.marque_points_group_key k
+    join public.marque_points_group g on g.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
    limit 1;
 $$;
 
@@ -276,8 +338,8 @@ set search_path = public
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'updatedAt', g.data->'updatedAt')), '[]'::jsonb)
     from public.marque_points_games g
-    join public.marque_points_group p on p.id = g.group_id
-   where p.key_hash = md5(coalesce(p_key, '') || p.key_salt)
+    join public.marque_points_group_key k on k.group_id = g.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
      and g.code_hash is null;
 $$;
 
@@ -308,7 +370,7 @@ begin
   if v_exists is null then
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
-    select id into v_group from public.marque_points_group
+    select group_id into v_group from public.marque_points_group_key
      where key_hash = md5(coalesce(p_key, '') || key_salt);
     if v_group is null then
       raise exception 'cle de groupe invalide';
@@ -343,7 +405,7 @@ begin
   end if;
 
   if v_group is null or v_group is distinct from (
-    select id from public.marque_points_group
+    select group_id from public.marque_points_group_key
      where key_hash = md5(coalesce(p_key, '') || key_salt)
   ) then
     raise exception 'cle de groupe invalide';
@@ -366,7 +428,7 @@ declare
   v_salt text := md5(gen_random_uuid()::text);
   v_group text;
 begin
-  select id into v_group from public.marque_points_group
+  select group_id into v_group from public.marque_points_group_key
    where key_hash = md5(coalesce(p_key, '') || key_salt);
   if v_group is null then
     raise exception 'cle de groupe invalide';
@@ -394,7 +456,7 @@ set search_path = public
 as $$
 begin
   if not exists (
-    select 1 from public.marque_points_group
+    select 1 from public.marque_points_group_key
      where key_hash = md5(coalesce(p_key, '') || key_salt)
   ) then
     raise exception 'cle de groupe invalide';
@@ -439,11 +501,118 @@ begin
 end;
 $$;
 
--- Les clés se tirent depuis cet éditeur, et de nulle part ailleurs.
-revoke all on function public.marque_points_new_group(text) from public, anon, authenticated;
-revoke all on function public.marque_points_new_group_key(text) from public, anon, authenticated;
+-- Six chiffres tirés au hasard, sans reprendre un code encore vivant.
+create or replace function public.marque_points_fresh_code()
+returns text
+language plpgsql
+as $$
+declare
+  v_code text;
+begin
+  loop
+    v_code := lpad(((('x' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))::bit(32)::bigint
+                     + 4294967296) % 1000000)::text, 6, '0');
+    exit when not exists (select 1 from public.marque_points_invite where code = v_code);
+  end loop;
+  return v_code;
+end;
+$$;
 
-grant execute on function public.marque_points_open_set(text, text) to anon, authenticated;
+-- Inviter quelqu'un : il faut déjà être dans le groupe.
+create or replace function public.marque_points_invite(p_key text, p_minutes integer default 30)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_name text;
+  v_code text;
+  v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 1440));
+begin
+  select g.id, g.name into v_group, v_name
+    from public.marque_points_group_key k
+    join public.marque_points_group g on g.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if v_group is null then
+    raise exception 'cle de groupe invalide';
+  end if;
+
+  -- Ménage : ce qui est mort ne doit pas occuper un code.
+  delete from public.marque_points_invite
+   where expires_at < now() or uses <= 0 or tries >= 10;
+
+  v_code := public.marque_points_fresh_code();
+  insert into public.marque_points_invite (code, group_id, expires_at, uses)
+  values (v_code, v_group, now() + make_interval(mins => v_minutes), 1);
+
+  return jsonb_build_object('code', v_code, 'name', v_name, 'minutes', v_minutes);
+end;
+$$;
+
+-- Entrer avec le nom du groupe et le code. En échange, une clé qui n'appartient
+-- qu'à cet appareil : la révoquer plus tard ne dérange personne d'autre.
+create or replace function public.marque_points_join(p_name text, p_code text, p_label text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite public.marque_points_invite;
+  v_name text := lower(btrim(coalesce(p_name, '')));
+  v_key text := replace(gen_random_uuid()::text, '-', '');
+  v_salt text := md5(gen_random_uuid()::text);
+  v_misses integer;
+begin
+  delete from public.marque_points_join_miss where at < now() - interval '1 hour';
+
+  select count(*) into v_misses
+    from public.marque_points_join_miss
+   where name = v_name and at > now() - interval '10 minutes';
+  if v_misses >= 20 then
+    return jsonb_build_object('status', 'busy');
+  end if;
+
+  select i.* into v_invite
+    from public.marque_points_invite i
+    join public.marque_points_group g on g.id = i.group_id
+   where i.code = coalesce(p_code, '')
+     and lower(btrim(g.name)) = v_name
+     and i.expires_at > now()
+     and i.uses > 0
+     and i.tries < 10;
+
+  if not found then
+    insert into public.marque_points_join_miss (name) values (v_name);
+    -- Un code qui existe mais qu'on tape mal se ferme de son côté aussi.
+    update public.marque_points_invite set tries = tries + 1 where code = coalesce(p_code, '');
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt)
+  values (replace(gen_random_uuid()::text, '-', ''), v_invite.group_id,
+          left(coalesce(btrim(p_label), ''), 40), md5(v_key || v_salt), v_salt);
+
+  update public.marque_points_invite set uses = uses - 1 where code = v_invite.code;
+  delete from public.marque_points_invite where uses <= 0;
+  -- Une entrée réussie efface l'ardoise de ce groupe.
+  delete from public.marque_points_join_miss where name = v_name;
+
+  return jsonb_build_object(
+    'status', 'ok',
+    'id', v_invite.group_id,
+    'name', (select name from public.marque_points_group where id = v_invite.group_id),
+    'key', v_key
+  );
+end;
+$$;
+
+revoke all on function public.marque_points_fresh_code() from public, anon, authenticated;
+
+grant execute on function public.marque_points_invite(text, integer) to anon, authenticated;
+grant execute on function public.marque_points_join(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
@@ -491,27 +660,57 @@ update public.marque_points_games
 Attendu : **UPDATE n**, où n est le nombre de choses déjà partagées. Les liens
 déjà envoyés continuent de fonctionner, avant comme après.
 
-### 3. Donner la clé à l'app, une fois par appareil
+### 3. Faire entrer les appareils
 
-Dans l'app : onglet **Aperçu** → section **Mes groupes** → collez la clé →
-**Entrer**. L'app répond *Vous êtes dans Famille* — c'est la base qui le dit.
+**Le tout premier appareil** n'a personne pour l'inviter : il part de la clé que
+vous venez de copier. Dans l'app, onglet **Aperçu** → **Mes groupes** → dépliez
+*Je n'ai pas de code, mais une clé* → collez → **Entrer**.
 
-Faites-le sur chaque appareil du groupe : le vôtre, celui de la personne avec
-qui vous partagez, Safari et l'app de l'écran d'accueil (qui comptent pour deux).
-Puis **Tout récupérer** ramène d'un coup ce que le groupe partage déjà.
+**Tous les autres entrent avec six chiffres**, et c'est tout :
+
+1. sur un appareil déjà dans le groupe, touchez **Inviter** à côté du nom du
+   groupe ;
+2. dites le nom du groupe et les six chiffres affichés — de vive voix, au
+   téléphone, comme vous voulez ;
+3. en face : onglet **Aperçu**, le nom du groupe, le code, **Entrer**.
+
+L'invitation vaut **une demi-heure et une seule entrée**. L'appareil qui entre
+reçoit **sa propre clé** : la couper plus tard ne dérange aucun autre.
+
+> Le code ne fait que six chiffres, mais on ne les devine pas : au-delà de vingt
+> essais ratés en dix minutes sur un même groupe, la base n'ouvre plus du tout
+> pendant un moment — et une entrée réussie efface l'ardoise.
+
+Faites-le sur chaque appareil : le vôtre, celui des personnes du groupe, Safari
+et l'app de l'écran d'accueil (qui comptent pour deux). Puis **Tout récupérer**
+ramène d'un coup ce que le groupe partage déjà.
 
 > ⚠️ Ne mettez **jamais** une clé de groupe dans `src/config.js` ni ailleurs dans
 > le dépôt : ce fichier est public, et la clé le deviendrait avec lui.
 
-### 4. Si une clé fuite
+### 4. Couper un appareil, ou tout le monde
+
+Pour **un seul appareil** — un téléphone perdu, quelqu'un qui quitte le groupe :
+
+```sql
+select id, label, created_at from public.marque_points_group_key
+ where group_id = (select id from public.marque_points_group where name = 'Famille');
+
+delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
+```
+
+La colonne `label` dit d'où venait l'appareil (« écran d'accueil · 20 sept.
+2026 »), de quoi s'y retrouver.
+
+Pour **tout le monde à la fois**, si vous pensez qu'une clé a fuité :
 
 ```sql
 select public.marque_points_new_group_key('Famille');
 ```
 
-Elle en tire une nouvelle : les appareils qui avaient l'ancienne sortent du
-groupe, ce qui y est partagé reste, et il suffit de recoller la nouvelle clé là
-où il faut.
+Toutes les clés du groupe sont coupées et une seule est refaite : il faut la
+recoller sur le premier appareil, puis réinviter les autres. Ce qui est partagé
+dans le groupe reste.
 
 ### 5. Vérifier
 
@@ -538,9 +737,11 @@ but ; une cellule vide ; une cellule vide encore (contribuer ne demande rien) ;
 
 > Ce bloc et ces requêtes ont été exécutés tels quels sur un PostgreSQL 16 avec
 > les rôles de Supabase : sans clé rien ne se crée, une clé n'ouvre que son
-> groupe, un groupe ne voit pas les documents du groupe d'à côté, renouveler une
-> clé fait sortir l'ancienne sans rien perdre, et le rôle public ne peut ni créer
-> de groupe ni lire aucune table.
+> groupe, un groupe ne voit pas les documents du groupe d'à côté, couper une clé
+> laisse les autres intactes, une invitation ne sert qu'une fois et expire, vingt
+> essais ratés ferment l'entrée du groupe pendant dix minutes sans gêner le
+> groupe d'à côté, et le rôle public ne peut ni créer de groupe, ni tirer de clé,
+> ni lire aucune table.
 
 ## Étape 3 — Vérifier, sans quitter la page
 

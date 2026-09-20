@@ -1095,6 +1095,9 @@ function groupsHtml() {
                       }))}</span>
                     </div>
                     <div class="row">
+                      <button type="button" class="button button--small" data-invite="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.invite'))}
+                      </button>
                       <button type="button" class="button button--small" data-catch-up="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.catchUp'))}
                       </button>
@@ -1107,13 +1110,25 @@ function groupsHtml() {
               .join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>`
       }
-      <label for="group-key">${escapeHtml(t('groups.add'))}</label>
+      <label for="group-name">${escapeHtml(t('groups.add'))}</label>
       <div class="row row--tight">
-        <input type="password" id="group-key" autocomplete="off" spellcheck="false"
-               placeholder="${escapeHtml(t('groups.keyPlaceholder'))}" />
+        <input type="text" id="group-name" autocomplete="off"
+               placeholder="${escapeHtml(t('groups.namePlaceholder'))}" />
+        <input type="text" id="group-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="7" placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
         <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('groups.join'))}</button>
       </div>
-      <p class="muted small" id="group-state">${escapeHtml(t('groups.keyHint'))}</p>
+      <p class="muted small" id="group-state">${escapeHtml(t('groups.codeHint'))}</p>
+
+      <details class="details">
+        <summary>${escapeHtml(t('groups.withKey'))}</summary>
+        <p class="muted small">${escapeHtml(t('groups.keyHint'))}</p>
+        <div class="row row--tight">
+          <input type="password" id="group-key" autocomplete="off" spellcheck="false"
+                 placeholder="${escapeHtml(t('groups.keyPlaceholder'))}" />
+          <button type="button" class="button" id="group-paste">${escapeHtml(t('groups.join'))}</button>
+        </div>
+      </details>
     </section>`;
 }
 
@@ -1181,37 +1196,94 @@ function overviewView() {
 function bindOverview() {
   bindData();
 
+  const joining = (line, message) => {
+    line.textContent = message;
+  };
+
   view.querySelector('#group-join')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
-    const field = view.querySelector('#group-key');
     const line = view.querySelector('#group-state');
-    const key = field.value.trim();
+    const name = view.querySelector('#group-name').value.trim();
+    const code = readCode(view.querySelector('#group-code').value);
+    if (!name) return joining(line, t('groups.needName'));
+    if (!code) return joining(line, t('groups.needCode'));
+
+    button.disabled = true;
+    joining(line, t('groups.checking'));
+    let answer = { status: 'unknown' };
+    try {
+      answer = await state.remote.join(name, code, deviceLabel());
+    } catch {
+      button.disabled = false;
+      return joining(line, t('groups.unsure'));
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return joining(line, t('groups.busy'));
+    if (answer.status !== 'ok') return joining(line, t('groups.codeRefused'));
+
+    rememberGroup({ id: answer.id, name: answer.name, key: answer.key });
+    flash(t('groups.joined', { name: answer.name }));
+    render();
+  });
+
+  view.querySelector('#group-code')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#group-join')?.click();
+  });
+
+  // The very first device of a group has no one to invite it: it starts from
+  // the key the database printed in the SQL editor.
+  view.querySelector('#group-paste')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const line = view.querySelector('#group-state');
+    const key = view.querySelector('#group-key').value.trim();
     if (!key) return;
 
     button.disabled = true;
-    line.textContent = t('groups.checking');
+    joining(line, t('groups.checking'));
     let group = null;
     try {
       group = await joinGroup(key);
     } catch {
       button.disabled = false;
-      line.textContent = t('groups.unsure');
-      return;
+      return joining(line, t('groups.unsure'));
     }
-    if (!group) {
-      button.disabled = false;
-      line.textContent = t('groups.refused');
-      return;
-    }
+    button.disabled = false;
+    if (!group) return joining(line, t('groups.refused'));
 
     flash(t('groups.joined', { name: group.name }));
     render();
   });
 
-  view.querySelector('#group-key')?.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    view.querySelector('#group-join')?.click();
+  view.querySelectorAll('[data-invite]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.invite);
+      if (!group) return;
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      let invitation = null;
+      try {
+        invitation = await state.remote.invite(group.key);
+      } catch (error) {
+        flash(remoteReason(error), 'error');
+        render();
+        return;
+      }
+      if (!invitation) {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      render();
+      showCopyDialog({
+        title: t('groups.inviteTitle', { name: group.name }),
+        hint: t('groups.inviteHint', { minutes: invitation.minutes }),
+        text: t('groups.inviteText', { name: group.name, code: invitation.code }),
+        code: invitation.code,
+      });
+    });
   });
 
   view.querySelectorAll('[data-catch-up]').forEach((button) => {
@@ -2263,6 +2335,16 @@ async function startSharing(document_) {
     return null;
   }
   return shared;
+}
+
+/**
+ * How this device shows up in a group's list of keys. Not a name, not an
+ * identity: just enough for whoever hosts the database to tell one line from
+ * another when cutting one off.
+ */
+function deviceLabel() {
+  const standalone = matchMedia?.('(display-mode: standalone)')?.matches;
+  return `${standalone ? t('groups.onHomeScreen') : t('groups.inBrowser')} · ${formatDate(Date.now())}`;
 }
 
 /** Take in a key: the database says which group it opens, or refuses it. */

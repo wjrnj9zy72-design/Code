@@ -260,6 +260,14 @@ textarea { min-height: 66px; resize: vertical; }
 
 .stack--tight { gap: 8px; }
 
+/* A way in that most people never need, folded away until they do. */
+.details { font-size: 0.9rem; }
+.details summary { padding: 6px 0; color: var(--muted); cursor: pointer; }
+.details .row { margin-top: 6px; }
+
+/* The code field beside the group's name: narrow enough to sit next to it. */
+#group-code { max-width: 7.5em; }
+
 /* A long list of games scrolls, rather than pushing the buttons off-screen. */
 #share-pick { max-height: 38vh; overflow-y: auto; }
 
@@ -918,12 +926,30 @@ const STRINGS = {
     'lists.leftToDo': '{count} ligne(s) à faire',
     'groups.title': 'Mes groupes',
     'groups.hint':
-      'Un groupe, c’est un cercle de personnes et une clé : la famille, les copains du mardi. Qui a la clé voit tout ce qui y est partagé — parties, listes et sondages — et peut y partager à son tour.',
+      'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. On y fait entrer quelqu’un avec six chiffres.',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
-    'groups.add': 'Entrer dans un groupe (clé)',
+    'groups.add': 'Entrer dans un groupe',
+    'groups.invite': 'Inviter',
+    'groups.inviteTitle': 'Entrer dans {name}',
+    'groups.inviteHint':
+      'Dites ces six chiffres à la personne — de vive voix, au téléphone, peu importe. Ils valent {minutes} minutes et une seule entrée.',
+    'groups.inviteText': 'Groupe : {name} — code : {code}',
+    'groups.namePlaceholder': 'nom du groupe',
+    'groups.codePlaceholder': 'code à six chiffres',
+    'groups.codeHint':
+      'Quelqu’un du groupe vous donne son nom et six chiffres : touchez Inviter sur son appareil.',
+    'groups.needName': 'Écrivez le nom du groupe, tel qu’il vous a été dit.',
+    'groups.needCode': 'Un code est fait de six chiffres.',
+    'groups.codeRefused':
+      'Ce nom et ce code ne vont pas ensemble, ou le code a expiré. Demandez-en un autre.',
+    'groups.busy':
+      'Trop d’essais sur ce groupe ces dernières minutes. Réessayez dans dix minutes.',
+    'groups.withKey': 'Je n’ai pas de code, mais une clé',
+    'groups.onHomeScreen': 'écran d’accueil',
+    'groups.inBrowser': 'navigateur',
     'groups.keyPlaceholder': 'collée une fois, gardée sur cet appareil',
     'groups.keyHint':
-      'La clé se tire une fois dans l’éditeur SQL de votre base (étape 2 bis du guide), et se colle sur chaque appareil du groupe.',
+      'Le tout premier appareil d’un groupe n’a personne pour l’inviter : il part de la clé affichée par l’éditeur SQL au moment de créer le groupe (étape 2 bis du guide).',
     'groups.join': 'Entrer',
     'groups.checking': 'Vérification auprès de la base…',
     'groups.refused': 'Cette clé n’ouvre aucun groupe. Vérifiez qu’elle a été copiée en entier.',
@@ -1320,12 +1346,28 @@ const STRINGS = {
     'lists.leftToDo': '{count} line(s) left',
     'groups.title': 'My groups',
     'groups.hint':
-      'A group is a circle of people and a key: the family, the Tuesday card players. Whoever holds the key sees everything shared in it — games, lists and polls — and can share there too.',
+      'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You let someone in with six digits.',
     'groups.none': 'This device is in no group: it keeps everything to itself.',
-    'groups.add': 'Join a group (key)',
+    'groups.add': 'Join a group',
+    'groups.invite': 'Invite',
+    'groups.inviteTitle': 'Join {name}',
+    'groups.inviteHint':
+      'Say these six digits to them — out loud, over the phone, whichever. They are good for {minutes} minutes and one device.',
+    'groups.inviteText': 'Group: {name} — code: {code}',
+    'groups.namePlaceholder': 'group name',
+    'groups.codePlaceholder': 'six-digit code',
+    'groups.codeHint':
+      'Someone in the group gives you its name and six digits: they tap Invite on their device.',
+    'groups.needName': 'Write the group\'s name, as it was given to you.',
+    'groups.needCode': 'A code is six digits.',
+    'groups.codeRefused': 'That name and code do not go together, or the code has expired. Ask for another.',
+    'groups.busy': 'Too many attempts on this group in the last few minutes. Try again in ten.',
+    'groups.withKey': 'I have no code, but a key',
+    'groups.onHomeScreen': 'home screen',
+    'groups.inBrowser': 'browser',
     'groups.keyPlaceholder': 'pasted once, kept on this device',
     'groups.keyHint':
-      'The key is drawn once in your database\'s SQL editor (step 2b of the guide), and pasted on every device in the group.',
+      'The very first device of a group has nobody to invite it: it starts from the key the SQL editor printed when the group was created (step 2b of the guide).',
     'groups.join': 'Join',
     'groups.checking': 'Checking with the database…',
     'groups.refused': 'That key opens no group. Check that all of it was copied.',
@@ -4233,9 +4275,13 @@ async function unseal(sealed, code) {
  * link.
  *
  * Sharing is held by groups. A group — the family, the Tuesday card players —
- * is a circle of people and a key; whoever holds the key can start sharing in
- * that group and sees everything shared in it. Contributing to something
- * already shared needs no key at all.
+ * is a circle of people; whoever is in it can start sharing there and sees
+ * everything shared in it. Contributing to something already shared needs
+ * nothing at all.
+ *
+ * A device joins with the group's name and six digits said out loud, and gets
+ * back a key of its own, which it keeps. Each device has its own, so one can
+ * be cut off without disturbing the others.
  *
  * A lot — a link that hands over several things at once — goes through its own
  * functions, because it is protected differently: writing one takes a group's
@@ -4312,6 +4358,32 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     async groupOf(key) {
       const group = await call('marque_points_group_of', { p_key: key });
       return group && typeof group === 'object' && group.id ? group : null;
+    },
+
+    /**
+     * Invite someone: the database draws six digits, good for half an hour and
+     * for one device. Being in the group is what allows it.
+     * Returns { code, name, minutes }.
+     */
+    async invite(key, minutes = 30) {
+      const answer = await call('marque_points_invite', { p_key: key, p_minutes: minutes });
+      return answer && typeof answer.code === 'string' ? answer : null;
+    },
+
+    /**
+     * Join with the group's name and those six digits. What comes back is a
+     * key of this device's own — revoking it later disturbs nobody else.
+     *
+     * Returns { status: 'ok', id, name, key } | { status: 'unknown' }
+     *       | { status: 'busy' }
+     */
+    async join(name, code, label = '') {
+      const answer = await call('marque_points_join', { p_name: name, p_code: code, p_label: label });
+      const status = answer?.status;
+      if (status === 'ok' && answer.key) {
+        return { status, id: answer.id, name: answer.name, key: answer.key };
+      }
+      return { status: status === 'busy' ? 'busy' : 'unknown' };
     },
 
     /**
@@ -5651,6 +5723,9 @@ function groupsHtml() {
                       }))}</span>
                     </div>
                     <div class="row">
+                      <button type="button" class="button button--small" data-invite="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('groups.invite'))}
+                      </button>
                       <button type="button" class="button button--small" data-catch-up="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.catchUp'))}
                       </button>
@@ -5663,13 +5738,25 @@ function groupsHtml() {
               .join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>`
       }
-      <label for="group-key">${escapeHtml(t('groups.add'))}</label>
+      <label for="group-name">${escapeHtml(t('groups.add'))}</label>
       <div class="row row--tight">
-        <input type="password" id="group-key" autocomplete="off" spellcheck="false"
-               placeholder="${escapeHtml(t('groups.keyPlaceholder'))}" />
+        <input type="text" id="group-name" autocomplete="off"
+               placeholder="${escapeHtml(t('groups.namePlaceholder'))}" />
+        <input type="text" id="group-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="7" placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
         <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('groups.join'))}</button>
       </div>
-      <p class="muted small" id="group-state">${escapeHtml(t('groups.keyHint'))}</p>
+      <p class="muted small" id="group-state">${escapeHtml(t('groups.codeHint'))}</p>
+
+      <details class="details">
+        <summary>${escapeHtml(t('groups.withKey'))}</summary>
+        <p class="muted small">${escapeHtml(t('groups.keyHint'))}</p>
+        <div class="row row--tight">
+          <input type="password" id="group-key" autocomplete="off" spellcheck="false"
+                 placeholder="${escapeHtml(t('groups.keyPlaceholder'))}" />
+          <button type="button" class="button" id="group-paste">${escapeHtml(t('groups.join'))}</button>
+        </div>
+      </details>
     </section>`;
 }
 
@@ -5737,37 +5824,94 @@ function overviewView() {
 function bindOverview() {
   bindData();
 
+  const joining = (line, message) => {
+    line.textContent = message;
+  };
+
   view.querySelector('#group-join')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
-    const field = view.querySelector('#group-key');
     const line = view.querySelector('#group-state');
-    const key = field.value.trim();
+    const name = view.querySelector('#group-name').value.trim();
+    const code = readCode(view.querySelector('#group-code').value);
+    if (!name) return joining(line, t('groups.needName'));
+    if (!code) return joining(line, t('groups.needCode'));
+
+    button.disabled = true;
+    joining(line, t('groups.checking'));
+    let answer = { status: 'unknown' };
+    try {
+      answer = await state.remote.join(name, code, deviceLabel());
+    } catch {
+      button.disabled = false;
+      return joining(line, t('groups.unsure'));
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return joining(line, t('groups.busy'));
+    if (answer.status !== 'ok') return joining(line, t('groups.codeRefused'));
+
+    rememberGroup({ id: answer.id, name: answer.name, key: answer.key });
+    flash(t('groups.joined', { name: answer.name }));
+    render();
+  });
+
+  view.querySelector('#group-code')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    view.querySelector('#group-join')?.click();
+  });
+
+  // The very first device of a group has no one to invite it: it starts from
+  // the key the database printed in the SQL editor.
+  view.querySelector('#group-paste')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const line = view.querySelector('#group-state');
+    const key = view.querySelector('#group-key').value.trim();
     if (!key) return;
 
     button.disabled = true;
-    line.textContent = t('groups.checking');
+    joining(line, t('groups.checking'));
     let group = null;
     try {
       group = await joinGroup(key);
     } catch {
       button.disabled = false;
-      line.textContent = t('groups.unsure');
-      return;
+      return joining(line, t('groups.unsure'));
     }
-    if (!group) {
-      button.disabled = false;
-      line.textContent = t('groups.refused');
-      return;
-    }
+    button.disabled = false;
+    if (!group) return joining(line, t('groups.refused'));
 
     flash(t('groups.joined', { name: group.name }));
     render();
   });
 
-  view.querySelector('#group-key')?.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    view.querySelector('#group-join')?.click();
+  view.querySelectorAll('[data-invite]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.invite);
+      if (!group) return;
+      button.disabled = true;
+      button.textContent = t('share.sending');
+      let invitation = null;
+      try {
+        invitation = await state.remote.invite(group.key);
+      } catch (error) {
+        flash(remoteReason(error), 'error');
+        render();
+        return;
+      }
+      if (!invitation) {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      render();
+      showCopyDialog({
+        title: t('groups.inviteTitle', { name: group.name }),
+        hint: t('groups.inviteHint', { minutes: invitation.minutes }),
+        text: t('groups.inviteText', { name: group.name, code: invitation.code }),
+        code: invitation.code,
+      });
+    });
   });
 
   view.querySelectorAll('[data-catch-up]').forEach((button) => {
@@ -6819,6 +6963,16 @@ async function startSharing(document_) {
     return null;
   }
   return shared;
+}
+
+/**
+ * How this device shows up in a group's list of keys. Not a name, not an
+ * identity: just enough for whoever hosts the database to tell one line from
+ * another when cutting one off.
+ */
+function deviceLabel() {
+  const standalone = matchMedia?.('(display-mode: standalone)')?.matches;
+  return `${standalone ? t('groups.onHomeScreen') : t('groups.inBrowser')} · ${formatDate(Date.now())}`;
 }
 
 /** Take in a key: the database says which group it opens, or refuses it. */

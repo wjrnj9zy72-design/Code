@@ -12,9 +12,13 @@
  * link.
  *
  * Sharing is held by groups. A group — the family, the Tuesday card players —
- * is a circle of people and a key; whoever holds the key can start sharing in
- * that group and sees everything shared in it. Contributing to something
- * already shared needs no key at all.
+ * is a circle of people; whoever is in it can start sharing there and sees
+ * everything shared in it. Contributing to something already shared needs
+ * nothing at all.
+ *
+ * A device joins with the group's name and six digits said out loud, and gets
+ * back a key of its own, which it keeps. Each device has its own, so one can
+ * be cut off without disturbing the others.
  *
  * A lot — a link that hands over several things at once — goes through its own
  * functions, because it is protected differently: writing one takes a group's
@@ -91,6 +95,32 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     async groupOf(key) {
       const group = await call('marque_points_group_of', { p_key: key });
       return group && typeof group === 'object' && group.id ? group : null;
+    },
+
+    /**
+     * Invite someone: the database draws six digits, good for half an hour and
+     * for one device. Being in the group is what allows it.
+     * Returns { code, name, minutes }.
+     */
+    async invite(key, minutes = 30) {
+      const answer = await call('marque_points_invite', { p_key: key, p_minutes: minutes });
+      return answer && typeof answer.code === 'string' ? answer : null;
+    },
+
+    /**
+     * Join with the group's name and those six digits. What comes back is a
+     * key of this device's own — revoking it later disturbs nobody else.
+     *
+     * Returns { status: 'ok', id, name, key } | { status: 'unknown' }
+     *       | { status: 'busy' }
+     */
+    async join(name, code, label = '') {
+      const answer = await call('marque_points_join', { p_name: name, p_code: code, p_label: label });
+      const status = answer?.status;
+      if (status === 'ok' && answer.key) {
+        return { status, id: answer.id, name: answer.name, key: answer.key };
+      }
+      return { status: status === 'busy' ? 'busy' : 'unknown' };
     },
 
     /**
