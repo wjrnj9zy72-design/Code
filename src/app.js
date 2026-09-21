@@ -10,7 +10,7 @@ import { recapText } from './recap.js';
 import { buildDocx } from './export-docx.js';
 import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
-import { icsFor, pollEvent, agendaFor } from './ics.js';
+import { icsFor, pollEvent, agendaFor, eventName } from './ics.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
   addListPerson, renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList,
@@ -19,6 +19,7 @@ import {
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
+  setEventName,
 } from './polls.js';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
@@ -138,6 +139,24 @@ function formatDay(day) {
     });
   } catch {
     return String(day);
+  }
+}
+
+/**
+ * A day in an agenda: the weekday matters as much as the number, since "jeudi"
+ * is how anyone actually holds a date in their head.
+ */
+function formatDayLong(day) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return String(day || '');
+  try {
+    return new Date(year, month - 1, date).toLocaleDateString(getLanguage(), {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return formatDay(day);
   }
 }
 
@@ -364,6 +383,11 @@ function pollView(poll) {
         <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
         <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
         <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+      </div>
+      <div class="row">
+        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
+        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
+               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
         <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
       </div>
       ${
@@ -592,7 +616,10 @@ function bindPoll(poll) {
   view.querySelector('#poll-date-save')?.addEventListener('click', () => {
     const day = view.querySelector('#poll-day').value;
     const hour = view.querySelector('#poll-hour').value;
-    const next = setPollDate(poll, day, hour);
+    const written = view.querySelector('#poll-title').value;
+    // Le nom proposé n'est pas un nom choisi : ne le garder que s'il a bougé.
+    const named = written.trim() === eventName(poll) ? poll : setEventName(poll, written);
+    const next = setPollDate(named, day, hour);
     flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
     replacePoll(next);
   });
@@ -600,7 +627,8 @@ function bindPoll(poll) {
   view.querySelector('#poll-ics')?.addEventListener('click', () => {
     const event = pollEvent(poll);
     if (!event) return;
-    download(`${fileName(pollTitle(poll))}.ics`, icsFor([event], { name: pollTitle(poll) }), 'text/calendar');
+    const named = eventName(poll) || pollTitle(poll);
+    download(`${fileName(named)}.ics`, icsFor([event], { name: named }), 'text/calendar');
   });
 
   view.querySelector('#poll-archive')?.addEventListener('click', () => {
@@ -1875,6 +1903,46 @@ function gameCardHtml(game) {
  * the three, so that opening the app answers "where were we" before it asks
  * anything.
  */
+/**
+ * What is coming: the days this group's polls settled on, and the lines that
+ * are due on one, in the order they will happen.
+ *
+ * Built from the very same agendaFor() the .ics is built from, so what shows
+ * here and what a subscribed calendar receives cannot drift apart. Overdue
+ * lines come first: a day that has passed is the one thing worth looking at
+ * before the ones that have not.
+ */
+function comingHtml() {
+  const today = dayNow();
+  const events = agendaFor({ lists: shownDocs(state.lists), polls: shownDocs(state.polls) });
+  const late = events.filter((event) => event.day < today);
+  const coming = events.filter((event) => event.day >= today);
+
+  if (!events.length) {
+    return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>`;
+  }
+
+  const shown = [...late.slice(-3), ...coming.slice(0, 8)];
+  const hidden = events.length - shown.length;
+
+  const row = (event) => {
+    const overdue = event.day < today;
+    const when = [formatDayLong(event.day), event.at].filter(Boolean).join(' · ');
+    return `
+      <button type="button" class="game-card" data-goto="#/${event.kind === 'poll' ? 'poll' : 'list'}/${escapeHtml(event.docId)}">
+        <span class="game-card__title">
+          ${escapeHtml(event.summary)}
+          ${overdue ? `<span class="pill pill--late">${escapeHtml(t('agenda.late'))}</span>` : ''}
+        </span>
+        <span class="game-card__meta">${escapeHtml(when)}${event.description ? ` · ${escapeHtml(event.description)}` : ''}</span>
+      </button>`;
+  };
+
+  return `
+    <div class="game-list">${shown.map(row).join('')}</div>
+    ${hidden > 0 ? `<p class="muted small">${escapeHtml(t('agenda.more', { count: hidden }))}</p>` : ''}`;
+}
+
 function pendingHtml() {
   const lines = [];
 
@@ -2303,6 +2371,13 @@ function overviewView() {
     </div>
 
     ${byGroupHtml()}
+
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('agenda.coming'))}</h2>
+      </div>
+      ${comingHtml()}
+    </section>
 
     <section class="section">
       <div class="section__head">

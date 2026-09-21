@@ -115,6 +115,65 @@ export function icsFor(events, { name = 'Together' } = {}) {
 }
 
 /**
+ * What the event is called in a calendar.
+ *
+ * The question makes a poor calendar entry: "Quel soir pour la raclette ?" asks
+ * something, and once the day is settled there is nothing left to ask — there
+ * is a raclette, and it is on Friday. A name written by hand always wins; the
+ * rest is only so that, most of the time, there is nothing to write.
+ */
+export function eventName(poll) {
+  if (!poll) return '';
+  const own = String(poll.title || '').trim();
+  return own || nameFromQuestion(poll.question || '');
+}
+
+/**
+ * The turns of phrase a date gets asked in, and the thing left over once the
+ * date is known.
+ *
+ * Deliberately timid: each one only fires when what follows is a thing — an
+ * article and then a noun. "Quand est-ce qu'on mange ?" leaves a verb behind,
+ * and "Mange" is a worse entry than the question itself, so it is left alone.
+ * Whatever is not recognised comes back whole, and the field sits in plain
+ * sight to be corrected.
+ */
+const THING = "(?:la|le|les|l['’]|une|un|des|du)\\s+\\S";
+const ASKINGS = [
+  // "Quel soir pour la raclette ?", "Quelle date pour l'anniversaire de Léa ?"
+  /^quel(?:le)?s?\s+\S+\s+pour\s+(.+)$/i,
+  // "Quand fait-on la raclette ?", "Quand est-ce qu'on fait la crémaillère ?"
+  new RegExp(`^quand\\s+(?:est-ce\\s+qu['’]on|fait-on|faisons-nous|on)\\s+(?:\\S+\\s+)?(${THING}.*)$`, 'i'),
+  // "On fait la raclette quand ?"
+  new RegExp(`^on\\s+(?:\\S+\\s+){1,2}?(${THING}.*?)\\s+(?:quand|quel(?:le)?s?\\s+\\S+)$`, 'i'),
+  // "When for the barbecue?", "What day for the picnic?"
+  /^(?:when|what\s+\S+|which\s+\S+)\s+for\s+(.+)$/i,
+];
+
+/**
+ * The articles one does not put at the head of a calendar entry. Longest
+ * first: an alternation takes the first branch that fits, so "le" before
+ * "les" would leave an "s" behind.
+ */
+const ARTICLE = /^(?:de\s+la|de\s+l['’]|des|du|de|les|la|le|l['’]|une|un|the|an|a)\s*/i;
+
+function nameFromQuestion(question) {
+  const asked = String(question || '')
+    .trim()
+    .replace(/\s*[?？]+\s*$/, '')
+    .trim();
+  if (!asked) return '';
+
+  const matched = ASKINGS.map((pattern) => pattern.exec(asked)).find(Boolean);
+  const kept = (matched ? matched[1] : asked).trim().replace(ARTICLE, '').trim();
+
+  // Nothing recognisable under the turn of phrase: the whole question beats an
+  // empty name.
+  if (!kept) return asked;
+  return kept.charAt(0).toUpperCase() + kept.slice(1);
+}
+
+/**
  * What a poll has settled, as an event — or nothing, while it has settled
  * nothing. A poll with no day is a question, not an appointment.
  */
@@ -122,9 +181,13 @@ export function pollEvent(poll, { stamp } = {}) {
   if (!poll || !poll.date) return null;
   return {
     uid: `${poll.id}@together`,
+    // Not written into the file — carried so that whatever shows the agenda can
+    // send someone back to the thing the day came from.
+    kind: 'poll',
+    docId: poll.id,
     day: poll.date,
     at: poll.at || null,
-    summary: poll.question || 'Sondage',
+    summary: eventName(poll) || 'Sondage',
     description: poll.people?.length ? poll.people.map((person) => person.name).join(', ') : '',
     stamp: stamp ?? poll.updatedAt ?? Date.now(),
   };
@@ -137,6 +200,8 @@ export function listEvents(list, { stamp } = {}) {
     .filter((item) => item.due && !item.done)
     .map((item) => ({
       uid: `${item.id}@together`,
+      kind: 'list',
+      docId: list.id,
       day: item.due,
       at: null,
       summary: item.text,

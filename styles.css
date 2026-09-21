@@ -395,6 +395,7 @@ textarea { min-height: 66px; resize: vertical; }
 }
 
 .pill--done { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.pill--late { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 
 /* ------------------------------------------------------------- dashboard --- */
 /*
@@ -664,6 +665,8 @@ table.scores .meta-cell { color: var(--muted); }
 /* La rangée « date retenue » : elle passe à la ligne plutôt que de déborder. */
 #poll-day { flex: 1 1 9em; min-width: 8em; }
 #poll-hour { flex: 0 1 6em; min-width: 5em; }
+/* Le nom qui partira dans l'agenda : il prend toute la largeur qui reste. */
+#poll-title { flex: 1 1 10em; min-width: 0; }
 
 #spend-amount { flex: 0 1 7.5em; min-width: 5.5em; }
 #spend-by { flex: 1 1 6em; min-width: 0; }

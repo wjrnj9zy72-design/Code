@@ -397,6 +397,7 @@ textarea { min-height: 66px; resize: vertical; }
 }
 
 .pill--done { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.pill--late { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 
 /* ------------------------------------------------------------- dashboard --- */
 /*
@@ -666,6 +667,8 @@ table.scores .meta-cell { color: var(--muted); }
 /* La rangée « date retenue » : elle passe à la ligne plutôt que de déborder. */
 #poll-day { flex: 1 1 9em; min-width: 8em; }
 #poll-hour { flex: 0 1 6em; min-width: 5em; }
+/* Le nom qui partira dans l'agenda : il prend toute la largeur qui reste. */
+#poll-title { flex: 1 1 10em; min-width: 0; }
 
 #spend-amount { flex: 0 1 7.5em; min-width: 5.5em; }
 #spend-by { flex: 1 1 6em; min-width: 0; }
@@ -1086,11 +1089,18 @@ const STRINGS = {
     'polls.date': 'La date retenue',
     'polls.hour': 'Heure',
     'polls.dateHint':
-      'Quand le sondage a tranché, notez le jour ici : il part dans les agendas. L’heure est facultative ; videz le jour pour l’enlever.',
+      'Quand le sondage a tranché, notez le jour ici : il part dans les agendas, sous le nom écrit en dessous. L’heure est facultative ; videz le jour pour l’enlever.',
+    'polls.eventName': 'Le nom dans l’agenda',
+    'polls.eventNamePlaceholder': 'Raclette, anniversaire de Léa…',
     'polls.dateKept': 'Date retenue : {day}.',
     'polls.dateCleared': 'Date enlevée.',
     'polls.settledOn': 'retenu le {day}',
     'agenda.add': 'Ajouter à l’agenda',
+    'agenda.coming': 'Ce qui vient',
+    'agenda.nothing':
+      'Rien de daté pour l’instant. Une date retenue sur un sondage, ou un jour posé sur une ligne, apparaît ici — et part dans les agendas abonnés.',
+    'agenda.late': 'en retard',
+    'agenda.more': '+ {count} autre(s), dans les agendas abonnés',
     'tab.spends': 'Dépenses',
     'spends.new': 'Nouveau compte',
     'spends.ongoing': 'En cours',
@@ -1756,11 +1766,18 @@ const STRINGS = {
     'polls.date': 'The day settled on',
     'polls.hour': 'Time',
     'polls.dateHint':
-      'Once the poll has settled it, put the day here: it goes out to calendars. The time is optional; empty the day to take it off.',
+      'Once the poll has settled it, put the day here: it goes out to calendars, under the name written below. The time is optional; empty the day to take it off.',
+    'polls.eventName': 'The name in the calendar',
+    'polls.eventNamePlaceholder': 'Raclette, Léa’s birthday…',
     'polls.dateKept': 'Settled on {day}.',
     'polls.dateCleared': 'Day taken off.',
     'polls.settledOn': 'settled on {day}',
     'agenda.add': 'Add to calendar',
+    'agenda.coming': 'What’s coming',
+    'agenda.nothing':
+      'Nothing on a day yet. A day a poll settled on, or a day put on a line, shows up here — and goes out to subscribed calendars.',
+    'agenda.late': 'overdue',
+    'agenda.more': '+ {count} more, in subscribed calendars',
     'tab.spends': 'Spending',
     'spends.new': 'New account',
     'spends.ongoing': 'Going on',
@@ -4190,6 +4207,9 @@ function createPoll({ question = '', names = [], shared = false, groupId = null 
     // "quel soir ?" and "jeudi 20 h" are one thing, asked and answered.
     date: null,
     at: null,
+    // What the event will be called in a calendar. Empty until someone writes
+    // one: eventName() proposes one from the question until they do.
+    title: null,
     shared: Boolean(shared),
     groupId: groupId || null,
     removed: {},
@@ -4214,6 +4234,18 @@ function setPollDate(poll, date, at = null) {
   const hour = day && /^\d{2}:\d{2}$/.test(String(at || '')) ? String(at) : null;
   if (day === (poll.date || null) && hour === (poll.at || null)) return poll;
   return touch(poll, { date: day, at: hour });
+}
+
+/**
+ * Name the event this poll became.
+ *
+ * Emptying the field does not leave a blank line in anyone's calendar: with no
+ * name of its own the event falls back on the one eventName() proposes from
+ * the question.
+ */
+function setEventName(poll, name) {
+  const kept = String(name || '').trim() || null;
+  return kept === (poll.title || null) ? poll : touch(poll, { title: kept });
 }
 
 /**
@@ -5174,6 +5206,65 @@ function icsFor(events, { name = 'Together' } = {}) {
 }
 
 /**
+ * What the event is called in a calendar.
+ *
+ * The question makes a poor calendar entry: "Quel soir pour la raclette ?" asks
+ * something, and once the day is settled there is nothing left to ask — there
+ * is a raclette, and it is on Friday. A name written by hand always wins; the
+ * rest is only so that, most of the time, there is nothing to write.
+ */
+function eventName(poll) {
+  if (!poll) return '';
+  const own = String(poll.title || '').trim();
+  return own || nameFromQuestion(poll.question || '');
+}
+
+/**
+ * The turns of phrase a date gets asked in, and the thing left over once the
+ * date is known.
+ *
+ * Deliberately timid: each one only fires when what follows is a thing — an
+ * article and then a noun. "Quand est-ce qu'on mange ?" leaves a verb behind,
+ * and "Mange" is a worse entry than the question itself, so it is left alone.
+ * Whatever is not recognised comes back whole, and the field sits in plain
+ * sight to be corrected.
+ */
+const THING = "(?:la|le|les|l['’]|une|un|des|du)\\s+\\S";
+const ASKINGS = [
+  // "Quel soir pour la raclette ?", "Quelle date pour l'anniversaire de Léa ?"
+  /^quel(?:le)?s?\s+\S+\s+pour\s+(.+)$/i,
+  // "Quand fait-on la raclette ?", "Quand est-ce qu'on fait la crémaillère ?"
+  new RegExp(`^quand\\s+(?:est-ce\\s+qu['’]on|fait-on|faisons-nous|on)\\s+(?:\\S+\\s+)?(${THING}.*)$`, 'i'),
+  // "On fait la raclette quand ?"
+  new RegExp(`^on\\s+(?:\\S+\\s+){1,2}?(${THING}.*?)\\s+(?:quand|quel(?:le)?s?\\s+\\S+)$`, 'i'),
+  // "When for the barbecue?", "What day for the picnic?"
+  /^(?:when|what\s+\S+|which\s+\S+)\s+for\s+(.+)$/i,
+];
+
+/**
+ * The articles one does not put at the head of a calendar entry. Longest
+ * first: an alternation takes the first branch that fits, so "le" before
+ * "les" would leave an "s" behind.
+ */
+const ARTICLE = /^(?:de\s+la|de\s+l['’]|des|du|de|les|la|le|l['’]|une|un|the|an|a)\s*/i;
+
+function nameFromQuestion(question) {
+  const asked = String(question || '')
+    .trim()
+    .replace(/\s*[?？]+\s*$/, '')
+    .trim();
+  if (!asked) return '';
+
+  const matched = ASKINGS.map((pattern) => pattern.exec(asked)).find(Boolean);
+  const kept = (matched ? matched[1] : asked).trim().replace(ARTICLE, '').trim();
+
+  // Nothing recognisable under the turn of phrase: the whole question beats an
+  // empty name.
+  if (!kept) return asked;
+  return kept.charAt(0).toUpperCase() + kept.slice(1);
+}
+
+/**
  * What a poll has settled, as an event — or nothing, while it has settled
  * nothing. A poll with no day is a question, not an appointment.
  */
@@ -5181,9 +5272,13 @@ function pollEvent(poll, { stamp } = {}) {
   if (!poll || !poll.date) return null;
   return {
     uid: `${poll.id}@together`,
+    // Not written into the file — carried so that whatever shows the agenda can
+    // send someone back to the thing the day came from.
+    kind: 'poll',
+    docId: poll.id,
     day: poll.date,
     at: poll.at || null,
-    summary: poll.question || 'Sondage',
+    summary: eventName(poll) || 'Sondage',
     description: poll.people?.length ? poll.people.map((person) => person.name).join(', ') : '',
     stamp: stamp ?? poll.updatedAt ?? Date.now(),
   };
@@ -5196,6 +5291,8 @@ function listEvents(list, { stamp } = {}) {
     .filter((item) => item.due && !item.done)
     .map((item) => ({
       uid: `${item.id}@together`,
+      kind: 'list',
+      docId: list.id,
       day: item.due,
       at: null,
       summary: item.text,
@@ -6548,6 +6645,24 @@ function formatDay(day) {
   }
 }
 
+/**
+ * A day in an agenda: the weekday matters as much as the number, since "jeudi"
+ * is how anyone actually holds a date in their head.
+ */
+function formatDayLong(day) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return String(day || '');
+  try {
+    return new Date(year, month - 1, date).toLocaleDateString(getLanguage(), {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return formatDay(day);
+  }
+}
+
 function formatDate(timestamp) {
   try {
     return new Date(timestamp).toLocaleDateString(getLanguage(), {
@@ -6771,6 +6886,11 @@ function pollView(poll) {
         <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
         <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
         <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+      </div>
+      <div class="row">
+        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
+        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
+               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
         <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
       </div>
       ${
@@ -6999,7 +7119,10 @@ function bindPoll(poll) {
   view.querySelector('#poll-date-save')?.addEventListener('click', () => {
     const day = view.querySelector('#poll-day').value;
     const hour = view.querySelector('#poll-hour').value;
-    const next = setPollDate(poll, day, hour);
+    const written = view.querySelector('#poll-title').value;
+    // Le nom proposé n'est pas un nom choisi : ne le garder que s'il a bougé.
+    const named = written.trim() === eventName(poll) ? poll : setEventName(poll, written);
+    const next = setPollDate(named, day, hour);
     flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
     replacePoll(next);
   });
@@ -7007,7 +7130,8 @@ function bindPoll(poll) {
   view.querySelector('#poll-ics')?.addEventListener('click', () => {
     const event = pollEvent(poll);
     if (!event) return;
-    download(`${fileName(pollTitle(poll))}.ics`, icsFor([event], { name: pollTitle(poll) }), 'text/calendar');
+    const named = eventName(poll) || pollTitle(poll);
+    download(`${fileName(named)}.ics`, icsFor([event], { name: named }), 'text/calendar');
   });
 
   view.querySelector('#poll-archive')?.addEventListener('click', () => {
@@ -8282,6 +8406,46 @@ function gameCardHtml(game) {
  * the three, so that opening the app answers "where were we" before it asks
  * anything.
  */
+/**
+ * What is coming: the days this group's polls settled on, and the lines that
+ * are due on one, in the order they will happen.
+ *
+ * Built from the very same agendaFor() the .ics is built from, so what shows
+ * here and what a subscribed calendar receives cannot drift apart. Overdue
+ * lines come first: a day that has passed is the one thing worth looking at
+ * before the ones that have not.
+ */
+function comingHtml() {
+  const today = dayNow();
+  const events = agendaFor({ lists: shownDocs(state.lists), polls: shownDocs(state.polls) });
+  const late = events.filter((event) => event.day < today);
+  const coming = events.filter((event) => event.day >= today);
+
+  if (!events.length) {
+    return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>`;
+  }
+
+  const shown = [...late.slice(-3), ...coming.slice(0, 8)];
+  const hidden = events.length - shown.length;
+
+  const row = (event) => {
+    const overdue = event.day < today;
+    const when = [formatDayLong(event.day), event.at].filter(Boolean).join(' · ');
+    return `
+      <button type="button" class="game-card" data-goto="#/${event.kind === 'poll' ? 'poll' : 'list'}/${escapeHtml(event.docId)}">
+        <span class="game-card__title">
+          ${escapeHtml(event.summary)}
+          ${overdue ? `<span class="pill pill--late">${escapeHtml(t('agenda.late'))}</span>` : ''}
+        </span>
+        <span class="game-card__meta">${escapeHtml(when)}${event.description ? ` · ${escapeHtml(event.description)}` : ''}</span>
+      </button>`;
+  };
+
+  return `
+    <div class="game-list">${shown.map(row).join('')}</div>
+    ${hidden > 0 ? `<p class="muted small">${escapeHtml(t('agenda.more', { count: hidden }))}</p>` : ''}`;
+}
+
 function pendingHtml() {
   const lines = [];
 
@@ -8710,6 +8874,13 @@ function overviewView() {
     </div>
 
     ${byGroupHtml()}
+
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('agenda.coming'))}</h2>
+      </div>
+      ${comingHtml()}
+    </section>
 
     <section class="section">
       <div class="section__head">
