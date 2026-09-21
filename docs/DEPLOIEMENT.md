@@ -1056,6 +1056,122 @@ $$;
 -- Qui est dans le groupe : une ligne par appareil, pour la clé qui admet. La
 -- ligne de l'appareil qui demande est signalée, pour qu'il ne se coupe pas
 -- lui-même sans le savoir.
+-- ----------------------------------------------------------------- agenda ---
+-- L'agenda du groupe : une adresse à laquelle les agendas s'abonnent.
+--
+-- Un jeton par groupe, tiré à la demande et révocable. Qui tient l'adresse voit
+-- ce que le groupe a mis sur un jour — et rien d'autre : ni les scores, ni qui
+-- a coché quoi, ni aucune clé. C'est une adresse à partager en famille, pas à
+-- publier.
+alter table public.marque_points_group add column if not exists calendar text;
+
+create unique index if not exists marque_points_group_calendar
+  on public.marque_points_group (calendar) where calendar is not null;
+
+-- Le jeton de ce groupe, fabriqué la première fois qu'on le demande. N'importe
+-- quelle clé du groupe peut l'obtenir : l'agenda est celui de tout le monde.
+create or replace function public.marque_points_calendar(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_token text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if v_group is null then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  select g.calendar into v_token from public.marque_points_group g where g.id = v_group;
+  if v_token is null then
+    v_token := replace(gen_random_uuid()::text, '-', '');
+    update public.marque_points_group set calendar = v_token where id = v_group;
+  end if;
+
+  return jsonb_build_object('status', 'ok', 'token', v_token,
+    'name', (select name from public.marque_points_group where id = v_group));
+end;
+$$;
+
+-- Couper l'adresse : les agendas déjà abonnés cessent de recevoir quoi que ce
+-- soit. En redemander une en fabrique une autre, sans rapport avec l'ancienne.
+create or replace function public.marque_points_forget_calendar(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if v_group is null then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  update public.marque_points_group set calendar = null where id = v_group;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Ce que la fonction « agenda » lit pour écrire le fichier .ics : les listes et
+-- les sondages de ce groupe, et rien de plus. Les parties n'ont pas de date à
+-- donner, et n'ont donc rien à faire ici.
+--
+-- Un jeton inventé est compté comme un code d'invitation inventé : au bout de
+-- vingt essais ratés en dix minutes, la fonction ne répond plus qu'« occupé ».
+create or replace function public.marque_points_agenda(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group public.marque_points_group;
+  v_misses integer;
+begin
+  delete from public.marque_points_join_miss where at < now() - interval '1 hour';
+
+  select count(*) into v_misses
+    from public.marque_points_join_miss
+   where name = '' and at > now() - interval '10 minutes';
+  if v_misses >= 20 then
+    return jsonb_build_object('status', 'busy');
+  end if;
+
+  select g.* into v_group
+    from public.marque_points_group g
+   where g.calendar is not null and g.calendar = coalesce(p_token, '');
+
+  if not found then
+    insert into public.marque_points_join_miss (name) values ('');
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'status', 'ok',
+    'name', v_group.name,
+    'docs', coalesce((
+      select jsonb_agg(g.data)
+        from public.marque_points_games g
+       where g.group_id = v_group.id
+         and g.code_hash is null
+         and g.data->>'kind' in ('list', 'poll')
+    ), '[]'::jsonb));
+end;
+$$;
+
+grant execute on function public.marque_points_calendar(text) to anon, authenticated;
+grant execute on function public.marque_points_forget_calendar(text) to anon, authenticated;
+grant execute on function public.marque_points_agenda(text) to anon, authenticated;
+
 create or replace function public.marque_points_group_keys(p_key text)
 returns jsonb
 language plpgsql
@@ -1862,6 +1978,84 @@ garde-fous —, la sortie est mécanique :
 > publiée pendant que l'app tourne qui est prise, rechargement unique, ancien
 > cache remplacé — et reposent sur des mécanismes standard, mais WebKit a ses
 > propres habitudes.
+
+## Étape 8 — L'agenda (facultatif)
+
+Une fois posée, cette étape donne au groupe **une adresse à laquelle les
+agendas s'abonnent** : les dates retenues sur les sondages et les lignes qui
+portent un jour apparaissent dans l'agenda de chacun, sans rien faire de plus.
+
+Elle est **facultative**. Sans elle, tout le reste marche ; seuls les boutons
+*L'agenda du groupe* et *Couper l'adresse* répondront « cette base ne sait pas
+encore servir d'agenda ». Le bouton **Ajouter à l'agenda**, lui, marche déjà :
+il télécharge un fichier `.ics`, sans passer par la base.
+
+### 1. Déployer la fonction
+
+Le fichier à déployer est dans le dépôt : **`supabase/functions/agenda/index.ts`**.
+Il est construit par `npm run bundle` et tient en un seul fichier, exprès — pour
+se coller tel quel.
+
+1. Dans Supabase, **Edge Functions** → **Deploy a new function** → **Via Editor**.
+2. Nommez-la **`agenda`**, exactement. L'adresse en dépend.
+3. Collez le contenu de `index.ts` à la place de ce que l'éditeur propose.
+4. ⚠️ **Désactivez la vérification du JWT** (*Verify JWT with legacy secret*, ou
+   *Enforce JWT Verification*, selon la version de l'écran). C'est le point qui
+   casse tout : un agenda qui s'abonne ne peut envoyer aucun en-tête, donc une
+   fonction qui exige un JWT lui répondra `401` — et l'agenda dira simplement
+   « impossible de s'abonner », sans autre explication.
+5. Déployez.
+
+> Avec la ligne de commande, c'est `supabase functions deploy agenda --no-verify-jwt`.
+> Attention : un redéploiement peut remettre la vérification, et l'agenda cesse
+> alors de se mettre à jour sans rien dire. Si l'abonnement tombe en panne du
+> jour au lendemain, c'est la première chose à regarder.
+
+La fonction n'a **aucune clé à configurer** : Supabase lui donne l'adresse du
+projet et la clé publique toute seule.
+
+### 2. Récupérer l'adresse, dans l'app
+
+*Aperçu* → **Mes groupes** → **L'agenda du groupe**. L'adresse ressemble à :
+
+```
+https://<votre-projet>.supabase.co/functions/v1/agenda?c=<32 caractères>
+```
+
+Elle est **fabriquée à la première demande** et reste la même ensuite.
+
+### 3. S'abonner
+
+- **iPhone / iPad** : Réglages → Calendrier → Comptes → Ajouter un compte →
+  Autre → **Ajouter un calendrier avec abonnement**, puis collez l'adresse.
+- **Mac** : Calendrier → Fichier → **Nouvel abonnement à un calendrier**.
+- **Google Agenda** (sur ordinateur) : Autres agendas → **+** → *À partir de
+  l'URL*.
+- **FamilyWall** : *Ajouter un calendrier externe par URL* — **réservé à
+  l'abonnement payant**, et leur documentation annonce un rafraîchissement
+  toutes les trois heures environ, parfois plus de vingt-quatre. Les agendas
+  d'Apple et de Google relisent en quinze à soixante minutes : si le but est que
+  tout le monde voie la date vite, l'abonnement direct vaut mieux que le détour.
+
+### Ce que l'adresse donne, et ce qu'elle ne donne pas
+
+- Elle donne **les dates** : les sondages qui en ont retenu une, et les lignes
+  qui portent un jour et ne sont pas cochées. Rien d'autre — ni les scores, ni
+  qui a coché quoi, ni aucune clé.
+- **Qui tient l'adresse voit ces dates**, sans rien d'autre à fournir : c'est
+  une adresse à envoyer à la famille, pas à publier. Elle se coupe depuis l'app
+  (*Couper l'adresse*), ce qui arrête d'un coup tous les agendas abonnés ; en
+  redemander une en fabrique une autre, sans rapport avec la première.
+- Les archives et les modèles n'y sont pas : l'agenda est pour ce qui vient.
+- **La synchronisation ne va que dans un sens.** Ce qui est écrit dans l'agenda
+  de quelqu'un ne revient jamais dans l'app.
+- Un jeton inventé est freiné comme un code d'invitation inventé : vingt essais
+  ratés en dix minutes, et la fonction répond « occupé » un moment.
+
+> Ce que je n'ai pas pu éprouver : **le déploiement lui-même**, ni aucun agenda
+> réel. La fonction et son SQL sont vérifiés ici — sur PostgreSQL 16 pour la
+> base, et sur le fichier produit pour la fonction — mais ni Supabase, ni iOS,
+> ni FamilyWall ne sont joignables depuis là où je travaille.
 
 ## Ce que ce montage implique
 

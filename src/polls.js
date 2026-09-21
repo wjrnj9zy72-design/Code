@@ -31,6 +31,11 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
     peopleAt: now,
     closedAt: null,
     archivedAt: null,
+    // What the question settled on, once it has: a day, and an hour when one
+    // was agreed. Kept on the poll rather than in a document of its own —
+    // "quel soir ?" and "jeudi 20 h" are one thing, asked and answered.
+    date: null,
+    at: null,
     shared: Boolean(shared),
     groupId: groupId || null,
     removed: {},
@@ -42,6 +47,19 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
     // { "personId|optionId": { v: 'yes' | 'maybe' | 'no', at } }
     votes: {},
   };
+}
+
+/**
+ * Keep the day the question settled on — and the hour, when there is one.
+ *
+ * A day alone, like a line's, needs no time zone; an hour is written as the
+ * reader's own clock. Either can be dropped by passing nothing.
+ */
+export function setPollDate(poll, date, at = null) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : null;
+  const hour = day && /^\d{2}:\d{2}$/.test(String(at || '')) ? String(at) : null;
+  if (day === (poll.date || null) && hour === (poll.at || null)) return poll;
+  return touch(poll, { date: day, at: hour });
 }
 
 /**

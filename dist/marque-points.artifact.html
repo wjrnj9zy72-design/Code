@@ -1041,6 +1041,23 @@ const STRINGS = {
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} ligne(s) à faire',
     'lists.late': '{count} en retard',
+    'polls.date': 'La date retenue',
+    'polls.hour': 'Heure',
+    'polls.dateHint':
+      'Quand le sondage a tranché, notez le jour ici : il part dans les agendas. L’heure est facultative ; videz le jour pour l’enlever.',
+    'polls.dateKept': 'Date retenue : {day}.',
+    'polls.dateCleared': 'Date enlevée.',
+    'polls.settledOn': 'retenu le {day}',
+    'agenda.add': 'Ajouter à l’agenda',
+    'agenda.group': 'L’agenda du groupe',
+    'agenda.title': 'L’agenda de {name}',
+    'agenda.hint':
+      'Collez cette adresse dans votre agenda — « s’abonner à un calendrier » — et les dates retenues et les lignes datées du groupe s’y afficheront toutes seules. Qui tient l’adresse voit ces dates : à partager en famille, pas à publier. Les agendas relisent quand ils veulent : comptez quelques heures.',
+    'agenda.cut': 'Couper l’adresse',
+    'agenda.confirmCut':
+      'Couper l’adresse de l’agenda ? Les agendas déjà abonnés cessent de recevoir quoi que ce soit. Vous pourrez en fabriquer une autre, sans rapport avec celle-ci.',
+    'agenda.cutDone': 'Adresse coupée. Les agendas abonnés ne reçoivent plus rien.',
+    'agenda.none': 'Cette base ne sait pas encore servir d’agenda. Voir le guide, étape 8.',
     'lists.dueOn': 'le {day}',
     'lists.lateOn': 'en retard depuis le {day}',
     'lists.due': 'Pour quand ?',
@@ -1648,6 +1665,23 @@ const STRINGS = {
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} line(s) left',
     'lists.late': '{count} overdue',
+    'polls.date': 'The day settled on',
+    'polls.hour': 'Time',
+    'polls.dateHint':
+      'Once the poll has settled it, put the day here: it goes out to calendars. The time is optional; empty the day to take it off.',
+    'polls.dateKept': 'Settled on {day}.',
+    'polls.dateCleared': 'Day taken off.',
+    'polls.settledOn': 'settled on {day}',
+    'agenda.add': 'Add to calendar',
+    'agenda.group': 'The group’s calendar',
+    'agenda.title': '{name}’s calendar',
+    'agenda.hint':
+      'Paste this address into your calendar — “subscribe to a calendar” — and the group’s settled dates and dated lines appear there on their own. Whoever holds the address sees those dates: share it with the family, do not publish it. Calendars refresh when they feel like it: count a few hours.',
+    'agenda.cut': 'Cut the address',
+    'agenda.confirmCut':
+      'Cut the calendar address? Calendars already subscribed stop receiving anything. You can make another one, unrelated to this.',
+    'agenda.cutDone': 'Address cut. Subscribed calendars receive nothing more.',
+    'agenda.none': 'This database cannot serve a calendar yet. See the guide, step 8.',
     'lists.dueOn': 'on {day}',
     'lists.lateOn': 'overdue since {day}',
     'lists.due': 'For when?',
@@ -4017,6 +4051,11 @@ function createPoll({ question = '', names = [], shared = false, groupId = null 
     peopleAt: now,
     closedAt: null,
     archivedAt: null,
+    // What the question settled on, once it has: a day, and an hour when one
+    // was agreed. Kept on the poll rather than in a document of its own —
+    // "quel soir ?" and "jeudi 20 h" are one thing, asked and answered.
+    date: null,
+    at: null,
     shared: Boolean(shared),
     groupId: groupId || null,
     removed: {},
@@ -4028,6 +4067,19 @@ function createPoll({ question = '', names = [], shared = false, groupId = null 
     // { "personId|optionId": { v: 'yes' | 'maybe' | 'no', at } }
     votes: {},
   };
+}
+
+/**
+ * Keep the day the question settled on — and the hour, when there is one.
+ *
+ * A day alone, like a line's, needs no time zone; an hour is written as the
+ * reader's own clock. Either can be dropped by passing nothing.
+ */
+function setPollDate(poll, date, at = null) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : null;
+  const hour = day && /^\d{2}:\d{2}$/.test(String(at || '')) ? String(at) : null;
+  if (day === (poll.date || null) && hour === (poll.at || null)) return poll;
+  return touch(poll, { date: day, at: hour });
 }
 
 /**
@@ -4526,6 +4578,172 @@ function personFile({ lists = [], polls = [], games = [] } = {}, who, today = da
       votes: votes.filter((row) => !row.closed && !row.answered).length,
     },
   };
+}
+
+  // ---- src/ics.js ------------------------------------------------------
+/**
+ * The calendar file: what the app has settled, in the one format every
+ * calendar on earth already reads.
+ *
+ * iCalendar (RFC 5545) is written by hand here, like the .docx and the .pdf,
+ * for the same reason: it is a text format with a handful of rules, and a
+ * dependency would weigh more than the rules do.
+ *
+ * Two kinds of thing end up in it — a poll that has settled on a day, and a
+ * line that is due on one. Both are days rather than instants, so both are
+ * all-day events unless an hour was given; a day carries no time zone, which
+ * is exactly why a family calendar can be read from anywhere without anything
+ * moving.
+ *
+ * Pure: documents in, one string out.
+ */
+
+/** The characters iCalendar reserves inside a value. */
+function icsEscape(text) {
+  return String(text ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+/**
+ * Lines are folded at 75 octets — octets, not characters: an accented letter
+ * weighs two, and a fold counted in characters splits one of them in half and
+ * hands the calendar a broken file. The continuation starts with one space.
+ */
+function foldLine(line) {
+  const bytes = new TextEncoder().encode(String(line));
+  if (bytes.length <= 75) return String(line);
+
+  const parts = [];
+  let start = 0;
+  let limit = 75;
+  while (start < bytes.length) {
+    let end = Math.min(start + limit, bytes.length);
+    // Never cut inside a character: continuation bytes are 10xxxxxx.
+    while (end > start && end < bytes.length && (bytes[end] & 0b1100_0000) === 0b1000_0000) end -= 1;
+    parts.push(new TextDecoder().decode(bytes.slice(start, end)));
+    start = end;
+    // Every line after the first carries a leading space of its own.
+    limit = 74;
+  }
+  return parts.join('\r\n ');
+}
+
+/** `AAAA-MM-JJ` as iCalendar writes a day: `AAAAMMJJ`. */
+function stampDay(day) {
+  return String(day || '').replace(/-/g, '');
+}
+
+/** The day after, which is where an all-day event ends: DTEND is exclusive. */
+function dayAfter(day) {
+  const [year, month, date] = String(day).split('-').map(Number);
+  const next = new Date(Date.UTC(year, month - 1, date + 1));
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${next.getUTCFullYear()}${pad(next.getUTCMonth() + 1)}${pad(next.getUTCDate())}`;
+}
+
+/** An instant, in the UTC form iCalendar uses for DTSTAMP. */
+function stampNow(at) {
+  return new Date(at).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+/**
+ * One event.
+ *
+ * With an hour, the time is written without a zone — "floating" local time,
+ * which every calendar reads as the reader's own clock. A dinner at eight is
+ * at eight; carrying a time zone would only be right until someone travels.
+ */
+function vevent({ uid, day, at = null, summary, description = '', stamp = Date.now() }) {
+  const lines = [
+    'BEGIN:VEVENT',
+    `UID:${icsEscape(uid)}`,
+    `DTSTAMP:${stampNow(stamp)}`,
+  ];
+
+  if (at) {
+    const [hour, minute] = String(at).split(':');
+    const end = String(Number(hour) + 1).padStart(2, '0');
+    lines.push(`DTSTART:${stampDay(day)}T${hour}${minute}00`);
+    lines.push(`DTEND:${stampDay(day)}T${end}${minute}00`);
+  } else {
+    lines.push(`DTSTART;VALUE=DATE:${stampDay(day)}`);
+    lines.push(`DTEND;VALUE=DATE:${dayAfter(day)}`);
+  }
+
+  lines.push(`SUMMARY:${icsEscape(summary)}`);
+  if (description) lines.push(`DESCRIPTION:${icsEscape(description)}`);
+  lines.push('END:VEVENT');
+  return lines;
+}
+
+/**
+ * A whole calendar. CRLF between lines, and a trailing one: readers are
+ * forgiving about it, and the specification is not.
+ */
+function icsFor(events, { name = 'Together' } = {}) {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Together//Calendrier//FR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${icsEscape(name)}`,
+    ...events.flatMap((event) => vevent(event)),
+    'END:VCALENDAR',
+  ];
+  return `${lines.map(foldLine).join('\r\n')}\r\n`;
+}
+
+/**
+ * What a poll has settled, as an event — or nothing, while it has settled
+ * nothing. A poll with no day is a question, not an appointment.
+ */
+function pollEvent(poll, { stamp } = {}) {
+  if (!poll || !poll.date) return null;
+  return {
+    uid: `${poll.id}@together`,
+    day: poll.date,
+    at: poll.at || null,
+    summary: poll.question || 'Sondage',
+    description: poll.people?.length ? poll.people.map((person) => person.name).join(', ') : '',
+    stamp: stamp ?? poll.updatedAt ?? Date.now(),
+  };
+}
+
+/** Every line of a list that is due on a day, each on its day. */
+function listEvents(list, { stamp } = {}) {
+  if (!list || !Array.isArray(list.items)) return [];
+  return list.items
+    .filter((item) => item.due && !item.done)
+    .map((item) => ({
+      uid: `${item.id}@together`,
+      day: item.due,
+      at: null,
+      summary: item.text,
+      description: [list.name, list.people?.find((person) => person.id === item.who)?.name]
+        .filter(Boolean)
+        .join(' · '),
+      stamp: stamp ?? item.updatedAt ?? Date.now(),
+    }));
+}
+
+/**
+ * Everything one group has put on a day: its settled polls, then the lines
+ * still to do. Archived documents and models are left out — the calendar is
+ * for what is still coming, not for what has been put away.
+ */
+function agendaFor({ lists = [], polls = [] } = {}, groupId = '') {
+  const mine = (document_) => (groupId ? document_.groupId === groupId : true);
+  const live = (document_) => !document_.archivedAt && !document_.template;
+
+  const events = [
+    ...polls.filter((poll) => mine(poll) && live(poll)).map((poll) => pollEvent(poll)).filter(Boolean),
+    ...lists.filter((list) => mine(list) && live(list)).flatMap((list) => listEvents(list)),
+  ];
+  return events.sort((a, b) => a.day.localeCompare(b.day) || a.summary.localeCompare(b.summary));
 }
 
   // ---- src/recap.js ----------------------------------------------------
@@ -5333,6 +5551,35 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
       return { status: status === 'busy' ? 'busy' : 'unknown' };
     },
 
+    /**
+     * The group's calendar address, made the first time it is asked for.
+     *
+     * One per group, and any key of the group may have it: the calendar is
+     * everyone's. Returns { status: 'ok', token, name } | { status: 'unknown' }.
+     */
+    async calendar(key) {
+      const answer = await call('marque_points_calendar', { p_key: key });
+      if (answer?.status === 'ok' && typeof answer.token === 'string') {
+        return { status: 'ok', token: answer.token, name: answer.name || '' };
+      }
+      return { status: 'unknown' };
+    },
+
+    /** Cut the calendar address: every subscribed calendar stops. 'ok' | 'unknown'. */
+    async forgetCalendar(key) {
+      const answer = await call('marque_points_forget_calendar', { p_key: key });
+      return answer?.status === 'ok' ? 'ok' : 'unknown';
+    },
+
+    /**
+     * Where that token is served. The function lives beside the database, at
+     * the project's own address — the same one the app already talks to, minus
+     * the REST path it was given with.
+     */
+    calendarUrl(token) {
+      return `${base}/functions/v1/agenda?c=${encodeURIComponent(token)}`;
+    },
+
     /** Cut a person's return link. Returns 'ok' | 'unknown'. */
     async forgetLink(key, person) {
       const answer = await call('marque_points_forget_link', { p_key: key, p_person: person });
@@ -5700,6 +5947,7 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
@@ -5870,7 +6118,11 @@ function pollCardHtml(poll) {
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
-      <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(poll.updatedAt))}${
+          poll.date ? ` — ${escapeHtml(t('polls.settledOn', { day: formatDay(poll.date) }))}` : ''
+        }
+      </span>
     </button>`;
 }
 
@@ -6007,6 +6259,28 @@ function pollView(poll) {
            </div>`
         : ''
     }
+
+    <section class="card stack stack--tight">
+      <div class="section__head">
+        <h2>${escapeHtml(t('polls.date'))}</h2>
+        ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
+      </div>
+      <p class="muted small">${escapeHtml(t('polls.dateHint'))}</p>
+      <div class="row row--tight">
+        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
+        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
+        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
+        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+      ${
+        poll.date
+          ? `<div class="row">
+               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
+             </div>`
+          : ''
+      }
+    </section>
 
     ${
       poll.options.length && poll.people.length
@@ -6200,6 +6474,20 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-date-save')?.addEventListener('click', () => {
+    const day = view.querySelector('#poll-day').value;
+    const hour = view.querySelector('#poll-hour').value;
+    const next = setPollDate(poll, day, hour);
+    flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
+    replacePoll(next);
+  });
+
+  view.querySelector('#poll-ics')?.addEventListener('click', () => {
+    const event = pollEvent(poll);
+    if (!event) return;
+    download(`${fileName(pollTitle(poll))}.ics`, icsFor([event], { name: pollTitle(poll) }), 'text/calendar');
   });
 
   view.querySelector('#poll-archive')?.addEventListener('click', () => {
@@ -7085,6 +7373,12 @@ function groupsHtml() {
                                ${escapeHtml(t('back.myLink'))}
                              </button>`
                       }
+                      <button type="button" class="button button--small button--ghost" data-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.group'))}
+                      </button>
+                      <button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.cut'))}
+                      </button>
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -7674,6 +7968,42 @@ function bindOverview() {
     });
   });
 
+  view.querySelectorAll('[data-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.calendar);
+      if (!group) return;
+      // Disabled while the database is asked, and given back afterwards: the
+      // dialog that opens does not redraw the page behind it, so a button left
+      // disabled here would stay grey until something else redrew it.
+      button.disabled = true;
+      try {
+        await showCalendar(group);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  view.querySelectorAll('[data-cut-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cutCalendar);
+      if (!group) return;
+      if (!(await ask(t('agenda.confirmCut'), { confirmLabel: t('agenda.cut'), danger: true }))) return;
+      button.disabled = true;
+      let answer = 'unknown';
+      try {
+        answer = await state.remote.forgetCalendar(group.key);
+      } catch {
+        button.disabled = false;
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      flash(answer === 'ok' ? t('agenda.cutDone') : t('agenda.none'), answer === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-show-key]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.showKey);
@@ -7798,6 +8128,33 @@ async function showMyLink(group) {
     hint: t('back.linkHint'),
     text: backLink(location, answer.token),
     qr: true,
+  });
+}
+
+/**
+ * The group's calendar address: one link, which every calendar knows how to
+ * subscribe to — and which anyone holding it can read, so it is shown with
+ * what it costs, and with the way to cut it.
+ */
+async function showCalendar(group) {
+  let answer = { status: 'unknown' };
+  try {
+    answer = await state.remote.calendar(group.key);
+  } catch {
+    flash(t('groups.unsure'), 'error');
+    render();
+    return;
+  }
+  if (answer.status !== 'ok') {
+    flash(t('agenda.none'), 'error');
+    render();
+    return;
+  }
+
+  showCopyDialog({
+    title: t('agenda.title', { name: group.name }),
+    hint: t('agenda.hint'),
+    text: state.remote.calendarUrl(answer.token),
   });
 }
 
@@ -11163,6 +11520,15 @@ function download(filename, bytes, type) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/** A safe-ish file name from any title: letters, digits, and what joins them. */
+function fileName(title) {
+  const base = String(title || '')
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return base || 'together';
 }
 
 /** A safe-ish file name built from the game's own title. */

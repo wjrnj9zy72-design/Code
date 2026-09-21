@@ -10,6 +10,7 @@ import { recapText } from './recap.js';
 import { buildDocx } from './export-docx.js';
 import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
+import { icsFor, pollEvent, agendaFor } from './ics.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
   addListPerson, renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList,
@@ -17,7 +18,7 @@ import {
 } from './lists.js';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
-  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll,
+  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
 } from './polls.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
@@ -198,7 +199,11 @@ function pollCardHtml(poll) {
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
-      <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(poll.updatedAt))}${
+          poll.date ? ` — ${escapeHtml(t('polls.settledOn', { day: formatDay(poll.date) }))}` : ''
+        }
+      </span>
     </button>`;
 }
 
@@ -335,6 +340,28 @@ function pollView(poll) {
            </div>`
         : ''
     }
+
+    <section class="card stack stack--tight">
+      <div class="section__head">
+        <h2>${escapeHtml(t('polls.date'))}</h2>
+        ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
+      </div>
+      <p class="muted small">${escapeHtml(t('polls.dateHint'))}</p>
+      <div class="row row--tight">
+        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
+        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
+        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
+        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+      ${
+        poll.date
+          ? `<div class="row">
+               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
+             </div>`
+          : ''
+      }
+    </section>
 
     ${
       poll.options.length && poll.people.length
@@ -528,6 +555,20 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-date-save')?.addEventListener('click', () => {
+    const day = view.querySelector('#poll-day').value;
+    const hour = view.querySelector('#poll-hour').value;
+    const next = setPollDate(poll, day, hour);
+    flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
+    replacePoll(next);
+  });
+
+  view.querySelector('#poll-ics')?.addEventListener('click', () => {
+    const event = pollEvent(poll);
+    if (!event) return;
+    download(`${fileName(pollTitle(poll))}.ics`, icsFor([event], { name: pollTitle(poll) }), 'text/calendar');
   });
 
   view.querySelector('#poll-archive')?.addEventListener('click', () => {
@@ -1413,6 +1454,12 @@ function groupsHtml() {
                                ${escapeHtml(t('back.myLink'))}
                              </button>`
                       }
+                      <button type="button" class="button button--small button--ghost" data-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.group'))}
+                      </button>
+                      <button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.cut'))}
+                      </button>
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -2002,6 +2049,42 @@ function bindOverview() {
     });
   });
 
+  view.querySelectorAll('[data-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.calendar);
+      if (!group) return;
+      // Disabled while the database is asked, and given back afterwards: the
+      // dialog that opens does not redraw the page behind it, so a button left
+      // disabled here would stay grey until something else redrew it.
+      button.disabled = true;
+      try {
+        await showCalendar(group);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  view.querySelectorAll('[data-cut-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cutCalendar);
+      if (!group) return;
+      if (!(await ask(t('agenda.confirmCut'), { confirmLabel: t('agenda.cut'), danger: true }))) return;
+      button.disabled = true;
+      let answer = 'unknown';
+      try {
+        answer = await state.remote.forgetCalendar(group.key);
+      } catch {
+        button.disabled = false;
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      flash(answer === 'ok' ? t('agenda.cutDone') : t('agenda.none'), answer === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-show-key]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.showKey);
@@ -2126,6 +2209,33 @@ async function showMyLink(group) {
     hint: t('back.linkHint'),
     text: backLink(location, answer.token),
     qr: true,
+  });
+}
+
+/**
+ * The group's calendar address: one link, which every calendar knows how to
+ * subscribe to — and which anyone holding it can read, so it is shown with
+ * what it costs, and with the way to cut it.
+ */
+async function showCalendar(group) {
+  let answer = { status: 'unknown' };
+  try {
+    answer = await state.remote.calendar(group.key);
+  } catch {
+    flash(t('groups.unsure'), 'error');
+    render();
+    return;
+  }
+  if (answer.status !== 'ok') {
+    flash(t('agenda.none'), 'error');
+    render();
+    return;
+  }
+
+  showCopyDialog({
+    title: t('agenda.title', { name: group.name }),
+    hint: t('agenda.hint'),
+    text: state.remote.calendarUrl(answer.token),
   });
 }
 
@@ -5491,6 +5601,15 @@ function download(filename, bytes, type) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/** A safe-ish file name from any title: letters, digits, and what joins them. */
+function fileName(title) {
+  const base = String(title || '')
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return base || 'together';
 }
 
 /** A safe-ish file name built from the game's own title. */

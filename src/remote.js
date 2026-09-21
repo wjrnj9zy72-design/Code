@@ -215,6 +215,35 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return { status: status === 'busy' ? 'busy' : 'unknown' };
     },
 
+    /**
+     * The group's calendar address, made the first time it is asked for.
+     *
+     * One per group, and any key of the group may have it: the calendar is
+     * everyone's. Returns { status: 'ok', token, name } | { status: 'unknown' }.
+     */
+    async calendar(key) {
+      const answer = await call('marque_points_calendar', { p_key: key });
+      if (answer?.status === 'ok' && typeof answer.token === 'string') {
+        return { status: 'ok', token: answer.token, name: answer.name || '' };
+      }
+      return { status: 'unknown' };
+    },
+
+    /** Cut the calendar address: every subscribed calendar stops. 'ok' | 'unknown'. */
+    async forgetCalendar(key) {
+      const answer = await call('marque_points_forget_calendar', { p_key: key });
+      return answer?.status === 'ok' ? 'ok' : 'unknown';
+    },
+
+    /**
+     * Where that token is served. The function lives beside the database, at
+     * the project's own address — the same one the app already talks to, minus
+     * the REST path it was given with.
+     */
+    calendarUrl(token) {
+      return `${base}/functions/v1/agenda?c=${encodeURIComponent(token)}`;
+    },
+
     /** Cut a person's return link. Returns 'ok' | 'unknown'. */
     async forgetLink(key, person) {
       const answer = await call('marque_points_forget_link', { p_key: key, p_person: person });

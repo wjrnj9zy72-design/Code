@@ -148,6 +148,24 @@ Ce qui n'y est délibérément pas : catégories, échéances, récurrences, cha
   l'onglet. Ce qui est archivé reste dans l'histoire — les statistiques et les
   parties passées d'une personne le gardent.
 
+## Ce que ça fait — l'agenda
+
+Un sondage qui a tranché retient **la date**, et l'heure si vous en voulez une.
+De là, deux chemins vers les vrais agendas :
+
+- **Ajouter à l'agenda** télécharge un fichier `.ics` — l'événement s'ouvre dans
+  le calendrier du téléphone comme n'importe quelle pièce jointe. Rien à
+  déployer, ça marche tout de suite.
+- **L'agenda du groupe** donne une **adresse d'abonnement** : collée dans
+  Calendrier, Google Agenda ou FamilyWall, elle y fait apparaître toute seules
+  les dates retenues du groupe et ses lignes datées. Elle demande la fonction
+  `agenda` déployée sur Supabase (guide, étape 8), se coupe depuis l'app, et ne
+  donne que des dates — ni scores, ni clés, ni rien d'un autre groupe.
+
+Les événements sont des **journées**, pas des instants, sauf si une heure a été
+donnée ; et une heure est écrite sans fuseau, donc vingt heures reste vingt
+heures où qu'on la lise.
+
 ## Ce que ça fait — onglet Sondages
 
 Une question, des choix, et une grille : **une réponse par personne et par
@@ -316,6 +334,8 @@ src/helpers.js    arithmétique du compteur de cartes
 src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
 src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
+src/ics.js        l'écriture des fichiers .ics (iCalendar, à la main)
+supabase/functions/agenda/  la fonction qui sert l'agenda d'un groupe
 src/recap.js      le récapitulatif texte d'une partie
 src/export-docx.js  génération du .docx (zip et XML écrits à la main)
 src/export-pdf.js   génération du .pdf (objets et table de références)
