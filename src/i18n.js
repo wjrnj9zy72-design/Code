@@ -125,6 +125,12 @@ export const STRINGS = {
     'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} ligne(s) à faire',
+    'browser.inApp':
+      'Vous êtes dans le navigateur intégré de {app}. Ce que vous faites ici n’y restera : Safari, à côté, ne verra rien — et on ne peut pas ajouter l’app à l’écran d’accueil depuis ici. Ouvrez ce lien dans Safari (appui long sur le lien → Ouvrir dans Safari), puis entrez dans le groupe là-bas.',
+    'browser.copyLink': 'Copier ce lien',
+    'browser.copyTitle': 'Le lien de cette page',
+    'browser.copyHint':
+      'Collez-le dans Safari, puis entrez dans le groupe depuis là : c’est ce navigateur-là qui gardera votre place, et c’est de là qu’on ajoute l’app à l’écran d’accueil.',
     'groups.title': 'Mes groupes',
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
@@ -657,6 +663,12 @@ export const STRINGS = {
     'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} line(s) left',
+    'browser.inApp':
+      'You are in {app}\'s built-in browser. What you do here stays here: Safari next door will see nothing of it — and an app cannot be added to the home screen from in here. Open this link in Safari (long-press the link → Open in Safari), and join the group there.',
+    'browser.copyLink': 'Copy this link',
+    'browser.copyTitle': 'This page\'s link',
+    'browser.copyHint':
+      'Paste it into Safari and join the group from there: that browser is the one that will keep your place, and the one an app is added to the home screen from.',
     'groups.title': 'My groups',
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',

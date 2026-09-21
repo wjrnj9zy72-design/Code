@@ -1494,6 +1494,26 @@ l'Aperçu sous *Données*. Sa clé, elle, n'a jamais cessé d'être valable. Sur
 appareil, celui qui tient la clé qui fait entrer, le même message renvoie au bloc
 SQL, puisque c'est vous qui pouvez le lancer.
 
+### Le piège du navigateur de Messenger
+
+Un lien d'invitation voyage par message — donc il s'ouvre le plus souvent **dans
+le navigateur intégré de l'app de messagerie**, pas dans Safari. Or ces
+navigateurs gardent leurs fichiers et leur stockage pour eux : entrer dans le
+groupe depuis là, c'est y entrer **là seulement**. Safari, à côté, n'en saura
+rien, et on ne peut même pas ajouter l'app à l'écran d'accueil depuis ces
+navigateurs.
+
+L'app le dit désormais elle-même : quand elle tourne dans le navigateur de
+Messenger, Instagram, Facebook, WhatsApp et quelques autres, la page d'entrée et
+l'Aperçu affichent un avertissement, avec un bouton **Copier ce lien** pour le
+coller dans Safari. Rien n'est bloqué — l'avertissement conseille, il n'empêche
+pas — parce que la détection se fait sur la signature du navigateur, ce qui est
+une heuristique et jamais une certitude.
+
+Le bon ordre, à dire une fois à la personne : **ouvrir le lien dans Safari**
+(appui long sur le lien → *Ouvrir dans Safari*), entrer dans le groupe là, **puis**
+ajouter l'app à l'écran d'accueil et y entrer aussi — avec sa clé, c'est immédiat.
+
 ### L'app de l'écran d'accueil est un deuxième appareil
 
 Ajouter l'app à l'écran d'accueil depuis Safari crée une **installation à part** :

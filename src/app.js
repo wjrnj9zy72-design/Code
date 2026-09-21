@@ -3,7 +3,7 @@
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
 import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
-import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry } from './helpers.js';
+import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry , inAppBrowser } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
 import { presetsPlayed, statsFor, sameName } from './stats.js';
 import { recapText } from './recap.js';
@@ -1264,6 +1264,7 @@ function groupsHtml() {
               )
               .join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('groups.none'))}</p>
+             ${inAppWarningHtml()}
              ${
                // An app added to the home screen keeps its own files and its own
                // storage: it is a second device, not the same one, and the first
@@ -1403,6 +1404,7 @@ function overviewView() {
 
 function bindOverview() {
   bindData();
+  bindInAppWarning();
 
   view.querySelector('#me-save')?.addEventListener('click', () => {
     const name = setMyName(view.querySelector('#me-name').value);
@@ -1731,6 +1733,8 @@ function joinView(invitation) {
       </button>
     </div>
 
+    ${inAppWarningHtml()}
+
     <form id="join-form" class="card stack">
       <p class="muted small">${escapeHtml(already ? t('join.already', { name: already.name }) : t('join.hint'))}</p>
       <label>
@@ -1851,6 +1855,7 @@ function leaveInvitation() {
 let knocking = false;
 
 function bindJoin() {
+  bindInAppWarning();
   const waitingLine = view.querySelector('#waiting-state');
   if (waitingLine) {
     const knock = pendingFor(route().group);
@@ -3175,6 +3180,33 @@ function offerMeInForms() {
  * travels beside it, and the database puts the two together, so a line reads
  * "Alice · écran d'accueil · 20 sept. 2026" and never "Alice · Alice · …".
  */
+/**
+ * The warning to show someone reading this inside Messenger, Instagram or the
+ * like: what they do here stays here. It is the most likely way to arrive, since
+ * the invitation travels by message — and the least durable place to land.
+ */
+function inAppWarningHtml() {
+  const app = inAppBrowser(navigator.userAgent);
+  if (!app) return '';
+  return `
+    <p class="banner banner--warn">
+      ${escapeHtml(t('browser.inApp', { app }))}
+      <button type="button" class="button button--small" id="copy-here">
+        ${escapeHtml(t('browser.copyLink'))}
+      </button>
+    </p>`;
+}
+
+function bindInAppWarning() {
+  view.querySelector('#copy-here')?.addEventListener('click', () => {
+    showCopyDialog({
+      title: t('browser.copyTitle'),
+      hint: t('browser.copyHint'),
+      text: location.href,
+    });
+  });
+}
+
 /** Whether this is the app added to a home screen rather than a browser tab. */
 function onHomeScreen() {
   return Boolean(matchMedia?.('(display-mode: standalone)')?.matches || navigator.standalone);
