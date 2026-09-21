@@ -19,6 +19,7 @@ import {
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
 } from './polls.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
+import { inGroup, groupCounts, peopleIn, personFile } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
@@ -183,7 +184,7 @@ function pollCardHtml(poll) {
 }
 
 function pollsView() {
-  const sorted = [...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sorted = [...shownDocs(state.polls)].sort((a, b) => b.updatedAt - a.updatedAt);
   const open = sorted.filter((poll) => !poll.closedAt);
   const closed = sorted.filter((poll) => poll.closedAt);
 
@@ -192,6 +193,7 @@ function pollsView() {
     <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
       + ${escapeHtml(t('polls.new'))}
     </button>
+    ${groupChipsHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
@@ -754,7 +756,7 @@ function listCardHtml(list) {
 }
 
 function listsView() {
-  const sorted = [...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sorted = [...shownDocs(state.lists)].sort((a, b) => b.updatedAt - a.updatedAt);
   const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
   const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
 
@@ -763,6 +765,7 @@ function listsView() {
     <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
       + ${escapeHtml(t('lists.new'))}
     </button>
+    ${groupChipsHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
@@ -989,6 +992,11 @@ function route() {
     // and the page asks for the other rather than for both.
     return { name: 'join', code: readCode(param), group: groupSegment(hash) };
   }
+  // Someone's own page, reached from the overview. Both spellings open it: the
+  // app speaks two languages, and a link once sent is a link for ever.
+  if ((name === 'person' || name === 'personne') && param) {
+    return { name: 'person', who: personFrom(param) };
+  }
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -1000,6 +1008,15 @@ function route() {
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
   return { name: 'overview' };
+}
+
+/** The name written in `#/person/<name>`, decoded if it can be. */
+function personFrom(segment) {
+  try {
+    return decodeURIComponent(segment).trim();
+  } catch {
+    return String(segment).trim();
+  }
 }
 
 /** The group's name as written in `#/join/<code>/<name>`, decoded if it can be. */
@@ -1032,6 +1049,30 @@ function flashHtml() {
     return '';
   }
   return `<p class="banner ${kind === 'error' ? 'banner--warn' : ''}">${escapeHtml(message)}</p>`;
+}
+
+/**
+ * The group pastilles, shown above the lists, the polls and the games.
+ *
+ * From two groups on: with one, there is nothing to choose between, and a row
+ * of buttons that can only say "everything" is noise. The line under them is
+ * the same count the overview shows, for whatever is on screen.
+ */
+function groupChipsHtml() {
+  const held = groupsByName();
+  if (held.length < 2) return '';
+  const active = groupFilter();
+  const chip = (id, label) => `
+    <button type="button" class="chip ${active === id ? 'chip--on' : ''}"
+            data-group-filter="${escapeHtml(id)}" aria-pressed="${active === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
+  return `
+    <div class="row" role="group" aria-label="${escapeHtml(t('filter.by'))}">
+      ${chip('', t('filter.all'))}
+      ${held.map((group) => chip(group.id, group.name)).join('')}
+    </div>
+    <p class="muted small">${escapeHtml(t('overview.counts', groupCounts(state, active)))}</p>`;
 }
 
 function gameCardHtml(game) {
@@ -1348,6 +1389,108 @@ function meHtml() {
     </section>`;
 }
 
+/**
+ * The overview's group boards: what each group has on the go, in numbers that
+ * are also the way in — tapping one opens that tab, already on that group.
+ */
+function byGroupHtml() {
+  const held = groupsByName();
+  if (!held.length) return '';
+  return `
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('dash.byGroup'))}</h2>
+        <span class="muted small">${escapeHtml(t('dash.groupCount', { count: held.length }))}</span>
+      </div>
+      ${held.map(groupBoardHtml).join('')}
+    </section>`;
+}
+
+function groupBoardHtml(group) {
+  const counts = groupCounts(state, group.id);
+  const tile = (value, label, goto) => `
+    <button type="button" class="tile" data-group-tile="${escapeHtml(group.id)}" data-tile-goto="${goto}"
+            aria-label="${escapeHtml(`${group.name} — ${value} ${label}`)}">
+      <span class="tile__value">${value}</span>
+      <span class="tile__label">${escapeHtml(label)}</span>
+    </button>`;
+  return `
+    <div class="card stack stack--tight">
+      <div class="spread">
+        <strong>${escapeHtml(group.name)}</strong>
+        ${
+          // The key that may let people in is the one worth naming: it is the
+          // only one whose holder has anything to do when someone knocks.
+          group.admits === false
+            ? `<span class="muted small">${escapeHtml(t('dash.member'))}</span>`
+            : `<span class="pill">${escapeHtml(t('dash.gate'))}</span>`
+        }
+      </div>
+      <div class="tiles">
+        ${tile(counts.lists, t('tab.lists'), '#/lists')}
+        ${tile(counts.polls, t('tab.polls'), '#/polls')}
+        ${tile(counts.games, t('tab.games'), '#/games')}
+      </div>
+      <p class="muted small">
+        ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
+          counts.at ? ` · ${escapeHtml(formatDate(counts.at))}` : ''
+        }
+      </p>
+    </div>`;
+}
+
+/** How many names the overview lists before folding the rest away. */
+const PEOPLE_SHOWN = 12;
+
+/**
+ * Who the app knows about, and what is still waiting on each of them.
+ *
+ * Every name from every list, poll and game, me first and then alphabetical —
+ * an order that does not move under the finger, unlike one that follows who
+ * owes what.
+ */
+function whoHtml() {
+  const me = sameName(myName());
+  const names = [...peopleIn(state)].sort(
+    (a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b),
+  );
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = [
+      counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
+      counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  const shown = names.slice(0, PEOPLE_SHOWN);
+  const rest = names.slice(PEOPLE_SHOWN);
+  return `
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('dash.people'))}</h2>
+        <span class="muted small">${escapeHtml(t('dash.peopleCount', { count: names.length }))}</span>
+      </div>
+      <div class="game-list">${shown.map(row).join('')}</div>
+      ${
+        rest.length
+          ? `<details class="details">
+               <summary>${escapeHtml(t('dash.others', { count: rest.length }))}</summary>
+               <div class="game-list">${rest.map(row).join('')}</div>
+             </details>`
+          : ''
+      }
+    </section>`;
+}
+
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -1365,6 +1508,8 @@ function overviewView() {
       <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
     </div>
 
+    ${byGroupHtml()}
+
     <section class="section">
       <div class="section__head">
         <h2>${escapeHtml(t('overview.pending'))}</h2>
@@ -1372,6 +1517,8 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
+
+    ${whoHtml()}
 
     ${meHtml()}
 
@@ -2231,7 +2378,8 @@ function homeView() {
     return haystack.includes(query);
   };
 
-  const sorted = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
+  const mine = shownDocs(state.games);
+  const sorted = [...mine].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
   const ongoing = sorted.filter((game) => !gameStatus(game).finished);
   const finished = sorted.filter((game) => gameStatus(game).finished);
 
@@ -2240,8 +2388,9 @@ function homeView() {
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
+    ${groupChipsHtml()}
     ${
-      state.games.length
+      mine.length
         ? `<div class="row">
              <button type="button" class="button button--small button--ghost" data-goto="#/stats">${escapeHtml(t('action.stats'))}</button>
            </div>`
@@ -2249,7 +2398,7 @@ function homeView() {
     }
 
     ${
-      state.games.length > 4
+      mine.length > 4
         ? `<label class="visually-hidden" for="search">${escapeHtml(t('home.search'))}</label>
            <input type="text" id="search" placeholder="${escapeHtml(t('home.search'))}" value="${escapeHtml(state.search || '')}" />`
         : ''
@@ -2276,8 +2425,144 @@ function homeView() {
     `;
 }
 
+/* ---------------------------------------------------------------- person --- */
+
+/**
+ * One person's page.
+ *
+ * The three tabs answer "where is this list" and "who is winning"; none of
+ * them answers "and Claire?" — what she was given, what she has not answered,
+ * how her evenings went. That question is asked about a name, so this page is
+ * keyed on a name, matched the forgiving way the tables match it.
+ *
+ * What waits on her comes first, because it is the only part anyone can act
+ * on; the rest is what she has done, newest first.
+ */
+function personView(who) {
+  const file = personFile(state, who);
+  const head = (title, tail) => `
+    <div class="spread">
+      ${title}
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+    ${tail}`;
+
+  if (!file.known) {
+    return `
+      ${flashHtml()}
+      ${head(`<h1>${escapeHtml(file.name || who)}</h1>`, `<p class="muted small">${escapeHtml(t('person.none'))}</p>`)}`;
+  }
+
+  const inGroups = file.groupIds
+    .map((id) => groups().find((group) => group.id === id)?.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
+  const waiting = [
+    file.counts.left ? t('lists.leftToDo', { count: file.counts.left }) : '',
+    file.counts.votes ? t('dash.votes', { count: file.counts.votes }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const tile = (value, label) => `
+    <div class="tile">
+      <span class="tile__value">${value}</span>
+      <span class="tile__label">${escapeHtml(label)}</span>
+    </div>`;
+
+  const entry = (goto, what, aside, value, tone) => `
+    <button type="button" class="entry" data-goto="${goto}">
+      <span class="entry__what">
+        ${what}${aside ? ` <span class="muted small">${aside}</span>` : ''}
+      </span>
+      <span class="entry__value ${tone || ''}">${value}</span>
+    </button>`;
+
+  const section = (title, entries) =>
+    entries.length
+      ? `<section class="section card">
+           <div class="section__head"><h2>${escapeHtml(title)}</h2></div>
+           <div class="entries">${entries.join('')}</div>
+         </section>`
+      : '';
+
+  return `
+    ${flashHtml()}
+    ${head(
+      `<div class="who">
+         <span class="who__mark" aria-hidden="true">${escapeHtml([...file.name][0] || '?')}</span>
+         <span>
+           <h1>${escapeHtml(file.name)}</h1>
+           ${inGroups.length ? `<span class="muted small">${escapeHtml(inGroups.join(' · '))}</span>` : ''}
+         </span>
+       </div>`,
+      waiting ? `<p class="banner">${escapeHtml(waiting)}</p>` : '',
+    )}
+
+    <div class="tiles">
+      ${tile(file.counts.games, t('person.statGames'))}
+      ${tile(file.counts.wins, t('person.statWins'))}
+      ${tile(file.counts.left, t('person.statLines'))}
+      ${tile(file.counts.votes, t('person.statVotes'))}
+    </div>
+
+    ${section(
+      t('person.lists'),
+      file.lines.map((row) =>
+        entry(
+          `#/list/${escapeHtml(row.list.id)}`,
+          escapeHtml(listTitle(row.list)),
+          '',
+          escapeHtml(t('person.assigned', { done: row.done, total: row.total })),
+          row.left ? '' : 'entry__value--good',
+        ),
+      ),
+    )}
+
+    ${section(
+      t('person.votes'),
+      file.votes.map((row) =>
+        entry(
+          `#/poll/${escapeHtml(row.poll.id)}`,
+          escapeHtml(pollTitle(row.poll)),
+          row.closed ? escapeHtml(t('polls.closed')) : '',
+          escapeHtml(row.answered ? t('person.answered') : t('person.notAnswered')),
+          row.closed ? '' : row.answered ? 'entry__value--good' : 'entry__value--bad',
+        ),
+      ),
+    )}
+
+    ${section(
+      t('person.games'),
+      file.played
+        .slice(0, GAMES_SHOWN)
+        .map((row) =>
+          entry(
+            `#/game/${escapeHtml(row.game.id)}`,
+            escapeHtml(gameTitle(row.game)),
+            escapeHtml(formatDate(row.game.updatedAt)),
+            escapeHtml(
+              row.won
+                ? t('person.won', { total: row.total })
+                : t('person.rank', { rank: row.rank, of: row.of, total: row.total }),
+            ),
+            row.won ? 'entry__value--good' : '',
+          ),
+        ),
+    )}
+
+    <p class="notes">${escapeHtml(t('person.sameName'))}</p>`;
+}
+
+/** How many of someone's evenings the page shows before it stops being a page. */
+const GAMES_SHOWN = 8;
+
 function statsView() {
-  const played = presetsPlayed(state.games);
+  const mine = shownDocs(state.games);
+  const played = presetsPlayed(mine);
 
   return `
     ${flashHtml()}
@@ -2285,13 +2570,14 @@ function statsView() {
       <h1>${escapeHtml(t('stats.title'))}</h1>
       <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
+    ${groupChipsHtml()}
 
     ${
       played.length
         ? played
             .map(({ presetId, played: count }) => {
               const preset = getPreset(presetId);
-              const rows = statsFor(state.games, presetId);
+              const rows = statsFor(mine, presetId);
               return `
                 <section class="section card">
                   <div class="section__head">
@@ -3198,6 +3484,35 @@ function rememberGroup(group) {
 function forgetGroup(id) {
   state.prefs = { ...state.prefs, groups: groups().filter((group) => group.id !== id) };
   savePrefs(state.prefs);
+}
+
+/** The groups by name, so the pastilles keep their order from render to render. */
+function groupsByName() {
+  return [...groups()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+/**
+ * Which group the three tabs are showing, '' for all of them.
+ *
+ * Kept in the preferences rather than in memory: looking at one group means
+ * looking at its lists *and* its polls *and* its games, so the choice has to
+ * survive a tab change and a reload. A filter left on a group this device has
+ * since left means nothing any more, and falls back to all of them.
+ */
+function groupFilter() {
+  const wanted = state.prefs.groupFilter || '';
+  return groups().some((group) => group.id === wanted) ? wanted : '';
+}
+
+function setGroupFilter(id) {
+  state.prefs = { ...state.prefs, groupFilter: id || '' };
+  savePrefs(state.prefs);
+}
+
+/** The documents a tab shows, once the chosen group has had its say. */
+function shownDocs(documents) {
+  const wanted = groupFilter();
+  return wanted ? documents.filter((document_) => inGroup(document_, wanted)) : documents;
 }
 
 /**
@@ -5401,6 +5716,9 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'person') {
+    stopWatching();
+    view.innerHTML = personView(current.who);
   } else if (current.name === 'back') {
     stopWatching();
     view.innerHTML = backView(current.token);
@@ -5423,6 +5741,21 @@ function render() {
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
+  });
+
+  // The group pastilles, and the overview's numbers — which pick a group and
+  // open its tab in one tap, so the filter is set before the page changes.
+  view.querySelectorAll('[data-group-filter]').forEach((node) => {
+    node.addEventListener('click', () => {
+      setGroupFilter(node.dataset.groupFilter);
+      render();
+    });
+  });
+  view.querySelectorAll('[data-group-tile]').forEach((node) => {
+    node.addEventListener('click', () => {
+      setGroupFilter(node.dataset.groupTile);
+      navigate(node.dataset.tileGoto);
+    });
   });
 }
 

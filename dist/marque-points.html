@@ -5,8 +5,8 @@
     <meta charset="utf-8" />
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
-    <meta name="app-version" content="v7" />
-    <meta name="app-build" content="fbe07f15" />
+    <meta name="app-version" content="v8" />
+    <meta name="app-build" content="a4c65fe0" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -411,6 +411,75 @@ textarea { min-height: 66px; resize: vertical; }
 }
 
 .pill--done { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+
+/* ------------------------------------------------------------- dashboard --- */
+/*
+ * The numbers a group or a person is summed up by: wide enough to read at a
+ * glance, and — under a group — tappable, since a number is also a way in.
+ */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  padding: 8px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+button.tile { cursor: pointer; }
+button.tile:hover { background: var(--accent-soft); }
+
+.tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
+.tile__label { display: block; color: var(--muted); font-size: 0.72rem; }
+
+/* One line of someone's file: what it is on the left, where it stands on the right. */
+.entries { display: flex; flex-direction: column; }
+
+.entry {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.entry:first-child { border-top: 0; }
+.entry__what { min-width: 0; overflow-wrap: anywhere; }
+.entry__value { flex: none; color: var(--muted); font-size: 0.85rem; }
+.entry__value--good { color: var(--good); font-weight: 600; }
+.entry__value--bad { color: var(--bad); font-weight: 600; }
+
+/* A person's name, with the initial the overview lists them under. */
+.who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.who__mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
 
 /* ------------------------------------------------------------- standings --- */
 .standings { display: grid; gap: 8px; }
@@ -977,6 +1046,33 @@ const STRINGS = {
     'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} ligne(s) à faire',
+    'filter.by': 'Filtrer par groupe',
+    'filter.all': 'Tous',
+    'dash.byGroup': 'Par groupe',
+    'dash.groupCount': '{count} groupe(s)',
+    'dash.gate': 'vous ouvrez la porte',
+    'dash.member': 'membre',
+    'dash.peopleCount': '{count} personne(s)',
+    'dash.people': 'Qui fait quoi',
+    'dash.others': '{count} autre(s)',
+    'dash.you': '{name} (vous)',
+    'dash.votes': '{count} vote(s) en attente',
+    'dash.nothing': 'rien en attente',
+    'person.none': 'Personne de ce nom dans ce que tient cet appareil.',
+    'person.statGames': 'parties',
+    'person.statWins': 'victoires',
+    'person.statLines': 'à faire',
+    'person.statVotes': 'votes',
+    'person.lists': 'Ses listes',
+    'person.votes': 'Ses votes',
+    'person.games': 'Ses parties',
+    'person.assigned': '{done} / {total} faites',
+    'person.answered': 'a répondu',
+    'person.notAnswered': 'n’a pas répondu',
+    'person.rank': '{rank}/{of} · {total} pts',
+    'person.won': 'gagnée · {total} pts',
+    'person.sameName':
+      'Les prénoms sont rapprochés sans accent ni majuscule : « alice » et « Alice » sont la même personne. « Alex » et « Alexandre » restent deux personnes.',
     'back.title': 'Revenir dans votre groupe',
     'back.what':
       'Ce lien est le vôtre : il rend à ce navigateur une clé pour votre groupe, sans que personne n’ait à vous accepter de nouveau.',
@@ -1540,6 +1636,33 @@ const STRINGS = {
     'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} line(s) left',
+    'filter.by': 'Filter by group',
+    'filter.all': 'All',
+    'dash.byGroup': 'By group',
+    'dash.groupCount': '{count} group(s)',
+    'dash.gate': 'you let people in',
+    'dash.member': 'member',
+    'dash.peopleCount': '{count} person(s)',
+    'dash.people': 'Who does what',
+    'dash.others': '{count} more',
+    'dash.you': '{name} (you)',
+    'dash.votes': '{count} vote(s) awaited',
+    'dash.nothing': 'nothing waiting',
+    'person.none': 'Nobody by that name in what this device holds.',
+    'person.statGames': 'games',
+    'person.statWins': 'wins',
+    'person.statLines': 'to do',
+    'person.statVotes': 'votes',
+    'person.lists': 'Their lists',
+    'person.votes': 'Their votes',
+    'person.games': 'Their games',
+    'person.assigned': '{done} / {total} done',
+    'person.answered': 'answered',
+    'person.notAnswered': 'no answer',
+    'person.rank': '{rank}/{of} · {total} pts',
+    'person.won': 'won · {total} pts',
+    'person.sameName':
+      'First names are matched without accents or capitals: "alice" and "Alice" are the same person. "Alex" and "Alexandre" stay two people.',
     'back.title': 'Come back into your group',
     'back.what':
       'This link is yours: it hands this browser a key to your group, with nobody having to accept you again.',
@@ -4115,6 +4238,156 @@ function statsFor(games, presetId) {
     .sort((a, b) => b.won - a.won || b.played - a.played || a.name.localeCompare(b.name));
 }
 
+  // ---- src/dashboard.js ------------------------------------------------
+/**
+ * What the app already holds, read two other ways: by group, and by person.
+ *
+ * Nothing new is stored for either. A group's numbers are its own documents
+ * counted; a person's file is every list, poll and game that names them.
+ *
+ * Names are matched the way the tables match them — case, accents and blanks
+ * ignored — so one person who wrote "Alice" on one phone and "alice" on
+ * another is one person here too, under the spelling written most recently.
+ *
+ * Pure, like the models: documents in, numbers out.
+ */
+
+
+
+
+
+/** Whether a document is in the chosen group. No group chosen means all of them. */
+function inGroup(document_, groupId) {
+  return groupId ? document_?.groupId === groupId : true;
+}
+
+/**
+ * Everyone these documents name, in alphabetical order.
+ *
+ * Each under the spelling written most recently, because that is the one they
+ * chose last — the rule the statistics table already follows.
+ */
+function peopleIn({ lists = [], polls = [], games = [] } = {}) {
+  const seen = new Map();
+  const note = (raw, when) => {
+    const name = String(raw || '').trim();
+    const key = sameName(name);
+    if (!key) return;
+    const held = seen.get(key);
+    if (!held || (when || 0) >= held.at) seen.set(key, { name, at: when || 0 });
+  };
+
+  for (const list of lists) for (const person of list.people || []) note(person.name, list.updatedAt);
+  for (const poll of polls) for (const person of poll.people || []) note(person.name, poll.updatedAt);
+  for (const game of games) for (const player of game.players || []) note(player.name, game.updatedAt);
+
+  return [...seen.values()].map((row) => row.name).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * What one group has going on — or the whole device, when no group is given.
+ *
+ * The three numbers are the ones the tabs show, counted the same way: a list
+ * with lines left, an open poll, an unfinished game. `left` is the lines still
+ * to tick, `at` when anything here last moved (0 when there is nothing).
+ */
+function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '') {
+  const held = {
+    lists: lists.filter((list) => inGroup(list, groupId)),
+    polls: polls.filter((poll) => inGroup(poll, groupId)),
+    games: games.filter((game) => inGroup(game, groupId)),
+  };
+  const everything = [...held.lists, ...held.polls, ...held.games];
+
+  return {
+    lists: held.lists.filter((list) => progress(list).left > 0).length,
+    polls: held.polls.filter((poll) => !poll.closedAt).length,
+    games: held.games.filter((game) => !gameStatus(game).finished).length,
+    left: held.lists.reduce((sum, list) => sum + progress(list).left, 0),
+    people: peopleIn(held).length,
+    at: Math.max(0, ...everything.map((document_) => document_.updatedAt || 0)),
+  };
+}
+
+/**
+ * One person, across everything: the lines they were given, the polls they
+ * were asked, the games they played — newest first in each.
+ *
+ * `known` says whether that name appears at all; `counts.left` and
+ * `counts.votes` are what is still waiting on them, which is what the app puts
+ * beside their name. A game with no rounds is left out of the games: nobody
+ * played it, so it says nothing about anyone.
+ */
+function personFile({ lists = [], polls = [], games = [] } = {}, who) {
+  const key = sameName(who);
+  const byDate = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
+  const groupIds = new Set();
+
+  let name = String(who || '').trim();
+  let at = -1;
+  const spelling = (raw, when) => {
+    if ((when || 0) < at) return;
+    at = when || 0;
+    name = String(raw || '').trim() || name;
+  };
+
+  const lines = [];
+  for (const list of [...lists].sort(byDate)) {
+    const person = (list.people || []).find((one) => sameName(one.name) === key);
+    if (!person) continue;
+    spelling(person.name, list.updatedAt);
+    if (list.groupId) groupIds.add(list.groupId);
+    const own = progress(list, person.id);
+    if (own.total) lines.push({ list, done: own.done, total: own.total, left: own.left });
+  }
+
+  const votes = [];
+  for (const poll of [...polls].sort(byDate)) {
+    const person = (poll.people || []).find((one) => sameName(one.name) === key);
+    if (!person) continue;
+    spelling(person.name, poll.updatedAt);
+    if (poll.groupId) groupIds.add(poll.groupId);
+    votes.push({
+      poll,
+      answered: (poll.options || []).some((option) => voteOf(poll, person.id, option.id)),
+      closed: Boolean(poll.closedAt),
+    });
+  }
+
+  const played = [];
+  for (const game of [...games].sort(byDate)) {
+    const rows = standings(game);
+    const row = rows.find((one) => sameName(one.name) === key);
+    if (!row) continue;
+    spelling(row.name, game.updatedAt);
+    if (game.groupId) groupIds.add(game.groupId);
+    if (!game.rounds.length) continue;
+    const status = gameStatus(game);
+    played.push({
+      game,
+      rank: row.rank,
+      of: rows.length,
+      total: row.total,
+      won: status.finished && status.winners.some((one) => sameName(one.name) === key),
+    });
+  }
+
+  return {
+    name,
+    known: at >= 0,
+    groupIds: [...groupIds],
+    lines,
+    votes,
+    played,
+    counts: {
+      games: played.length,
+      wins: played.filter((row) => row.won).length,
+      left: lines.reduce((sum, row) => sum + row.left, 0),
+      votes: votes.filter((row) => !row.closed && !row.answered).length,
+    },
+  };
+}
+
   // ---- src/recap.js ----------------------------------------------------
 /**
  * A game as a few lines of text — to paste into the conversation where the
@@ -5286,6 +5559,7 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
@@ -5443,7 +5717,7 @@ function pollCardHtml(poll) {
 }
 
 function pollsView() {
-  const sorted = [...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sorted = [...shownDocs(state.polls)].sort((a, b) => b.updatedAt - a.updatedAt);
   const open = sorted.filter((poll) => !poll.closedAt);
   const closed = sorted.filter((poll) => poll.closedAt);
 
@@ -5452,6 +5726,7 @@ function pollsView() {
     <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
       + ${escapeHtml(t('polls.new'))}
     </button>
+    ${groupChipsHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
@@ -6014,7 +6289,7 @@ function listCardHtml(list) {
 }
 
 function listsView() {
-  const sorted = [...state.lists].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sorted = [...shownDocs(state.lists)].sort((a, b) => b.updatedAt - a.updatedAt);
   const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
   const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
 
@@ -6023,6 +6298,7 @@ function listsView() {
     <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
       + ${escapeHtml(t('lists.new'))}
     </button>
+    ${groupChipsHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
@@ -6249,6 +6525,11 @@ function route() {
     // and the page asks for the other rather than for both.
     return { name: 'join', code: readCode(param), group: groupSegment(hash) };
   }
+  // Someone's own page, reached from the overview. Both spellings open it: the
+  // app speaks two languages, and a link once sent is a link for ever.
+  if ((name === 'person' || name === 'personne') && param) {
+    return { name: 'person', who: personFrom(param) };
+  }
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -6260,6 +6541,15 @@ function route() {
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
   return { name: 'overview' };
+}
+
+/** The name written in `#/person/<name>`, decoded if it can be. */
+function personFrom(segment) {
+  try {
+    return decodeURIComponent(segment).trim();
+  } catch {
+    return String(segment).trim();
+  }
 }
 
 /** The group's name as written in `#/join/<code>/<name>`, decoded if it can be. */
@@ -6292,6 +6582,30 @@ function flashHtml() {
     return '';
   }
   return `<p class="banner ${kind === 'error' ? 'banner--warn' : ''}">${escapeHtml(message)}</p>`;
+}
+
+/**
+ * The group pastilles, shown above the lists, the polls and the games.
+ *
+ * From two groups on: with one, there is nothing to choose between, and a row
+ * of buttons that can only say "everything" is noise. The line under them is
+ * the same count the overview shows, for whatever is on screen.
+ */
+function groupChipsHtml() {
+  const held = groupsByName();
+  if (held.length < 2) return '';
+  const active = groupFilter();
+  const chip = (id, label) => `
+    <button type="button" class="chip ${active === id ? 'chip--on' : ''}"
+            data-group-filter="${escapeHtml(id)}" aria-pressed="${active === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
+  return `
+    <div class="row" role="group" aria-label="${escapeHtml(t('filter.by'))}">
+      ${chip('', t('filter.all'))}
+      ${held.map((group) => chip(group.id, group.name)).join('')}
+    </div>
+    <p class="muted small">${escapeHtml(t('overview.counts', groupCounts(state, active)))}</p>`;
 }
 
 function gameCardHtml(game) {
@@ -6608,6 +6922,108 @@ function meHtml() {
     </section>`;
 }
 
+/**
+ * The overview's group boards: what each group has on the go, in numbers that
+ * are also the way in — tapping one opens that tab, already on that group.
+ */
+function byGroupHtml() {
+  const held = groupsByName();
+  if (!held.length) return '';
+  return `
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('dash.byGroup'))}</h2>
+        <span class="muted small">${escapeHtml(t('dash.groupCount', { count: held.length }))}</span>
+      </div>
+      ${held.map(groupBoardHtml).join('')}
+    </section>`;
+}
+
+function groupBoardHtml(group) {
+  const counts = groupCounts(state, group.id);
+  const tile = (value, label, goto) => `
+    <button type="button" class="tile" data-group-tile="${escapeHtml(group.id)}" data-tile-goto="${goto}"
+            aria-label="${escapeHtml(`${group.name} — ${value} ${label}`)}">
+      <span class="tile__value">${value}</span>
+      <span class="tile__label">${escapeHtml(label)}</span>
+    </button>`;
+  return `
+    <div class="card stack stack--tight">
+      <div class="spread">
+        <strong>${escapeHtml(group.name)}</strong>
+        ${
+          // The key that may let people in is the one worth naming: it is the
+          // only one whose holder has anything to do when someone knocks.
+          group.admits === false
+            ? `<span class="muted small">${escapeHtml(t('dash.member'))}</span>`
+            : `<span class="pill">${escapeHtml(t('dash.gate'))}</span>`
+        }
+      </div>
+      <div class="tiles">
+        ${tile(counts.lists, t('tab.lists'), '#/lists')}
+        ${tile(counts.polls, t('tab.polls'), '#/polls')}
+        ${tile(counts.games, t('tab.games'), '#/games')}
+      </div>
+      <p class="muted small">
+        ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
+          counts.at ? ` · ${escapeHtml(formatDate(counts.at))}` : ''
+        }
+      </p>
+    </div>`;
+}
+
+/** How many names the overview lists before folding the rest away. */
+const PEOPLE_SHOWN = 12;
+
+/**
+ * Who the app knows about, and what is still waiting on each of them.
+ *
+ * Every name from every list, poll and game, me first and then alphabetical —
+ * an order that does not move under the finger, unlike one that follows who
+ * owes what.
+ */
+function whoHtml() {
+  const me = sameName(myName());
+  const names = [...peopleIn(state)].sort(
+    (a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b),
+  );
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = [
+      counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
+      counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  const shown = names.slice(0, PEOPLE_SHOWN);
+  const rest = names.slice(PEOPLE_SHOWN);
+  return `
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('dash.people'))}</h2>
+        <span class="muted small">${escapeHtml(t('dash.peopleCount', { count: names.length }))}</span>
+      </div>
+      <div class="game-list">${shown.map(row).join('')}</div>
+      ${
+        rest.length
+          ? `<details class="details">
+               <summary>${escapeHtml(t('dash.others', { count: rest.length }))}</summary>
+               <div class="game-list">${rest.map(row).join('')}</div>
+             </details>`
+          : ''
+      }
+    </section>`;
+}
+
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -6625,6 +7041,8 @@ function overviewView() {
       <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
     </div>
 
+    ${byGroupHtml()}
+
     <section class="section">
       <div class="section__head">
         <h2>${escapeHtml(t('overview.pending'))}</h2>
@@ -6632,6 +7050,8 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
+
+    ${whoHtml()}
 
     ${meHtml()}
 
@@ -7491,7 +7911,8 @@ function homeView() {
     return haystack.includes(query);
   };
 
-  const sorted = [...state.games].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
+  const mine = shownDocs(state.games);
+  const sorted = [...mine].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
   const ongoing = sorted.filter((game) => !gameStatus(game).finished);
   const finished = sorted.filter((game) => gameStatus(game).finished);
 
@@ -7500,8 +7921,9 @@ function homeView() {
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
+    ${groupChipsHtml()}
     ${
-      state.games.length
+      mine.length
         ? `<div class="row">
              <button type="button" class="button button--small button--ghost" data-goto="#/stats">${escapeHtml(t('action.stats'))}</button>
            </div>`
@@ -7509,7 +7931,7 @@ function homeView() {
     }
 
     ${
-      state.games.length > 4
+      mine.length > 4
         ? `<label class="visually-hidden" for="search">${escapeHtml(t('home.search'))}</label>
            <input type="text" id="search" placeholder="${escapeHtml(t('home.search'))}" value="${escapeHtml(state.search || '')}" />`
         : ''
@@ -7536,8 +7958,144 @@ function homeView() {
     `;
 }
 
+/* ---------------------------------------------------------------- person --- */
+
+/**
+ * One person's page.
+ *
+ * The three tabs answer "where is this list" and "who is winning"; none of
+ * them answers "and Claire?" — what she was given, what she has not answered,
+ * how her evenings went. That question is asked about a name, so this page is
+ * keyed on a name, matched the forgiving way the tables match it.
+ *
+ * What waits on her comes first, because it is the only part anyone can act
+ * on; the rest is what she has done, newest first.
+ */
+function personView(who) {
+  const file = personFile(state, who);
+  const head = (title, tail) => `
+    <div class="spread">
+      ${title}
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+    ${tail}`;
+
+  if (!file.known) {
+    return `
+      ${flashHtml()}
+      ${head(`<h1>${escapeHtml(file.name || who)}</h1>`, `<p class="muted small">${escapeHtml(t('person.none'))}</p>`)}`;
+  }
+
+  const inGroups = file.groupIds
+    .map((id) => groups().find((group) => group.id === id)?.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
+  const waiting = [
+    file.counts.left ? t('lists.leftToDo', { count: file.counts.left }) : '',
+    file.counts.votes ? t('dash.votes', { count: file.counts.votes }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const tile = (value, label) => `
+    <div class="tile">
+      <span class="tile__value">${value}</span>
+      <span class="tile__label">${escapeHtml(label)}</span>
+    </div>`;
+
+  const entry = (goto, what, aside, value, tone) => `
+    <button type="button" class="entry" data-goto="${goto}">
+      <span class="entry__what">
+        ${what}${aside ? ` <span class="muted small">${aside}</span>` : ''}
+      </span>
+      <span class="entry__value ${tone || ''}">${value}</span>
+    </button>`;
+
+  const section = (title, entries) =>
+    entries.length
+      ? `<section class="section card">
+           <div class="section__head"><h2>${escapeHtml(title)}</h2></div>
+           <div class="entries">${entries.join('')}</div>
+         </section>`
+      : '';
+
+  return `
+    ${flashHtml()}
+    ${head(
+      `<div class="who">
+         <span class="who__mark" aria-hidden="true">${escapeHtml([...file.name][0] || '?')}</span>
+         <span>
+           <h1>${escapeHtml(file.name)}</h1>
+           ${inGroups.length ? `<span class="muted small">${escapeHtml(inGroups.join(' · '))}</span>` : ''}
+         </span>
+       </div>`,
+      waiting ? `<p class="banner">${escapeHtml(waiting)}</p>` : '',
+    )}
+
+    <div class="tiles">
+      ${tile(file.counts.games, t('person.statGames'))}
+      ${tile(file.counts.wins, t('person.statWins'))}
+      ${tile(file.counts.left, t('person.statLines'))}
+      ${tile(file.counts.votes, t('person.statVotes'))}
+    </div>
+
+    ${section(
+      t('person.lists'),
+      file.lines.map((row) =>
+        entry(
+          `#/list/${escapeHtml(row.list.id)}`,
+          escapeHtml(listTitle(row.list)),
+          '',
+          escapeHtml(t('person.assigned', { done: row.done, total: row.total })),
+          row.left ? '' : 'entry__value--good',
+        ),
+      ),
+    )}
+
+    ${section(
+      t('person.votes'),
+      file.votes.map((row) =>
+        entry(
+          `#/poll/${escapeHtml(row.poll.id)}`,
+          escapeHtml(pollTitle(row.poll)),
+          row.closed ? escapeHtml(t('polls.closed')) : '',
+          escapeHtml(row.answered ? t('person.answered') : t('person.notAnswered')),
+          row.closed ? '' : row.answered ? 'entry__value--good' : 'entry__value--bad',
+        ),
+      ),
+    )}
+
+    ${section(
+      t('person.games'),
+      file.played
+        .slice(0, GAMES_SHOWN)
+        .map((row) =>
+          entry(
+            `#/game/${escapeHtml(row.game.id)}`,
+            escapeHtml(gameTitle(row.game)),
+            escapeHtml(formatDate(row.game.updatedAt)),
+            escapeHtml(
+              row.won
+                ? t('person.won', { total: row.total })
+                : t('person.rank', { rank: row.rank, of: row.of, total: row.total }),
+            ),
+            row.won ? 'entry__value--good' : '',
+          ),
+        ),
+    )}
+
+    <p class="notes">${escapeHtml(t('person.sameName'))}</p>`;
+}
+
+/** How many of someone's evenings the page shows before it stops being a page. */
+const GAMES_SHOWN = 8;
+
 function statsView() {
-  const played = presetsPlayed(state.games);
+  const mine = shownDocs(state.games);
+  const played = presetsPlayed(mine);
 
   return `
     ${flashHtml()}
@@ -7545,13 +8103,14 @@ function statsView() {
       <h1>${escapeHtml(t('stats.title'))}</h1>
       <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
+    ${groupChipsHtml()}
 
     ${
       played.length
         ? played
             .map(({ presetId, played: count }) => {
               const preset = getPreset(presetId);
-              const rows = statsFor(state.games, presetId);
+              const rows = statsFor(mine, presetId);
               return `
                 <section class="section card">
                   <div class="section__head">
@@ -8458,6 +9017,35 @@ function rememberGroup(group) {
 function forgetGroup(id) {
   state.prefs = { ...state.prefs, groups: groups().filter((group) => group.id !== id) };
   savePrefs(state.prefs);
+}
+
+/** The groups by name, so the pastilles keep their order from render to render. */
+function groupsByName() {
+  return [...groups()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+/**
+ * Which group the three tabs are showing, '' for all of them.
+ *
+ * Kept in the preferences rather than in memory: looking at one group means
+ * looking at its lists *and* its polls *and* its games, so the choice has to
+ * survive a tab change and a reload. A filter left on a group this device has
+ * since left means nothing any more, and falls back to all of them.
+ */
+function groupFilter() {
+  const wanted = state.prefs.groupFilter || '';
+  return groups().some((group) => group.id === wanted) ? wanted : '';
+}
+
+function setGroupFilter(id) {
+  state.prefs = { ...state.prefs, groupFilter: id || '' };
+  savePrefs(state.prefs);
+}
+
+/** The documents a tab shows, once the chosen group has had its say. */
+function shownDocs(documents) {
+  const wanted = groupFilter();
+  return wanted ? documents.filter((document_) => inGroup(document_, wanted)) : documents;
 }
 
 /**
@@ -10661,6 +11249,9 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'person') {
+    stopWatching();
+    view.innerHTML = personView(current.who);
   } else if (current.name === 'back') {
     stopWatching();
     view.innerHTML = backView(current.token);
@@ -10683,6 +11274,21 @@ function render() {
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
+  });
+
+  // The group pastilles, and the overview's numbers — which pick a group and
+  // open its tab in one tap, so the filter is set before the page changes.
+  view.querySelectorAll('[data-group-filter]').forEach((node) => {
+    node.addEventListener('click', () => {
+      setGroupFilter(node.dataset.groupFilter);
+      render();
+    });
+  });
+  view.querySelectorAll('[data-group-tile]').forEach((node) => {
+    node.addEventListener('click', () => {
+      setGroupFilter(node.dataset.groupTile);
+      navigate(node.dataset.tileGoto);
+    });
   });
 }
 
