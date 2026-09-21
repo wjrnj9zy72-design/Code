@@ -258,6 +258,7 @@ function pollsView() {
           ? `<div class="game-list">${open.map(pollCardHtml).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('polls.none'))}</p>`
       }
+      ${hiddenByGroupHtml(state.polls)}
     </section>
 
     ${
@@ -468,9 +469,43 @@ function pollView(poll) {
 
 /* ------------------------------------------------------ polls: behaviour --- */
 
+/**
+ * Whether a change that could not be written to this device survives anywhere
+ * else — and so whether its loss is worth a word.
+ *
+ * Holding a database is not enough: only a *shared* document is sent to one.
+ * A poll kept to oneself, on a device whose storage refuses, exists in the
+ * page and nowhere else, and is gone at the next reload. That used to pass in
+ * silence, because a database was configured. It no longer does.
+ */
+/**
+ * What this device is actually holding, all groups and filters aside.
+ *
+ * The filters are what make a screen look empty when nothing has been lost, so
+ * the one place that counts without filtering is worth having: it separates
+ * "it is not being shown" from "it is not there", which is the first question
+ * to answer when someone says their polls are gone.
+ */
+function heldCounts() {
+  const all = [...state.lists, ...state.polls, ...state.games, ...state.spends];
+  return {
+    lists: state.lists.length,
+    polls: state.polls.length,
+    games: state.games.length,
+    spends: state.spends.length,
+    shared: all.filter((document_) => document_.shared).length,
+    archived: all.filter((document_) => document_.archivedAt).length,
+  };
+}
+
+function keptElsewhere(changed, { store = false } = {}) {
+  if (state.remote && changed?.shared) return true;
+  return Boolean(store && state.store && changed);
+}
+
 function persistPoll(changed) {
   const ok = savePolls(state.polls);
-  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
     state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
@@ -484,7 +519,7 @@ function getPoll(id) {
 
 function persistSpend(changed) {
   const ok = saveSpends(state.spends);
-  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
     state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
@@ -950,6 +985,7 @@ function listsView() {
           ? `<div class="game-list">${open.map(listCardHtml).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('lists.none'))}</p>`
       }
+      ${hiddenByGroupHtml(state.lists)}
     </section>
 
     ${
@@ -1189,7 +1225,7 @@ function listView(list) {
  */
 function persist(changed) {
   const ok = saveGames(state.games);
-  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (!ok && !keptElsewhere(changed, { store: true })) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   // Only a game that has been shared travels: someone else's evening has no
   // business landing in a database they never chose.
@@ -1266,6 +1302,7 @@ function spendsView() {
           ? `<div class="game-list">${live.map(spendCardHtml).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
       }
+      ${hiddenByGroupHtml(state.spends)}
     </section>
 
     ${archivedHtml(sorted, spendCardHtml)}`;
@@ -1919,7 +1956,8 @@ function comingHtml() {
   const coming = events.filter((event) => event.day >= today);
 
   if (!events.length) {
-    return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>`;
+    return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>
+            ${hiddenByGroupHtml([...state.lists, ...state.polls])}`;
   }
 
   const shown = [...late.slice(-3), ...coming.slice(0, 8)];
@@ -2422,6 +2460,7 @@ function overviewView() {
       <p class="muted small">${escapeHtml(
         t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
       )}</p>
+      <p class="muted small">${escapeHtml(t('data.holds', heldCounts()))}</p>
       ${
         appVersion()
           ? `<p class="muted small">
@@ -3438,6 +3477,7 @@ function homeView() {
           ? `<div class="game-list">${ongoing.map(gameCardHtml).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('home.empty'))}</p>`
       }
+      ${hiddenByGroupHtml(state.games)}
     </section>
 
     ${
@@ -4578,6 +4618,29 @@ function shownDocs(documents) {
 }
 
 /**
+ * What the chosen group is keeping out of sight, when it is keeping anything.
+ *
+ * A filter that empties a tab tells the same story as having nothing: the page
+ * reads "no polls yet" while the polls are right there, one chip away. Worse
+ * for what was never shared — it belongs to no group, so *every* group hides
+ * it. So wherever the filter can empty a screen, it says how much it is
+ * holding back, and offers to stop.
+ */
+function hiddenByGroupHtml(all) {
+  const wanted = groupFilter();
+  if (!wanted) return '';
+  const hidden = all.length - shownDocs(all).length;
+  if (hidden <= 0) return '';
+  return `
+    <p class="muted small">
+      ${escapeHtml(t('filter.hidden', { count: hidden }))}
+      <button type="button" class="button button--small button--ghost" data-group-filter="">
+        ${escapeHtml(t('filter.all'))}
+      </button>
+    </p>`;
+}
+
+/**
  * The group a device sends its new things to on its own, when it was asked to.
  * Only when there is exactly one: with several, the app asks each time rather
  * than choosing for you.
@@ -5540,7 +5603,7 @@ function bindData() {
 /** Keep the list where it lives, and send it on if it has been shared. */
 function persistList(changed) {
   const ok = saveLists(state.lists);
-  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
     state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));

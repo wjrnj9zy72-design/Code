@@ -213,6 +213,8 @@ export const STRINGS = {
     'archive.shown': '{count} archivé(s)',
     'filter.by': 'Filtrer par groupe',
     'filter.all': 'Tous',
+    'filter.hidden':
+      '{count} autre(s) sont masqué(s) par le groupe choisi — dont tout ce qui n’a été partagé dans aucun groupe.',
     'dash.byGroup': 'Par groupe',
     'dash.groupCount': '{count} groupe(s)',
     'dash.gate': 'vous ouvrez la porte',
@@ -354,6 +356,8 @@ export const STRINGS = {
     'join.action': 'Demander à entrer',
     'join.alreadyUpToDate': 'Cet appareil est déjà dans {name}, et à jour.',
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
+    'data.holds':
+      'Sur cet appareil : {lists} liste(s), {polls} sondage(s), {games} partie(s), {spends} compte(s) — dont {shared} partagé(s) et {archived} archivé(s).',
     'data.version': 'Version de l’app : {version}.',
     'data.lookForUpdate': 'Chercher une mise à jour',
     'data.updateComing':
@@ -616,7 +620,7 @@ export const STRINGS = {
     'home.importDone': '{count} partie(s) importée(s).',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
-      'Impossible d’enregistrer dans ce navigateur : la partie sera perdue en fermant l’onglet.',
+      'Impossible d’enregistrer sur cet appareil : ce qui vient d’être fait sera perdu au prochain rechargement. Le stockage est peut-être plein, ou refusé (navigation privée).',
 
     'new.title': 'Nouvelle partie',
     'new.game': 'Jeu',
@@ -903,6 +907,8 @@ export const STRINGS = {
     'archive.shown': '{count} archived',
     'filter.by': 'Filter by group',
     'filter.all': 'All',
+    'filter.hidden':
+      '{count} more are hidden by the chosen group — including everything shared in no group at all.',
     'dash.byGroup': 'By group',
     'dash.groupCount': '{count} group(s)',
     'dash.gate': 'you let people in',
@@ -1041,6 +1047,8 @@ export const STRINGS = {
     'join.action': 'Ask to join',
     'join.alreadyUpToDate': 'This device is already in {name}, and up to date.',
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
+    'data.holds':
+      'On this device: {lists} list(s), {polls} poll(s), {games} game(s), {spends} account(s) — of which {shared} shared and {archived} archived.',
     'data.version': 'App version: {version}.',
     'data.lookForUpdate': 'Look for an update',
     'data.updateComing': 'A new version is on its way: the app reloads itself in a moment.',
@@ -1298,7 +1306,7 @@ export const STRINGS = {
     'home.importDone': 'Imported {count} game(s).',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':
-      'This browser refuses to store data: the game will be lost when the tab closes.',
+      'Nothing can be stored on this device: what was just done will be lost at the next reload. Storage may be full, or refused (private browsing).',
 
     'new.title': 'New game',
     'new.game': 'Game',
