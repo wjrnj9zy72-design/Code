@@ -20,13 +20,21 @@ import { createHash } from 'node:crypto';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'spends.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
 
 /**
  * An import, on one line or spread over several — a long list of names wraps,
  * and a wrapped import left in the bundle makes the whole page fail to parse.
  */
 const IMPORT_LINE = /^import\s[\s\S]*?;\s*$/gm;
+/**
+ * `import { a as b }`. The bundle puts every module in one scope and strips the
+ * imports, so the name that survives is `a` — and every `b` in the file becomes
+ * a reference to nothing. The page then dies at the first call, with one line in
+ * the console and a blank screen. Renaming the export is the fix; this makes the
+ * build say so instead of shipping it.
+ */
+const ALIASED_IMPORT = /\bimport\s*\{[^}]*?\b(\w+)\s+as\s+(\w+)/;
 const EXPORT_KEYWORD = /^export\s+(?=(?:const|let|function|class|async)\b)/gm;
 /** `export { a, b };` and `export default …` — forms with nothing to keep. */
 const EXPORT_LIST = /^export\s*\{[^}]*\}\s*;?\s*$/gm;
@@ -193,6 +201,14 @@ async function buildScript() {
       .replace(EXPORT_LIST, '')
       .replace(EXPORT_KEYWORD, '')
       .trim();
+
+    const aliased = ALIASED_IMPORT.exec(await readFile(join(root, 'src', name), 'utf8'));
+    if (aliased) {
+      throw new Error(
+        `Cannot bundle: src/${name} imports "${aliased[1]}" as "${aliased[2]}". ` +
+          'The bundle strips imports, so the alias would refer to nothing — rename the export instead.',
+      );
+    }
 
     // A module statement left in would make the whole bundle fail to parse,
     // and the page would come up blank with one line in the console.

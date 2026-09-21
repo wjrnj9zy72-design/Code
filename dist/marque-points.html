@@ -5,8 +5,8 @@
     <meta charset="utf-8" />
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
-    <meta name="app-version" content="v9" />
-    <meta name="app-build" content="b10f7e46" />
+    <meta name="app-version" content="v10" />
+    <meta name="app-build" content="95c419c2" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -669,6 +669,21 @@ table.scores .meta-cell { color: var(--muted); }
 /* What has gone past its day, wherever it is counted. */
 .late { color: var(--bad); font-weight: 600; }
 
+/*
+ * Le montant et le payeur sur une même ligne : le montant garde de quoi écrire
+ * « 1 234,50 », le nom prend le reste et se tronque plutôt que de l'écraser.
+ */
+#spend-amount { flex: 0 1 7.5em; min-width: 5.5em; }
+#spend-by { flex: 1 1 6em; min-width: 0; }
+
+/* Ce qu'une dépense a coûté, au bout de sa ligne : aligné, et lisible d'un coup. */
+.line__amount {
+  padding-right: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .chip {
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -920,6 +935,7 @@ table.scores .meta-cell { color: var(--muted); }
       <a class="tab" href="#/lists" data-tab="lists" data-i18n="tab.lists">Listes</a>
       <a class="tab" href="#/polls" data-tab="polls" data-i18n="tab.polls">Sondages</a>
       <a class="tab" href="#/games" data-tab="games" data-i18n="tab.games">Parties</a>
+      <a class="tab" href="#/spends" data-tab="spends" data-i18n="tab.spends">Dépenses</a>
     </nav>
 
     <main id="view" class="view" aria-live="polite"></main>
@@ -1063,6 +1079,51 @@ const STRINGS = {
     'polls.dateCleared': 'Date enlevée.',
     'polls.settledOn': 'retenu le {day}',
     'agenda.add': 'Ajouter à l’agenda',
+    'tab.spends': 'Dépenses',
+    'spends.new': 'Nouveau compte',
+    'spends.ongoing': 'En cours',
+    'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
+    'spends.untitled': 'Compte sans nom',
+    'spends.untitledLine': 'Dépense',
+    'spends.name': 'De quoi s’agit-il ?',
+    'spends.namePlaceholder': 'Vacances, coloc, week-end…',
+    'spends.peopleHint': 'Entre qui ? Les dépenses se partagent également entre ces personnes.',
+    'spends.create': 'Créer le compte',
+    'spends.total': '{amount} en tout',
+    'spends.what': 'Quoi ?',
+    'spends.amount': 'Combien ?',
+    'spends.by': 'Payé par',
+    'spends.addHint': 'Partagé entre tout le monde. Touchez la ligne ensuite pour n’en concerner qu’une partie.',
+    'spends.addFirst': 'Aucune dépense pour l’instant.',
+    'spends.noPeople': 'Ajoutez d’abord les personnes que ce compte concerne.',
+    'spends.notAnAmount': 'Ce n’est pas un montant. Par exemple : 12,50',
+    'spends.paidBy': 'payé par {name}',
+    'spends.paidByNobody': 'payé par personne',
+    'spends.forWhom': 'pour {names}',
+    'spends.forWhomHint': 'Pour qui ? Rien de coché veut dire tout le monde.',
+    'spends.everyone': 'tout le monde',
+    'spends.lineTitle': 'Cette dépense',
+    'spends.balances': 'Où en est chacun',
+    'spends.paidTotal': 'a avancé {amount}',
+    'spends.isOwed': 'on lui doit {amount}',
+    'spends.owes': 'doit {amount}',
+    'spends.even': 'à jour',
+    'spends.owedToMe': 'on vous doit {amount}',
+    'spends.iOwe': 'vous devez {amount}',
+    'spends.settle': 'Qui rembourse qui',
+    'spends.move': '{from} → {to}',
+    'spends.settleHint': 'Le moins de virements possible pour que tout le monde soit à jour.',
+    'spends.share': 'Partager le compte',
+    'spends.shared': 'Compte partagé dans {name}.',
+    'spends.rename': 'Renommer le compte',
+    'spends.renameHint': 'Le nom du compte, tel qu’il apparaît dans la liste.',
+    'spends.renamePersonHint': 'Le prénom de cette personne dans ce compte.',
+    'spends.confirmDelete': 'Supprimer ce compte et toutes ses dépenses ? C’est définitif.',
+    'spends.loading': 'On va chercher ce compte…',
+    'spends.cannotDropPaid':
+      'Cette personne a avancé de l’argent : ses dépenses sont à corriger ou à retirer d’abord, sinon le compte ne tomberait plus juste.',
+    'spends.cannotDropAlone':
+      'Une dépense ne concerne qu’elle : corrigez-la d’abord, sinon elle deviendrait l’affaire de tout le monde.',
     'agenda.group': 'L’agenda du groupe',
     'agenda.title': 'L’agenda de {name}',
     'agenda.hint':
@@ -1108,6 +1169,7 @@ const STRINGS = {
     'person.lists': 'Ses listes',
     'person.votes': 'Ses votes',
     'person.games': 'Ses parties',
+    'person.spends': 'Ses comptes',
     'person.assigned': '{done} / {total} faites',
     'person.answered': 'a répondu',
     'person.notAnswered': 'n’a pas répondu',
@@ -1687,6 +1749,51 @@ const STRINGS = {
     'polls.dateCleared': 'Day taken off.',
     'polls.settledOn': 'settled on {day}',
     'agenda.add': 'Add to calendar',
+    'tab.spends': 'Spending',
+    'spends.new': 'New account',
+    'spends.ongoing': 'Going on',
+    'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
+    'spends.untitled': 'Untitled account',
+    'spends.untitledLine': 'Expense',
+    'spends.name': 'What is it for?',
+    'spends.namePlaceholder': 'Holidays, flatshare, weekend…',
+    'spends.peopleHint': 'Between whom? Expenses are split equally between these people.',
+    'spends.create': 'Create the account',
+    'spends.total': '{amount} in all',
+    'spends.what': 'What?',
+    'spends.amount': 'How much?',
+    'spends.by': 'Paid by',
+    'spends.addHint': 'Split between everyone. Tap the line afterwards to make it concern only some.',
+    'spends.addFirst': 'Nothing spent yet.',
+    'spends.noPeople': 'Add the people this account is between first.',
+    'spends.notAnAmount': 'That is not an amount. For example: 12.50',
+    'spends.paidBy': 'paid by {name}',
+    'spends.paidByNobody': 'paid by nobody',
+    'spends.forWhom': 'for {names}',
+    'spends.forWhomHint': 'For whom? Nothing ticked means everyone.',
+    'spends.everyone': 'everyone',
+    'spends.lineTitle': 'This expense',
+    'spends.balances': 'Where everyone stands',
+    'spends.paidTotal': 'put in {amount}',
+    'spends.isOwed': 'is owed {amount}',
+    'spends.owes': 'owes {amount}',
+    'spends.even': 'settled',
+    'spends.owedToMe': 'you are owed {amount}',
+    'spends.iOwe': 'you owe {amount}',
+    'spends.settle': 'Who pays whom',
+    'spends.move': '{from} → {to}',
+    'spends.settleHint': 'The fewest transfers that put everyone straight.',
+    'spends.share': 'Share the account',
+    'spends.shared': 'Account shared in {name}.',
+    'spends.rename': 'Rename the account',
+    'spends.renameHint': 'The account’s name, as it appears in the list.',
+    'spends.renamePersonHint': 'This person’s first name in this account.',
+    'spends.confirmDelete': 'Delete this account and everything spent on it? This cannot be undone.',
+    'spends.loading': 'Fetching that account…',
+    'spends.cannotDropPaid':
+      'This person put money in: their expenses have to be corrected or removed first, or the account would stop adding up.',
+    'spends.cannotDropAlone':
+      'An expense concerns them alone: correct it first, or it would become everyone’s.',
     'agenda.group': 'The group’s calendar',
     'agenda.title': '{name}’s calendar',
     'agenda.hint':
@@ -1732,6 +1839,7 @@ const STRINGS = {
     'person.lists': 'Their lists',
     'person.votes': 'Their votes',
     'person.games': 'Their games',
+    'person.spends': 'Their accounts',
     'person.assigned': '{done} / {total} done',
     'person.answered': 'answered',
     'person.notAnswered': 'no answer',
@@ -4312,6 +4420,309 @@ function isValidPoll(value) {
   );
 }
 
+  // ---- src/spends.js ---------------------------------------------------
+/**
+ * Les dépenses : qui a payé quoi, et qui doit combien à qui.
+ *
+ * Un compte — « Vacances », « Coloc », « Week-end à Lyon » — tient des
+ * personnes et des lignes. Une ligne dit ce qui a été payé, combien, par qui,
+ * et pour qui : le partage est égal entre les personnes concernées, parce que
+ * c'est ainsi que ça se passe neuf fois sur dix, et que des parts à régler
+ * avant de noter une baguette ferait abandonner l'app avant la fin des
+ * vacances.
+ *
+ * L'argent est compté **en centimes, en entiers**. Un dixième d'euro n'existe
+ * pas en binaire : 0,1 + 0,2 ne fait pas 0,3, et trois personnes qui se
+ * partagent dix euros finiraient par ne pas tomber d'accord sur un centime —
+ * entre deux téléphones, ce centime se verrait.
+ *
+ * Fusionné comme une liste : ligne par ligne, chacune avec son horloge, et des
+ * pierres tombales pour les suppressions.
+ */
+
+
+
+
+/** Un compte neuf. `names` sont les personnes qu'il concerne. */
+function createSpend({ name = '', names = [], shared = false, groupId = null } = {}) {
+  const now = Date.now();
+  return {
+    id: uid('d'),
+    kind: 'spend',
+    name: String(name).trim(),
+    createdAt: now,
+    updatedAt: now,
+    peopleAt: now,
+    shared: Boolean(shared),
+    groupId: groupId || null,
+    archivedAt: null,
+    removed: {},
+    people: names
+      .map((raw) => String(raw || '').trim())
+      .filter(Boolean)
+      .map((personName) => ({ id: uid('w'), name: personName })),
+    lines: [],
+  };
+}
+
+/**
+ * Lire un montant tel qu'il se tape : « 12,50 », « 12.5 », « 12 », « 3 € ».
+ * Rend des centimes, ou null quand ce n'est pas un montant.
+ */
+function readAmount(raw) {
+  const clean = String(raw ?? '')
+    .replace(/[\s €]/g, '')
+    .replace(',', '.');
+  if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
+  const value = Math.round(Number(clean) * 100);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Des centimes, écrits comme le lecteur écrit l'argent. */
+function showAmount(cents, language = 'fr') {
+  const value = (Number(cents) || 0) / 100;
+  try {
+    return new Intl.NumberFormat(language, { style: 'currency', currency: 'EUR' }).format(value);
+  } catch {
+    return `${value.toFixed(2)} €`;
+  }
+}
+
+/**
+ * Ajouter une dépense. `forWhom` vide veut dire « pour tout le monde » : c'est
+ * le cas courant, et l'écrire à chaque fois serait une corvée.
+ */
+function addSpend(spend, { text = '', amount = 0, by = null, forWhom = [], day = null } = {}) {
+  const cents = Number.isInteger(amount) ? amount : readAmount(amount);
+  if (!cents) return spend;
+
+  const known = new Set(spend.people.map((person) => person.id));
+  const line = {
+    id: uid('s'),
+    text: String(text || '').trim(),
+    amount: cents,
+    by: known.has(by) ? by : null,
+    // Rangé dans l'ordre des personnes du compte : deux téléphones qui cochent
+    // les mêmes personnes dans un ordre différent écrivent la même ligne.
+    forWhom: spend.people.filter((person) => forWhom.includes(person.id)).map((person) => person.id),
+    day: /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) ? String(day) : null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  return touch(spend, { lines: [...spend.lines, line] });
+}
+
+function patchLine(spend, lineId, patch) {
+  let changed = false;
+  const lines = spend.lines.map((line) => {
+    if (line.id !== lineId) return line;
+    changed = true;
+    return { ...line, ...patch, updatedAt: later(line.updatedAt) };
+  });
+  return changed ? touch(spend, { lines }) : spend;
+}
+
+function editSpend(spend, lineId, { text, amount, by, forWhom, day } = {}) {
+  const patch = {};
+  if (text !== undefined) patch.text = String(text || '').trim();
+  if (amount !== undefined) {
+    const cents = Number.isInteger(amount) ? amount : readAmount(amount);
+    if (cents) patch.amount = cents;
+  }
+  if (by !== undefined) {
+    patch.by = spend.people.some((person) => person.id === by) ? by : null;
+  }
+  if (forWhom !== undefined) {
+    patch.forWhom = spend.people.filter((person) => forWhom.includes(person.id)).map((person) => person.id);
+  }
+  if (day !== undefined) {
+    patch.day = /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) ? String(day) : null;
+  }
+  return Object.keys(patch).length ? patchLine(spend, lineId, patch) : spend;
+}
+
+/** Retirer une ligne, et se souvenir de l'avoir retirée. */
+function removeSpend(spend, lineId) {
+  const lines = spend.lines.filter((line) => line.id !== lineId);
+  if (lines.length === spend.lines.length) return spend;
+  return touch(spend, { lines, removed: { ...spend.removed, [lineId]: Date.now() } });
+}
+
+/** Ranger un compte soldé, ou le ressortir. */
+function archiveSpend(spend, yes = true) {
+  const at = yes ? Date.now() : null;
+  return at === (spend.archivedAt || null) ? spend : touch(spend, { archivedAt: at });
+}
+
+const addSpendPerson = addPerson;
+const renameSpendPerson = renamePerson;
+
+/**
+ * Est-ce que ce compte tient encore debout sans cette personne ?
+ *
+ * Non si elle a avancé de l'argent : la somme des soldes ne ferait plus zéro,
+ * et le remboursement calculé serait faux sans que rien ne le dise. Non non
+ * plus si une ligne ne concerne qu'elle : « pour personne » se lit « pour tout
+ * le monde », et le taxi qu'elle a pris seule deviendrait l'affaire de tous.
+ *
+ * Dans les deux cas, ses lignes se corrigent ou se retirent d'abord — un geste
+ * de plus, mais un compte juste.
+ */
+function canRemovePerson(spend, personId) {
+  if (spend.lines.some((line) => line.by === personId)) return 'paid';
+  if (spend.lines.some((line) => line.forWhom.length === 1 && line.forWhom[0] === personId)) return 'alone';
+  return 'ok';
+}
+
+/**
+ * Retirer quelqu'un du compte. Sans effet quand ses lignes l'en empêchent :
+ * `canRemovePerson` dit pourquoi, et l'app le répète.
+ */
+function removeSpendPerson(spend, personId) {
+  if (canRemovePerson(spend, personId) !== 'ok') return spend;
+  return removePerson(spend, personId, (current) => ({
+    lines: current.lines.map((line) =>
+      (line.forWhom.includes(personId)
+        ? { ...line, forWhom: line.forWhom.filter((id) => id !== personId), updatedAt: later(line.updatedAt) }
+        : line)),
+  }));
+}
+
+/**
+ * Répartir un montant en centimes entre n personnes, sans perdre de centime.
+ *
+ * Dix euros entre trois font 3,34 / 3,33 / 3,33 : le reste va aux premiers,
+ * dans l'ordre des personnes du compte. Le calcul ne dépend que de la ligne,
+ * donc deux téléphones tombent sur les mêmes parts.
+ */
+function split(amount, count) {
+  if (count <= 0) return [];
+  const each = Math.floor(amount / count);
+  const extra = amount - each * count;
+  return Array.from({ length: count }, (_, index) => each + (index < extra ? 1 : 0));
+}
+
+/**
+ * Ce que chacun a payé, ce qu'il devait, et la différence.
+ *
+ * Positif : on lui doit. Négatif : il doit. La somme des soldes fait zéro, au
+ * centime — c'est ce qui rend le remboursement calculable.
+ */
+function balances(spend) {
+  const paid = new Map(spend.people.map((person) => [person.id, 0]));
+  const owed = new Map(spend.people.map((person) => [person.id, 0]));
+
+  for (const line of spend.lines) {
+    if (line.by && paid.has(line.by)) paid.set(line.by, paid.get(line.by) + line.amount);
+    const concerned = line.forWhom.length
+      ? line.forWhom.filter((id) => owed.has(id))
+      : spend.people.map((person) => person.id);
+    if (!concerned.length) continue;
+    const parts = split(line.amount, concerned.length);
+    concerned.forEach((id, index) => owed.set(id, owed.get(id) + parts[index]));
+  }
+
+  return spend.people.map((person) => ({
+    id: person.id,
+    name: person.name,
+    paid: paid.get(person.id) || 0,
+    owed: owed.get(person.id) || 0,
+    balance: (paid.get(person.id) || 0) - (owed.get(person.id) || 0),
+  }));
+}
+
+/** Ce que le compte a coûté en tout. */
+function spendTotal(spend) {
+  return spend.lines.reduce((sum, line) => sum + line.amount, 0);
+}
+
+/**
+ * Qui rembourse qui, en aussi peu de virements que possible.
+ *
+ * Le plus gros débiteur paie le plus gros créancier, et on recommence : ça ne
+ * donne pas toujours le minimum théorique — le problème est NP-difficile — mais
+ * ça donne au plus n−1 virements, ce qui est déjà bien moins que « chacun
+ * rembourse chacun », et surtout ça se lit.
+ */
+function settle(spend) {
+  const owing = balances(spend)
+    .filter((row) => row.balance !== 0)
+    .map((row) => ({ ...row }));
+
+  const debtors = owing.filter((row) => row.balance < 0).sort((a, b) => a.balance - b.balance);
+  const creditors = owing.filter((row) => row.balance > 0).sort((a, b) => b.balance - a.balance);
+
+  const moves = [];
+  let d = 0;
+  let c = 0;
+  while (d < debtors.length && c < creditors.length) {
+    const amount = Math.min(-debtors[d].balance, creditors[c].balance);
+    if (amount > 0) {
+      moves.push({ from: debtors[d].name, fromId: debtors[d].id, to: creditors[c].name, toId: creditors[c].id, amount });
+      debtors[d].balance += amount;
+      creditors[c].balance -= amount;
+    }
+    if (debtors[d].balance === 0) d += 1;
+    if (creditors[c].balance === 0) c += 1;
+  }
+  return moves;
+}
+
+/** Fusionner deux copies du même compte : ligne à ligne, comme une liste. */
+function mergeSpends(a, b) {
+  if (!isValidSpend(a)) return b;
+  if (!isValidSpend(b)) return a;
+  if (a.id !== b.id) return a;
+
+  const [newer, older] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+  const removed = prune({ ...older.removed, ...newer.removed });
+
+  const byId = new Map();
+  for (const line of [...older.lines, ...newer.lines]) {
+    if (removed[line.id]) continue;
+    const held = byId.get(line.id);
+    if (!held || (line.updatedAt || 0) >= (held.updatedAt || 0)) byId.set(line.id, line);
+  }
+
+  const lines = [
+    ...newer.lines.filter((line) => byId.has(line.id)).map((line) => byId.get(line.id)),
+    ...older.lines.filter(
+      (line) => byId.has(line.id) && !newer.lines.some((other) => other.id === line.id),
+    ),
+  ];
+
+  const people = (newer.peopleAt || 0) >= (older.peopleAt || 0) ? newer.people : older.people;
+
+  const sameLines =
+    lines.length === newer.lines.length && lines.every((line, index) => line === newer.lines[index]);
+  const sameRemoved = Object.keys(removed).length === Object.keys(newer.removed || {}).length;
+  if (sameLines && sameRemoved && people === newer.people) return newer;
+
+  return {
+    ...newer,
+    people,
+    peopleAt: Math.max(newer.peopleAt || 0, older.peopleAt || 0),
+    removed,
+    lines,
+    updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+  };
+}
+
+/** Lecture défensive de ce qui revient du stockage, d'un lien ou d'un fichier. */
+function isValidSpend(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      value.kind === 'spend' &&
+      typeof value.id === 'string' &&
+      Array.isArray(value.people) &&
+      Array.isArray(value.lines) &&
+      value.lines.every(
+        (line) => line && typeof line.id === 'string' && Number.isFinite(line.amount) && Array.isArray(line.forWhom),
+      ),
+  );
+}
+
   // ---- src/stats.js ----------------------------------------------------
 /**
  * What the accumulated games say about the people who played them.
@@ -4415,6 +4826,7 @@ function statsFor(games, presetId) {
 
 
 
+
 /** Whether a document is in the chosen group. No group chosen means all of them. */
 function inGroup(document_, groupId) {
   return groupId ? document_?.groupId === groupId : true;
@@ -4459,7 +4871,7 @@ function isLive(document_) {
  * Each under the spelling written most recently, because that is the one they
  * chose last — the rule the statistics table already follows.
  */
-function peopleIn({ lists = [], polls = [], games = [] } = {}) {
+function peopleIn({ lists = [], polls = [], games = [], spends = [] } = {}) {
   const seen = new Map();
   const note = (raw, when) => {
     const name = String(raw || '').trim();
@@ -4472,6 +4884,7 @@ function peopleIn({ lists = [], polls = [], games = [] } = {}) {
   for (const list of lists) for (const person of list.people || []) note(person.name, list.updatedAt);
   for (const poll of polls) for (const person of poll.people || []) note(person.name, poll.updatedAt);
   for (const game of games) for (const player of game.players || []) note(player.name, game.updatedAt);
+  for (const spend of spends) for (const person of spend.people || []) note(person.name, spend.updatedAt);
 
   return [...seen.values()].map((row) => row.name).sort((a, b) => a.localeCompare(b));
 }
@@ -4483,20 +4896,24 @@ function peopleIn({ lists = [], polls = [], games = [] } = {}) {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '', today = dayNow()) {
+function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, groupId = '', today = dayNow()) {
   const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
-  const held = { lists: mine(lists), polls: mine(polls), games: mine(games) };
+  const held = { lists: mine(lists), polls: mine(polls), games: mine(games), spends: mine(spends) };
   const live = {
     lists: held.lists.filter(isLive),
     polls: held.polls.filter(isLive),
     games: held.games.filter(isLive),
+    spends: held.spends.filter(isLive),
   };
-  const everything = [...held.lists, ...held.polls, ...held.games];
+  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends];
 
   return {
     lists: live.lists.filter((list) => progress(list).left > 0).length,
     polls: live.polls.filter((poll) => !poll.closedAt).length,
     games: live.games.filter((game) => !gameStatus(game).finished).length,
+    // Un compte compte tant que quelqu'un y doit quelque chose : un compte
+    // soldé n'est pas en cours, il est fini.
+    spends: live.spends.filter((spend) => balances(spend).some((row) => row.balance !== 0)).length,
     left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
     late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,
@@ -4513,7 +4930,7 @@ function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '', 
  * beside their name. A game with no rounds is left out of the games: nobody
  * played it, so it says nothing about anyone.
  */
-function personFile({ lists = [], polls = [], games = [] } = {}, who, today = dayNow()) {
+function personFile({ lists = [], polls = [], games = [], spends = [] } = {}, who, today = dayNow()) {
   const key = sameName(who);
   const byDate = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
   const groupIds = new Set();
@@ -4577,6 +4994,19 @@ function personFile({ lists = [], polls = [], games = [] } = {}, who, today = da
     });
   }
 
+  // Les comptes où cette personne figure, et ce qu'elle y doit ou qu'on lui y
+  // doit. Positif : on lui doit.
+  const accounts = [];
+  for (const spend of [...spends].sort(byDate)) {
+    const person = (spend.people || []).find((one) => sameName(one.name) === key);
+    if (!person) continue;
+    spelling(person.name, spend.updatedAt);
+    if (spend.groupId) groupIds.add(spend.groupId);
+    if (!isLive(spend)) continue;
+    const row = balances(spend).find((one) => one.id === person.id);
+    accounts.push({ spend, paid: row?.paid || 0, balance: row?.balance || 0 });
+  }
+
   return {
     name,
     known: at >= 0,
@@ -4584,12 +5014,15 @@ function personFile({ lists = [], polls = [], games = [] } = {}, who, today = da
     lines,
     votes,
     played,
+    accounts,
     counts: {
       games: played.length,
       wins: played.filter((row) => row.won).length,
       left: lines.reduce((sum, row) => sum + row.left, 0),
       late: lines.reduce((sum, row) => sum + row.late, 0),
       votes: votes.filter((row) => !row.closed && !row.answered).length,
+      owes: accounts.reduce((sum, row) => sum + (row.balance < 0 ? -row.balance : 0), 0),
+      owed: accounts.reduce((sum, row) => sum + (row.balance > 0 ? row.balance : 0), 0),
     },
   };
 }
@@ -5122,11 +5555,13 @@ function buildPdf(report) {
 
 
 
+
 // The keys keep the old name on purpose: renaming them would lose every game
 // and every list already on people's phones, to no one's benefit.
 const GAMES_KEY = 'marque-points:games:v1';
 const LISTS_KEY = 'marque-points:lists:v1';
 const POLLS_KEY = 'marque-points:polls:v1';
+const SPENDS_KEY = 'marque-points:spends:v1';
 const PREFS_KEY = 'marque-points:prefs:v1';
 
 function read(key, fallback) {
@@ -5173,6 +5608,15 @@ function loadPolls() {
 
 function savePolls(polls) {
   return write(POLLS_KEY, polls);
+}
+
+function loadSpends() {
+  const value = read(SPENDS_KEY, []);
+  return Array.isArray(value) ? value.filter(isValidSpend) : [];
+}
+
+function saveSpends(spends) {
+  return write(SPENDS_KEY, spends);
 }
 
 function loadPrefs() {
@@ -5962,12 +6406,14 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
   games: loadGames(),
   lists: loadLists(),
   polls: loadPolls(),
+  spends: loadSpends(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -5988,6 +6434,8 @@ const state = {
   openingList: null,
   // And for a poll.
   openingPoll: null,
+  // And for a shared account of expenses.
+  openingSpend: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -5998,6 +6446,10 @@ const state = {
 let newListName = '';
 let newListPeople = ['', ''];
 let newListLines = '';
+
+// And the new account's.
+let newSpendName = '';
+let newSpendPeople = ['', ''];
 
 // And the new-poll form's.
 let newPollQuestion = '';
@@ -6379,6 +6831,26 @@ function getPoll(id) {
   return state.polls.find((poll) => poll.id === id) || null;
 }
 
+function persistSpend(changed) {
+  const ok = saveSpends(state.spends);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getSpend(id) {
+  return state.spends.find((spend) => spend.id === id) || null;
+}
+
+function replaceSpend(next, { redraw = true } = {}) {
+  state.spends = state.spends.map((spend) => (spend.id === next.id ? next : spend));
+  persistSpend(next);
+  if (redraw) render();
+}
+
 function replacePoll(next, { redraw = true } = {}) {
   state.polls = state.polls.map((poll) => (poll.id === next.id ? next : poll));
   persistPoll(next);
@@ -6729,6 +7201,42 @@ function watchPoll(id) {
   }, 5000);
 }
 
+/** Le compte que la base détient, s'il est plus récent que celui d'ici. */
+async function pullSpend(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidSpend(stored) ? adoptSpend(stored) : false;
+}
+
+/** Les dépenses arrivent ligne par ligne : celle de l'un ne chasse pas l'autre. */
+function adoptSpend(stored) {
+  const local = getSpend(stored.id);
+  const merged = local ? mergeSpends(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.spends = local
+    ? state.spends.map((spend) => (spend.id === stored.id ? adopted : spend))
+    : [...state.spends, adopted];
+  saveSpends(state.spends);
+  return true;
+}
+
+/** Tant qu'un compte partagé est à l'écran, guetter ce que les autres notent. */
+function watchSpend(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullSpend(id)) render();
+  }, 5000);
+}
+
 /* ------------------------------------------------------------------ lists --- */
 
 /**
@@ -7054,6 +7562,554 @@ function replaceGame(next) {
   persist(next);
 }
 
+/* --------------------------------------------------------------- dépenses --- */
+
+function spendTitle(spend) {
+  return spend.name || t('spends.untitled');
+}
+
+/** Ce que ce compte dit de moi : ce qu'on me doit, ou ce que je dois. */
+function myBalance(spend) {
+  const me = sameName(myName());
+  if (!me) return null;
+  return balances(spend).find((row) => sameName(row.name) === me) || null;
+}
+
+function spendCardHtml(spend) {
+  const mine = myBalance(spend);
+  const line = mine && mine.balance !== 0
+    ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+    : t('spends.even');
+  return `
+    <button type="button" class="game-card" data-goto="#/spend/${escapeHtml(spend.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(spendTitle(spend))}
+        <span class="pill">${escapeHtml(showAmount(spendTotal(spend), getLanguage()))}</span>
+      </span>
+      <span class="game-card__meta">${escapeHtml(spend.people.map((person) => person.name).join(' · '))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(spend.updatedAt))} — <span class="${mine && mine.balance < 0 ? 'late' : ''}">${escapeHtml(line)}</span>
+      </span>
+    </button>`;
+}
+
+function spendsView() {
+  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
+  const live = sorted.filter(isLive);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
+      + ${escapeHtml(t('spends.new'))}
+    </button>
+    ${groupChipsHtml()}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('spends.ongoing'))}</h2></div>
+      ${
+        live.length
+          ? `<div class="game-list">${live.map(spendCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
+      }
+    </section>
+
+    ${archivedHtml(sorted, spendCardHtml)}`;
+}
+
+function newSpendView() {
+  const suggestions = [...new Set([
+    myName(), ...recentPeople(state.spends), ...recentPeople(state.lists), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('spends.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-spend" class="card stack">
+      <label>
+        ${escapeHtml(t('spends.name'))}
+        <input type="text" id="spend-name" placeholder="${escapeHtml(t('spends.namePlaceholder'))}"
+               value="${escapeHtml(newSpendName)}" required />
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.peopleHint'))}</span>
+        ${newSpendPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newSpendPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
+    </form>`;
+}
+
+/** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
+function spendLineHtml(spend, line) {
+  const who = spend.people.find((person) => person.id === line.by)?.name || '';
+  const forWhom = line.forWhom.length
+    ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
+    : t('spends.everyone');
+  return `
+    <li class="line">
+      <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
+        <span>${escapeHtml(line.text || t('spends.untitledLine'))}</span>
+        <span class="line__due">
+          ${escapeHtml(who ? t('spends.paidBy', { name: who }) : t('spends.paidByNobody'))}
+          · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
+        </span>
+      </button>
+      <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+    </li>`;
+}
+
+function spendView(spend) {
+  const rows = balances(spend);
+  const moves = settle(spend);
+  const me = sameName(myName());
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(spendTitle(spend))}</h1>
+        <p class="muted small">
+          ${escapeHtml(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }))}
+          ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${
+      spend.people.length
+        ? `<form id="add-spend" class="card stack stack--tight">
+             <label class="visually-hidden" for="spend-text">${escapeHtml(t('spends.what'))}</label>
+             <input type="text" id="spend-text" placeholder="${escapeHtml(t('spends.what'))}" autocomplete="off" />
+             <div class="row row--tight">
+               <label class="visually-hidden" for="spend-amount">${escapeHtml(t('spends.amount'))}</label>
+               <input type="text" id="spend-amount" inputmode="decimal" placeholder="${escapeHtml(t('spends.amount'))}" />
+               <label class="visually-hidden" for="spend-by">${escapeHtml(t('spends.by'))}</label>
+               <select id="spend-by">
+                 ${spend.people
+                   .map(
+                     (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
+                        ${escapeHtml(person.name)}
+                      </option>`,
+                   )
+                   .join('')}
+               </select>
+               <button type="submit" class="button button--primary">+</button>
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.addHint'))}</p>
+           </form>`
+        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<ul class="lines">${[...spend.lines]
+            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
+            .map((line) => spendLineHtml(spend, line))
+            .join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
+             <div class="entries">
+               ${rows
+                 .map(
+                   (row) => `
+                     <div class="entry">
+                       <span class="entry__what">
+                         ${escapeHtml(row.name)}
+                         <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                       </span>
+                       <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
+                         ${escapeHtml(
+                           row.balance === 0
+                             ? t('spends.even')
+                             : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                                 amount: showAmount(Math.abs(row.balance), getLanguage()),
+                               }),
+                         )}
+                       </span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+           </section>`
+        : ''
+    }
+
+    ${
+      moves.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
+             <div class="entries">
+               ${moves
+                 .map(
+                   (move) => `
+                     <div class="entry">
+                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
+           </section>`
+        : ''
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="spend-share">${escapeHtml(t('spends.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small button--ghost" id="spend-archive">
+          ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
+
+function bindNewSpend() {
+  const form = view.querySelector('#new-spend');
+  if (!form) return;
+
+  const snapshot = () => {
+    newSpendName = view.querySelector('#spend-name').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newSpendPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = [...newSpendPeople, ''];
+    render();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = newSpendPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newSpendPeople.some((name) => name.trim().toLowerCase() === suggest.toLowerCase())) return;
+      const empty = newSpendPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newSpendPeople[empty] = suggest;
+      else newSpendPeople = [...newSpendPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    snapshot();
+    const group = await askGroup();
+    const spend = createSpend({
+      name: newSpendName,
+      names: newSpendPeople,
+      shared: Boolean(group),
+      groupId: group?.id || null,
+    });
+    state.spends = [...state.spends, spend];
+    persistSpend(spend);
+    newSpendName = '';
+    newSpendPeople = ['', ''];
+    navigate(`#/spend/${spend.id}`);
+  });
+}
+
+function bindSpend(spend) {
+  bindData();
+
+  view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = view.querySelector('#spend-text');
+    const amount = view.querySelector('#spend-amount');
+    const cents = readAmount(amount.value);
+    if (!cents) {
+      flash(t('spends.notAnAmount'), 'error');
+      render();
+      return;
+    }
+    replaceSpend(addSpend(spend, {
+      text: text.value,
+      amount: cents,
+      by: view.querySelector('#spend-by').value,
+      day: dayNow(),
+    }));
+  });
+
+  view.querySelectorAll('[data-spend-line]').forEach((button) => {
+    button.addEventListener('click', () => openSpendLineDialog(spend, button.dataset.spendLine));
+  });
+
+  view.querySelector('#spend-people')?.addEventListener('click', () => openSpendPeopleDialog(spend));
+
+  view.querySelector('#spend-share')?.addEventListener('click', async () => {
+    const group = await askGroup();
+    if (!group) {
+      flash(t('groups.needOne'));
+      render();
+      return;
+    }
+    const next = { ...spend, shared: true, groupId: group.id, updatedAt: Date.now() };
+    replaceSpend(next);
+    flash(t('spends.shared', { name: group.name }));
+    render();
+  });
+
+  view.querySelector('#spend-archive')?.addEventListener('click', () => {
+    const next = archiveSpend(spend, !spend.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replaceSpend(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/spends');
+  });
+
+  view.querySelector('#spend-rename')?.addEventListener('click', async () => {
+    const name = await askForText({
+      title: t('spends.rename'),
+      hint: t('spends.renameHint'),
+      value: spend.name,
+      confirmLabel: t('action.save'),
+    });
+    if (name === null) return;
+    replaceSpend({ ...spend, name: String(name).trim(), updatedAt: Date.now() });
+  });
+
+  view.querySelector('#spend-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('spends.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.spends = state.spends.filter((item) => item.id !== spend.id);
+    saveSpends(state.spends);
+    if (state.store) void state.store.remove(spend.id);
+    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend)).catch(() => {});
+    navigate('#/spends');
+  });
+}
+
+/** Une dépense : ce qu'elle était, pour qui, quel jour — et de quoi l'effacer. */
+function openSpendLineDialog(spend, lineId) {
+  const line = spend.lines.find((entry) => entry.id === lineId);
+  if (!line) return;
+
+  const dialog = makeDialog();
+  const chosen = new Set(line.forWhom);
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('spends.lineTitle'))}</h2>
+      <label>
+        ${escapeHtml(t('spends.what'))}
+        <input type="text" id="line-what" value="${escapeHtml(line.text)}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.amount'))}
+        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml(String(line.amount / 100).replace('.', ','))}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.by'))}
+        <select id="line-by">
+          ${spend.people
+            .map(
+              (person) => `<option value="${escapeHtml(person.id)}" ${person.id === line.by ? 'selected' : ''}>
+                 ${escapeHtml(person.name)}
+               </option>`,
+            )
+            .join('')}
+        </select>
+      </label>
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.forWhomHint'))}</span>
+        <div class="row" id="line-for">
+          ${spend.people
+            .map(
+              (person) => `
+                <button type="button" class="chip ${chosen.has(person.id) ? 'chip--on' : ''}"
+                        data-for="${escapeHtml(person.id)}" aria-pressed="${chosen.has(person.id) ? 'true' : 'false'}">
+                  ${escapeHtml(person.name)}
+                </button>`,
+            )
+            .join('')}
+        </div>
+      </div>
+      <label>
+        ${escapeHtml(t('lists.due'))}
+        <input type="date" id="line-day" value="${escapeHtml(line.day || '')}" />
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="line-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  dialog.querySelectorAll('[data-for]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const id = chip.dataset.for;
+      if (chosen.has(id)) chosen.delete(id);
+      else chosen.add(id);
+      chip.classList.toggle('chip--on', chosen.has(id));
+      chip.setAttribute('aria-pressed', chosen.has(id) ? 'true' : 'false');
+    });
+  });
+
+  dialog.querySelector('#line-save').addEventListener('click', () => {
+    const amount = dialog.querySelector('#line-amount').value;
+    if (!readAmount(amount)) {
+      flash(t('spends.notAnAmount'), 'error');
+      dialog.close();
+      render();
+      return;
+    }
+    dialog.close();
+    replaceSpend(editSpend(spend, lineId, {
+      text: dialog.querySelector('#line-what').value,
+      amount,
+      by: dialog.querySelector('#line-by').value,
+      forWhom: [...chosen],
+      day: dialog.querySelector('#line-day').value,
+    }));
+  });
+
+  dialog.querySelector('#line-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#line-delete').addEventListener('click', () => {
+    dialog.close();
+    replaceSpend(removeSpend(spend, lineId));
+  });
+
+  dialog.showModal();
+}
+
+/** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
+function openSpendPeopleDialog(spend) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getSpend(spend.id) || spend;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.delete'))}
+                    </button>
+                  </div>
+                </div>`,
+            )
+            .join('')}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button" id="spend-person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
+      const field = dialog.querySelector('#spend-person');
+      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
+      field.value = '';
+      replaceSpend(next, { redraw: false });
+      draw();
+    });
+
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const held = getSpend(spend.id) || spend;
+        const person = held.people.find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('spends.renamePersonHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null) return;
+        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelectorAll('[data-drop]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const held = getSpend(spend.id) || spend;
+        const why = canRemovePerson(held, button.dataset.drop);
+        if (why !== 'ok') {
+          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
+          // vaut refuser en expliquant que rendre un remboursement faux.
+          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
+          dialog.close();
+          render();
+          return;
+        }
+        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => {
+      dialog.close();
+      render();
+    });
+  };
+
+  draw();
+  dialog.showModal();
+}
+
 /* ----------------------------------------------------------------- router --- */
 
 function route() {
@@ -7083,6 +8139,9 @@ function route() {
   if (name === 'lists' && param === 'new') return { name: 'new-list' };
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
+  if (name === 'spends' && param === 'new') return { name: 'new-spend' };
+  if (name === 'spends') return { name: 'spends' };
+  if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
@@ -7198,6 +8257,8 @@ function pendingHtml() {
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const asked = state.polls.filter((poll) => !poll.closedAt)
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const owing = state.spends.filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   for (const list of open.slice(0, 3)) {
     const { left } = progress(list);
@@ -7213,6 +8274,16 @@ function pendingHtml() {
       goto: `#/poll/${poll.id}`,
       title: pollTitle(poll),
       meta: t('polls.answered', { count: answered, total: poll.people.length }),
+    });
+  }
+  for (const spend of owing.slice(0, 3)) {
+    const mine = myBalance(spend);
+    lines.push({
+      goto: `#/spend/${spend.id}`,
+      title: spendTitle(spend),
+      meta: mine && mine.balance !== 0
+        ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+        : t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }),
     });
   }
   for (const game of ongoing.slice(0, 3)) {
@@ -7364,7 +8435,7 @@ function groupsHtml() {
                     <div>
                       <strong>${escapeHtml(group.name)}</strong>
                       <span class="muted small">${escapeHtml(t('groups.shared', {
-                        count: [...state.games, ...state.lists, ...state.polls]
+                        count: [...state.games, ...state.lists, ...state.polls, ...state.spends]
                           .filter((document_) => document_.groupId === group.id).length,
                       }))}</span>
                     </div>
@@ -7515,6 +8586,7 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
+        ${tile(counts.spends, t('tab.spends'), '#/spends')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -7536,6 +8608,7 @@ function waitingLine(counts) {
     counts.late ? t('lists.late', { count: counts.late }) : '',
     counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
     counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+    counts.owes ? t('spends.owes', { amount: showAmount(counts.owes, getLanguage()) }) : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -8725,6 +9798,25 @@ function personView(who) {
     )}
 
     ${section(
+      t('person.spends'),
+      file.accounts.map((row) =>
+        entry(
+          `#/spend/${escapeHtml(row.spend.id)}`,
+          escapeHtml(spendTitle(row.spend)),
+          escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) })),
+          escapeHtml(
+            row.balance === 0
+              ? t('spends.even')
+              : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                  amount: showAmount(Math.abs(row.balance), getLanguage()),
+                }),
+          ),
+          row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : '',
+        ),
+      ),
+    )}
+
+    ${section(
       t('person.games'),
       file.played
         .slice(0, GAMES_SHOWN)
@@ -9320,7 +10412,7 @@ const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : '
 
 function exportGames() {
   const json = JSON.stringify(
-    { version: 1, games: state.games, lists: state.lists, polls: state.polls }, null, 2,
+    { version: 1, games: state.games, lists: state.lists, polls: state.polls, spends: state.spends }, null, 2,
   );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
@@ -9459,11 +10551,12 @@ function importGames(source) {
 
   const all = Array.isArray(parsed)
     ? parsed
-    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || [])];
+    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || []), ...(parsed?.spends || [])];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
   const polls = all.filter(isValidPoll);
-  if (!games.length && !lists.length && !polls.length) {
+  const spends = all.filter(isValidSpend);
+  if (!games.length && !lists.length && !polls.length && !spends.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -9483,11 +10576,18 @@ function importGames(source) {
   state.polls = [...state.polls, ...freshPolls];
   savePolls(state.polls);
 
-  for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
+  const knownSpends = new Set(state.spends.map((spend) => spend.id));
+  const freshSpends = spends.filter((spend) => !knownSpends.has(spend.id));
+  state.spends = [...state.spends, ...freshSpends];
+  saveSpends(state.spends);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
   }
-  flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
+  flash(t('home.importDone', {
+    count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
+  }));
   return true;
 }
 
@@ -10242,7 +11342,7 @@ function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls, ...state.spends].sort((a, b) => b.updatedAt - a.updatedAt);
   const held = groups();
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -11890,6 +12990,38 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
+  } else if (current.name === 'spends') {
+    stopWatching();
+    view.innerHTML = spendsView();
+  } else if (current.name === 'new-spend') {
+    stopWatching();
+    view.innerHTML = newSpendView();
+    bindNewSpend();
+  } else if (current.name === 'spend') {
+    const spend = getSpend(current.id);
+    if (!spend) {
+      stopWatching();
+      // Peut-être un compte que quelqu'un partage : demander avant d'abandonner.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('spends.loading'))}</p>`;
+        if (state.openingSpend !== current.id) {
+          const asked = current.id;
+          state.openingSpend = asked;
+          pullSpend(asked).then((found) => {
+            if (state.openingSpend !== asked) return;
+            state.openingSpend = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/spends');
+          });
+        }
+        return;
+      }
+      navigate('#/spends');
+      return;
+    }
+    watchSpend(spend.id);
+    view.innerHTML = spendView(spend);
+    bindSpend(spend);
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
@@ -12059,7 +13191,9 @@ function markTab(current) {
       ? 'polls'
       : ['home', 'new', 'game', 'stats'].includes(current.name)
         ? 'games'
-        : 'overview';
+        : ['spends', 'new-spend', 'spend'].includes(current.name)
+          ? 'spends'
+          : 'overview';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -12083,6 +13217,7 @@ async function pullAny(id) {
   if (isValidGame(stored)) return adoptGame(stored);
   if (isValidList(stored)) return adoptList(stored);
   if (isValidPoll(stored)) return adoptPoll(stored);
+  if (isValidSpend(stored)) return adoptSpend(stored);
   return false;
 }
 
@@ -12195,6 +13330,7 @@ window.addEventListener('storage', (event) => {
   state.games = loadGames();
   state.lists = loadLists();
   state.polls = loadPolls();
+  state.spends = loadSpends();
   if (!isBusy()) render();
 });
 /**

@@ -103,14 +103,14 @@ test("a person's file gathers what waits on them", () => {
   assert.equal(file.played[0].won, true);
   assert.equal(file.played[0].rank, 1);
   assert.equal(file.played[0].of, 2);
-  assert.deepEqual(file.counts, { games: 1, wins: 1, left: 1, late: 0, votes: 1 });
+  assert.deepEqual(file.counts, { games: 1, wins: 1, left: 1, late: 0, votes: 1, owes: 0, owed: 0 });
 });
 
 test('a name nobody here carries comes back empty rather than wrong', () => {
   const file = personFile({ lists: [courses()] }, 'Claire');
   assert.equal(file.known, false);
   assert.equal(file.name, 'Claire');
-  assert.deepEqual(file.counts, { games: 0, wins: 0, left: 0, late: 0, votes: 0 });
+  assert.deepEqual(file.counts, { games: 0, wins: 0, left: 0, late: 0, votes: 0, owes: 0, owed: 0 });
   assert.deepEqual(file.lines, []);
 });
 
@@ -224,4 +224,31 @@ test('but an archived evening stays part of what someone played', () => {
   const file = personFile({ games: [archiveGame(papayoo())] }, 'Alice');
   assert.equal(file.counts.games, 1, 'archiving clears the tab, it does not rewrite history');
   assert.equal(file.played[0].won, true);
+});
+
+test('les comptes de dépenses comptent parmi ce que tient un groupe', async () => {
+  const { createSpend, addSpend } = await import('../src/spends.js');
+  const spend = createSpend({ name: 'Vacances', names: ['Gui', 'Alice'], groupId: 'mifa' });
+  const owing = addSpend(spend, { text: 'Gîte', amount: 10000, by: spend.people[0].id });
+
+  assert.equal(groupCounts({ spends: [owing] }, 'mifa').spends, 1);
+  assert.equal(groupCounts({ spends: [spend] }, 'mifa').spends, 0, 'un compte sans dépense ne doit rien à personne');
+  assert.equal(groupCounts({ spends: [archiveList(owing)] }, 'mifa').spends, 0, 'ni un compte rangé');
+  assert.ok(peopleIn({ spends: [owing] }).includes('Alice'), 'et ses personnes sont des personnes');
+});
+
+test('la page d’une personne dit ce qu’elle doit, et ce qu’on lui doit', async () => {
+  const { createSpend, addSpend } = await import('../src/spends.js');
+  const spend = createSpend({ name: 'Vacances', names: ['Gui', 'Alice'], groupId: 'mifa' });
+  const owing = addSpend(spend, { text: 'Gîte', amount: 10000, by: spend.people[0].id });
+
+  const alice = personFile({ spends: [owing] }, 'Alice');
+  assert.equal(alice.counts.owes, 5000);
+  assert.equal(alice.counts.owed, 0);
+  assert.equal(alice.accounts.length, 1);
+
+  const gui = personFile({ spends: [owing] }, 'Gui');
+  assert.equal(gui.counts.owed, 5000);
+  assert.equal(gui.counts.owes, 0);
+  assert.equal(gui.accounts[0].paid, 10000);
 });

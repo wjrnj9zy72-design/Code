@@ -13,6 +13,7 @@
 
 import { progress } from './lists.js';
 import { voteOf } from './polls.js';
+import { balances } from './spends.js';
 import { standings, gameStatus } from './scoring.js';
 import { sameName } from './stats.js';
 
@@ -60,7 +61,7 @@ export function isLive(document_) {
  * Each under the spelling written most recently, because that is the one they
  * chose last — the rule the statistics table already follows.
  */
-export function peopleIn({ lists = [], polls = [], games = [] } = {}) {
+export function peopleIn({ lists = [], polls = [], games = [], spends = [] } = {}) {
   const seen = new Map();
   const note = (raw, when) => {
     const name = String(raw || '').trim();
@@ -73,6 +74,7 @@ export function peopleIn({ lists = [], polls = [], games = [] } = {}) {
   for (const list of lists) for (const person of list.people || []) note(person.name, list.updatedAt);
   for (const poll of polls) for (const person of poll.people || []) note(person.name, poll.updatedAt);
   for (const game of games) for (const player of game.players || []) note(player.name, game.updatedAt);
+  for (const spend of spends) for (const person of spend.people || []) note(person.name, spend.updatedAt);
 
   return [...seen.values()].map((row) => row.name).sort((a, b) => a.localeCompare(b));
 }
@@ -84,20 +86,24 @@ export function peopleIn({ lists = [], polls = [], games = [] } = {}) {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-export function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '', today = dayNow()) {
+export function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, groupId = '', today = dayNow()) {
   const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
-  const held = { lists: mine(lists), polls: mine(polls), games: mine(games) };
+  const held = { lists: mine(lists), polls: mine(polls), games: mine(games), spends: mine(spends) };
   const live = {
     lists: held.lists.filter(isLive),
     polls: held.polls.filter(isLive),
     games: held.games.filter(isLive),
+    spends: held.spends.filter(isLive),
   };
-  const everything = [...held.lists, ...held.polls, ...held.games];
+  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends];
 
   return {
     lists: live.lists.filter((list) => progress(list).left > 0).length,
     polls: live.polls.filter((poll) => !poll.closedAt).length,
     games: live.games.filter((game) => !gameStatus(game).finished).length,
+    // Un compte compte tant que quelqu'un y doit quelque chose : un compte
+    // soldé n'est pas en cours, il est fini.
+    spends: live.spends.filter((spend) => balances(spend).some((row) => row.balance !== 0)).length,
     left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
     late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,
@@ -114,7 +120,7 @@ export function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId
  * beside their name. A game with no rounds is left out of the games: nobody
  * played it, so it says nothing about anyone.
  */
-export function personFile({ lists = [], polls = [], games = [] } = {}, who, today = dayNow()) {
+export function personFile({ lists = [], polls = [], games = [], spends = [] } = {}, who, today = dayNow()) {
   const key = sameName(who);
   const byDate = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
   const groupIds = new Set();
@@ -178,6 +184,19 @@ export function personFile({ lists = [], polls = [], games = [] } = {}, who, tod
     });
   }
 
+  // Les comptes où cette personne figure, et ce qu'elle y doit ou qu'on lui y
+  // doit. Positif : on lui doit.
+  const accounts = [];
+  for (const spend of [...spends].sort(byDate)) {
+    const person = (spend.people || []).find((one) => sameName(one.name) === key);
+    if (!person) continue;
+    spelling(person.name, spend.updatedAt);
+    if (spend.groupId) groupIds.add(spend.groupId);
+    if (!isLive(spend)) continue;
+    const row = balances(spend).find((one) => one.id === person.id);
+    accounts.push({ spend, paid: row?.paid || 0, balance: row?.balance || 0 });
+  }
+
   return {
     name,
     known: at >= 0,
@@ -185,12 +204,15 @@ export function personFile({ lists = [], polls = [], games = [] } = {}, who, tod
     lines,
     votes,
     played,
+    accounts,
     counts: {
       games: played.length,
       wins: played.filter((row) => row.won).length,
       left: lines.reduce((sum, row) => sum + row.left, 0),
       late: lines.reduce((sum, row) => sum + row.late, 0),
       votes: votes.filter((row) => !row.closed && !row.answered).length,
+      owes: accounts.reduce((sum, row) => sum + (row.balance < 0 ? -row.balance : 0), 0),
+      owed: accounts.reduce((sum, row) => sum + (row.balance > 0 ? row.balance : 0), 0),
     },
   };
 }

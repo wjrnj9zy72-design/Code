@@ -20,9 +20,14 @@ import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
 } from './polls.js';
+import {
+  createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
+  addSpendPerson, renameSpendPerson, removeSpendPerson, canRemovePerson,
+  balances, spendTotal, settle, mergeSpends, isValidSpend,
+} from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
-import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
+import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
@@ -35,6 +40,7 @@ const state = {
   games: loadGames(),
   lists: loadLists(),
   polls: loadPolls(),
+  spends: loadSpends(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -55,6 +61,8 @@ const state = {
   openingList: null,
   // And for a poll.
   openingPoll: null,
+  // And for a shared account of expenses.
+  openingSpend: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -65,6 +73,10 @@ const state = {
 let newListName = '';
 let newListPeople = ['', ''];
 let newListLines = '';
+
+// And the new account's.
+let newSpendName = '';
+let newSpendPeople = ['', ''];
 
 // And the new-poll form's.
 let newPollQuestion = '';
@@ -446,6 +458,26 @@ function getPoll(id) {
   return state.polls.find((poll) => poll.id === id) || null;
 }
 
+function persistSpend(changed) {
+  const ok = saveSpends(state.spends);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getSpend(id) {
+  return state.spends.find((spend) => spend.id === id) || null;
+}
+
+function replaceSpend(next, { redraw = true } = {}) {
+  state.spends = state.spends.map((spend) => (spend.id === next.id ? next : spend));
+  persistSpend(next);
+  if (redraw) render();
+}
+
 function replacePoll(next, { redraw = true } = {}) {
   state.polls = state.polls.map((poll) => (poll.id === next.id ? next : poll));
   persistPoll(next);
@@ -796,6 +828,42 @@ function watchPoll(id) {
   }, 5000);
 }
 
+/** Le compte que la base détient, s'il est plus récent que celui d'ici. */
+async function pullSpend(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidSpend(stored) ? adoptSpend(stored) : false;
+}
+
+/** Les dépenses arrivent ligne par ligne : celle de l'un ne chasse pas l'autre. */
+function adoptSpend(stored) {
+  const local = getSpend(stored.id);
+  const merged = local ? mergeSpends(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.spends = local
+    ? state.spends.map((spend) => (spend.id === stored.id ? adopted : spend))
+    : [...state.spends, adopted];
+  saveSpends(state.spends);
+  return true;
+}
+
+/** Tant qu'un compte partagé est à l'écran, guetter ce que les autres notent. */
+function watchSpend(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullSpend(id)) render();
+  }, 5000);
+}
+
 /* ------------------------------------------------------------------ lists --- */
 
 /**
@@ -1121,6 +1189,554 @@ function replaceGame(next) {
   persist(next);
 }
 
+/* --------------------------------------------------------------- dépenses --- */
+
+function spendTitle(spend) {
+  return spend.name || t('spends.untitled');
+}
+
+/** Ce que ce compte dit de moi : ce qu'on me doit, ou ce que je dois. */
+function myBalance(spend) {
+  const me = sameName(myName());
+  if (!me) return null;
+  return balances(spend).find((row) => sameName(row.name) === me) || null;
+}
+
+function spendCardHtml(spend) {
+  const mine = myBalance(spend);
+  const line = mine && mine.balance !== 0
+    ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+    : t('spends.even');
+  return `
+    <button type="button" class="game-card" data-goto="#/spend/${escapeHtml(spend.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(spendTitle(spend))}
+        <span class="pill">${escapeHtml(showAmount(spendTotal(spend), getLanguage()))}</span>
+      </span>
+      <span class="game-card__meta">${escapeHtml(spend.people.map((person) => person.name).join(' · '))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(spend.updatedAt))} — <span class="${mine && mine.balance < 0 ? 'late' : ''}">${escapeHtml(line)}</span>
+      </span>
+    </button>`;
+}
+
+function spendsView() {
+  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
+  const live = sorted.filter(isLive);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
+      + ${escapeHtml(t('spends.new'))}
+    </button>
+    ${groupChipsHtml()}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('spends.ongoing'))}</h2></div>
+      ${
+        live.length
+          ? `<div class="game-list">${live.map(spendCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
+      }
+    </section>
+
+    ${archivedHtml(sorted, spendCardHtml)}`;
+}
+
+function newSpendView() {
+  const suggestions = [...new Set([
+    myName(), ...recentPeople(state.spends), ...recentPeople(state.lists), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('spends.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-spend" class="card stack">
+      <label>
+        ${escapeHtml(t('spends.name'))}
+        <input type="text" id="spend-name" placeholder="${escapeHtml(t('spends.namePlaceholder'))}"
+               value="${escapeHtml(newSpendName)}" required />
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.peopleHint'))}</span>
+        ${newSpendPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newSpendPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
+    </form>`;
+}
+
+/** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
+function spendLineHtml(spend, line) {
+  const who = spend.people.find((person) => person.id === line.by)?.name || '';
+  const forWhom = line.forWhom.length
+    ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
+    : t('spends.everyone');
+  return `
+    <li class="line">
+      <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
+        <span>${escapeHtml(line.text || t('spends.untitledLine'))}</span>
+        <span class="line__due">
+          ${escapeHtml(who ? t('spends.paidBy', { name: who }) : t('spends.paidByNobody'))}
+          · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
+        </span>
+      </button>
+      <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+    </li>`;
+}
+
+function spendView(spend) {
+  const rows = balances(spend);
+  const moves = settle(spend);
+  const me = sameName(myName());
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(spendTitle(spend))}</h1>
+        <p class="muted small">
+          ${escapeHtml(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }))}
+          ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${
+      spend.people.length
+        ? `<form id="add-spend" class="card stack stack--tight">
+             <label class="visually-hidden" for="spend-text">${escapeHtml(t('spends.what'))}</label>
+             <input type="text" id="spend-text" placeholder="${escapeHtml(t('spends.what'))}" autocomplete="off" />
+             <div class="row row--tight">
+               <label class="visually-hidden" for="spend-amount">${escapeHtml(t('spends.amount'))}</label>
+               <input type="text" id="spend-amount" inputmode="decimal" placeholder="${escapeHtml(t('spends.amount'))}" />
+               <label class="visually-hidden" for="spend-by">${escapeHtml(t('spends.by'))}</label>
+               <select id="spend-by">
+                 ${spend.people
+                   .map(
+                     (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
+                        ${escapeHtml(person.name)}
+                      </option>`,
+                   )
+                   .join('')}
+               </select>
+               <button type="submit" class="button button--primary">+</button>
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.addHint'))}</p>
+           </form>`
+        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<ul class="lines">${[...spend.lines]
+            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
+            .map((line) => spendLineHtml(spend, line))
+            .join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
+             <div class="entries">
+               ${rows
+                 .map(
+                   (row) => `
+                     <div class="entry">
+                       <span class="entry__what">
+                         ${escapeHtml(row.name)}
+                         <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                       </span>
+                       <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
+                         ${escapeHtml(
+                           row.balance === 0
+                             ? t('spends.even')
+                             : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                                 amount: showAmount(Math.abs(row.balance), getLanguage()),
+                               }),
+                         )}
+                       </span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+           </section>`
+        : ''
+    }
+
+    ${
+      moves.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
+             <div class="entries">
+               ${moves
+                 .map(
+                   (move) => `
+                     <div class="entry">
+                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
+           </section>`
+        : ''
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="spend-share">${escapeHtml(t('spends.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small button--ghost" id="spend-archive">
+          ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
+
+function bindNewSpend() {
+  const form = view.querySelector('#new-spend');
+  if (!form) return;
+
+  const snapshot = () => {
+    newSpendName = view.querySelector('#spend-name').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newSpendPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = [...newSpendPeople, ''];
+    render();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = newSpendPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newSpendPeople.some((name) => name.trim().toLowerCase() === suggest.toLowerCase())) return;
+      const empty = newSpendPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newSpendPeople[empty] = suggest;
+      else newSpendPeople = [...newSpendPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    snapshot();
+    const group = await askGroup();
+    const spend = createSpend({
+      name: newSpendName,
+      names: newSpendPeople,
+      shared: Boolean(group),
+      groupId: group?.id || null,
+    });
+    state.spends = [...state.spends, spend];
+    persistSpend(spend);
+    newSpendName = '';
+    newSpendPeople = ['', ''];
+    navigate(`#/spend/${spend.id}`);
+  });
+}
+
+function bindSpend(spend) {
+  bindData();
+
+  view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = view.querySelector('#spend-text');
+    const amount = view.querySelector('#spend-amount');
+    const cents = readAmount(amount.value);
+    if (!cents) {
+      flash(t('spends.notAnAmount'), 'error');
+      render();
+      return;
+    }
+    replaceSpend(addSpend(spend, {
+      text: text.value,
+      amount: cents,
+      by: view.querySelector('#spend-by').value,
+      day: dayNow(),
+    }));
+  });
+
+  view.querySelectorAll('[data-spend-line]').forEach((button) => {
+    button.addEventListener('click', () => openSpendLineDialog(spend, button.dataset.spendLine));
+  });
+
+  view.querySelector('#spend-people')?.addEventListener('click', () => openSpendPeopleDialog(spend));
+
+  view.querySelector('#spend-share')?.addEventListener('click', async () => {
+    const group = await askGroup();
+    if (!group) {
+      flash(t('groups.needOne'));
+      render();
+      return;
+    }
+    const next = { ...spend, shared: true, groupId: group.id, updatedAt: Date.now() };
+    replaceSpend(next);
+    flash(t('spends.shared', { name: group.name }));
+    render();
+  });
+
+  view.querySelector('#spend-archive')?.addEventListener('click', () => {
+    const next = archiveSpend(spend, !spend.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replaceSpend(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/spends');
+  });
+
+  view.querySelector('#spend-rename')?.addEventListener('click', async () => {
+    const name = await askForText({
+      title: t('spends.rename'),
+      hint: t('spends.renameHint'),
+      value: spend.name,
+      confirmLabel: t('action.save'),
+    });
+    if (name === null) return;
+    replaceSpend({ ...spend, name: String(name).trim(), updatedAt: Date.now() });
+  });
+
+  view.querySelector('#spend-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('spends.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.spends = state.spends.filter((item) => item.id !== spend.id);
+    saveSpends(state.spends);
+    if (state.store) void state.store.remove(spend.id);
+    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend)).catch(() => {});
+    navigate('#/spends');
+  });
+}
+
+/** Une dépense : ce qu'elle était, pour qui, quel jour — et de quoi l'effacer. */
+function openSpendLineDialog(spend, lineId) {
+  const line = spend.lines.find((entry) => entry.id === lineId);
+  if (!line) return;
+
+  const dialog = makeDialog();
+  const chosen = new Set(line.forWhom);
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('spends.lineTitle'))}</h2>
+      <label>
+        ${escapeHtml(t('spends.what'))}
+        <input type="text" id="line-what" value="${escapeHtml(line.text)}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.amount'))}
+        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml(String(line.amount / 100).replace('.', ','))}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.by'))}
+        <select id="line-by">
+          ${spend.people
+            .map(
+              (person) => `<option value="${escapeHtml(person.id)}" ${person.id === line.by ? 'selected' : ''}>
+                 ${escapeHtml(person.name)}
+               </option>`,
+            )
+            .join('')}
+        </select>
+      </label>
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.forWhomHint'))}</span>
+        <div class="row" id="line-for">
+          ${spend.people
+            .map(
+              (person) => `
+                <button type="button" class="chip ${chosen.has(person.id) ? 'chip--on' : ''}"
+                        data-for="${escapeHtml(person.id)}" aria-pressed="${chosen.has(person.id) ? 'true' : 'false'}">
+                  ${escapeHtml(person.name)}
+                </button>`,
+            )
+            .join('')}
+        </div>
+      </div>
+      <label>
+        ${escapeHtml(t('lists.due'))}
+        <input type="date" id="line-day" value="${escapeHtml(line.day || '')}" />
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="line-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  dialog.querySelectorAll('[data-for]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const id = chip.dataset.for;
+      if (chosen.has(id)) chosen.delete(id);
+      else chosen.add(id);
+      chip.classList.toggle('chip--on', chosen.has(id));
+      chip.setAttribute('aria-pressed', chosen.has(id) ? 'true' : 'false');
+    });
+  });
+
+  dialog.querySelector('#line-save').addEventListener('click', () => {
+    const amount = dialog.querySelector('#line-amount').value;
+    if (!readAmount(amount)) {
+      flash(t('spends.notAnAmount'), 'error');
+      dialog.close();
+      render();
+      return;
+    }
+    dialog.close();
+    replaceSpend(editSpend(spend, lineId, {
+      text: dialog.querySelector('#line-what').value,
+      amount,
+      by: dialog.querySelector('#line-by').value,
+      forWhom: [...chosen],
+      day: dialog.querySelector('#line-day').value,
+    }));
+  });
+
+  dialog.querySelector('#line-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#line-delete').addEventListener('click', () => {
+    dialog.close();
+    replaceSpend(removeSpend(spend, lineId));
+  });
+
+  dialog.showModal();
+}
+
+/** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
+function openSpendPeopleDialog(spend) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getSpend(spend.id) || spend;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.delete'))}
+                    </button>
+                  </div>
+                </div>`,
+            )
+            .join('')}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button" id="spend-person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
+      const field = dialog.querySelector('#spend-person');
+      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
+      field.value = '';
+      replaceSpend(next, { redraw: false });
+      draw();
+    });
+
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const held = getSpend(spend.id) || spend;
+        const person = held.people.find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('spends.renamePersonHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null) return;
+        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelectorAll('[data-drop]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const held = getSpend(spend.id) || spend;
+        const why = canRemovePerson(held, button.dataset.drop);
+        if (why !== 'ok') {
+          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
+          // vaut refuser en expliquant que rendre un remboursement faux.
+          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
+          dialog.close();
+          render();
+          return;
+        }
+        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => {
+      dialog.close();
+      render();
+    });
+  };
+
+  draw();
+  dialog.showModal();
+}
+
 /* ----------------------------------------------------------------- router --- */
 
 function route() {
@@ -1150,6 +1766,9 @@ function route() {
   if (name === 'lists' && param === 'new') return { name: 'new-list' };
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
+  if (name === 'spends' && param === 'new') return { name: 'new-spend' };
+  if (name === 'spends') return { name: 'spends' };
+  if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
@@ -1265,6 +1884,8 @@ function pendingHtml() {
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const asked = state.polls.filter((poll) => !poll.closedAt)
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const owing = state.spends.filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   for (const list of open.slice(0, 3)) {
     const { left } = progress(list);
@@ -1280,6 +1901,16 @@ function pendingHtml() {
       goto: `#/poll/${poll.id}`,
       title: pollTitle(poll),
       meta: t('polls.answered', { count: answered, total: poll.people.length }),
+    });
+  }
+  for (const spend of owing.slice(0, 3)) {
+    const mine = myBalance(spend);
+    lines.push({
+      goto: `#/spend/${spend.id}`,
+      title: spendTitle(spend),
+      meta: mine && mine.balance !== 0
+        ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+        : t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }),
     });
   }
   for (const game of ongoing.slice(0, 3)) {
@@ -1431,7 +2062,7 @@ function groupsHtml() {
                     <div>
                       <strong>${escapeHtml(group.name)}</strong>
                       <span class="muted small">${escapeHtml(t('groups.shared', {
-                        count: [...state.games, ...state.lists, ...state.polls]
+                        count: [...state.games, ...state.lists, ...state.polls, ...state.spends]
                           .filter((document_) => document_.groupId === group.id).length,
                       }))}</span>
                     </div>
@@ -1582,6 +2213,7 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
+        ${tile(counts.spends, t('tab.spends'), '#/spends')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -1603,6 +2235,7 @@ function waitingLine(counts) {
     counts.late ? t('lists.late', { count: counts.late }) : '',
     counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
     counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+    counts.owes ? t('spends.owes', { amount: showAmount(counts.owes, getLanguage()) }) : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -2792,6 +3425,25 @@ function personView(who) {
     )}
 
     ${section(
+      t('person.spends'),
+      file.accounts.map((row) =>
+        entry(
+          `#/spend/${escapeHtml(row.spend.id)}`,
+          escapeHtml(spendTitle(row.spend)),
+          escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) })),
+          escapeHtml(
+            row.balance === 0
+              ? t('spends.even')
+              : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                  amount: showAmount(Math.abs(row.balance), getLanguage()),
+                }),
+          ),
+          row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : '',
+        ),
+      ),
+    )}
+
+    ${section(
       t('person.games'),
       file.played
         .slice(0, GAMES_SHOWN)
@@ -3387,7 +4039,7 @@ const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : '
 
 function exportGames() {
   const json = JSON.stringify(
-    { version: 1, games: state.games, lists: state.lists, polls: state.polls }, null, 2,
+    { version: 1, games: state.games, lists: state.lists, polls: state.polls, spends: state.spends }, null, 2,
   );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
@@ -3526,11 +4178,12 @@ function importGames(source) {
 
   const all = Array.isArray(parsed)
     ? parsed
-    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || [])];
+    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || []), ...(parsed?.spends || [])];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
   const polls = all.filter(isValidPoll);
-  if (!games.length && !lists.length && !polls.length) {
+  const spends = all.filter(isValidSpend);
+  if (!games.length && !lists.length && !polls.length && !spends.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -3550,11 +4203,18 @@ function importGames(source) {
   state.polls = [...state.polls, ...freshPolls];
   savePolls(state.polls);
 
-  for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
+  const knownSpends = new Set(state.spends.map((spend) => spend.id));
+  const freshSpends = spends.filter((spend) => !knownSpends.has(spend.id));
+  state.spends = [...state.spends, ...freshSpends];
+  saveSpends(state.spends);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
   }
-  flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
+  flash(t('home.importDone', {
+    count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
+  }));
   return true;
 }
 
@@ -4309,7 +4969,7 @@ function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls, ...state.spends].sort((a, b) => b.updatedAt - a.updatedAt);
   const held = groups();
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -5957,6 +6617,38 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
+  } else if (current.name === 'spends') {
+    stopWatching();
+    view.innerHTML = spendsView();
+  } else if (current.name === 'new-spend') {
+    stopWatching();
+    view.innerHTML = newSpendView();
+    bindNewSpend();
+  } else if (current.name === 'spend') {
+    const spend = getSpend(current.id);
+    if (!spend) {
+      stopWatching();
+      // Peut-être un compte que quelqu'un partage : demander avant d'abandonner.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('spends.loading'))}</p>`;
+        if (state.openingSpend !== current.id) {
+          const asked = current.id;
+          state.openingSpend = asked;
+          pullSpend(asked).then((found) => {
+            if (state.openingSpend !== asked) return;
+            state.openingSpend = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/spends');
+          });
+        }
+        return;
+      }
+      navigate('#/spends');
+      return;
+    }
+    watchSpend(spend.id);
+    view.innerHTML = spendView(spend);
+    bindSpend(spend);
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
@@ -6126,7 +6818,9 @@ function markTab(current) {
       ? 'polls'
       : ['home', 'new', 'game', 'stats'].includes(current.name)
         ? 'games'
-        : 'overview';
+        : ['spends', 'new-spend', 'spend'].includes(current.name)
+          ? 'spends'
+          : 'overview';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -6150,6 +6844,7 @@ async function pullAny(id) {
   if (isValidGame(stored)) return adoptGame(stored);
   if (isValidList(stored)) return adoptList(stored);
   if (isValidPoll(stored)) return adoptPoll(stored);
+  if (isValidSpend(stored)) return adoptSpend(stored);
   return false;
 }
 
@@ -6262,6 +6957,7 @@ window.addEventListener('storage', (event) => {
   state.games = loadGames();
   state.lists = loadLists();
   state.polls = loadPolls();
+  state.spends = loadSpends();
   if (!isBusy()) render();
 });
 /**

@@ -145,3 +145,19 @@ test('the calendar function is one file, with nothing left to import', async () 
   assert.match(built, /function agendaFor/, 'and it carries the calendar writer with it');
   assert.match(built, /verification du JWT|vérification du JWT/, 'the one setting that breaks it is named at the top');
 });
+
+test('an aliased import is refused, because the bundle cannot follow it', async () => {
+  // `import { total as spendTotal }` survives the strip as `total`, and every
+  // `spendTotal` in the file then refers to nothing: the page dies at the first
+  // call. This shipped once; it does not get to ship twice.
+  const sources = await Promise.all(
+    ['app.js', 'lists.js', 'polls.js', 'spends.js', 'dashboard.js', 'ics.js', 'stats.js']
+      .map((name) => readFile(join(root, 'src', name), 'utf8')),
+  );
+  for (const [index, source] of sources.entries()) {
+    const imports = source.match(/^import\s[\s\S]*?;\s*$/gm) || [];
+    for (const line of imports) {
+      assert.equal(/\{[^}]*\bas\b/.test(line), false, `${index}: ${line.slice(0, 60)}`);
+    }
+  }
+});

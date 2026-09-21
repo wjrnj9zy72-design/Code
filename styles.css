@@ -653,6 +653,21 @@ table.scores .meta-cell { color: var(--muted); }
 /* What has gone past its day, wherever it is counted. */
 .late { color: var(--bad); font-weight: 600; }
 
+/*
+ * Le montant et le payeur sur une même ligne : le montant garde de quoi écrire
+ * « 1 234,50 », le nom prend le reste et se tronque plutôt que de l'écraser.
+ */
+#spend-amount { flex: 0 1 7.5em; min-width: 5.5em; }
+#spend-by { flex: 1 1 6em; min-width: 0; }
+
+/* Ce qu'une dépense a coûté, au bout de sa ligne : aligné, et lisible d'un coup. */
+.line__amount {
+  padding-right: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .chip {
   padding: 6px 12px;
   border: 1px solid var(--border);

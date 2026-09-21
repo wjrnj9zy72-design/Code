@@ -1,10 +1,11 @@
 # 🃏 Together
 
-Quatre onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
-groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à répartir entre plusieurs personnes.
-**Sondages** : pour trancher une date ou un choix. **Parties** : un compteur de
-points pour Papayoo et une vingtaine d'autres jeux. Une page web, aucune
-dépendance, aucun build.
+Cinq onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
+groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à
+répartir entre plusieurs personnes. **Sondages** : pour trancher une date ou un
+choix. **Parties** : un compteur de points pour Papayoo et une vingtaine
+d'autres jeux. **Dépenses** : qui a payé quoi, et qui rembourse qui. Une page
+web, aucune dépendance, aucun build.
 
 <p>
   <img src="docs/screenshot-light.png" alt="Une partie de Papayoo en thème clair" width="45%" />
@@ -203,6 +204,25 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   personne dans les parties, les listes et les sondages à la fois : deux
   orthographes redeviennent une seule personne partout d'un coup.
 
+## Ce que ça fait — onglet Dépenses
+
+Un compte — vacances, coloc, week-end — tient des personnes et des lignes.
+Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.
+
+- **Le partage est égal** entre les personnes concernées, et « pour tout le
+  monde » est le cas par défaut : noter une baguette ne demande que deux champs.
+  Une ligne peut ensuite ne concerner que certains — le taxi de la gare.
+- **Qui rembourse qui**, en aussi peu de virements que possible : le plus gros
+  débiteur paie le plus gros créancier, et on recommence. Au plus une
+  personne de moins qu'il n'y en a.
+- **L'argent est compté en centimes, en entiers.** Dix euros entre trois font
+  3,34 / 3,33 / 3,33, et le centime qui reste va toujours au même — sans quoi
+  deux téléphones finiraient par ne pas être d'accord.
+- **On ne retire pas quelqu'un qui a avancé de l'argent** : le compte cesserait
+  de tomber juste sans rien dire. L'app refuse et explique quoi faire d'abord.
+- Partagé comme le reste : chacun note de son côté, et les lignes se réunissent
+  sans qu'aucune n'en chasse une autre.
+
 ## Jeux fournis
 
 ### Jeux de cartes
@@ -334,6 +354,7 @@ src/helpers.js    arithmétique du compteur de cartes
 src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
 src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
+src/spends.js     les comptes de dépenses : parts, soldes, remboursements
 src/ics.js        l'écriture des fichiers .ics (iCalendar, à la main)
 supabase/functions/agenda/  la fonction qui sert l'agenda d'un groupe
 src/recap.js      le récapitulatif texte d'une partie

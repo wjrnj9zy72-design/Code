@@ -7,12 +7,14 @@
 import { isValidGame } from './model.js';
 import { isValidList } from './lists.js';
 import { isValidPoll } from './polls.js';
+import { isValidSpend } from './spends.js';
 
 // The keys keep the old name on purpose: renaming them would lose every game
 // and every list already on people's phones, to no one's benefit.
 const GAMES_KEY = 'marque-points:games:v1';
 const LISTS_KEY = 'marque-points:lists:v1';
 const POLLS_KEY = 'marque-points:polls:v1';
+const SPENDS_KEY = 'marque-points:spends:v1';
 const PREFS_KEY = 'marque-points:prefs:v1';
 
 function read(key, fallback) {
@@ -59,6 +61,15 @@ export function loadPolls() {
 
 export function savePolls(polls) {
   return write(POLLS_KEY, polls);
+}
+
+export function loadSpends() {
+  const value = read(SPENDS_KEY, []);
+  return Array.isArray(value) ? value.filter(isValidSpend) : [];
+}
+
+export function saveSpends(spends) {
+  return write(SPENDS_KEY, spends);
 }
 
 export function loadPrefs() {
