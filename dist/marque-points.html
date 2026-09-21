@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v7" />
-    <meta name="app-build" content="d5b7eb1d" />
+    <meta name="app-build" content="fbe07f15" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -977,6 +977,27 @@ const STRINGS = {
     'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} ligne(s) à faire',
+    'back.title': 'Revenir dans votre groupe',
+    'back.what':
+      'Ce lien est le vôtre : il rend à ce navigateur une clé pour votre groupe, sans que personne n’ait à vous accepter de nouveau.',
+    'back.broken':
+      'Ce lien est incomplet. Demandez à la personne qui tient le groupe de vous en faire entrer autrement, ou rouvrez le lien entier.',
+    'back.action': 'Revenir',
+    'back.refused':
+      'Ce lien ne sert plus : il a été remplacé par un plus récent, ou coupé. Demandez une nouvelle invitation.',
+    'back.myLink': 'Mon lien de retour',
+    'back.confirmMyLink':
+      'Faire un lien de retour pour cet appareil ? Il vous ramènera dans le groupe depuis n’importe quel navigateur — gardez-le pour vous, qui l’ouvre entre à votre place. S’il en existait un, il cesse de servir.',
+    'back.linkTitle': 'Votre lien de retour pour {name}',
+    'back.linkHint':
+      'À garder : messages notés, gestionnaire de mots de passe, ou envoyé à vous-même. C’est lui qui vous ramène après une réinstallation, ou depuis Safari quand vous êtes entré depuis une app de messagerie. Il remplace le précédent, et se coupe à tout moment par la personne qui tient le groupe.',
+    'back.noneForThisKey':
+      'Cet appareil n’a pas de lien de retour : sa clé n’appartient à personne en particulier — c’est celle qu’on recolle.',
+    'back.hasLink': 'a un lien de retour',
+    'back.cutLink': 'Couper le lien',
+    'back.confirmCutLink':
+      'Couper le lien de retour de cette personne ? Ses appareils déjà entrés restent dans le groupe ; c’est seulement le lien qui cesse de servir.',
+    'back.cutLinkDone': 'Le lien de retour ne sert plus.',
     'browser.inApp':
       'Vous êtes dans le navigateur intégré de {app}. Ce que vous faites ici n’y restera : Safari, à côté, ne verra rien — et on ne peut pas ajouter l’app à l’écran d’accueil depuis ici. Ouvrez ce lien dans Safari (appui long sur le lien → Ouvrir dans Safari), puis entrez dans le groupe là-bas.',
     'browser.copyLink': 'Copier ce lien',
@@ -1024,6 +1045,10 @@ const STRINGS = {
     'groups.unsure': 'La base n’a pas répondu. Réessayez dans un moment.',
     'groups.joined': 'Vous êtes dans {name}.',
     'groups.joinedWith': 'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s).',
+    'groups.joinedKeepLink':
+      'Vous êtes dans {name}. Gardez votre lien de retour — bouton « Mon lien de retour » — : c’est lui qui vous ramènera depuis un autre navigateur ou après une réinstallation.',
+    'groups.joinedWithKeepLink':
+      'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s). Gardez votre lien de retour — bouton « Mon lien de retour ».',
     'groups.codeLabel': 'Les six chiffres du lien',
     'groups.codeInLink':
       'Ils sont déjà dans le lien : à dire de vive voix seulement si le lien ne passe pas.',
@@ -1515,6 +1540,27 @@ const STRINGS = {
     'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} line(s) left',
+    'back.title': 'Come back into your group',
+    'back.what':
+      'This link is yours: it hands this browser a key to your group, with nobody having to accept you again.',
+    'back.broken':
+      'This link is incomplete. Ask whoever holds the group to let you in another way, or open the whole link again.',
+    'back.action': 'Come back',
+    'back.refused':
+      'This link no longer works: a newer one replaced it, or it was cut. Ask for a fresh invitation.',
+    'back.myLink': 'My return link',
+    'back.confirmMyLink':
+      'Make a return link for this device? It will bring you back into the group from any browser — keep it to yourself, whoever opens it comes in as you. If one existed, it stops working.',
+    'back.linkTitle': 'Your return link for {name}',
+    'back.linkHint':
+      'Keep it: saved messages, a password manager, or sent to yourself. It is what brings you back after reinstalling, or in Safari when you joined from a messaging app. It replaces the previous one, and can be cut at any time by whoever holds the group.',
+    'back.noneForThisKey':
+      'This device has no return link: its key belongs to nobody in particular — it is the one you paste.',
+    'back.hasLink': 'has a return link',
+    'back.cutLink': 'Cut the link',
+    'back.confirmCutLink':
+      'Cut this person\'s return link? The devices they already have stay in the group; only the link stops working.',
+    'back.cutLinkDone': 'That return link no longer works.',
     'browser.inApp':
       'You are in {app}\'s built-in browser. What you do here stays here: Safari next door will see nothing of it — and an app cannot be added to the home screen from in here. Open this link in Safari (long-press the link → Open in Safari), and join the group there.',
     'browser.copyLink': 'Copy this link',
@@ -1561,6 +1607,10 @@ const STRINGS = {
     'groups.unsure': 'The database did not answer. Try again in a moment.',
     'groups.joined': 'You are in {name}.',
     'groups.joinedWith': 'You are in {name}, with {count} item(s) already shared.',
+    'groups.joinedKeepLink':
+      'You are in {name}. Keep your return link — the “My return link” button — it is what brings you back from another browser or after reinstalling.',
+    'groups.joinedWithKeepLink':
+      'You are in {name}, with {count} item(s) already shared. Keep your return link — the “My return link” button.',
     'groups.codeLabel': 'The link\'s six digits',
     'groups.codeInLink': 'They are already in the link: say them out loud only if the link does not get through.',
     'groups.shared': '{count} shared here',
@@ -4837,6 +4887,46 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     },
 
     /**
+     * This device's return link, drawn by itself: a token that brings its person
+     * back into the group from any browser, without anyone accepting again.
+     *
+     * It is minted here, shown once, and never known to whoever admits people —
+     * it belongs to the person, not to the gatekeeper. Drawing a new one kills
+     * the previous. Returns { status: 'ok', token, name } | { status: 'none' }
+     * for a key that belongs to no person (yours, or one from before).
+     */
+    async myLink(key) {
+      const answer = await call('marque_points_my_link', { p_key: key });
+      const status = answer?.status;
+      if (status === 'ok' && typeof answer.token === 'string') {
+        return { status, token: answer.token, name: answer.name || '' };
+      }
+      return { status: 'none' };
+    },
+
+    /**
+     * Come back with that link: a key of this device's own, tied to the same
+     * person, with nothing to ask of anyone.
+     *
+     * Returns { status: 'ok', key, who, id, name } | { status: 'unknown' }
+     *       | { status: 'busy' }
+     */
+    async returnWith(token, label = '') {
+      const answer = await call('marque_points_return', { p_token: token, p_label: label });
+      const status = answer?.status;
+      if (status === 'ok' && answer.key && answer.id) {
+        return { status, key: answer.key, who: answer.who || '', id: answer.id, name: answer.name || '' };
+      }
+      return { status: status === 'busy' ? 'busy' : 'unknown' };
+    },
+
+    /** Cut a person's return link. Returns 'ok' | 'unknown'. */
+    async forgetLink(key, person) {
+      const answer = await call('marque_points_forget_link', { p_key: key, p_person: person });
+      return answer?.status === 'ok' ? 'ok' : 'unknown';
+    },
+
+    /**
      * Let a device let people in, or stop it. Returns 'ok' | 'last' | 'unknown'
      * — 'last' when it would leave the group with nobody to accept anyone.
      */
@@ -4960,6 +5050,22 @@ function gameIdFrom(pasted) {
   if (inLink) return inLink[1];
   // A bare id, as copied from the database's table editor.
   return /^[A-Za-z0-9_.~:@+-]{8,128}$/.test(text) ? text : null;
+}
+
+/**
+ * The link that brings a person back into a group: their own token, and nothing
+ * else. It goes in the fragment, after the `#`, which browsers never send to a
+ * server — so neither the host nor a link preview ever sees it.
+ */
+function backLink(location, token) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/back/${token}`;
+}
+
+/** The return token inside whatever was pasted, or null. */
+function backTokenFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/back\/([0-9a-f]{32})(?![0-9a-f])/);
+  return found ? found[1] : null;
 }
 
 /** The link to give someone so they open this very game. */
@@ -6134,6 +6240,8 @@ function route() {
   if (name === 'games') return { name: 'home' };
   // An invitation link carries both the six digits and the group's name, so
   // the person who receives it has nothing to read out and nothing to type.
+  // A return link: a person's own token, which hands this browser a key.
+  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(location.hash) };
   if (name === 'join' && param) {
     const invitation = joinFrom(location.hash);
     if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
@@ -6311,12 +6419,24 @@ function devicesHtml(group) {
           <div>
             <strong>${escapeHtml(row.label || t('gate.unnamedDevice'))}</strong>
             <span class="muted small">${escapeHtml(
-              [row.mine ? t('gate.thisDevice') : '', row.admits ? t('gate.admitsToo') : '']
+              [
+                row.mine ? t('gate.thisDevice') : '',
+                row.admits ? t('gate.admitsToo') : '',
+                row.link ? t('back.hasLink') : '',
+              ]
                 .filter(Boolean)
                 .join(' · '),
             )}</span>
           </div>
           <div class="row row--tight">
+            ${
+              row.link
+                ? `<button type="button" class="button button--small button--ghost"
+                           data-cut-link="${escapeHtml(group.id)}" data-person="${escapeHtml(row.person)}">
+                     ${escapeHtml(t('back.cutLink'))}
+                   </button>`
+                : ''
+            }
             <button type="button" class="button button--small button--ghost"
                     data-admits="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}"
                     data-allow="${row.admits ? 'no' : 'yes'}">
@@ -6398,6 +6518,15 @@ function groupsHtml() {
                       <button type="button" class="button button--small button--ghost" data-show-key="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.showKey'))}
                       </button>
+                      ${
+                        // The founder's key belongs to no person, so it has no
+                        // return link — it is the one that gets pasted instead.
+                        group.admits
+                          ? ''
+                          : `<button type="button" class="button button--small button--ghost" data-my-link="${escapeHtml(group.id)}">
+                               ${escapeHtml(t('back.myLink'))}
+                             </button>`
+                      }
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -6759,6 +6888,27 @@ function bindOverview() {
     });
   });
 
+  view.querySelectorAll('[data-cut-link]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cutLink);
+      if (!group) return;
+      if (!(await ask(t('back.confirmCutLink'), { confirmLabel: t('back.cutLink'), danger: true }))) return;
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        status = await state.remote.forgetLink(group.key, button.dataset.person);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      flash(status === 'ok' ? t('back.cutLinkDone') : t('gate.gone'), status === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-cut]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.cut);
@@ -6841,6 +6991,16 @@ function bindOverview() {
   // The key this device holds, readable again — so it can be kept somewhere safe,
   // or put into a second installation (the app on a home screen, a new phone)
   // without inviting anyone or asking anyone to accept anything.
+  view.querySelectorAll('[data-my-link]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.myLink);
+      if (!group) return;
+      if (!(await ask(t('back.confirmMyLink'), { confirmLabel: t('back.myLink') }))) return;
+      button.disabled = true;
+      await showMyLink(group);
+    });
+  });
+
   view.querySelectorAll('[data-show-key]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.showKey);
@@ -6862,6 +7022,109 @@ function bindOverview() {
       forgetGroup(button.dataset.leave);
       render();
     });
+  });
+}
+
+/* ------------------------------------------------------------- coming back --- */
+
+/**
+ * The screen a return link opens: one button, because there is nothing to ask.
+ * The token is the person's own, it was accepted once, and what it hands over is
+ * a key for this browser — which is exactly what a browser that knows nothing
+ * about the group needs.
+ */
+function backView(token) {
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('back.title'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${inAppWarningHtml()}
+
+    <div class="card stack">
+      <p>${escapeHtml(token ? t('back.what') : t('back.broken'))}</p>
+      <p class="muted small" id="back-state"></p>
+      ${
+        token
+          ? `<button type="button" class="button button--primary button--block" id="back-go">
+               ${escapeHtml(t('back.action'))}
+             </button>`
+          : ''
+      }
+    </div>`;
+}
+
+function bindBack(token) {
+  bindInAppWarning();
+  const line = view.querySelector('#back-state');
+  view.querySelector('#back-go')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (!state.remote) {
+      line.textContent = t('join.noDatabase');
+      return;
+    }
+    button.disabled = true;
+    line.textContent = t('groups.checking');
+
+    let answer = { status: 'unknown' };
+    try {
+      answer = await state.remote.returnWith(token, deviceLabel());
+    } catch {
+      button.disabled = false;
+      line.textContent = t('groups.unsure');
+      return;
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return void (line.textContent = t('gate.busy'));
+    if (answer.status !== 'ok') return void (line.textContent = t('back.refused'));
+
+    if (answer.who) setMyName(answer.who);
+    const group = { id: answer.id, name: answer.name, key: answer.key, admits: false };
+    rememberGroup(group);
+    let taken = 0;
+    try {
+      taken = await catchUpWith(group);
+    } catch {
+      // In the group either way.
+    }
+    flash(taken
+      ? t('groups.joinedWith', { name: group.name, count: taken })
+      : t('groups.joined', { name: group.name }));
+    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/`);
+    else navigate('#/');
+  });
+}
+
+/**
+ * Show this device's return link — drawing a fresh one, which retires the
+ * previous. Offered right after being let in, and available afterwards in
+ * *Mes groupes*, because the moment someone will want it is not the moment they
+ * are told about it.
+ */
+async function showMyLink(group) {
+  let answer = { status: 'none' };
+  try {
+    answer = await state.remote.myLink(group.key);
+  } catch {
+    flash(t('groups.unsure'), 'error');
+    render();
+    return;
+  }
+  if (answer.status !== 'ok') {
+    flash(t('back.noneForThisKey'));
+    render();
+    return;
+  }
+  showCopyDialog({
+    title: t('back.linkTitle', { name: group.name }),
+    hint: t('back.linkHint'),
+    text: backLink(location, answer.token),
+    qr: true,
   });
 }
 
@@ -8488,9 +8751,12 @@ async function checkPending(knock) {
     } catch {
       // In the group either way; what it shares can be fetched later.
     }
+    // Just let in: the one moment they will listen to "keep your return link".
+    // Said in the line that greets them rather than in a dialog — a question
+    // that blocks the screen on the way in is a question in the wrong place.
     flash(taken
-      ? t('groups.joinedWith', { name: group.name, count: taken })
-      : t('groups.joined', { name: group.name }));
+      ? t('groups.joinedWithKeepLink', { name: group.name, count: taken })
+      : t('groups.joinedKeepLink', { name: group.name }));
     return 'ok';
   }
 
@@ -10395,6 +10661,10 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'back') {
+    stopWatching();
+    view.innerHTML = backView(current.token);
+    bindBack(current.token);
   } else if (current.name === 'join') {
     view.innerHTML = joinView(current);
     bindJoin();

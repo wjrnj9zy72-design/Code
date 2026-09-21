@@ -21,7 +21,7 @@ import {
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -980,6 +980,8 @@ function route() {
   if (name === 'games') return { name: 'home' };
   // An invitation link carries both the six digits and the group's name, so
   // the person who receives it has nothing to read out and nothing to type.
+  // A return link: a person's own token, which hands this browser a key.
+  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(location.hash) };
   if (name === 'join' && param) {
     const invitation = joinFrom(location.hash);
     if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
@@ -1157,12 +1159,24 @@ function devicesHtml(group) {
           <div>
             <strong>${escapeHtml(row.label || t('gate.unnamedDevice'))}</strong>
             <span class="muted small">${escapeHtml(
-              [row.mine ? t('gate.thisDevice') : '', row.admits ? t('gate.admitsToo') : '']
+              [
+                row.mine ? t('gate.thisDevice') : '',
+                row.admits ? t('gate.admitsToo') : '',
+                row.link ? t('back.hasLink') : '',
+              ]
                 .filter(Boolean)
                 .join(' · '),
             )}</span>
           </div>
           <div class="row row--tight">
+            ${
+              row.link
+                ? `<button type="button" class="button button--small button--ghost"
+                           data-cut-link="${escapeHtml(group.id)}" data-person="${escapeHtml(row.person)}">
+                     ${escapeHtml(t('back.cutLink'))}
+                   </button>`
+                : ''
+            }
             <button type="button" class="button button--small button--ghost"
                     data-admits="${escapeHtml(group.id)}" data-key="${escapeHtml(row.id)}"
                     data-allow="${row.admits ? 'no' : 'yes'}">
@@ -1244,6 +1258,15 @@ function groupsHtml() {
                       <button type="button" class="button button--small button--ghost" data-show-key="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.showKey'))}
                       </button>
+                      ${
+                        // The founder's key belongs to no person, so it has no
+                        // return link — it is the one that gets pasted instead.
+                        group.admits
+                          ? ''
+                          : `<button type="button" class="button button--small button--ghost" data-my-link="${escapeHtml(group.id)}">
+                               ${escapeHtml(t('back.myLink'))}
+                             </button>`
+                      }
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -1605,6 +1628,27 @@ function bindOverview() {
     });
   });
 
+  view.querySelectorAll('[data-cut-link]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cutLink);
+      if (!group) return;
+      if (!(await ask(t('back.confirmCutLink'), { confirmLabel: t('back.cutLink'), danger: true }))) return;
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        status = await state.remote.forgetLink(group.key, button.dataset.person);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      forgetGate(group.id);
+      await loadGate(group);
+      flash(status === 'ok' ? t('back.cutLinkDone') : t('gate.gone'), status === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-cut]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.cut);
@@ -1687,6 +1731,16 @@ function bindOverview() {
   // The key this device holds, readable again — so it can be kept somewhere safe,
   // or put into a second installation (the app on a home screen, a new phone)
   // without inviting anyone or asking anyone to accept anything.
+  view.querySelectorAll('[data-my-link]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.myLink);
+      if (!group) return;
+      if (!(await ask(t('back.confirmMyLink'), { confirmLabel: t('back.myLink') }))) return;
+      button.disabled = true;
+      await showMyLink(group);
+    });
+  });
+
   view.querySelectorAll('[data-show-key]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.showKey);
@@ -1708,6 +1762,109 @@ function bindOverview() {
       forgetGroup(button.dataset.leave);
       render();
     });
+  });
+}
+
+/* ------------------------------------------------------------- coming back --- */
+
+/**
+ * The screen a return link opens: one button, because there is nothing to ask.
+ * The token is the person's own, it was accepted once, and what it hands over is
+ * a key for this browser — which is exactly what a browser that knows nothing
+ * about the group needs.
+ */
+function backView(token) {
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('back.title'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${inAppWarningHtml()}
+
+    <div class="card stack">
+      <p>${escapeHtml(token ? t('back.what') : t('back.broken'))}</p>
+      <p class="muted small" id="back-state"></p>
+      ${
+        token
+          ? `<button type="button" class="button button--primary button--block" id="back-go">
+               ${escapeHtml(t('back.action'))}
+             </button>`
+          : ''
+      }
+    </div>`;
+}
+
+function bindBack(token) {
+  bindInAppWarning();
+  const line = view.querySelector('#back-state');
+  view.querySelector('#back-go')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (!state.remote) {
+      line.textContent = t('join.noDatabase');
+      return;
+    }
+    button.disabled = true;
+    line.textContent = t('groups.checking');
+
+    let answer = { status: 'unknown' };
+    try {
+      answer = await state.remote.returnWith(token, deviceLabel());
+    } catch {
+      button.disabled = false;
+      line.textContent = t('groups.unsure');
+      return;
+    }
+    button.disabled = false;
+
+    if (answer.status === 'busy') return void (line.textContent = t('gate.busy'));
+    if (answer.status !== 'ok') return void (line.textContent = t('back.refused'));
+
+    if (answer.who) setMyName(answer.who);
+    const group = { id: answer.id, name: answer.name, key: answer.key, admits: false };
+    rememberGroup(group);
+    let taken = 0;
+    try {
+      taken = await catchUpWith(group);
+    } catch {
+      // In the group either way.
+    }
+    flash(taken
+      ? t('groups.joinedWith', { name: group.name, count: taken })
+      : t('groups.joined', { name: group.name }));
+    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/`);
+    else navigate('#/');
+  });
+}
+
+/**
+ * Show this device's return link — drawing a fresh one, which retires the
+ * previous. Offered right after being let in, and available afterwards in
+ * *Mes groupes*, because the moment someone will want it is not the moment they
+ * are told about it.
+ */
+async function showMyLink(group) {
+  let answer = { status: 'none' };
+  try {
+    answer = await state.remote.myLink(group.key);
+  } catch {
+    flash(t('groups.unsure'), 'error');
+    render();
+    return;
+  }
+  if (answer.status !== 'ok') {
+    flash(t('back.noneForThisKey'));
+    render();
+    return;
+  }
+  showCopyDialog({
+    title: t('back.linkTitle', { name: group.name }),
+    hint: t('back.linkHint'),
+    text: backLink(location, answer.token),
+    qr: true,
   });
 }
 
@@ -3334,9 +3491,12 @@ async function checkPending(knock) {
     } catch {
       // In the group either way; what it shares can be fetched later.
     }
+    // Just let in: the one moment they will listen to "keep your return link".
+    // Said in the line that greets them rather than in a dialog — a question
+    // that blocks the screen on the way in is a question in the wrong place.
     flash(taken
-      ? t('groups.joinedWith', { name: group.name, count: taken })
-      : t('groups.joined', { name: group.name }));
+      ? t('groups.joinedWithKeepLink', { name: group.name, count: taken })
+      : t('groups.joinedKeepLink', { name: group.name }));
     return 'ok';
   }
 
@@ -5241,6 +5401,10 @@ function render() {
     }
     view.innerHTML = gameView(game);
     bindGame(game);
+  } else if (current.name === 'back') {
+    stopWatching();
+    view.innerHTML = backView(current.token);
+    bindBack(current.token);
   } else if (current.name === 'join') {
     view.innerHTML = joinView(current);
     bindJoin();

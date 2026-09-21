@@ -53,6 +53,15 @@ dépendance, aucun build.
   étiquetée de ce prénom et coupable sans déranger les autres ; refusé, il n'a
   jamais rien vu. Le lien ne passe pas ? Le nom du groupe et les six chiffres,
   dits de vive voix, font exactement la même chose.
+- **Chacun a son lien de retour.** Accepter quelqu'un fait entrer une *personne* :
+  ses appareils ont chacun leur clé, mais tous lui appartiennent — et elle peut se
+  faire un **lien à elle** qui rend une clé neuve à n'importe quel navigateur,
+  sans que personne n'ait à l'accepter de nouveau. C'est la réponse aux deux vrais
+  agacements : être entré depuis le navigateur d'une app de messagerie et vouloir
+  la même chose dans Safari, et réinstaller l'app. Ce lien **naît sur son
+  appareil** — celui qui fait entrer ne le voit jamais et ne peut donc pas se faire
+  passer pour elle — et se **coupe** depuis *Qui est dans le groupe* sans mettre
+  ses appareils dehors.
 - **La porte reste entre vos mains.** Seule la clé affichée à la création du
   groupe accepte les demandes ; celles distribuées ensuite voient et partagent,
   mais n'ouvrent à personne. *Qui est dans le groupe* liste les appareils, un par

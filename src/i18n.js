@@ -125,6 +125,27 @@ export const STRINGS = {
     'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} ligne(s) à faire',
+    'back.title': 'Revenir dans votre groupe',
+    'back.what':
+      'Ce lien est le vôtre : il rend à ce navigateur une clé pour votre groupe, sans que personne n’ait à vous accepter de nouveau.',
+    'back.broken':
+      'Ce lien est incomplet. Demandez à la personne qui tient le groupe de vous en faire entrer autrement, ou rouvrez le lien entier.',
+    'back.action': 'Revenir',
+    'back.refused':
+      'Ce lien ne sert plus : il a été remplacé par un plus récent, ou coupé. Demandez une nouvelle invitation.',
+    'back.myLink': 'Mon lien de retour',
+    'back.confirmMyLink':
+      'Faire un lien de retour pour cet appareil ? Il vous ramènera dans le groupe depuis n’importe quel navigateur — gardez-le pour vous, qui l’ouvre entre à votre place. S’il en existait un, il cesse de servir.',
+    'back.linkTitle': 'Votre lien de retour pour {name}',
+    'back.linkHint':
+      'À garder : messages notés, gestionnaire de mots de passe, ou envoyé à vous-même. C’est lui qui vous ramène après une réinstallation, ou depuis Safari quand vous êtes entré depuis une app de messagerie. Il remplace le précédent, et se coupe à tout moment par la personne qui tient le groupe.',
+    'back.noneForThisKey':
+      'Cet appareil n’a pas de lien de retour : sa clé n’appartient à personne en particulier — c’est celle qu’on recolle.',
+    'back.hasLink': 'a un lien de retour',
+    'back.cutLink': 'Couper le lien',
+    'back.confirmCutLink':
+      'Couper le lien de retour de cette personne ? Ses appareils déjà entrés restent dans le groupe ; c’est seulement le lien qui cesse de servir.',
+    'back.cutLinkDone': 'Le lien de retour ne sert plus.',
     'browser.inApp':
       'Vous êtes dans le navigateur intégré de {app}. Ce que vous faites ici n’y restera : Safari, à côté, ne verra rien — et on ne peut pas ajouter l’app à l’écran d’accueil depuis ici. Ouvrez ce lien dans Safari (appui long sur le lien → Ouvrir dans Safari), puis entrez dans le groupe là-bas.',
     'browser.copyLink': 'Copier ce lien',
@@ -172,6 +193,10 @@ export const STRINGS = {
     'groups.unsure': 'La base n’a pas répondu. Réessayez dans un moment.',
     'groups.joined': 'Vous êtes dans {name}.',
     'groups.joinedWith': 'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s).',
+    'groups.joinedKeepLink':
+      'Vous êtes dans {name}. Gardez votre lien de retour — bouton « Mon lien de retour » — : c’est lui qui vous ramènera depuis un autre navigateur ou après une réinstallation.',
+    'groups.joinedWithKeepLink':
+      'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s). Gardez votre lien de retour — bouton « Mon lien de retour ».',
     'groups.codeLabel': 'Les six chiffres du lien',
     'groups.codeInLink':
       'Ils sont déjà dans le lien : à dire de vive voix seulement si le lien ne passe pas.',
@@ -663,6 +688,27 @@ export const STRINGS = {
     'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} line(s) left',
+    'back.title': 'Come back into your group',
+    'back.what':
+      'This link is yours: it hands this browser a key to your group, with nobody having to accept you again.',
+    'back.broken':
+      'This link is incomplete. Ask whoever holds the group to let you in another way, or open the whole link again.',
+    'back.action': 'Come back',
+    'back.refused':
+      'This link no longer works: a newer one replaced it, or it was cut. Ask for a fresh invitation.',
+    'back.myLink': 'My return link',
+    'back.confirmMyLink':
+      'Make a return link for this device? It will bring you back into the group from any browser — keep it to yourself, whoever opens it comes in as you. If one existed, it stops working.',
+    'back.linkTitle': 'Your return link for {name}',
+    'back.linkHint':
+      'Keep it: saved messages, a password manager, or sent to yourself. It is what brings you back after reinstalling, or in Safari when you joined from a messaging app. It replaces the previous one, and can be cut at any time by whoever holds the group.',
+    'back.noneForThisKey':
+      'This device has no return link: its key belongs to nobody in particular — it is the one you paste.',
+    'back.hasLink': 'has a return link',
+    'back.cutLink': 'Cut the link',
+    'back.confirmCutLink':
+      'Cut this person\'s return link? The devices they already have stay in the group; only the link stops working.',
+    'back.cutLinkDone': 'That return link no longer works.',
     'browser.inApp':
       'You are in {app}\'s built-in browser. What you do here stays here: Safari next door will see nothing of it — and an app cannot be added to the home screen from in here. Open this link in Safari (long-press the link → Open in Safari), and join the group there.',
     'browser.copyLink': 'Copy this link',
@@ -709,6 +755,10 @@ export const STRINGS = {
     'groups.unsure': 'The database did not answer. Try again in a moment.',
     'groups.joined': 'You are in {name}.',
     'groups.joinedWith': 'You are in {name}, with {count} item(s) already shared.',
+    'groups.joinedKeepLink':
+      'You are in {name}. Keep your return link — the “My return link” button — it is what brings you back from another browser or after reinstalling.',
+    'groups.joinedWithKeepLink':
+      'You are in {name}, with {count} item(s) already shared. Keep your return link — the “My return link” button.',
     'groups.codeLabel': 'The link\'s six digits',
     'groups.codeInLink': 'They are already in the link: say them out loud only if the link does not get through.',
     'groups.shared': '{count} shared here',
