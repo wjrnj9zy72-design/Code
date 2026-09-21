@@ -3,6 +3,11 @@
 // Collez ce fichier dans Supabase → Edge Functions, sous le nom « agenda »,
 // avec la vérification du JWT **désactivée** : un agenda qui s'abonne ne peut
 // envoyer aucun en-tête. Voir docs/DEPLOIEMENT.md, étape 8.
+//
+// Le fichier fait 331 lignes. Si l'éditeur en affiche moins une fois collé,
+// le collage est incomplet : refaites un « tout sélectionner » dans l'éditeur,
+// puis recollez. Le plus sûr est de copier depuis la version brute du fichier
+// sur GitHub (bouton « Raw »), qui est du texte et rien d'autre.
 /**
  * The calendar file: what the app has settled, in the one format every
  * calendar on earth already reads.

@@ -146,6 +146,22 @@ test('the calendar function is one file, with nothing left to import', async () 
   assert.match(built, /verification du JWT|vérification du JWT/, 'the one setting that breaks it is named at the top');
 });
 
+test('the calendar function says how long it is, and says it right', async () => {
+  // A paste that drops the first half of the file fails at deploy time with
+  // "Expression expected", pointing at a line that is perfectly fine in the
+  // source. Counting the lines in the editor is the one check that catches it
+  // before Supabase does — so the file has to carry its own count.
+  const built = await edgeFunction();
+  const announced = /Le fichier fait (\d+) lignes/.exec(built);
+  assert.ok(announced, 'the header says how long the file is');
+  assert.equal(
+    Number(announced[1]),
+    built.split('\n').length - 1,
+    'the count in the header is the count of the file it is written in',
+  );
+  assert.equal(built.includes('{{lignes}}'), false, 'the mark is replaced, not shipped');
+});
+
 test('an aliased import is refused, because the bundle cannot follow it', async () => {
   // `import { total as spendTotal }` survives the strip as `total`, and every
   // `spendTotal` in the file then refers to nothing: the page dies at the first

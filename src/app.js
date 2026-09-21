@@ -2122,6 +2122,13 @@ function groupsHtml() {
           : ''
       }
       ${
+        // Une app posée sur l'écran d'accueil part de zéro : le dire ici, avant
+        // qu'on la pose, plutôt que de la laisser paraître cassée une fois posée.
+        held.length && !onHomeScreen()
+          ? `<p class="muted small">${escapeHtml(t('groups.beforeHomeScreen'))}</p>`
+          : ''
+      }
+      ${
         held.length
           ? `<div class="stack stack--tight">${held
               .map(
@@ -2994,7 +3001,51 @@ function joinView(invitation) {
                  aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
         </div>
       </details>
+
+      ${toHomeScreenHtml(invitation)}
     </form>`;
+}
+
+/**
+ * How to enter a group from the app rather than from the page this link opened.
+ *
+ * The invitation travels as a link, and a link always opens in the browser —
+ * never in an app sitting on a home screen, which iOS gives its own storage and
+ * no way of being handed a URL. So someone who joins here and then installs the
+ * app finds it empty, and has every reason to think the app is broken. The only
+ * order that works is the other one: install first, join from inside. That is
+ * worth saying on the very page where the mistake is made, with the two things
+ * to copy right underneath.
+ *
+ * Folded away, because most people are not installing anything: one line until
+ * it is the line they need.
+ */
+function toHomeScreenHtml(invitation) {
+  if (onHomeScreen()) return '';
+  const name = String(invitation.group || '').trim();
+  const code = String(invitation.code || '').trim();
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('join.toHomeScreen'))}</summary>
+      <p class="muted small">${escapeHtml(t('join.toHomeScreenWhy'))}</p>
+      <ol class="steps muted small">
+        <li>${escapeHtml(t('join.toHomeScreenStep1'))}</li>
+        <li>${escapeHtml(t('join.toHomeScreenStep2'))}</li>
+        <li>${escapeHtml(t('join.toHomeScreenStep3'))}</li>
+      </ol>
+      ${
+        name && code
+          ? `<p class="small"><strong>${escapeHtml(t('join.toHomeScreenWhat'))}</strong>
+               ${escapeHtml(name)} · <span class="code-shown">${escapeHtml(code)}</span></p>
+             <div class="row row--tight">
+               <button type="button" class="button button--small" id="join-copy-code">
+                 ${escapeHtml(t('join.toHomeScreenCopy'))}
+               </button>
+             </div>`
+          : ''
+      }
+      <p class="muted small">${escapeHtml(t('join.toHomeScreenDone'))}</p>
+    </details>`;
 }
 
 /**
@@ -3092,6 +3143,16 @@ let knocking = false;
 
 function bindJoin() {
   bindInAppWarning();
+
+  view.querySelector('#join-copy-code')?.addEventListener('click', () => {
+    const invitation = route();
+    showCopyDialog({
+      title: t('join.toHomeScreen'),
+      hint: t('join.toHomeScreenStep3'),
+      text: `${invitation.group} · ${invitation.code}`,
+    });
+  });
+
   const waitingLine = view.querySelector('#waiting-state');
   if (waitingLine) {
     const knock = pendingFor(route().group);
