@@ -18,9 +18,9 @@
  * checks that it matches both the files it built and the version the page shows.
  */
 
-const VERSION = 'v8';
+const VERSION = 'v9';
 /** Written by tools/bundle.js from the sources: it moves whenever they do. */
-const BUILD = 'a4c65fe0';
+const BUILD = '0d5bc07b';
 const CACHE = `marque-points-${VERSION}-${BUILD}`;
 
 const SHELL = [

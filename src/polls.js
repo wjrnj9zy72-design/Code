@@ -30,6 +30,7 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
     updatedAt: now,
     peopleAt: now,
     closedAt: null,
+    archivedAt: null,
     shared: Boolean(shared),
     groupId: groupId || null,
     removed: {},
@@ -41,6 +42,16 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
     // { "personId|optionId": { v: 'yes' | 'maybe' | 'no', at } }
     votes: {},
   };
+}
+
+/**
+ * Put a settled question away, or bring it back. Closing freezes the answers;
+ * archiving only clears the tab — the two are not the same gesture, and a poll
+ * can be closed for weeks before anyone wants it out of the way.
+ */
+export function archivePoll(poll, yes = true) {
+  const at = yes ? Date.now() : null;
+  return at === (poll.archivedAt || null) ? poll : touch(poll, { archivedAt: at });
 }
 
 /** Add choices, one per line — a poll is usually pasted, not typed. */

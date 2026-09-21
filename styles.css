@@ -645,6 +645,14 @@ table.scores .meta-cell { color: var(--muted); }
 
 .line--done .line__text { color: var(--muted); text-decoration: line-through; }
 
+/* The day a line is for, under the words it belongs to. */
+.line__due { display: block; color: var(--muted); font-size: 0.75rem; }
+.line__due--late { color: var(--bad); font-weight: 600; }
+.line--done .line__due { color: var(--muted); font-weight: 400; }
+
+/* What has gone past its day, wherever it is counted. */
+.late { color: var(--bad); font-weight: 600; }
+
 .chip {
   padding: 6px 12px;
   border: 1px solid var(--border);

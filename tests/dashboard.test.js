@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { inGroup, peopleIn, groupCounts, personFile } from '../src/dashboard.js';
-import { createList, addItems, assignItem, toggleItem } from '../src/lists.js';
-import { createPoll, addOptions, setVote, setClosed } from '../src/polls.js';
-import { createGame, addRound, setFinished } from '../src/model.js';
+import { inGroup, peopleIn, groupCounts, personFile, dayNow, isLate, isLive } from '../src/dashboard.js';
+import {
+  createList, addItems, assignItem, toggleItem, setItemDue, archiveList, makeTemplate,
+} from '../src/lists.js';
+import { createPoll, addOptions, setVote, setClosed, archivePoll } from '../src/polls.js';
+import { createGame, addRound, setFinished, archiveGame } from '../src/model.js';
 
 /** A list of three lines, two of them Alice's, one of hers ticked. */
 function courses(groupId = null) {
@@ -101,14 +103,14 @@ test("a person's file gathers what waits on them", () => {
   assert.equal(file.played[0].won, true);
   assert.equal(file.played[0].rank, 1);
   assert.equal(file.played[0].of, 2);
-  assert.deepEqual(file.counts, { games: 1, wins: 1, left: 1, votes: 1 });
+  assert.deepEqual(file.counts, { games: 1, wins: 1, left: 1, late: 0, votes: 1 });
 });
 
 test('a name nobody here carries comes back empty rather than wrong', () => {
   const file = personFile({ lists: [courses()] }, 'Claire');
   assert.equal(file.known, false);
   assert.equal(file.name, 'Claire');
-  assert.deepEqual(file.counts, { games: 0, wins: 0, left: 0, votes: 0 });
+  assert.deepEqual(file.counts, { games: 0, wins: 0, left: 0, late: 0, votes: 0 });
   assert.deepEqual(file.lines, []);
 });
 
@@ -139,4 +141,87 @@ test('the newest of everything comes first', () => {
   const recent = { ...courses(), updatedAt: 5000 };
   const file = personFile({ lists: [old, recent] }, 'Alice');
   assert.deepEqual(file.lines.map((row) => row.list.updatedAt), [5000, 1000]);
+});
+
+test('a day is the reader\'s day, not Greenwich\'s', () => {
+  // Ten past midnight in Paris is still the day before in UTC: a line due
+  // "today" must not read as late because of where the prime meridian is.
+  const midnight = new Date(2026, 0, 15, 0, 10).getTime();
+  assert.equal(dayNow(midnight), '2026-01-15');
+  assert.equal(dayNow(new Date(2026, 11, 31, 23, 50).getTime()), '2026-12-31');
+});
+
+test('a line is late only once its day has passed, and only while it is undone', () => {
+  const item = { due: '2026-01-15', done: false };
+  assert.equal(isLate(item, '2026-01-16'), true);
+  assert.equal(isLate(item, '2026-01-15'), false, 'a line due today is a line for today');
+  assert.equal(isLate(item, '2026-01-14'), false);
+  assert.equal(isLate({ ...item, done: true }, '2026-01-16'), false, 'ticked is never late');
+  assert.equal(isLate({ due: null, done: false }, '2026-01-16'), false, 'no day, no lateness');
+});
+
+test('a day goes on a line and comes off it', () => {
+  let list = addItems(createList({ name: 'Courses' }), 'Pain');
+  const id = list.items[0].id;
+  list = setItemDue(list, id, '2026-03-04');
+  assert.equal(list.items[0].due, '2026-03-04');
+
+  list = setItemDue(list, id, '');
+  assert.equal(list.items[0].due, null, 'an empty field takes the day off');
+
+  list = setItemDue(list, id, '4 mars');
+  assert.equal(list.items[0].due, null, 'anything that is not a day is no day');
+});
+
+test('what is put away, and what is a model, count nowhere', () => {
+  const live = courses('mifa');
+  const away = archiveList(courses('mifa'));
+  const model = makeTemplate(courses('mifa'));
+
+  assert.equal(isLive(live), true);
+  assert.equal(isLive(away), false);
+  assert.equal(isLive(model), false);
+
+  const counts = groupCounts({ lists: [live, away, model] }, 'mifa');
+  assert.equal(counts.lists, 1, 'one list in progress, not three');
+  assert.equal(counts.left, 2, 'and only its lines are still to tick');
+  assert.equal(counts.people, 2, 'the people are still people, wherever they are named');
+});
+
+test('an archived poll or game is no longer going on', () => {
+  const polls = groupCounts({ polls: [archivePoll(quelSoir())] });
+  assert.equal(polls.polls, 0);
+
+  const fresh = createGame({ presetId: 'papayoo', names: ['Gui', 'Alice'] });
+  assert.equal(groupCounts({ games: [fresh] }).games, 1);
+  assert.equal(groupCounts({ games: [archiveGame(fresh)] }).games, 0);
+});
+
+test('a group counts what has gone past its day', () => {
+  let list = addItems(createList({ name: 'Corvées', names: ['Alice'], groupId: 'mifa' }), 'Poubelles\nCave');
+  const alice = list.people[0].id;
+  list = assignItem(list, list.items[0].id, alice);
+  list = setItemDue(list, list.items[0].id, '2026-01-01');
+  list = setItemDue(list, list.items[1].id, '2026-12-31');
+
+  const counts = groupCounts({ lists: [list] }, 'mifa', '2026-06-01');
+  assert.equal(counts.late, 1, 'one day passed, one still ahead');
+
+  const file = personFile({ lists: [list] }, 'Alice', '2026-06-01');
+  assert.equal(file.counts.late, 1);
+  assert.equal(file.lines[0].next, '2026-01-01', 'the soonest day still owed');
+});
+
+test('what waits on someone is only what they can still do', () => {
+  const file = personFile({ lists: [archiveList(courses())], polls: [archivePoll(quelSoir())] }, 'Alice');
+  assert.equal(file.known, true, 'she was there, and the archive remembers it');
+  assert.deepEqual(file.lines, []);
+  assert.deepEqual(file.votes, []);
+  assert.equal(file.counts.votes, 0);
+});
+
+test('but an archived evening stays part of what someone played', () => {
+  const file = personFile({ games: [archiveGame(papayoo())] }, 'Alice');
+  assert.equal(file.counts.games, 1, 'archiving clears the tab, it does not rewrite history');
+  assert.equal(file.played[0].won, true);
 });

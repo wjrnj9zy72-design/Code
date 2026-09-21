@@ -133,6 +133,21 @@ mélangés si besoin.
 Ce qui n'y est délibérément pas : catégories, échéances, récurrences, charge à
 équilibrer. Ça s'ajoutera si l'usage le réclame, et pour ce qu'il réclame.
 
+### Les jours, les modèles, l'archive
+
+- Une ligne peut porter **un jour** — pas une heure : « réserver le camion »
+  est pour mardi, et un jour tout seul veut dire la même chose sur deux
+  téléphones. Ce qui a dépassé son jour passe en rouge, et se compte sur la
+  carte de la liste, dans le bloc du groupe et sur la page de la personne.
+- Une liste peut être gardée comme **modèle** — la valise, les courses de la
+  semaine. Elle quitte « En cours », attend dans *Modèles*, et l'écran de
+  création propose d'en couper une nouvelle : les lignes et les personnes
+  reviennent, les coches et les jours non.
+- **Archiver** range une liste, un sondage ou une partie sans rien supprimer :
+  hors des sections, hors des comptes, repliés derrière une ligne en bas de
+  l'onglet. Ce qui est archivé reste dans l'histoire — les statistiques et les
+  parties passées d'une personne le gardent.
+
 ## Ce que ça fait — onglet Sondages
 
 Une question, des choix, et une grille : **une réponse par personne et par
@@ -166,6 +181,9 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   manquants, ses dernières parties avec son rang. Les prénoms y sont rapprochés
   sans accent ni majuscule, comme dans les statistiques — « alice » et « Alice »
   sont la même personne, « Alex » et « Alexandre » restent deux.
+- **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
+  personne dans les parties, les listes et les sondages à la fois : deux
+  orthographes redeviennent une seule personne partout d'un coup.
 
 ## Jeux fournis
 

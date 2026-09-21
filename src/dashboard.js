@@ -22,6 +22,39 @@ export function inGroup(document_, groupId) {
 }
 
 /**
+ * Today, as a line writes it: `AAAA-MM-JJ`, in the reader's own time zone.
+ *
+ * Built by hand rather than with toISOString(), which answers in UTC — and in
+ * Paris that turns the first hours of a day into the day before.
+ */
+export function dayNow(at = Date.now()) {
+  const date = new Date(at);
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * A line nobody has ticked whose day has passed. Today is not late: a line due
+ * today is a line for today.
+ */
+export function isLate(item, today = dayNow()) {
+  return Boolean(item && item.due && !item.done && item.due < today);
+}
+
+/**
+ * What still counts. Archiving says "stop showing me this", so an archived
+ * document is nowhere in the numbers — and a model is not a list in progress,
+ * it is what the next one is cut from.
+ *
+ * History is another matter: the statistics and someone's past evenings still
+ * hold their archived games. Archiving clears the tab, it does not rewrite
+ * what happened.
+ */
+export function isLive(document_) {
+  return Boolean(document_) && !document_.archivedAt && !document_.template;
+}
+
+/**
  * Everyone these documents name, in alphabetical order.
  *
  * Each under the spelling written most recently, because that is the one they
@@ -51,19 +84,22 @@ export function peopleIn({ lists = [], polls = [], games = [] } = {}) {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-export function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '') {
-  const held = {
-    lists: lists.filter((list) => inGroup(list, groupId)),
-    polls: polls.filter((poll) => inGroup(poll, groupId)),
-    games: games.filter((game) => inGroup(game, groupId)),
+export function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId = '', today = dayNow()) {
+  const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
+  const held = { lists: mine(lists), polls: mine(polls), games: mine(games) };
+  const live = {
+    lists: held.lists.filter(isLive),
+    polls: held.polls.filter(isLive),
+    games: held.games.filter(isLive),
   };
   const everything = [...held.lists, ...held.polls, ...held.games];
 
   return {
-    lists: held.lists.filter((list) => progress(list).left > 0).length,
-    polls: held.polls.filter((poll) => !poll.closedAt).length,
-    games: held.games.filter((game) => !gameStatus(game).finished).length,
-    left: held.lists.reduce((sum, list) => sum + progress(list).left, 0),
+    lists: live.lists.filter((list) => progress(list).left > 0).length,
+    polls: live.polls.filter((poll) => !poll.closedAt).length,
+    games: live.games.filter((game) => !gameStatus(game).finished).length,
+    left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
+    late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,
     at: Math.max(0, ...everything.map((document_) => document_.updatedAt || 0)),
   };
@@ -78,7 +114,7 @@ export function groupCounts({ lists = [], polls = [], games = [] } = {}, groupId
  * beside their name. A game with no rounds is left out of the games: nobody
  * played it, so it says nothing about anyone.
  */
-export function personFile({ lists = [], polls = [], games = [] } = {}, who) {
+export function personFile({ lists = [], polls = [], games = [] } = {}, who, today = dayNow()) {
   const key = sameName(who);
   const byDate = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
   const groupIds = new Set();
@@ -91,14 +127,23 @@ export function personFile({ lists = [], polls = [], games = [] } = {}, who) {
     name = String(raw || '').trim() || name;
   };
 
+  // Archived and model lists are skipped: what waits on someone has to be
+  // something they can still do. Their games are another matter — see below.
   const lines = [];
   for (const list of [...lists].sort(byDate)) {
     const person = (list.people || []).find((one) => sameName(one.name) === key);
     if (!person) continue;
     spelling(person.name, list.updatedAt);
     if (list.groupId) groupIds.add(list.groupId);
+    if (!isLive(list)) continue;
     const own = progress(list, person.id);
-    if (own.total) lines.push({ list, done: own.done, total: own.total, left: own.left });
+    if (!own.total) continue;
+    const late = list.items.filter((item) => item.who === person.id && isLate(item, today)).length;
+    const next = list.items
+      .filter((item) => item.who === person.id && item.due && !item.done)
+      .map((item) => item.due)
+      .sort()[0] || null;
+    lines.push({ list, done: own.done, total: own.total, left: own.left, late, next });
   }
 
   const votes = [];
@@ -107,6 +152,7 @@ export function personFile({ lists = [], polls = [], games = [] } = {}, who) {
     if (!person) continue;
     spelling(person.name, poll.updatedAt);
     if (poll.groupId) groupIds.add(poll.groupId);
+    if (!isLive(poll)) continue;
     votes.push({
       poll,
       answered: (poll.options || []).some((option) => voteOf(poll, person.id, option.id)),
@@ -143,6 +189,7 @@ export function personFile({ lists = [], polls = [], games = [] } = {}, who) {
       games: played.length,
       wins: played.filter((row) => row.won).length,
       left: lines.reduce((sum, row) => sum + row.left, 0),
+      late: lines.reduce((sum, row) => sum + row.late, 0),
       votes: votes.filter((row) => !row.closed && !row.answered).length,
     },
   };

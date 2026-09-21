@@ -1,7 +1,7 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid, archiveGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry , inAppBrowser } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
@@ -13,13 +13,14 @@ import { qrSvg, qrMatrix } from './qr.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
   addListPerson, renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList,
+  setItemDue, archiveList, makeTemplate,
 } from './lists.js';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
-  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
+  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll,
 } from './polls.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, peopleIn, personFile } from './dashboard.js';
+import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
@@ -109,6 +110,24 @@ function documentTitle(document_) {
   return gameTitle(document_);
 }
 
+/**
+ * A day written `AAAA-MM-JJ`, shown the way the reader's language shows days.
+ * Built field by field rather than handed to Date(), which reads that form as
+ * UTC midnight and so shows the day before, west of Greenwich.
+ */
+function formatDay(day) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return String(day || '');
+  try {
+    return new Date(year, month - 1, date).toLocaleDateString(getLanguage(), {
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return String(day);
+  }
+}
+
 function formatDate(timestamp) {
   try {
     return new Date(timestamp).toLocaleDateString(getLanguage(), {
@@ -185,8 +204,9 @@ function pollCardHtml(poll) {
 
 function pollsView() {
   const sorted = [...shownDocs(state.polls)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = sorted.filter((poll) => !poll.closedAt);
-  const closed = sorted.filter((poll) => poll.closedAt);
+  const live = sorted.filter(isLive);
+  const open = live.filter((poll) => !poll.closedAt);
+  const closed = live.filter((poll) => poll.closedAt);
 
   return `
     ${flashHtml()}
@@ -211,7 +231,9 @@ function pollsView() {
              <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
            </section>`
         : ''
-    }`;
+    }
+
+    ${archivedHtml(sorted, pollCardHtml)}`;
 }
 
 function newPollView() {
@@ -372,6 +394,9 @@ function pollView(poll) {
         <button type="button" class="button button--small" id="poll-close">
           ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
         </button>
+        <button type="button" class="button button--small button--ghost" id="poll-archive">
+          ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
@@ -503,6 +528,13 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-archive')?.addEventListener('click', () => {
+    const next = archivePoll(poll, !poll.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replacePoll(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/polls');
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
@@ -742,6 +774,7 @@ function personName(list, who) {
 function listCardHtml(list) {
   const { done, total } = progress(list);
   const people = list.people.map((person) => person.name).join(' · ');
+  const late = list.items.filter((item) => isLate(item)).length;
   return `
     <button type="button" class="game-card" data-goto="#/list/${escapeHtml(list.id)}">
       <span class="game-card__title">
@@ -751,14 +784,20 @@ function listCardHtml(list) {
         </span>
       </span>
       ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
-      <span class="game-card__meta">${escapeHtml(formatDate(list.updatedAt))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(list.updatedAt))}${
+          late ? ` — <span class="late">${escapeHtml(t('lists.late', { count: late }))}</span>` : ''
+        }
+      </span>
     </button>`;
 }
 
 function listsView() {
   const sorted = [...shownDocs(state.lists)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
-  const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
+  const live = sorted.filter(isLive);
+  const open = live.filter((list) => progress(list).left > 0 || !list.items.length);
+  const finished = live.filter((list) => list.items.length && progress(list).left === 0);
+  const templates = sorted.filter((list) => list.template && !list.archivedAt);
 
   return `
     ${flashHtml()}
@@ -783,10 +822,40 @@ function listsView() {
              <div class="game-list">${finished.map(listCardHtml).join('')}</div>
            </section>`
         : ''
-    }`;
+    }
+
+    ${
+      templates.length
+        ? `<section class="section">
+             <div class="section__head">
+               <h2>${escapeHtml(t('lists.templates'))}</h2>
+               <span class="muted small">${escapeHtml(t('lists.templatesHint'))}</span>
+             </div>
+             <div class="game-list">${templates.map(listCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
+
+    ${archivedHtml(sorted, listCardHtml)}`;
+}
+
+/**
+ * What has been put away, folded behind one line. Kept on the page rather than
+ * on a page of its own: a thing put away is still a thing you can go and find,
+ * and one more screen to go looking on is one more thing to remember.
+ */
+function archivedHtml(documents, cardHtml) {
+  const archived = documents.filter((document_) => document_.archivedAt);
+  if (!archived.length) return '';
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('archive.shown', { count: archived.length }))}</summary>
+      <div class="game-list">${archived.map(cardHtml).join('')}</div>
+    </details>`;
 }
 
 function newListView() {
+  const templates = state.lists.filter((list) => list.template && !list.archivedAt);
   const suggestions = [...new Set([
     myName(), ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
   ].filter(Boolean))].slice(0, 12);
@@ -798,6 +867,26 @@ function newListView() {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${
+      templates.length
+        ? `<section class="section">
+             <div class="section__head">
+               <h2>${escapeHtml(t('lists.fromTemplate'))}</h2>
+             </div>
+             <div class="row">
+               ${templates
+                 .map(
+                   (list) => `
+                     <button type="button" class="chip" data-from-template="${escapeHtml(list.id)}">
+                       ${escapeHtml(listTitle(list))}
+                     </button>`,
+                 )
+                 .join('')}
+             </div>
+           </section>`
+        : ''
+    }
 
     <form id="new-list" class="card stack">
       <label>
@@ -844,6 +933,7 @@ function newListView() {
 
 function listItemHtml(list, item) {
   const who = personName(list, item.who);
+  const late = isLate(item);
   return `
     <li class="line ${item.done ? 'line--done' : ''}">
       <label class="line__tick">
@@ -852,6 +942,15 @@ function listItemHtml(list, item) {
       </label>
       <button type="button" class="line__text" data-edit="${escapeHtml(item.id)}">
         <span>${escapeHtml(item.text)}</span>
+        ${
+          // Only a line that has a day says one: the others would all carry an
+          // empty slot to say nothing.
+          item.due
+            ? `<span class="line__due ${late ? 'line__due--late' : ''}">${escapeHtml(
+                late ? t('lists.lateOn', { day: formatDay(item.due) }) : t('lists.dueOn', { day: formatDay(item.due) }),
+              )}</span>`
+            : ''
+        }
       </button>
       <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
         ${escapeHtml(who || t('lists.nobody'))}
@@ -934,6 +1033,12 @@ function listView(list) {
             : ''
         }
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-template">
+          ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="list-archive">
+          ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
@@ -1434,13 +1539,27 @@ function groupBoardHtml(group) {
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
           counts.at ? ` · ${escapeHtml(formatDate(counts.at))}` : ''
-        }
+        }${counts.late ? ` · <span class="late">${escapeHtml(t('lists.late', { count: counts.late }))}</span>` : ''}
       </p>
     </div>`;
 }
 
 /** How many names the overview lists before folding the rest away. */
 const PEOPLE_SHOWN = 12;
+
+/**
+ * What is waiting on someone, in one line. Late first: a line whose day has
+ * passed is the only part of this that is worse today than it was yesterday.
+ */
+function waitingLine(counts) {
+  return [
+    counts.late ? t('lists.late', { count: counts.late }) : '',
+    counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
+    counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 /**
  * Who the app knows about, and what is still waiting on each of them.
@@ -1458,12 +1577,7 @@ function whoHtml() {
 
   const row = (name) => {
     const { counts } = personFile(state, name);
-    const waiting = [
-      counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
-      counts.votes ? t('dash.votes', { count: counts.votes }) : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+    const waiting = waitingLine(counts);
     return `
       <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
         <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
@@ -2317,6 +2431,11 @@ async function renameEverywhere(before) {
 
   const key = sameName(before);
   let touched = 0;
+
+  // Games first, then lists and polls: the same person, written the same way,
+  // in every document that names them. A name matched forgivingly here, as
+  // everywhere else — otherwise the rename would miss exactly the spellings it
+  // exists to reconcile.
   for (const game of state.games) {
     const players = game.players.filter((player) => sameName(player.name) === key);
     if (!players.length) continue;
@@ -2327,7 +2446,35 @@ async function renameEverywhere(before) {
     persist(next);
     touched += 1;
   }
+
+  for (const list of state.lists) {
+    const people = list.people.filter((person) => sameName(person.name) === key);
+    if (!people.length) continue;
+    let next = list;
+    for (const person of people) next = renameListPerson(next, person.id, clean);
+    if (next === list) continue;
+    state.lists = state.lists.map((held) => (held.id === next.id ? next : held));
+    persistList(next);
+    touched += 1;
+  }
+
+  for (const poll of state.polls) {
+    const people = poll.people.filter((person) => sameName(person.name) === key);
+    if (!people.length) continue;
+    let next = poll;
+    for (const person of people) next = renamePollPerson(next, person.id, clean);
+    if (next === poll) continue;
+    state.polls = state.polls.map((held) => (held.id === next.id ? next : held));
+    persistPoll(next);
+    touched += 1;
+  }
+
   flash(touched ? t('stats.renamed', { name: clean, count: touched }) : t('stats.renamedNone'));
+  // The page may be keyed on the old name: follow the person to their new one.
+  if (route().name === 'person' && sameName(route().who) === key) {
+    navigate(`#/person/${encodeURIComponent(clean)}`);
+    return;
+  }
   render();
 }
 
@@ -2380,8 +2527,9 @@ function homeView() {
 
   const mine = shownDocs(state.games);
   const sorted = [...mine].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
-  const ongoing = sorted.filter((game) => !gameStatus(game).finished);
-  const finished = sorted.filter((game) => gameStatus(game).finished);
+  const live = sorted.filter(isLive);
+  const ongoing = live.filter((game) => !gameStatus(game).finished);
+  const finished = live.filter((game) => gameStatus(game).finished);
 
   return `
     ${flashHtml()}
@@ -2422,7 +2570,7 @@ function homeView() {
         : ''
     }
 
-    `;
+    ${archivedHtml(sorted, gameCardHtml)}`;
 }
 
 /* ---------------------------------------------------------------- person --- */
@@ -2449,6 +2597,7 @@ function personView(who) {
     </div>
     ${tail}`;
 
+
   if (!file.known) {
     return `
       ${flashHtml()}
@@ -2460,12 +2609,7 @@ function personView(who) {
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
 
-  const waiting = [
-    file.counts.left ? t('lists.leftToDo', { count: file.counts.left }) : '',
-    file.counts.votes ? t('dash.votes', { count: file.counts.votes }) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const waiting = waitingLine(file.counts);
 
   const tile = (value, label) => `
     <div class="tile">
@@ -2515,9 +2659,11 @@ function personView(who) {
         entry(
           `#/list/${escapeHtml(row.list.id)}`,
           escapeHtml(listTitle(row.list)),
-          '',
+          // The soonest day still ahead of them, or nothing: a list with no
+          // days says nothing about when, and should not pretend to.
+          row.next ? escapeHtml(t(row.late ? 'lists.lateOn' : 'lists.dueOn', { day: formatDay(row.next) })) : '',
           escapeHtml(t('person.assigned', { done: row.done, total: row.total })),
-          row.left ? '' : 'entry__value--good',
+          row.late ? 'entry__value--bad' : row.left ? '' : 'entry__value--good',
         ),
       ),
     )}
@@ -2553,6 +2699,13 @@ function personView(who) {
           ),
         ),
     )}
+
+    <div class="row">
+      <button type="button" class="button button--small button--ghost"
+              data-rename-everywhere="${escapeHtml(file.name)}">
+        ${escapeHtml(t('stats.rename'))}
+      </button>
+    </div>
 
     <p class="notes">${escapeHtml(t('person.sameName'))}</p>`;
 }
@@ -2953,6 +3106,9 @@ function gameView(game) {
             : ''
         }
         <button type="button" class="button button--small" id="replay">${escapeHtml(t('action.replay'))}</button>
+        <button type="button" class="button button--small button--ghost" id="game-archive">
+          ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
       </div>
     </section>
 
@@ -4498,6 +4654,20 @@ function replaceList(next, { redraw = true } = {}) {
 }
 
 function bindNewList() {
+  // A model is picked, not filled in: the list it cuts is ready at once, with
+  // its people, its lines and their days — which is the whole point of having
+  // kept one.
+  view.querySelectorAll('[data-from-template]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const template = getList(button.dataset.fromTemplate);
+      if (!template) return;
+      const next = reuseList(template);
+      state.lists = [...state.lists, next];
+      persistList(next);
+      navigate(`#/list/${next.id}`);
+    });
+  });
+
   const form = view.querySelector('#new-list');
   if (!form) return;
 
@@ -4623,6 +4793,21 @@ function bindList(list) {
     navigate(`#/list/${next.id}`);
   });
 
+  view.querySelector('#list-template')?.addEventListener('click', () => {
+    const next = makeTemplate(list, !list.template);
+    flash(t(next.template ? 'lists.nowTemplate' : 'lists.noLongerTemplate'));
+    replaceList(next);
+  });
+
+  view.querySelector('#list-archive')?.addEventListener('click', () => {
+    const next = archiveList(list, !list.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    // Put away means out of the way: staying on its page would be the one
+    // place it is still in front of you.
+    replaceList(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/lists');
+  });
+
   view.querySelector('#list-rename')?.addEventListener('click', () => openListNameDialog(list));
 
   view.querySelector('#list-delete')?.addEventListener('click', async () => {
@@ -4710,6 +4895,11 @@ function openLineDialog(list, itemId) {
       <h2>${escapeHtml(t('lists.lineTitle'))}</h2>
       <label class="visually-hidden" for="line-text">${escapeHtml(t('lists.lineTitle'))}</label>
       <input type="text" id="line-text" value="${escapeHtml(item.text)}" />
+      <label>
+        ${escapeHtml(t('lists.due'))}
+        <input type="date" id="line-due" value="${escapeHtml(item.due || '')}" />
+      </label>
+      <p class="muted small">${escapeHtml(t('lists.dueHint'))}</p>
       <div class="row">
         <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
         <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
@@ -4718,9 +4908,12 @@ function openLineDialog(list, itemId) {
     </form>`;
 
   const field = dialog.querySelector('#line-text');
+  const day = dialog.querySelector('#line-due');
   const save = () => {
     dialog.close();
-    replaceList(renameItem(list, itemId, field.value));
+    // The words and the day are one edit: saving with the field emptied takes
+    // the day off, which is how a date is removed without a second button.
+    replaceList(setItemDue(renameItem(list, itemId, field.value), itemId, day.value));
   };
 
   dialog.querySelector('#line-save').addEventListener('click', save);
@@ -5510,6 +5703,14 @@ function bindGame(game) {
     download(fileNameFor(game, 'pdf'), buildPdf(reportFor(game)), 'application/pdf');
   });
 
+  view.querySelector('#game-archive')?.addEventListener('click', () => {
+    const next = archiveGame(game, !game.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replaceGame(next);
+    if (next.archivedAt) navigate('#/games');
+    else render();
+  });
+
   view.querySelector('#replay')?.addEventListener('click', () => {
     const next = replayGame(game);
     state.games = [...state.games, next];
@@ -5671,9 +5872,6 @@ function render() {
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
-    view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
-      button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
-    });
   } else if (current.name === 'new') {
     stopWatching();
     view.innerHTML = newGameView();
@@ -5756,6 +5954,12 @@ function render() {
       setGroupFilter(node.dataset.groupTile);
       navigate(node.dataset.tileGoto);
     });
+  });
+
+  // Offered from the statistics, where two spellings show as two lines, and
+  // from a person's own page, which is the other place a name is looked at.
+  view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
+    button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
   });
 }
 
