@@ -2012,13 +2012,38 @@ se coller tel quel.
    « impossible de s'abonner », sans autre explication.
 5. Déployez.
 
-> Avec la ligne de commande, c'est `supabase functions deploy agenda --no-verify-jwt`.
-> Attention : un redéploiement peut remettre la vérification, et l'agenda cesse
-> alors de se mettre à jour sans rien dire. Si l'abonnement tombe en panne du
-> jour au lendemain, c'est la première chose à regarder.
+> **Le commutateur se remet tout seul.** C'est un défaut connu de Supabase : la
+> case *Verify JWT with legacy secret*, désactivée à la main, **revient sur
+> « actif » à chaque mise à jour de la fonction**. Revérifiez-la après chaque
+> redéploiement — sinon les agendas cessent de se mettre à jour, sans que rien
+> ne le dise. Si l'abonnement tombe en panne du jour au lendemain, c'est la
+> première chose à regarder, et le test ci-dessous la distingue en dix secondes.
+>
+> Avec la ligne de commande, le réglage durable est dans `config.toml` —
+> `[functions.agenda] verify_jwt = false` — qui lui ne se réinitialise pas ;
+> `supabase functions deploy agenda --no-verify-jwt` vaut pour un déploiement.
+>
+> Supabase a annoncé la dépréciation du « legacy JWT secret » : ce commutateur
+> changera peut-être de nom. Ce dont l'agenda a besoin ne change pas — une
+> fonction joignable sans en-tête.
 
 La fonction n'a **aucune clé à configurer** : Supabase lui donne l'adresse du
 projet et la clé publique toute seule.
+
+### 1 bis. Vérifier le déploiement en dix secondes
+
+Avant même d'ouvrir l'app, ouvrez cette adresse dans un navigateur, **sans rien
+après** :
+
+```
+https://<votre-projet>.supabase.co/functions/v1/agenda
+```
+
+| ce que vous lisez | ce que cela veut dire |
+| --- | --- |
+| **Adresse incomplète : il manque le jeton.** | la fonction tourne, et le JWT est bien désactivé — tout va bien |
+| un JSON parlant d'*authorization* ou de *JWT* | la vérification du JWT est restée active : revoyez l'étape 1 |
+| une erreur 404 | la fonction n'est pas déployée, ou pas sous le nom `agenda` |
 
 ### 2. Récupérer l'adresse, dans l'app
 
