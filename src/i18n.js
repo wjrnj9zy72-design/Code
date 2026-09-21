@@ -271,6 +271,8 @@ export const STRINGS = {
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
     'groups.keepKey':
       'Chaque appareil a sa propre clé. Gardez la vôtre quelque part — le bouton « Voir ma clé » ci-dessous : c’est elle qui vous fait revenir tout seul après avoir réinstallé l’app, sans avoir à être réinvité ni accepté.',
+    'groups.beforeHomeScreen':
+      'Vous lisez ceci dans un navigateur. Si vous posez l’app sur l’écran d’accueil, elle s’ouvrira vide : c’est une installation à part, avec son propre stockage, et aucun lien ne peut lui être ouvert. Pour y retrouver ce groupe, prenez votre clé ici — « Voir ma clé » — et collez-la là-bas, sous « Je n’ai pas de code, mais une clé ».',
     'groups.none': 'Cet appareil n’est dans aucun groupe : il garde tout pour lui.',
     'groups.standaloneNew':
       'Cette app posée sur l’écran d’accueil est une installation à part de Safari : elle a son propre stockage, et doit entrer dans le groupe de son côté. Le plus simple, sur votre propre téléphone : collez la clé du groupe ci-dessous. Sinon, demandez à entrer, et acceptez depuis Safari.',
@@ -413,6 +415,17 @@ export const STRINGS = {
     'gate.waitingHow':
       'Cette page regarde toute seule. Vous pouvez aussi fermer l’app : l’acceptation sera vue à la prochaine ouverture. Dites à la personne que vous avez frappé, elle ne recevra pas de notification.',
     'join.byHand': 'Nom du groupe et code',
+    'join.toHomeScreen': 'Je veux l’app sur mon écran d’accueil',
+    'join.toHomeScreenWhy':
+      'Alors posez-la d’abord, et entrez dans le groupe depuis elle. Une app posée sur l’écran d’accueil est une installation à part du navigateur : elle a son propre stockage, et ce que vous faites sur cette page ne s’y trouvera pas. On ne peut pas non plus lui ouvrir un lien — un lien s’ouvre toujours dans le navigateur.',
+    'join.toHomeScreenStep1': 'Posez l’app : sur iPhone, le bouton Partager, puis « Sur l’écran d’accueil ».',
+    'join.toHomeScreenStep2': 'Ouvrez-la depuis l’écran d’accueil — elle sera vide, c’est normal.',
+    'join.toHomeScreenStep3':
+      'Dans l’Aperçu, « Entrer dans un groupe » : recopiez le nom et les six chiffres ci-dessous, et écrivez votre prénom.',
+    'join.toHomeScreenWhat': 'À recopier dans l’app :',
+    'join.toHomeScreenCopy': 'Copier le nom et le code',
+    'join.toHomeScreenDone':
+      'Déjà entré ici, dans le navigateur ? Le code peut avoir servi. Dans ce cas, prenez plutôt votre clé : Aperçu → votre groupe → « Voir ma clé », et collez-la dans l’app, sous « Je n’ai pas de code, mais une clé ».',
     'join.noDatabase':
       'Cette copie de l’application n’a pas de base partagée : il n’y a pas de groupe à rejoindre.',
     'tab.polls': 'Sondages',
@@ -948,6 +961,8 @@ export const STRINGS = {
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
     'groups.keepKey':
       'Keep your group\'s key somewhere — the “Show the key” button below —: it is what brings you back on your own after reinstalling the app, with nobody to invite or accept you.',
+    'groups.beforeHomeScreen':
+      'You are reading this in a browser. If you put the app on your home screen it will open empty: it is a separate installation, with its own storage, and no link can be opened in it. To find this group there, take your key here — “Show the key” — and paste it there, under “I have no code, but a key”.',
     'groups.none': 'This device is in no group: it keeps everything to itself.',
     'groups.standaloneNew':
       'This app on your home screen is a separate installation from Safari: it has its own storage, and has to join the group on its own. On your own phone the easy way is to paste the group\'s key below. Otherwise ask to join, and accept it from Safari.',
@@ -1084,6 +1099,17 @@ export const STRINGS = {
     'gate.waitingHow':
       'This page watches on its own. You can also close the app: being accepted will be seen next time it opens. Tell the person you knocked — they get no notification.',
     'join.byHand': 'Group name and code',
+    'join.toHomeScreen': 'I want the app on my home screen',
+    'join.toHomeScreenWhy':
+      'Then put it there first, and join the group from it. An app on the home screen is a separate installation from the browser: it has its own storage, and what you do on this page will not be in it. Nor can a link be opened in it — a link always opens in the browser.',
+    'join.toHomeScreenStep1': 'Put the app there: on an iPhone, the Share button, then “Add to Home Screen”.',
+    'join.toHomeScreenStep2': 'Open it from the home screen — it will be empty, which is expected.',
+    'join.toHomeScreenStep3':
+      'In the Overview, “Join a group”: copy in the name and the six digits below, and write your first name.',
+    'join.toHomeScreenWhat': 'To copy into the app:',
+    'join.toHomeScreenCopy': 'Copy the name and the code',
+    'join.toHomeScreenDone':
+      'Already joined here, in the browser? The code may be spent. Take your key instead: Overview → your group → "Show my key", and paste it into the app, under "I have no code, but a key".',
     'join.noDatabase': 'This copy of the app has no shared database: there is no group to join.',
     'tab.polls': 'Polls',
     'polls.new': 'New poll',

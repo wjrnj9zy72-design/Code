@@ -1850,6 +1850,33 @@ Deux façons de la faire entrer :
 Une fois entrée, elle récupère d'elle-même ce que le groupe partage, et le **⟳**
 apparaît dans la barre du haut.
 
+### Quelqu'un que vous invitez et qui veut l'app sur son écran d'accueil
+
+C'est là que ça se passe mal le plus souvent, et l'ordre est tout. L'invitation
+est **un lien**, et un lien s'ouvre **toujours dans le navigateur** — jamais dans
+une app posée sur un écran d'accueil ; iOS n'offre aucun moyen de lui en ouvrir
+un. Donc si la personne entre depuis le lien, puis pose l'app, elle trouve une
+app vide et conclut, non sans raison, qu'elle n'y arrive pas.
+
+**Le bon ordre** — celui que la page d'invitation affiche désormais, sous
+*Je veux l'app sur mon écran d'accueil* :
+
+1. **poser l'app d'abord**, depuis le lien ouvert dans Safari : Partager →
+   *Sur l'écran d'accueil* ;
+2. **l'ouvrir depuis l'écran d'accueil** ; elle est vide, c'est normal ;
+3. dedans, *Aperçu* → *Entrer dans un groupe* → recopier **le nom du groupe et
+   les six chiffres** lus sur la page d'invitation, plus son prénom.
+
+Il n'y a alors **qu'une seule demande** à accepter, et c'est la bonne
+installation qui entre.
+
+**Si la personne est déjà entrée depuis le navigateur**, le code peut être
+dépensé — une invitation pour une seule personne ne vaut qu'une demande. Elle
+passe alors par sa clé : dans le navigateur, *Aperçu* → son groupe → **Voir ma
+clé**, puis dans l'app posée, *Je n'ai pas de code, mais une clé* → coller →
+**Entrer**. Ses deux installations tiennent la même clé, ce qui est sans
+inconvénient : une clé désigne une personne, pas un appareil.
+
 **Et si vous retirez puis remettez l'app sur l'écran d'accueil ?** Vous ne
 réinvitez **personne**. Retirer l'app efface le stockage de *cette installation*
 et rien d'autre : les clés des autres sont des lignes dans la base, elles ne

@@ -287,6 +287,22 @@ textarea { min-height: 66px; resize: vertical; }
   text-align: center;
 }
 
+/* Une marche après l'autre : l'ordre compte, donc il se voit. */
+.steps {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 4px;
+}
+
+/* Le même code, mais à lire et à recopier plutôt qu'à saisir. */
+.code-shown {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  font-weight: 650;
+}
+
 /* One remembered share, or one group: what it is on one side, what to do with
    it on the other. */
 .lot, .group {
