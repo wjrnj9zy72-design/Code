@@ -197,7 +197,21 @@ Deno.serve(async (request) => {
     return plain('Seul GET est servi ici.', 405);
   }
 
-  const token = new URL(request.url).searchParams.get('c') ?? '';
+  // Deux formes, parce que tous les agendas ne lisent pas les mêmes adresses :
+  //
+  //   …/functions/v1/agenda/<jeton>.ics   ce que la plupart attendent
+  //   …/functions/v1/agenda?c=<jeton>     la première forme servie
+  //
+  // Certaines applications refusent une adresse qui ne finit pas par .ics, ou
+  // qui porte un « ? ». Les deux restent servies pour toujours : un abonnement
+  // déjà pris ne doit pas cesser de fonctionner parce qu'une autre forme est
+  // apparue.
+  const url = new URL(request.url);
+  const inPath = /\/agenda\/([0-9a-fA-F]{32})(?:\.ics)?$/.exec(url.pathname);
+  // Mis en minuscules : de l'hexadécimal recopié en majuscules désigne le même
+  // jeton, et la base le range en minuscules.
+  const token = (inPath ? inPath[1] : url.searchParams.get('c') ?? '').toLowerCase();
+
   // Vérifié ici plutôt que par la base : une adresse mal recopiée ne doit pas
   // compter comme un essai raté, sans quoi un agenda qui réessaie toutes les
   // heures finirait par bloquer les vrais.

@@ -66,12 +66,40 @@ test('the calendar function answers a subscription with a calendar', async () =>
   assert.equal(calls[0].options.headers.apikey, 'anon-key');
 });
 
+test('the token is read from the path as well, with or without .ics', async () => {
+  const token = 'a'.repeat(32);
+  for (const url of [
+    `https://x.supabase.co/functions/v1/agenda/${token}.ics`,
+    `https://x.supabase.co/functions/v1/agenda/${token}`,
+    `https://x.supabase.co/functions/v1/agenda?c=${token}`,
+  ]) {
+    const { response, calls } = await serve({ answer: { status: 'ok', name: 'Mifa', docs: [] }, url });
+    assert.equal(response.status, 200, url);
+    assert.equal(response.headers.get('content-type'), 'text/calendar; charset=utf-8');
+    assert.equal(JSON.parse(calls[0].options.body).p_token, token, url);
+  }
+});
+
+test('hexadecimal copied in capitals is the same token', async () => {
+  // The database stores it in lower case; a calendar that upper-cased the
+  // address on the way would otherwise be told it leads nowhere.
+  const { response, calls } = await serve({
+    answer: { status: 'ok', name: 'Mifa', docs: [] },
+    url: `https://x.supabase.co/functions/v1/agenda/${'AB12'.repeat(8)}.ics`,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(calls[0].options.body).p_token, 'ab12'.repeat(8));
+});
+
 test('an address with no token, or a mangled one, never reaches the database', async () => {
   for (const url of [
     'https://x.supabase.co/functions/v1/agenda',
     'https://x.supabase.co/functions/v1/agenda?c=',
     'https://x.supabase.co/functions/v1/agenda?c=trop-court',
-    `https://x.supabase.co/functions/v1/agenda?c=${'A'.repeat(32)}`,
+    'https://x.supabase.co/functions/v1/agenda/trop-court.ics',
+    `https://x.supabase.co/functions/v1/agenda/${'a'.repeat(31)}.ics`,
+    `https://x.supabase.co/functions/v1/agenda/${'a'.repeat(32)}.txt`,
+
   ]) {
     const { response, calls } = await serve({ answer: { status: 'ok', docs: [] }, url });
     assert.equal(response.status, 400, url);

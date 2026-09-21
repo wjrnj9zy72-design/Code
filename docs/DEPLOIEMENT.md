@@ -2050,10 +2050,18 @@ https://<votre-projet>.supabase.co/functions/v1/agenda
 *Aperçu* → **Mes groupes** → **L'agenda du groupe**. L'adresse ressemble à :
 
 ```
-https://<votre-projet>.supabase.co/functions/v1/agenda?c=<32 caractères>
+https://<votre-projet>.supabase.co/functions/v1/agenda/<32 caractères>.ics
 ```
 
 Elle est **fabriquée à la première demande** et reste la même ensuite.
+
+> **Deux formes de la même adresse.** L'app montre celle qui finit par `.ics` :
+> plusieurs applications refusent une adresse qui ne ressemble pas à un fichier
+> de calendrier, ou qui porte un `?`. L'ancienne forme — `…/agenda?c=<jeton>` —
+> reste servie pour toujours, donc un abonnement déjà pris continue de
+> fonctionner. Si l'une passe mal quelque part, essayez l'autre ; et
+> `webcal://` à la place de `https://` en est une troisième, que certaines
+> applications sont seules à accepter.
 
 ### 3. S'abonner
 
@@ -2067,6 +2075,10 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
   toutes les trois heures environ, parfois plus de vingt-quatre. Les agendas
   d'Apple et de Google relisent en quinze à soixante minutes : si le but est que
   tout le monde voie la date vite, l'abonnement direct vaut mieux que le détour.
+  Si l'abonnement n'y passe pas malgré un compte payant et les trois formes
+  d'adresse, leur propre documentation conseille le détour par le fichier :
+  ouvrir l'adresse dans un navigateur — elle télécharge `together.ics` — et
+  **importer ce fichier**. Ce n'est plus vivant, mais les dates y sont.
 
 ### Ce que l'adresse donne, et ce qu'elle ne donne pas
 

@@ -6054,9 +6054,14 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
      * Where that token is served. The function lives beside the database, at
      * the project's own address — the same one the app already talks to, minus
      * the REST path it was given with.
+     *
+     * Written as a path ending in `.ics`: several calendars refuse an address
+     * that does not look like a calendar file, or that carries a query string.
+     * The older `?c=` form is still served, so an existing subscription keeps
+     * working — this is what is *offered*, not the only thing accepted.
      */
     calendarUrl(token) {
-      return `${base}/functions/v1/agenda?c=${encodeURIComponent(token)}`;
+      return `${base}/functions/v1/agenda/${encodeURIComponent(token)}.ics`;
     },
 
     /** Cut a person's return link. Returns 'ok' | 'unknown'. */
