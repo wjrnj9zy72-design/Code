@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
   addListPerson as addPerson, renameListPerson as renamePerson, removeListPerson as removePerson,
-  shareOut, progress, mergeLists, isValidList,
+  shareOut, progress, mergeLists, isValidList, setItemDue, archiveList, makeTemplate,
 } from '../src/lists.js';
 import { recentPeople } from '../src/people.js';
 
@@ -277,4 +277,45 @@ test('sharing out nothing is not a change at all', () => {
 
   const allDone = toggleItem(addItems(createList({ names: ['Gui'] }), 'Pain'), undefined);
   assert.ok(allDone, 'an unknown line changes nothing');
+});
+
+test('a list is put away and brought back, without losing a line', () => {
+  const list = sample();
+  const away = archiveList(list);
+  assert.ok(away.archivedAt, 'it carries when it was put away');
+  assert.equal(away.items.length, list.items.length, 'nothing is thrown out');
+  assert.ok(away.updatedAt > list.updatedAt || away.updatedAt >= list.updatedAt);
+
+  const back = archiveList(away, false);
+  assert.equal(back.archivedAt, null);
+  assert.equal(archiveList(back, false), back, 'nothing to change is not a change');
+});
+
+test('a list kept as a model cuts an ordinary list, ticks off and days off', () => {
+  let list = sample();
+  list = setItemDue(list, list.items[0].id, '2026-01-02');
+  list = toggleItem(list, list.items[1].id);
+  const model = makeTemplate(list);
+  assert.equal(model.template, true);
+
+  const cut = reuseList(model, 'Courses de la semaine');
+  assert.equal(cut.name, 'Courses de la semaine');
+  assert.equal(cut.template, false, 'what comes out of a model is a list, not another model');
+  assert.equal(cut.archivedAt, null);
+  assert.deepEqual(cut.items.map((item) => item.done), [false, false, false]);
+  assert.deepEqual(cut.items.map((item) => item.due), [null, null, null],
+    'the days were the days of the last time');
+  assert.deepEqual(cut.items.map((item) => item.text), list.items.map((item) => item.text));
+  assert.notEqual(cut.items[0].id, list.items[0].id, 'its lines are its own');
+  assert.equal(makeTemplate(model, true), model);
+});
+
+test('a day survives a merge, line by line, like everything else on a line', () => {
+  const list = sample();
+  const here = setItemDue(list, list.items[0].id, '2026-02-03');
+  const there = toggleItem({ ...list, updatedAt: list.updatedAt + 10 }, list.items[1].id);
+  const merged = mergeLists(here, there);
+  assert.equal(merged.items.find((item) => item.id === list.items[0].id).due, '2026-02-03',
+    'the day set here is not lost to a tick made there');
+  assert.equal(merged.items.find((item) => item.id === list.items[1].id).done, true);
 });

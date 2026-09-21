@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { bundle } from '../tools/bundle.js';
+import { bundle, edgeFunction } from '../tools/bundle.js';
 
 const root = resolve(import.meta.dirname, '..');
 const BUILDS = [
@@ -123,4 +123,41 @@ test('the build stamps itself, and the same sources give the same stamp', async 
   const { bundle } = await import('../tools/bundle.js');
   await bundle('page');
   assert.deepEqual(await stampOf(), before, 'the same sources stamp the same');
+});
+
+test('the committed calendar function is up to date', async () => {
+  const [built, committed] = await Promise.all([
+    edgeFunction(),
+    readFile(join(root, 'supabase', 'functions', 'agenda', 'index.ts'), 'utf8'),
+  ]);
+  assert.equal(
+    built,
+    committed,
+    'supabase/functions/agenda/index.ts is stale — run `npm run bundle` and commit the result.',
+  );
+});
+
+test('the calendar function is one file, with nothing left to import', async () => {
+  const built = await edgeFunction();
+  assert.equal(/^\s*import\b/m.test(built), false, 'an import would not survive a paste into the editor');
+  assert.equal(/^\s*export\b/m.test(built), false);
+  assert.match(built, /Deno\.serve/, 'it is a Deno function');
+  assert.match(built, /function agendaFor/, 'and it carries the calendar writer with it');
+  assert.match(built, /verification du JWT|vérification du JWT/, 'the one setting that breaks it is named at the top');
+});
+
+test('an aliased import is refused, because the bundle cannot follow it', async () => {
+  // `import { total as spendTotal }` survives the strip as `total`, and every
+  // `spendTotal` in the file then refers to nothing: the page dies at the first
+  // call. This shipped once; it does not get to ship twice.
+  const sources = await Promise.all(
+    ['app.js', 'lists.js', 'polls.js', 'spends.js', 'dashboard.js', 'ics.js', 'stats.js']
+      .map((name) => readFile(join(root, 'src', name), 'utf8')),
+  );
+  for (const [index, source] of sources.entries()) {
+    const imports = source.match(/^import\s[\s\S]*?;\s*$/gm) || [];
+    for (const line of imports) {
+      assert.equal(/\{[^}]*\bas\b/.test(line), false, `${index}: ${line.slice(0, 60)}`);
+    }
+  }
 });

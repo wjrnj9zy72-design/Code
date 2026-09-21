@@ -1,10 +1,11 @@
 # 🃏 Together
 
-Quatre onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
-groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à répartir entre plusieurs personnes.
-**Sondages** : pour trancher une date ou un choix. **Parties** : un compteur de
-points pour Papayoo et une vingtaine d'autres jeux. Une page web, aucune
-dépendance, aucun build.
+Cinq onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
+groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à
+répartir entre plusieurs personnes. **Sondages** : pour trancher une date ou un
+choix. **Parties** : un compteur de points pour Papayoo et une vingtaine
+d'autres jeux. **Dépenses** : qui a payé quoi, et qui rembourse qui. Une page
+web, aucune dépendance, aucun build.
 
 <p>
   <img src="docs/screenshot-light.png" alt="Une partie de Papayoo en thème clair" width="45%" />
@@ -133,6 +134,39 @@ mélangés si besoin.
 Ce qui n'y est délibérément pas : catégories, échéances, récurrences, charge à
 équilibrer. Ça s'ajoutera si l'usage le réclame, et pour ce qu'il réclame.
 
+### Les jours, les modèles, l'archive
+
+- Une ligne peut porter **un jour** — pas une heure : « réserver le camion »
+  est pour mardi, et un jour tout seul veut dire la même chose sur deux
+  téléphones. Ce qui a dépassé son jour passe en rouge, et se compte sur la
+  carte de la liste, dans le bloc du groupe et sur la page de la personne.
+- Une liste peut être gardée comme **modèle** — la valise, les courses de la
+  semaine. Elle quitte « En cours », attend dans *Modèles*, et l'écran de
+  création propose d'en couper une nouvelle : les lignes et les personnes
+  reviennent, les coches et les jours non.
+- **Archiver** range une liste, un sondage ou une partie sans rien supprimer :
+  hors des sections, hors des comptes, repliés derrière une ligne en bas de
+  l'onglet. Ce qui est archivé reste dans l'histoire — les statistiques et les
+  parties passées d'une personne le gardent.
+
+## Ce que ça fait — l'agenda
+
+Un sondage qui a tranché retient **la date**, et l'heure si vous en voulez une.
+De là, deux chemins vers les vrais agendas :
+
+- **Ajouter à l'agenda** télécharge un fichier `.ics` — l'événement s'ouvre dans
+  le calendrier du téléphone comme n'importe quelle pièce jointe. Rien à
+  déployer, ça marche tout de suite.
+- **L'agenda du groupe** donne une **adresse d'abonnement** : collée dans
+  Calendrier, Google Agenda ou FamilyWall, elle y fait apparaître toute seules
+  les dates retenues du groupe et ses lignes datées. Elle demande la fonction
+  `agenda` déployée sur Supabase (guide, étape 8), se coupe depuis l'app, et ne
+  donne que des dates — ni scores, ni clés, ni rien d'un autre groupe.
+
+Les événements sont des **journées**, pas des instants, sauf si une heure a été
+donnée ; et une heure est écrite sans fuseau, donc vingt heures reste vingt
+heures où qu'on la lise.
+
 ## Ce que ça fait — onglet Sondages
 
 Une question, des choix, et une grille : **une réponse par personne et par
@@ -166,6 +200,28 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   manquants, ses dernières parties avec son rang. Les prénoms y sont rapprochés
   sans accent ni majuscule, comme dans les statistiques — « alice » et « Alice »
   sont la même personne, « Alex » et « Alexandre » restent deux.
+- **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
+  personne dans les parties, les listes et les sondages à la fois : deux
+  orthographes redeviennent une seule personne partout d'un coup.
+
+## Ce que ça fait — onglet Dépenses
+
+Un compte — vacances, coloc, week-end — tient des personnes et des lignes.
+Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.
+
+- **Le partage est égal** entre les personnes concernées, et « pour tout le
+  monde » est le cas par défaut : noter une baguette ne demande que deux champs.
+  Une ligne peut ensuite ne concerner que certains — le taxi de la gare.
+- **Qui rembourse qui**, en aussi peu de virements que possible : le plus gros
+  débiteur paie le plus gros créancier, et on recommence. Au plus une
+  personne de moins qu'il n'y en a.
+- **L'argent est compté en centimes, en entiers.** Dix euros entre trois font
+  3,34 / 3,33 / 3,33, et le centime qui reste va toujours au même — sans quoi
+  deux téléphones finiraient par ne pas être d'accord.
+- **On ne retire pas quelqu'un qui a avancé de l'argent** : le compte cesserait
+  de tomber juste sans rien dire. L'app refuse et explique quoi faire d'abord.
+- Partagé comme le reste : chacun note de son côté, et les lignes se réunissent
+  sans qu'aucune n'en chasse une autre.
 
 ## Jeux fournis
 
@@ -298,6 +354,9 @@ src/helpers.js    arithmétique du compteur de cartes
 src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
 src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
+src/spends.js     les comptes de dépenses : parts, soldes, remboursements
+src/ics.js        l'écriture des fichiers .ics (iCalendar, à la main)
+supabase/functions/agenda/  la fonction qui sert l'agenda d'un groupe
 src/recap.js      le récapitulatif texte d'une partie
 src/export-docx.js  génération du .docx (zip et XML écrits à la main)
 src/export-pdf.js   génération du .pdf (objets et table de références)

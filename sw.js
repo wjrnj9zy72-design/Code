@@ -18,9 +18,9 @@
  * checks that it matches both the files it built and the version the page shows.
  */
 
-const VERSION = 'v8';
+const VERSION = 'v10';
 /** Written by tools/bundle.js from the sources: it moves whenever they do. */
-const BUILD = 'a4c65fe0';
+const BUILD = '309fc0f5';
 const CACHE = `marque-points-${VERSION}-${BUILD}`;
 
 const SHELL = [
@@ -43,8 +43,10 @@ const SHELL = [
   './src/stamp.js',
   './src/people.js',
   './src/dashboard.js',
+  './src/ics.js',
   './src/lists.js',
   './src/polls.js',
+  './src/spends.js',
   './src/storage.js',
   './src/config.js',
   './src/qr.js',

@@ -1,7 +1,7 @@
 /** UI layer: hash router, views, event wiring. */
 
 import { PRESETS, PRESET_GROUPS, getPreset, presetConfig } from './games.js';
-import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid } from './model.js';
+import { createGame, addRound, updateRound, removeRound, renamePlayer, setFinished, setShared, replayGame, dealerFor, recentNames, mergeGames, isValidGame, uid, archiveGame } from './model.js';
 import { gameStatus, roundScore, totals, validateRound, completingScore } from './scoring.js';
 import { emptyHelperEntry, tapCard, undoCard, toggleSwitch, cardCount, helperTotal, isEmptyEntry , inAppBrowser } from './helpers.js';
 import { CONTRACTS, POIGNEES, CHELEMS, THRESHOLDS, TOTAL_POINTS, scoreDeal, isCompleteDeal } from './tarot.js';
@@ -10,17 +10,24 @@ import { recapText } from './recap.js';
 import { buildDocx } from './export-docx.js';
 import { buildPdf } from './export-pdf.js';
 import { qrSvg, qrMatrix } from './qr.js';
+import { icsFor, pollEvent, agendaFor } from './ics.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList,
   addListPerson, renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList,
+  setItemDue, archiveList, makeTemplate,
 } from './lists.js';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
-  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson,
+  mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
 } from './polls.js';
+import {
+  createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
+  addSpendPerson, renameSpendPerson, removeSpendPerson, canRemovePerson,
+  balances, spendTotal, settle, mergeSpends, isValidSpend,
+} from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, peopleIn, personFile } from './dashboard.js';
-import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadPrefs, savePrefs } from './storage.js';
+import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
+import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
@@ -33,6 +40,7 @@ const state = {
   games: loadGames(),
   lists: loadLists(),
   polls: loadPolls(),
+  spends: loadSpends(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -53,6 +61,8 @@ const state = {
   openingList: null,
   // And for a poll.
   openingPoll: null,
+  // And for a shared account of expenses.
+  openingSpend: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -63,6 +73,10 @@ const state = {
 let newListName = '';
 let newListPeople = ['', ''];
 let newListLines = '';
+
+// And the new account's.
+let newSpendName = '';
+let newSpendPeople = ['', ''];
 
 // And the new-poll form's.
 let newPollQuestion = '';
@@ -107,6 +121,24 @@ function documentTitle(document_) {
   if (isValidList(document_)) return listTitle(document_);
   if (isValidPoll(document_)) return pollTitle(document_);
   return gameTitle(document_);
+}
+
+/**
+ * A day written `AAAA-MM-JJ`, shown the way the reader's language shows days.
+ * Built field by field rather than handed to Date(), which reads that form as
+ * UTC midnight and so shows the day before, west of Greenwich.
+ */
+function formatDay(day) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return String(day || '');
+  try {
+    return new Date(year, month - 1, date).toLocaleDateString(getLanguage(), {
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return String(day);
+  }
 }
 
 function formatDate(timestamp) {
@@ -179,14 +211,19 @@ function pollCardHtml(poll) {
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
-      <span class="game-card__meta">${escapeHtml(formatDate(poll.updatedAt))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(poll.updatedAt))}${
+          poll.date ? ` — ${escapeHtml(t('polls.settledOn', { day: formatDay(poll.date) }))}` : ''
+        }
+      </span>
     </button>`;
 }
 
 function pollsView() {
   const sorted = [...shownDocs(state.polls)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = sorted.filter((poll) => !poll.closedAt);
-  const closed = sorted.filter((poll) => poll.closedAt);
+  const live = sorted.filter(isLive);
+  const open = live.filter((poll) => !poll.closedAt);
+  const closed = live.filter((poll) => poll.closedAt);
 
   return `
     ${flashHtml()}
@@ -211,7 +248,9 @@ function pollsView() {
              <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
            </section>`
         : ''
-    }`;
+    }
+
+    ${archivedHtml(sorted, pollCardHtml)}`;
 }
 
 function newPollView() {
@@ -314,6 +353,28 @@ function pollView(poll) {
         : ''
     }
 
+    <section class="card stack stack--tight">
+      <div class="section__head">
+        <h2>${escapeHtml(t('polls.date'))}</h2>
+        ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
+      </div>
+      <p class="muted small">${escapeHtml(t('polls.dateHint'))}</p>
+      <div class="row">
+        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
+        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
+        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
+        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+      ${
+        poll.date
+          ? `<div class="row">
+               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
+             </div>`
+          : ''
+      }
+    </section>
+
     ${
       poll.options.length && poll.people.length
         ? `<div class="table-wrap">
@@ -372,6 +433,9 @@ function pollView(poll) {
         <button type="button" class="button button--small" id="poll-close">
           ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
         </button>
+        <button type="button" class="button button--small button--ghost" id="poll-archive">
+          ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
@@ -392,6 +456,26 @@ function persistPoll(changed) {
 
 function getPoll(id) {
   return state.polls.find((poll) => poll.id === id) || null;
+}
+
+function persistSpend(changed) {
+  const ok = saveSpends(state.spends);
+  if (!ok && !state.store && !state.remote) flash(t('home.storageWarning'), 'error');
+  if (state.store && changed) void state.store.save(changed);
+  if (state.remote && changed?.shared) {
+    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+  }
+  return ok;
+}
+
+function getSpend(id) {
+  return state.spends.find((spend) => spend.id === id) || null;
+}
+
+function replaceSpend(next, { redraw = true } = {}) {
+  state.spends = state.spends.map((spend) => (spend.id === next.id ? next : spend));
+  persistSpend(next);
+  if (redraw) render();
 }
 
 function replacePoll(next, { redraw = true } = {}) {
@@ -503,6 +587,27 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelector('#poll-date-save')?.addEventListener('click', () => {
+    const day = view.querySelector('#poll-day').value;
+    const hour = view.querySelector('#poll-hour').value;
+    const next = setPollDate(poll, day, hour);
+    flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
+    replacePoll(next);
+  });
+
+  view.querySelector('#poll-ics')?.addEventListener('click', () => {
+    const event = pollEvent(poll);
+    if (!event) return;
+    download(`${fileName(pollTitle(poll))}.ics`, icsFor([event], { name: pollTitle(poll) }), 'text/calendar');
+  });
+
+  view.querySelector('#poll-archive')?.addEventListener('click', () => {
+    const next = archivePoll(poll, !poll.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replacePoll(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/polls');
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
@@ -723,6 +828,42 @@ function watchPoll(id) {
   }, 5000);
 }
 
+/** Le compte que la base détient, s'il est plus récent que celui d'ici. */
+async function pullSpend(id) {
+  if (!state.remote) return false;
+  let stored = null;
+  try {
+    stored = await state.remote.get(id);
+  } catch {
+    return false;
+  }
+  return isValidSpend(stored) ? adoptSpend(stored) : false;
+}
+
+/** Les dépenses arrivent ligne par ligne : celle de l'un ne chasse pas l'autre. */
+function adoptSpend(stored) {
+  const local = getSpend(stored.id);
+  const merged = local ? mergeSpends(local, stored) : stored;
+  if (local && merged === local) return false;
+
+  const adopted = { ...merged, shared: true };
+  state.spends = local
+    ? state.spends.map((spend) => (spend.id === stored.id ? adopted : spend))
+    : [...state.spends, adopted];
+  saveSpends(state.spends);
+  return true;
+}
+
+/** Tant qu'un compte partagé est à l'écran, guetter ce que les autres notent. */
+function watchSpend(id) {
+  stopWatching();
+  if (!state.remote) return;
+  state.poll = setInterval(async () => {
+    if (isBusy()) return;
+    if (await pullSpend(id)) render();
+  }, 5000);
+}
+
 /* ------------------------------------------------------------------ lists --- */
 
 /**
@@ -742,6 +883,7 @@ function personName(list, who) {
 function listCardHtml(list) {
   const { done, total } = progress(list);
   const people = list.people.map((person) => person.name).join(' · ');
+  const late = list.items.filter((item) => isLate(item)).length;
   return `
     <button type="button" class="game-card" data-goto="#/list/${escapeHtml(list.id)}">
       <span class="game-card__title">
@@ -751,14 +893,20 @@ function listCardHtml(list) {
         </span>
       </span>
       ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
-      <span class="game-card__meta">${escapeHtml(formatDate(list.updatedAt))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(list.updatedAt))}${
+          late ? ` — <span class="late">${escapeHtml(t('lists.late', { count: late }))}</span>` : ''
+        }
+      </span>
     </button>`;
 }
 
 function listsView() {
   const sorted = [...shownDocs(state.lists)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = sorted.filter((list) => progress(list).left > 0 || !list.items.length);
-  const finished = sorted.filter((list) => list.items.length && progress(list).left === 0);
+  const live = sorted.filter(isLive);
+  const open = live.filter((list) => progress(list).left > 0 || !list.items.length);
+  const finished = live.filter((list) => list.items.length && progress(list).left === 0);
+  const templates = sorted.filter((list) => list.template && !list.archivedAt);
 
   return `
     ${flashHtml()}
@@ -783,10 +931,40 @@ function listsView() {
              <div class="game-list">${finished.map(listCardHtml).join('')}</div>
            </section>`
         : ''
-    }`;
+    }
+
+    ${
+      templates.length
+        ? `<section class="section">
+             <div class="section__head">
+               <h2>${escapeHtml(t('lists.templates'))}</h2>
+               <span class="muted small">${escapeHtml(t('lists.templatesHint'))}</span>
+             </div>
+             <div class="game-list">${templates.map(listCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
+
+    ${archivedHtml(sorted, listCardHtml)}`;
+}
+
+/**
+ * What has been put away, folded behind one line. Kept on the page rather than
+ * on a page of its own: a thing put away is still a thing you can go and find,
+ * and one more screen to go looking on is one more thing to remember.
+ */
+function archivedHtml(documents, cardHtml) {
+  const archived = documents.filter((document_) => document_.archivedAt);
+  if (!archived.length) return '';
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('archive.shown', { count: archived.length }))}</summary>
+      <div class="game-list">${archived.map(cardHtml).join('')}</div>
+    </details>`;
 }
 
 function newListView() {
+  const templates = state.lists.filter((list) => list.template && !list.archivedAt);
   const suggestions = [...new Set([
     myName(), ...recentPeople(state.lists), ...recentPeople(state.polls), ...recentNames(state.games),
   ].filter(Boolean))].slice(0, 12);
@@ -798,6 +976,26 @@ function newListView() {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${
+      templates.length
+        ? `<section class="section">
+             <div class="section__head">
+               <h2>${escapeHtml(t('lists.fromTemplate'))}</h2>
+             </div>
+             <div class="row">
+               ${templates
+                 .map(
+                   (list) => `
+                     <button type="button" class="chip" data-from-template="${escapeHtml(list.id)}">
+                       ${escapeHtml(listTitle(list))}
+                     </button>`,
+                 )
+                 .join('')}
+             </div>
+           </section>`
+        : ''
+    }
 
     <form id="new-list" class="card stack">
       <label>
@@ -844,6 +1042,7 @@ function newListView() {
 
 function listItemHtml(list, item) {
   const who = personName(list, item.who);
+  const late = isLate(item);
   return `
     <li class="line ${item.done ? 'line--done' : ''}">
       <label class="line__tick">
@@ -852,6 +1051,15 @@ function listItemHtml(list, item) {
       </label>
       <button type="button" class="line__text" data-edit="${escapeHtml(item.id)}">
         <span>${escapeHtml(item.text)}</span>
+        ${
+          // Only a line that has a day says one: the others would all carry an
+          // empty slot to say nothing.
+          item.due
+            ? `<span class="line__due ${late ? 'line__due--late' : ''}">${escapeHtml(
+                late ? t('lists.lateOn', { day: formatDay(item.due) }) : t('lists.dueOn', { day: formatDay(item.due) }),
+              )}</span>`
+            : ''
+        }
       </button>
       <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
         ${escapeHtml(who || t('lists.nobody'))}
@@ -934,6 +1142,12 @@ function listView(list) {
             : ''
         }
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-template">
+          ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="list-archive">
+          ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
@@ -975,6 +1189,554 @@ function replaceGame(next) {
   persist(next);
 }
 
+/* --------------------------------------------------------------- dépenses --- */
+
+function spendTitle(spend) {
+  return spend.name || t('spends.untitled');
+}
+
+/** Ce que ce compte dit de moi : ce qu'on me doit, ou ce que je dois. */
+function myBalance(spend) {
+  const me = sameName(myName());
+  if (!me) return null;
+  return balances(spend).find((row) => sameName(row.name) === me) || null;
+}
+
+function spendCardHtml(spend) {
+  const mine = myBalance(spend);
+  const line = mine && mine.balance !== 0
+    ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+    : t('spends.even');
+  return `
+    <button type="button" class="game-card" data-goto="#/spend/${escapeHtml(spend.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(spendTitle(spend))}
+        <span class="pill">${escapeHtml(showAmount(spendTotal(spend), getLanguage()))}</span>
+      </span>
+      <span class="game-card__meta">${escapeHtml(spend.people.map((person) => person.name).join(' · '))}</span>
+      <span class="game-card__meta">
+        ${escapeHtml(formatDate(spend.updatedAt))} — <span class="${mine && mine.balance < 0 ? 'late' : ''}">${escapeHtml(line)}</span>
+      </span>
+    </button>`;
+}
+
+function spendsView() {
+  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
+  const live = sorted.filter(isLive);
+
+  return `
+    ${flashHtml()}
+    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
+      + ${escapeHtml(t('spends.new'))}
+    </button>
+    ${groupChipsHtml()}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('spends.ongoing'))}</h2></div>
+      ${
+        live.length
+          ? `<div class="game-list">${live.map(spendCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
+      }
+    </section>
+
+    ${archivedHtml(sorted, spendCardHtml)}`;
+}
+
+function newSpendView() {
+  const suggestions = [...new Set([
+    myName(), ...recentPeople(state.spends), ...recentPeople(state.lists), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('spends.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-spend" class="card stack">
+      <label>
+        ${escapeHtml(t('spends.name'))}
+        <input type="text" id="spend-name" placeholder="${escapeHtml(t('spends.namePlaceholder'))}"
+               value="${escapeHtml(newSpendName)}" required />
+      </label>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.peopleHint'))}</span>
+        ${newSpendPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newSpendPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
+    </form>`;
+}
+
+/** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
+function spendLineHtml(spend, line) {
+  const who = spend.people.find((person) => person.id === line.by)?.name || '';
+  const forWhom = line.forWhom.length
+    ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
+    : t('spends.everyone');
+  return `
+    <li class="line">
+      <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
+        <span>${escapeHtml(line.text || t('spends.untitledLine'))}</span>
+        <span class="line__due">
+          ${escapeHtml(who ? t('spends.paidBy', { name: who }) : t('spends.paidByNobody'))}
+          · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
+        </span>
+      </button>
+      <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+    </li>`;
+}
+
+function spendView(spend) {
+  const rows = balances(spend);
+  const moves = settle(spend);
+  const me = sameName(myName());
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <div>
+        <h1>${escapeHtml(spendTitle(spend))}</h1>
+        <p class="muted small">
+          ${escapeHtml(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }))}
+          ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+        </p>
+      </div>
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    ${
+      spend.people.length
+        ? `<form id="add-spend" class="card stack stack--tight">
+             <label class="visually-hidden" for="spend-text">${escapeHtml(t('spends.what'))}</label>
+             <input type="text" id="spend-text" placeholder="${escapeHtml(t('spends.what'))}" autocomplete="off" />
+             <div class="row row--tight">
+               <label class="visually-hidden" for="spend-amount">${escapeHtml(t('spends.amount'))}</label>
+               <input type="text" id="spend-amount" inputmode="decimal" placeholder="${escapeHtml(t('spends.amount'))}" />
+               <label class="visually-hidden" for="spend-by">${escapeHtml(t('spends.by'))}</label>
+               <select id="spend-by">
+                 ${spend.people
+                   .map(
+                     (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
+                        ${escapeHtml(person.name)}
+                      </option>`,
+                   )
+                   .join('')}
+               </select>
+               <button type="submit" class="button button--primary">+</button>
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.addHint'))}</p>
+           </form>`
+        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<ul class="lines">${[...spend.lines]
+            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
+            .map((line) => spendLineHtml(spend, line))
+            .join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
+             <div class="entries">
+               ${rows
+                 .map(
+                   (row) => `
+                     <div class="entry">
+                       <span class="entry__what">
+                         ${escapeHtml(row.name)}
+                         <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                       </span>
+                       <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
+                         ${escapeHtml(
+                           row.balance === 0
+                             ? t('spends.even')
+                             : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                                 amount: showAmount(Math.abs(row.balance), getLanguage()),
+                               }),
+                         )}
+                       </span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+           </section>`
+        : ''
+    }
+
+    ${
+      moves.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
+             <div class="entries">
+               ${moves
+                 .map(
+                   (move) => `
+                     <div class="entry">
+                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
+           </section>`
+        : ''
+    }
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
+      <div class="row">
+        <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>
+        ${
+          state.remote
+            ? `<button type="button" class="button button--small" id="spend-share">${escapeHtml(t('spends.share'))}</button>`
+            : ''
+        }
+        <button type="button" class="button button--small button--ghost" id="spend-archive">
+          ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`;
+}
+
+function bindNewSpend() {
+  const form = view.querySelector('#new-spend');
+  if (!form) return;
+
+  const snapshot = () => {
+    newSpendName = view.querySelector('#spend-name').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newSpendPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = [...newSpendPeople, ''];
+    render();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newSpendPeople = newSpendPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newSpendPeople.some((name) => name.trim().toLowerCase() === suggest.toLowerCase())) return;
+      const empty = newSpendPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newSpendPeople[empty] = suggest;
+      else newSpendPeople = [...newSpendPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    snapshot();
+    const group = await askGroup();
+    const spend = createSpend({
+      name: newSpendName,
+      names: newSpendPeople,
+      shared: Boolean(group),
+      groupId: group?.id || null,
+    });
+    state.spends = [...state.spends, spend];
+    persistSpend(spend);
+    newSpendName = '';
+    newSpendPeople = ['', ''];
+    navigate(`#/spend/${spend.id}`);
+  });
+}
+
+function bindSpend(spend) {
+  bindData();
+
+  view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = view.querySelector('#spend-text');
+    const amount = view.querySelector('#spend-amount');
+    const cents = readAmount(amount.value);
+    if (!cents) {
+      flash(t('spends.notAnAmount'), 'error');
+      render();
+      return;
+    }
+    replaceSpend(addSpend(spend, {
+      text: text.value,
+      amount: cents,
+      by: view.querySelector('#spend-by').value,
+      day: dayNow(),
+    }));
+  });
+
+  view.querySelectorAll('[data-spend-line]').forEach((button) => {
+    button.addEventListener('click', () => openSpendLineDialog(spend, button.dataset.spendLine));
+  });
+
+  view.querySelector('#spend-people')?.addEventListener('click', () => openSpendPeopleDialog(spend));
+
+  view.querySelector('#spend-share')?.addEventListener('click', async () => {
+    const group = await askGroup();
+    if (!group) {
+      flash(t('groups.needOne'));
+      render();
+      return;
+    }
+    const next = { ...spend, shared: true, groupId: group.id, updatedAt: Date.now() };
+    replaceSpend(next);
+    flash(t('spends.shared', { name: group.name }));
+    render();
+  });
+
+  view.querySelector('#spend-archive')?.addEventListener('click', () => {
+    const next = archiveSpend(spend, !spend.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replaceSpend(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/spends');
+  });
+
+  view.querySelector('#spend-rename')?.addEventListener('click', async () => {
+    const name = await askForText({
+      title: t('spends.rename'),
+      hint: t('spends.renameHint'),
+      value: spend.name,
+      confirmLabel: t('action.save'),
+    });
+    if (name === null) return;
+    replaceSpend({ ...spend, name: String(name).trim(), updatedAt: Date.now() });
+  });
+
+  view.querySelector('#spend-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('spends.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    state.spends = state.spends.filter((item) => item.id !== spend.id);
+    saveSpends(state.spends);
+    if (state.store) void state.store.remove(spend.id);
+    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend)).catch(() => {});
+    navigate('#/spends');
+  });
+}
+
+/** Une dépense : ce qu'elle était, pour qui, quel jour — et de quoi l'effacer. */
+function openSpendLineDialog(spend, lineId) {
+  const line = spend.lines.find((entry) => entry.id === lineId);
+  if (!line) return;
+
+  const dialog = makeDialog();
+  const chosen = new Set(line.forWhom);
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('spends.lineTitle'))}</h2>
+      <label>
+        ${escapeHtml(t('spends.what'))}
+        <input type="text" id="line-what" value="${escapeHtml(line.text)}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.amount'))}
+        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml(String(line.amount / 100).replace('.', ','))}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.by'))}
+        <select id="line-by">
+          ${spend.people
+            .map(
+              (person) => `<option value="${escapeHtml(person.id)}" ${person.id === line.by ? 'selected' : ''}>
+                 ${escapeHtml(person.name)}
+               </option>`,
+            )
+            .join('')}
+        </select>
+      </label>
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('spends.forWhomHint'))}</span>
+        <div class="row" id="line-for">
+          ${spend.people
+            .map(
+              (person) => `
+                <button type="button" class="chip ${chosen.has(person.id) ? 'chip--on' : ''}"
+                        data-for="${escapeHtml(person.id)}" aria-pressed="${chosen.has(person.id) ? 'true' : 'false'}">
+                  ${escapeHtml(person.name)}
+                </button>`,
+            )
+            .join('')}
+        </div>
+      </div>
+      <label>
+        ${escapeHtml(t('lists.due'))}
+        <input type="date" id="line-day" value="${escapeHtml(line.day || '')}" />
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--danger" id="line-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </form>`;
+
+  dialog.querySelectorAll('[data-for]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const id = chip.dataset.for;
+      if (chosen.has(id)) chosen.delete(id);
+      else chosen.add(id);
+      chip.classList.toggle('chip--on', chosen.has(id));
+      chip.setAttribute('aria-pressed', chosen.has(id) ? 'true' : 'false');
+    });
+  });
+
+  dialog.querySelector('#line-save').addEventListener('click', () => {
+    const amount = dialog.querySelector('#line-amount').value;
+    if (!readAmount(amount)) {
+      flash(t('spends.notAnAmount'), 'error');
+      dialog.close();
+      render();
+      return;
+    }
+    dialog.close();
+    replaceSpend(editSpend(spend, lineId, {
+      text: dialog.querySelector('#line-what').value,
+      amount,
+      by: dialog.querySelector('#line-by').value,
+      forWhom: [...chosen],
+      day: dialog.querySelector('#line-day').value,
+    }));
+  });
+
+  dialog.querySelector('#line-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#line-delete').addEventListener('click', () => {
+    dialog.close();
+    replaceSpend(removeSpend(spend, lineId));
+  });
+
+  dialog.showModal();
+}
+
+/** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
+function openSpendPeopleDialog(spend) {
+  const dialog = makeDialog();
+
+  const draw = () => {
+    const current = getSpend(spend.id) || spend;
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('lists.people'))}</h2>
+        <div class="stack stack--tight">
+          ${current.people
+            .map(
+              (person) => `
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.delete'))}
+                    </button>
+                  </div>
+                </div>`,
+            )
+            .join('')}
+        </div>
+        <div class="row row--tight">
+          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button" id="spend-person-add">+</button>
+        </div>
+        <div class="row">
+          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+
+    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
+      const field = dialog.querySelector('#spend-person');
+      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
+      field.value = '';
+      replaceSpend(next, { redraw: false });
+      draw();
+    });
+
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const held = getSpend(spend.id) || spend;
+        const person = held.people.find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('spends.renamePersonHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null) return;
+        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelectorAll('[data-drop]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const held = getSpend(spend.id) || spend;
+        const why = canRemovePerson(held, button.dataset.drop);
+        if (why !== 'ok') {
+          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
+          // vaut refuser en expliquant que rendre un remboursement faux.
+          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
+          dialog.close();
+          render();
+          return;
+        }
+        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
+        draw();
+      });
+    });
+
+    dialog.querySelector('#people-close').addEventListener('click', () => {
+      dialog.close();
+      render();
+    });
+  };
+
+  draw();
+  dialog.showModal();
+}
+
 /* ----------------------------------------------------------------- router --- */
 
 function route() {
@@ -1004,6 +1766,9 @@ function route() {
   if (name === 'lists' && param === 'new') return { name: 'new-list' };
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
+  if (name === 'spends' && param === 'new') return { name: 'new-spend' };
+  if (name === 'spends') return { name: 'spends' };
+  if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
   if (name === 'poll' && param) return { name: 'poll', id: param };
@@ -1119,6 +1884,8 @@ function pendingHtml() {
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const asked = state.polls.filter((poll) => !poll.closedAt)
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const owing = state.spends.filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   for (const list of open.slice(0, 3)) {
     const { left } = progress(list);
@@ -1134,6 +1901,16 @@ function pendingHtml() {
       goto: `#/poll/${poll.id}`,
       title: pollTitle(poll),
       meta: t('polls.answered', { count: answered, total: poll.people.length }),
+    });
+  }
+  for (const spend of owing.slice(0, 3)) {
+    const mine = myBalance(spend);
+    lines.push({
+      goto: `#/spend/${spend.id}`,
+      title: spendTitle(spend),
+      meta: mine && mine.balance !== 0
+        ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+        : t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }),
     });
   }
   for (const game of ongoing.slice(0, 3)) {
@@ -1285,7 +2062,7 @@ function groupsHtml() {
                     <div>
                       <strong>${escapeHtml(group.name)}</strong>
                       <span class="muted small">${escapeHtml(t('groups.shared', {
-                        count: [...state.games, ...state.lists, ...state.polls]
+                        count: [...state.games, ...state.lists, ...state.polls, ...state.spends]
                           .filter((document_) => document_.groupId === group.id).length,
                       }))}</span>
                     </div>
@@ -1308,6 +2085,12 @@ function groupsHtml() {
                                ${escapeHtml(t('back.myLink'))}
                              </button>`
                       }
+                      <button type="button" class="button button--small button--ghost" data-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.group'))}
+                      </button>
+                      <button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
+                        ${escapeHtml(t('agenda.cut'))}
+                      </button>
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -1430,17 +2213,33 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
+        ${tile(counts.spends, t('tab.spends'), '#/spends')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
           counts.at ? ` · ${escapeHtml(formatDate(counts.at))}` : ''
-        }
+        }${counts.late ? ` · <span class="late">${escapeHtml(t('lists.late', { count: counts.late }))}</span>` : ''}
       </p>
     </div>`;
 }
 
 /** How many names the overview lists before folding the rest away. */
 const PEOPLE_SHOWN = 12;
+
+/**
+ * What is waiting on someone, in one line. Late first: a line whose day has
+ * passed is the only part of this that is worse today than it was yesterday.
+ */
+function waitingLine(counts) {
+  return [
+    counts.late ? t('lists.late', { count: counts.late }) : '',
+    counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
+    counts.votes ? t('dash.votes', { count: counts.votes }) : '',
+    counts.owes ? t('spends.owes', { amount: showAmount(counts.owes, getLanguage()) }) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 /**
  * Who the app knows about, and what is still waiting on each of them.
@@ -1458,12 +2257,7 @@ function whoHtml() {
 
   const row = (name) => {
     const { counts } = personFile(state, name);
-    const waiting = [
-      counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
-      counts.votes ? t('dash.votes', { count: counts.votes }) : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+    const waiting = waitingLine(counts);
     return `
       <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
         <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
@@ -1888,6 +2682,42 @@ function bindOverview() {
     });
   });
 
+  view.querySelectorAll('[data-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.calendar);
+      if (!group) return;
+      // Disabled while the database is asked, and given back afterwards: the
+      // dialog that opens does not redraw the page behind it, so a button left
+      // disabled here would stay grey until something else redrew it.
+      button.disabled = true;
+      try {
+        await showCalendar(group);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  view.querySelectorAll('[data-cut-calendar]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.cutCalendar);
+      if (!group) return;
+      if (!(await ask(t('agenda.confirmCut'), { confirmLabel: t('agenda.cut'), danger: true }))) return;
+      button.disabled = true;
+      let answer = 'unknown';
+      try {
+        answer = await state.remote.forgetCalendar(group.key);
+      } catch {
+        button.disabled = false;
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      flash(answer === 'ok' ? t('agenda.cutDone') : t('agenda.none'), answer === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-show-key]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.showKey);
@@ -2012,6 +2842,33 @@ async function showMyLink(group) {
     hint: t('back.linkHint'),
     text: backLink(location, answer.token),
     qr: true,
+  });
+}
+
+/**
+ * The group's calendar address: one link, which every calendar knows how to
+ * subscribe to — and which anyone holding it can read, so it is shown with
+ * what it costs, and with the way to cut it.
+ */
+async function showCalendar(group) {
+  let answer = { status: 'unknown' };
+  try {
+    answer = await state.remote.calendar(group.key);
+  } catch {
+    flash(t('groups.unsure'), 'error');
+    render();
+    return;
+  }
+  if (answer.status !== 'ok') {
+    flash(t('agenda.none'), 'error');
+    render();
+    return;
+  }
+
+  showCopyDialog({
+    title: t('agenda.title', { name: group.name }),
+    hint: t('agenda.hint'),
+    text: state.remote.calendarUrl(answer.token),
   });
 }
 
@@ -2317,6 +3174,11 @@ async function renameEverywhere(before) {
 
   const key = sameName(before);
   let touched = 0;
+
+  // Games first, then lists and polls: the same person, written the same way,
+  // in every document that names them. A name matched forgivingly here, as
+  // everywhere else — otherwise the rename would miss exactly the spellings it
+  // exists to reconcile.
   for (const game of state.games) {
     const players = game.players.filter((player) => sameName(player.name) === key);
     if (!players.length) continue;
@@ -2327,7 +3189,35 @@ async function renameEverywhere(before) {
     persist(next);
     touched += 1;
   }
+
+  for (const list of state.lists) {
+    const people = list.people.filter((person) => sameName(person.name) === key);
+    if (!people.length) continue;
+    let next = list;
+    for (const person of people) next = renameListPerson(next, person.id, clean);
+    if (next === list) continue;
+    state.lists = state.lists.map((held) => (held.id === next.id ? next : held));
+    persistList(next);
+    touched += 1;
+  }
+
+  for (const poll of state.polls) {
+    const people = poll.people.filter((person) => sameName(person.name) === key);
+    if (!people.length) continue;
+    let next = poll;
+    for (const person of people) next = renamePollPerson(next, person.id, clean);
+    if (next === poll) continue;
+    state.polls = state.polls.map((held) => (held.id === next.id ? next : held));
+    persistPoll(next);
+    touched += 1;
+  }
+
   flash(touched ? t('stats.renamed', { name: clean, count: touched }) : t('stats.renamedNone'));
+  // The page may be keyed on the old name: follow the person to their new one.
+  if (route().name === 'person' && sameName(route().who) === key) {
+    navigate(`#/person/${encodeURIComponent(clean)}`);
+    return;
+  }
   render();
 }
 
@@ -2380,8 +3270,9 @@ function homeView() {
 
   const mine = shownDocs(state.games);
   const sorted = [...mine].sort((a, b) => b.updatedAt - a.updatedAt).filter(matches);
-  const ongoing = sorted.filter((game) => !gameStatus(game).finished);
-  const finished = sorted.filter((game) => gameStatus(game).finished);
+  const live = sorted.filter(isLive);
+  const ongoing = live.filter((game) => !gameStatus(game).finished);
+  const finished = live.filter((game) => gameStatus(game).finished);
 
   return `
     ${flashHtml()}
@@ -2422,7 +3313,7 @@ function homeView() {
         : ''
     }
 
-    `;
+    ${archivedHtml(sorted, gameCardHtml)}`;
 }
 
 /* ---------------------------------------------------------------- person --- */
@@ -2449,6 +3340,7 @@ function personView(who) {
     </div>
     ${tail}`;
 
+
   if (!file.known) {
     return `
       ${flashHtml()}
@@ -2460,12 +3352,7 @@ function personView(who) {
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
 
-  const waiting = [
-    file.counts.left ? t('lists.leftToDo', { count: file.counts.left }) : '',
-    file.counts.votes ? t('dash.votes', { count: file.counts.votes }) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const waiting = waitingLine(file.counts);
 
   const tile = (value, label) => `
     <div class="tile">
@@ -2515,9 +3402,11 @@ function personView(who) {
         entry(
           `#/list/${escapeHtml(row.list.id)}`,
           escapeHtml(listTitle(row.list)),
-          '',
+          // The soonest day still ahead of them, or nothing: a list with no
+          // days says nothing about when, and should not pretend to.
+          row.next ? escapeHtml(t(row.late ? 'lists.lateOn' : 'lists.dueOn', { day: formatDay(row.next) })) : '',
           escapeHtml(t('person.assigned', { done: row.done, total: row.total })),
-          row.left ? '' : 'entry__value--good',
+          row.late ? 'entry__value--bad' : row.left ? '' : 'entry__value--good',
         ),
       ),
     )}
@@ -2531,6 +3420,25 @@ function personView(who) {
           row.closed ? escapeHtml(t('polls.closed')) : '',
           escapeHtml(row.answered ? t('person.answered') : t('person.notAnswered')),
           row.closed ? '' : row.answered ? 'entry__value--good' : 'entry__value--bad',
+        ),
+      ),
+    )}
+
+    ${section(
+      t('person.spends'),
+      file.accounts.map((row) =>
+        entry(
+          `#/spend/${escapeHtml(row.spend.id)}`,
+          escapeHtml(spendTitle(row.spend)),
+          escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) })),
+          escapeHtml(
+            row.balance === 0
+              ? t('spends.even')
+              : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                  amount: showAmount(Math.abs(row.balance), getLanguage()),
+                }),
+          ),
+          row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : '',
         ),
       ),
     )}
@@ -2553,6 +3461,13 @@ function personView(who) {
           ),
         ),
     )}
+
+    <div class="row">
+      <button type="button" class="button button--small button--ghost"
+              data-rename-everywhere="${escapeHtml(file.name)}">
+        ${escapeHtml(t('stats.rename'))}
+      </button>
+    </div>
 
     <p class="notes">${escapeHtml(t('person.sameName'))}</p>`;
 }
@@ -2953,6 +3868,9 @@ function gameView(game) {
             : ''
         }
         <button type="button" class="button button--small" id="replay">${escapeHtml(t('action.replay'))}</button>
+        <button type="button" class="button button--small button--ghost" id="game-archive">
+          ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
+        </button>
       </div>
     </section>
 
@@ -3121,7 +4039,7 @@ const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : '
 
 function exportGames() {
   const json = JSON.stringify(
-    { version: 1, games: state.games, lists: state.lists, polls: state.polls }, null, 2,
+    { version: 1, games: state.games, lists: state.lists, polls: state.polls, spends: state.spends }, null, 2,
   );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
@@ -3260,11 +4178,12 @@ function importGames(source) {
 
   const all = Array.isArray(parsed)
     ? parsed
-    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || [])];
+    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || []), ...(parsed?.spends || [])];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
   const polls = all.filter(isValidPoll);
-  if (!games.length && !lists.length && !polls.length) {
+  const spends = all.filter(isValidSpend);
+  if (!games.length && !lists.length && !polls.length && !spends.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -3284,11 +4203,18 @@ function importGames(source) {
   state.polls = [...state.polls, ...freshPolls];
   savePolls(state.polls);
 
-  for (const document_ of [...freshGames, ...freshLists, ...freshPolls]) {
+  const knownSpends = new Set(state.spends.map((spend) => spend.id));
+  const freshSpends = spends.filter((spend) => !knownSpends.has(spend.id));
+  state.spends = [...state.spends, ...freshSpends];
+  saveSpends(state.spends);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
   }
-  flash(t('home.importDone', { count: freshGames.length + freshLists.length + freshPolls.length }));
+  flash(t('home.importDone', {
+    count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
+  }));
   return true;
 }
 
@@ -4043,7 +4969,7 @@ function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists, ...state.polls].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls, ...state.spends].sort((a, b) => b.updatedAt - a.updatedAt);
   const held = groups();
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
@@ -4498,6 +5424,20 @@ function replaceList(next, { redraw = true } = {}) {
 }
 
 function bindNewList() {
+  // A model is picked, not filled in: the list it cuts is ready at once, with
+  // its people, its lines and their days — which is the whole point of having
+  // kept one.
+  view.querySelectorAll('[data-from-template]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const template = getList(button.dataset.fromTemplate);
+      if (!template) return;
+      const next = reuseList(template);
+      state.lists = [...state.lists, next];
+      persistList(next);
+      navigate(`#/list/${next.id}`);
+    });
+  });
+
   const form = view.querySelector('#new-list');
   if (!form) return;
 
@@ -4623,6 +5563,21 @@ function bindList(list) {
     navigate(`#/list/${next.id}`);
   });
 
+  view.querySelector('#list-template')?.addEventListener('click', () => {
+    const next = makeTemplate(list, !list.template);
+    flash(t(next.template ? 'lists.nowTemplate' : 'lists.noLongerTemplate'));
+    replaceList(next);
+  });
+
+  view.querySelector('#list-archive')?.addEventListener('click', () => {
+    const next = archiveList(list, !list.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    // Put away means out of the way: staying on its page would be the one
+    // place it is still in front of you.
+    replaceList(next, { redraw: !next.archivedAt });
+    if (next.archivedAt) navigate('#/lists');
+  });
+
   view.querySelector('#list-rename')?.addEventListener('click', () => openListNameDialog(list));
 
   view.querySelector('#list-delete')?.addEventListener('click', async () => {
@@ -4710,6 +5665,11 @@ function openLineDialog(list, itemId) {
       <h2>${escapeHtml(t('lists.lineTitle'))}</h2>
       <label class="visually-hidden" for="line-text">${escapeHtml(t('lists.lineTitle'))}</label>
       <input type="text" id="line-text" value="${escapeHtml(item.text)}" />
+      <label>
+        ${escapeHtml(t('lists.due'))}
+        <input type="date" id="line-due" value="${escapeHtml(item.due || '')}" />
+      </label>
+      <p class="muted small">${escapeHtml(t('lists.dueHint'))}</p>
       <div class="row">
         <button type="button" class="button button--primary" id="line-save">${escapeHtml(t('action.save'))}</button>
         <button type="button" class="button" id="line-cancel">${escapeHtml(t('action.cancel'))}</button>
@@ -4718,9 +5678,12 @@ function openLineDialog(list, itemId) {
     </form>`;
 
   const field = dialog.querySelector('#line-text');
+  const day = dialog.querySelector('#line-due');
   const save = () => {
     dialog.close();
-    replaceList(renameItem(list, itemId, field.value));
+    // The words and the day are one edit: saving with the field emptied takes
+    // the day off, which is how a date is removed without a second button.
+    replaceList(setItemDue(renameItem(list, itemId, field.value), itemId, day.value));
   };
 
   dialog.querySelector('#line-save').addEventListener('click', save);
@@ -5300,6 +6263,15 @@ function download(filename, bytes, type) {
   URL.revokeObjectURL(url);
 }
 
+/** A safe-ish file name from any title: letters, digits, and what joins them. */
+function fileName(title) {
+  const base = String(title || '')
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return base || 'together';
+}
+
 /** A safe-ish file name built from the game's own title. */
 function fileNameFor(game, extension) {
   const base = `${gameTitle(game)} ${formatDate(game.updatedAt)}`
@@ -5510,6 +6482,14 @@ function bindGame(game) {
     download(fileNameFor(game, 'pdf'), buildPdf(reportFor(game)), 'application/pdf');
   });
 
+  view.querySelector('#game-archive')?.addEventListener('click', () => {
+    const next = archiveGame(game, !game.archivedAt);
+    flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
+    replaceGame(next);
+    if (next.archivedAt) navigate('#/games');
+    else render();
+  });
+
   view.querySelector('#replay')?.addEventListener('click', () => {
     const next = replayGame(game);
     state.games = [...state.games, next];
@@ -5637,6 +6617,38 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
+  } else if (current.name === 'spends') {
+    stopWatching();
+    view.innerHTML = spendsView();
+  } else if (current.name === 'new-spend') {
+    stopWatching();
+    view.innerHTML = newSpendView();
+    bindNewSpend();
+  } else if (current.name === 'spend') {
+    const spend = getSpend(current.id);
+    if (!spend) {
+      stopWatching();
+      // Peut-être un compte que quelqu'un partage : demander avant d'abandonner.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('spends.loading'))}</p>`;
+        if (state.openingSpend !== current.id) {
+          const asked = current.id;
+          state.openingSpend = asked;
+          pullSpend(asked).then((found) => {
+            if (state.openingSpend !== asked) return;
+            state.openingSpend = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/spends');
+          });
+        }
+        return;
+      }
+      navigate('#/spends');
+      return;
+    }
+    watchSpend(spend.id);
+    view.innerHTML = spendView(spend);
+    bindSpend(spend);
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
@@ -5671,9 +6683,6 @@ function render() {
   } else if (current.name === 'stats') {
     stopWatching();
     view.innerHTML = statsView();
-    view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
-      button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
-    });
   } else if (current.name === 'new') {
     stopWatching();
     view.innerHTML = newGameView();
@@ -5757,6 +6766,12 @@ function render() {
       navigate(node.dataset.tileGoto);
     });
   });
+
+  // Offered from the statistics, where two spellings show as two lines, and
+  // from a person's own page, which is the other place a name is looked at.
+  view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
+    button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
+  });
 }
 
 /**
@@ -5803,7 +6818,9 @@ function markTab(current) {
       ? 'polls'
       : ['home', 'new', 'game', 'stats'].includes(current.name)
         ? 'games'
-        : 'overview';
+        : ['spends', 'new-spend', 'spend'].includes(current.name)
+          ? 'spends'
+          : 'overview';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -5827,6 +6844,7 @@ async function pullAny(id) {
   if (isValidGame(stored)) return adoptGame(stored);
   if (isValidList(stored)) return adoptList(stored);
   if (isValidPoll(stored)) return adoptPoll(stored);
+  if (isValidSpend(stored)) return adoptSpend(stored);
   return false;
 }
 
@@ -5939,6 +6957,7 @@ window.addEventListener('storage', (event) => {
   state.games = loadGames();
   state.lists = loadLists();
   state.polls = loadPolls();
+  state.spends = loadSpends();
   if (!isBusy()) render();
 });
 /**

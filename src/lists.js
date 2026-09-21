@@ -34,6 +34,11 @@ export function createList({ name = '', names = [], shared = false, groupId = nu
     peopleAt: now,
     shared: Boolean(shared),
     groupId: groupId || null,
+    // Put away once it has served, or kept as the model the next one is cut
+    // from. Both are document-wide, so a merge takes them from the newer copy,
+    // exactly as it does the name.
+    archivedAt: null,
+    template: false,
     // The lines deleted here, and when — without this a deletion is undone by
     // the next copy that still holds the line.
     removed: {},
@@ -63,6 +68,10 @@ export function addItems(list, text) {
       text: line,
       who: null,
       done: false,
+      // A day, never an instant: "réserver le camion" is due on Tuesday, not
+      // at 14:32 — and a bare day needs no time zone to mean the same thing
+      // on two phones.
+      due: null,
       createdAt: now,
       updatedAt: now,
     }));
@@ -90,6 +99,16 @@ export function assignItem(list, itemId, who) {
   return known ? patchItem(list, itemId, { who }) : list;
 }
 
+/**
+ * Put a day on a line, or take it off with null. Kept as `AAAA-MM-JJ`: a day
+ * written that way sorts as text, travels through JSON unharmed, and says the
+ * same thing in every time zone.
+ */
+export function setItemDue(list, itemId, due) {
+  const clean = /^\d{4}-\d{2}-\d{2}$/.test(String(due || '')) ? String(due) : null;
+  return patchItem(list, itemId, { due: clean });
+}
+
 export function toggleItem(list, itemId) {
   const item = list.items.find((entry) => entry.id === itemId);
   return item ? patchItem(list, itemId, { done: !item.done }) : list;
@@ -107,14 +126,37 @@ export function removeItem(list, itemId) {
 }
 
 
+/**
+ * Put a finished list away, or bring it back.
+ *
+ * Nothing is deleted: a year of shopping lists is a year of evidence about
+ * what the house actually eats. They only stop crowding the tab.
+ */
+export function archiveList(list, yes = true) {
+  const at = yes ? Date.now() : null;
+  return at === (list.archivedAt || null) ? list : touch(list, { archivedAt: at });
+}
+
+/**
+ * Keep this list as a model: the weekly shopping, the suitcase. A model is not
+ * a list in progress — it is what the next one is cut from — so it is counted
+ * nowhere and waits in its own place.
+ */
+export function makeTemplate(list, yes = true) {
+  return Boolean(list.template) === Boolean(yes) ? list : touch(list, { template: Boolean(yes) });
+}
+
 /** Take the ticks off, keep the lines: the suitcase, the weekly shopping. */
-export function reuseList(list) {
+export function reuseList(list, name = list.name) {
   const now = Date.now();
   return {
-    ...createList({ name: list.name, shared: list.shared, groupId: list.groupId }),
+    ...createList({ name, shared: list.shared, groupId: list.groupId }),
     people: list.people,
     peopleAt: list.peopleAt || now,
-    items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, updatedAt: now })),
+    // Neither archived nor a model: what comes out of one is an ordinary list.
+    // The days go, though — they were the days of the last time, and a list
+    // that arrives already late is worse than one with no days at all.
+    items: list.items.map((item) => ({ ...item, id: uid('i'), done: false, due: null, updatedAt: now })),
   };
 }
 

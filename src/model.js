@@ -43,6 +43,7 @@ export function createGame({ presetId, names, overrides = {}, name = '', shared 
     // group it was shared in says whose key may change or remove it later.
     shared: Boolean(shared),
     groupId: groupId || null,
+    archivedAt: null,
     players,
     config: { ...presetConfig(preset), ...overrides },
     rounds: [],
@@ -109,6 +110,17 @@ export function setShared(game, shared = true) {
 
 export function setFinished(game, finished) {
   return { ...game, finishedAt: finished ? Date.now() : null, updatedAt: Date.now() };
+}
+
+/**
+ * Put an evening away, or bring it back. A finished game is still on the tab —
+ * that is how a table checks last month's scores — until someone says it has
+ * been looked at enough.
+ */
+export function archiveGame(game, yes = true) {
+  const at = yes ? Date.now() : null;
+  if (at === (game.archivedAt || null)) return game;
+  return { ...game, archivedAt: at, updatedAt: Date.now() };
 }
 
 
