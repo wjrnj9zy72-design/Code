@@ -1385,7 +1385,13 @@ Attendu : six lignes `DELETE n`. Ce que cela efface, dit franchement :
   rien, et les clés copiées jusqu'ici ne servent plus à rien ;
 - **tout ce qui était partagé** — parties, listes, sondages — *dans la base* ;
 - **tous les liens déjà envoyés**, y compris les lots à six chiffres : ils ne
-  s'ouvriront plus.
+  s'ouvriront plus ;
+- **les personnes du groupe et leurs liens de retour** : la table des personnes
+  suit celle des groupes (`on delete cascade`), donc un lien de retour envoyé
+  autrefois ne ramène plus personne ;
+- **l'adresse d'abonnement de l'agenda**, s'il y en avait une : elle vivait sur
+  le groupe, elle part avec lui. Les agendas abonnés cessent de recevoir quoi
+  que ce soit.
 
 Ce que cela n'efface pas : **ce qui est sur les appareils**. Chaque app garde sa
 propre copie de ses parties, listes et sondages ; elle continue de les afficher,
