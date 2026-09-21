@@ -65,3 +65,51 @@ export function helperTotal(helper, entry) {
 export function isEmptyEntry(entry) {
   return entry.cards.length === 0 && !Object.values(entry.toggles || {}).some(Boolean);
 }
+
+/**
+ * Whether a page is running inside an app's own browser — Messenger, Instagram,
+ * Facebook, and their like — rather than in a real one.
+ *
+ * It matters here for one reason: those browsers keep their own files and their
+ * own storage. A group joined inside Messenger's browser is joined *there*, and
+ * Safari next door knows nothing about it — the person then believes they were
+ * let in and finds nothing. Worse, they cannot add an app to the home screen
+ * from there at all, so the only way forward is Safari anyway.
+ *
+ * This is user-agent sniffing, which is a heuristic and nothing more: it names
+ * the common ones, and a browser it does not know is taken for a real one. The
+ * cost of a wrong guess is one line of advice too many, which is why it only
+ * ever advises.
+ */
+const IN_APP_BROWSERS = [
+  // Order matters, and twice over. Messenger announces itself inside Facebook's
+  // own marker — "FBAN/MessengerForiOS" — so it is looked for first, or everyone
+  // reading in Messenger would be told about Facebook. And "MicroMessenger" is
+  // WeChat, which contains the word Messenger.
+  ['MessengerForiOS', 'Messenger'],
+  ['MESSENGER', 'Messenger'],
+  ['MicroMessenger', 'WeChat'],
+  ['FBAN', 'Facebook'],
+  ['FBAV', 'Facebook'],
+  ['FB_IAB', 'Facebook'],
+  ['Messenger', 'Messenger'],
+  ['Instagram', 'Instagram'],
+  ['LinkedInApp', 'LinkedIn'],
+  ['Twitter', 'X'],
+  ['Line/', 'LINE'],
+  ['Snapchat', 'Snapchat'],
+  ['TikTok', 'TikTok'],
+  ['BytedanceWebview', 'TikTok'],
+  ['Pinterest', 'Pinterest'],
+  ['WhatsApp', 'WhatsApp'],
+];
+
+/** The name of the app whose browser this is, or null for a real browser. */
+export function inAppBrowser(userAgent) {
+  const text = String(userAgent || '');
+  if (!text) return null;
+  for (const [needle, name] of IN_APP_BROWSERS) {
+    if (text.includes(needle)) return name;
+  }
+  return null;
+}

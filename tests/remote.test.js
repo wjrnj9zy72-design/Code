@@ -444,3 +444,50 @@ test('a gate a key does not open is an empty hand, not a crash', async () => {
   assert.equal(await silent.answer('k', 'req', true), 'unknown');
   assert.equal(await silent.cutKey('k', 'key'), 'unknown');
 });
+
+test('a return link carries one person’s token, in the fragment and nowhere else', async () => {
+  const { backLink, backTokenFrom, joinFrom, setIdFrom } = await import('../src/remote.js');
+  const place = { origin: 'https://gui.github.io', pathname: '/Code/', search: '' };
+  const token = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+  const link = backLink(place, token);
+  assert.equal(link, `https://gui.github.io/Code/#/back/${token}`);
+  assert.ok(link.indexOf('#') < link.indexOf(token),
+    'the token sits after the #, so no server and no link preview ever sees it');
+  assert.ok(link.length <= 106, 'short enough for the QR encoder this app carries');
+
+  assert.equal(backTokenFrom(link), token);
+  assert.equal(backTokenFrom(`Garde ça : ${link} à bientôt`), token);
+  assert.equal(backTokenFrom(`${link}.`), token, 'a full stop at the end of a sentence');
+  assert.equal(backTokenFrom(`https://x/#/back/${'a'.repeat(31)}`), null, 'too short to be a token');
+  assert.equal(backTokenFrom(`https://x/#/back/${'a'.repeat(33)}`), null, 'nor too long');
+  assert.equal(backTokenFrom(`https://x/#/back/${'z'.repeat(32)}`), null, 'nor anything but hex');
+  assert.equal(backTokenFrom(null), null);
+
+  assert.equal(joinFrom(link), null, 'a return link is not an invitation');
+  assert.equal(setIdFrom(link), null, 'nor a lot');
+});
+
+test('the return link answers with a key, or says why not', async () => {
+  const answering = (body) => createRemote(CONFIG, async () => ok(body));
+
+  assert.deepEqual(
+    await answering({ status: 'ok', token: 'a'.repeat(32), name: 'Alice' }).myLink('sa-cle'),
+    { status: 'ok', token: 'a'.repeat(32), name: 'Alice' },
+  );
+  assert.deepEqual(await answering({ status: 'none' }).myLink('la-cle-du-portier'), { status: 'none' },
+    'a key that belongs to no person has no return link');
+  assert.deepEqual(await answering({ status: 'ok' }).myLink('k'), { status: 'none' },
+    'an "ok" with no token in it is no link');
+
+  assert.deepEqual(
+    await answering({ status: 'ok', key: 'une-cle', who: 'Alice', id: 'grp_1', name: 'Mifa' }).returnWith('t', 'ici'),
+    { status: 'ok', key: 'une-cle', who: 'Alice', id: 'grp_1', name: 'Mifa' },
+  );
+  assert.deepEqual(await answering({ status: 'unknown' }).returnWith('t'), { status: 'unknown' });
+  assert.deepEqual(await answering({ status: 'busy' }).returnWith('t'), { status: 'busy' });
+  assert.deepEqual(await answering({ status: 'ok', who: 'Alice' }).returnWith('t'), { status: 'unknown' },
+    'an "ok" with no key is not a way back');
+  assert.equal(await answering({ status: 'ok' }).forgetLink('k', 'per_1'), 'ok');
+  assert.equal(await answering({ status: 'unknown' }).forgetLink('k', 'per_1'), 'unknown');
+});

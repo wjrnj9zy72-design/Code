@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'stats.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'stats.js', 'dashboard.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
 
 /**
  * An import, on one line or spread over several — a long list of names wraps,

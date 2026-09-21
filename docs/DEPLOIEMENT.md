@@ -361,6 +361,38 @@ create table if not exists public.marque_points_join_miss (
 alter table public.marque_points_join_miss enable row level security;
 create index if not exists marque_points_join_miss_name on public.marque_points_join_miss (name, at);
 
+-- Une personne, par opposition à un appareil. Un appareil a une clé ; une
+-- personne a un **lien de retour** — un jeton durable qui lui rend une clé neuve
+-- dans n'importe quel navigateur, sans que personne n'ait à l'accepter de
+-- nouveau. C'est ce qui permet de revenir après une réinstallation, ou depuis
+-- Safari quand on est entré depuis le navigateur de Messenger.
+--
+-- Le jeton n'est jamais écrit ici : seule son empreinte salée l'est, comme pour
+-- les clés. Et il naît **sur l'appareil de la personne**, qui est le seul à le
+-- voir : celui qui fait entrer ne le connaît pas, et ne peut donc pas se faire
+-- passer pour elle. Il peut en revanche le **couper**.
+create table if not exists public.marque_points_person (
+  id text primary key,
+  group_id text not null references public.marque_points_group(id) on delete cascade,
+  name text not null default '',
+  token_hash text,
+  token_salt text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.marque_points_person enable row level security;
+create index if not exists marque_points_person_group on public.marque_points_person (group_id);
+
+-- La clé d'un appareil dit de quelle personne il est. Les clés d'avant — la
+-- vôtre, celles des appareils entrés autrefois — n'en ont pas, et n'en ont pas
+-- besoin : c'est le lien de retour qui en dépend, rien d'autre.
+alter table public.marque_points_group_key
+  add column if not exists person_id text references public.marque_points_person(id) on delete set null;
+
+-- Les tentatives ratées de retour vont dans le même seau que les codes inconnus
+-- (marque_points_join_miss, nom vide) : un jeton de 128 bits ne se devine pas,
+-- mais rien n'empêche d'essayer, et rien ne doit encourager à recommencer.
+
 -- Chaque document partagé appartient au groupe qui l'a créé.
 alter table public.marque_points_games
   add column if not exists group_id text;
@@ -862,6 +894,7 @@ set search_path = public
 as $$
 declare
   v_group text;
+  v_person text;
   v_request public.marque_points_request;
 begin
   select k.group_id into v_group
@@ -890,15 +923,132 @@ begin
     return jsonb_build_object('status', 'refused');
   end if;
 
-  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  -- Accepter, c'est faire entrer une **personne** : elle a une ligne à elle, à
+  -- laquelle cet appareil — et ceux qu'elle ajoutera plus tard avec son lien de
+  -- retour — sont rattachés.
+  insert into public.marque_points_person (id, group_id, name)
+  values (replace(gen_random_uuid()::text, '-', ''), v_group, left(coalesce(btrim(v_request.name), ''), 24))
+  returning id into v_person;
+
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits, person_id)
   values (replace(gen_random_uuid()::text, '-', ''), v_group,
           left(btrim(coalesce(v_request.name, '') || ' · ' || coalesce(v_request.label, '')), 80),
-          v_request.ticket_hash, v_request.ticket_salt, false);
+          v_request.ticket_hash, v_request.ticket_salt, false, v_person);
 
   update public.marque_points_request
      set state = 'ok', answered_at = now()
    where id = v_request.id and state = 'waiting';
 
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Le lien de retour de cet appareil, tiré par lui-même : la personne à qui il
+-- appartient reçoit un jeton neuf, rendu **une seule fois, ici**. Celui qui fait
+-- entrer ne le voit jamais — il naît sur l'appareil de la personne. En tirer un
+-- nouveau remplace l'ancien, qui cesse aussitôt de servir.
+create or replace function public.marque_points_my_link(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person text;
+  -- 32 caractères, soit 128 bits : autant que les clés, et assez court pour que
+  -- le lien tienne dans un QR code que l'encodeur de l'app sait produire.
+  v_token text := replace(gen_random_uuid()::text, '-', '');
+  v_salt text := md5(gen_random_uuid()::text);
+begin
+  select k.person_id into v_person
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if v_person is null then
+    -- Une clé sans personne : la vôtre, ou une clé d'avant les personnes. Elle
+    -- n'a pas de lien de retour, et n'en a pas besoin : elle se recolle.
+    return jsonb_build_object('status', 'none');
+  end if;
+
+  update public.marque_points_person
+     set token_hash = md5(v_token || v_salt), token_salt = v_salt
+   where id = v_person;
+
+  return jsonb_build_object('status', 'ok', 'token', v_token,
+    'name', (select name from public.marque_points_person where id = v_person));
+end;
+$$;
+
+-- Revenir avec son lien de retour : une clé neuve pour cet appareil-ci,
+-- rattachée à la même personne. Aucune acceptation à demander — c'est tout
+-- l'objet — et le jeton reste valable pour la fois suivante.
+create or replace function public.marque_points_return(p_token text, p_label text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_person public.marque_points_person;
+  v_key text := replace(gen_random_uuid()::text, '-', '');
+  v_salt text := md5(gen_random_uuid()::text);
+  v_misses integer;
+begin
+  delete from public.marque_points_join_miss where at < now() - interval '1 hour';
+
+  select count(*) into v_misses
+    from public.marque_points_join_miss
+   where name = '' and at > now() - interval '10 minutes';
+  if v_misses >= 20 then
+    return jsonb_build_object('status', 'busy');
+  end if;
+
+  select p.* into v_person
+    from public.marque_points_person p
+   where p.token_hash is not null
+     and p.token_hash = md5(coalesce(p_token, '') || p.token_salt);
+
+  if not found then
+    insert into public.marque_points_join_miss (name) values ('');
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits, person_id)
+  values (replace(gen_random_uuid()::text, '-', ''), v_person.group_id,
+          left(btrim(coalesce(v_person.name, '') || ' · ' || coalesce(btrim(p_label), '')), 80),
+          md5(v_key || v_salt), v_salt, false, v_person.id);
+
+  return jsonb_build_object('status', 'ok', 'key', v_key, 'who', v_person.name,
+    'id', v_person.group_id,
+    'name', (select name from public.marque_points_group where id = v_person.group_id));
+end;
+$$;
+
+-- Couper le lien de retour d'une personne, pour la clé qui admet : le lien
+-- envoyé cesse de servir. Ce qu'elle a déjà sur ses appareils y reste, et ses
+-- clés se coupent une par une comme avant.
+create or replace function public.marque_points_forget_link(p_key text, p_person text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  update public.marque_points_person
+     set token_hash = null, token_salt = null
+   where id = coalesce(p_person, '') and group_id = v_group;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
   return jsonb_build_object('status', 'ok');
 end;
 $$;
@@ -927,6 +1077,9 @@ begin
     select jsonb_agg(jsonb_build_object(
              'id', k.id, 'label', k.label, 'admits', k.admits,
              'mine', k.key_hash = md5(coalesce(p_key, '') || k.key_salt),
+             'person', k.person_id,
+             'who', (select p.name from public.marque_points_person p where p.id = k.person_id),
+             'link', (select p.token_hash is not null from public.marque_points_person p where p.id = k.person_id),
              'at', (extract(epoch from k.created_at) * 1000)::bigint)
            order by k.created_at)
       from public.marque_points_group_key k
@@ -1051,6 +1204,9 @@ grant execute on function public.marque_points_answer(text, text, boolean) to an
 grant execute on function public.marque_points_group_keys(text) to anon, authenticated;
 grant execute on function public.marque_points_cut_key(text, text) to anon, authenticated;
 grant execute on function public.marque_points_set_admits(text, text, boolean) to anon, authenticated;
+grant execute on function public.marque_points_my_link(text) to anon, authenticated;
+grant execute on function public.marque_points_return(text, text) to anon, authenticated;
+grant execute on function public.marque_points_forget_link(text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
@@ -1493,6 +1649,64 @@ la base n'est pas à jour » — et le remède est *Chercher une mise à jour*, 
 l'Aperçu sous *Données*. Sa clé, elle, n'a jamais cessé d'être valable. Sur votre
 appareil, celui qui tient la clé qui fait entrer, le même message renvoie au bloc
 SQL, puisque c'est vous qui pouvez le lancer.
+
+### Le lien de retour : revenir sans vous
+
+Accepter quelqu'un fait entrer **une personne**, et non seulement un appareil.
+Chacun de ses appareils garde sa propre clé, mais tous appartiennent à la même
+personne — et cette personne peut se donner un **lien de retour** : un lien à elle
+qui rend une clé neuve à n'importe quel navigateur, sans que personne n'ait à
+l'accepter de nouveau.
+
+C'est ce qui répond aux deux cas pénibles : entrer depuis le navigateur de
+Messenger puis vouloir la même chose dans Safari, et réinstaller l'app.
+
+**Comment ça se passe, de son côté :** une fois acceptée, la ligne qui l'accueille
+lui dit de garder son lien. Le bouton **Mon lien de retour**, dans *Mes groupes*,
+le lui affiche — avec un QR code, pratique pour le passer d'un appareil à l'autre.
+Elle le garde où elle veut : notes, gestionnaire de mots de passe, message à
+elle-même. Ensuite, ouvrir ce lien depuis n'importe quel navigateur suffit : un
+bouton, et elle est de retour.
+
+**De votre côté, ce que vous voyez et pouvez faire :** dans *Qui est dans le
+groupe*, chaque appareil porte le prénom de sa personne, et la mention « a un lien
+de retour ». **Couper le lien** l'annule sans mettre ses appareils dehors —
+utile si elle vous dit l'avoir perdu de vue. Elle pourra s'en refaire un depuis un
+appareil encore entré ; sinon, une nouvelle invitation.
+
+Trois choses à savoir, dites franchement :
+
+- **vous ne voyez jamais ce lien**. Il naît sur l'appareil de la personne : celui
+  qui fait entrer ne peut donc pas se faire passer pour elle. Vous pouvez le
+  couper, pas le lire ;
+- **en refaire un annule le précédent.** Un seul lien vaut par personne à la fois ;
+- **c'est un secret durable dans un lien.** Il vivra dans un fil de discussion ou
+  un carnet de notes. Il est placé après le `#` de l'adresse — la partie qu'aucun
+  navigateur n'envoie à un serveur, donc ni GitHub Pages ni un aperçu de lien ne
+  le voient — et chaque retour crée une ligne visible dans *Qui est dans le
+  groupe*, que vous pouvez couper. C'est le prix du « revenir sans vous » : à vous
+  de juger, groupe par groupe. Votre clé à vous, celle qui fait entrer, n'a pas de
+  lien de retour du tout.
+
+### Le piège du navigateur de Messenger
+
+Un lien d'invitation voyage par message — donc il s'ouvre le plus souvent **dans
+le navigateur intégré de l'app de messagerie**, pas dans Safari. Or ces
+navigateurs gardent leurs fichiers et leur stockage pour eux : entrer dans le
+groupe depuis là, c'est y entrer **là seulement**. Safari, à côté, n'en saura
+rien, et on ne peut même pas ajouter l'app à l'écran d'accueil depuis ces
+navigateurs.
+
+L'app le dit désormais elle-même : quand elle tourne dans le navigateur de
+Messenger, Instagram, Facebook, WhatsApp et quelques autres, la page d'entrée et
+l'Aperçu affichent un avertissement, avec un bouton **Copier ce lien** pour le
+coller dans Safari. Rien n'est bloqué — l'avertissement conseille, il n'empêche
+pas — parce que la détection se fait sur la signature du navigateur, ce qui est
+une heuristique et jamais une certitude.
+
+Le bon ordre, à dire une fois à la personne : **ouvrir le lien dans Safari**
+(appui long sur le lien → *Ouvrir dans Safari*), entrer dans le groupe là, **puis**
+ajouter l'app à l'écran d'accueil et y entrer aussi — avec sa clé, c'est immédiat.
 
 ### L'app de l'écran d'accueil est un deuxième appareil
 

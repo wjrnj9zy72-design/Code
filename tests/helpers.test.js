@@ -141,3 +141,30 @@ test('Rummikub counts the tiles left on a rack, joker included', () => {
   assert.equal(helperTotal(helper, entry), 63);
   assert.equal(helper.labels[30], 'Joker');
 });
+
+test('an app’s own browser is recognised, and a real one is left alone', async () => {
+  const { inAppBrowser } = await import('../src/helpers.js');
+
+  // What a phone actually sends, shortened to what matters.
+  assert.equal(
+    inAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 [FBAN/FBIOS;FBAV/466.0.0.34.107;]'),
+    'Facebook',
+  );
+  assert.equal(inAppBrowser('Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Instagram 300.0.0.29.110'), 'Instagram');
+  // Messenger hides inside Facebook's own marker, and is named for itself.
+  assert.equal(
+    inAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 [FBAN/MessengerForiOS;FBAV/450.0.0.44.109;]'),
+    'Messenger',
+  );
+  assert.equal(
+    inAppBrowser('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 [FB_IAB/MESSENGER;FBAV/450.0.0.44.109;]'),
+    'Messenger',
+  );
+  assert.equal(inAppBrowser('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 MicroMessenger/8.0.44'), 'WeChat');
+
+  // A real browser, and nothing to say about it.
+  assert.equal(inAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1'), null);
+  assert.equal(inAppBrowser('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36'), null);
+  assert.equal(inAppBrowser(''), null);
+  assert.equal(inAppBrowser(undefined), null);
+});

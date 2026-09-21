@@ -1,7 +1,7 @@
 # 🃏 Together
 
-Quatre onglets, une seule app. **Aperçu** : ce qui est en cours, vos groupes, vos
-données. **Listes** : à cocher et à répartir entre plusieurs personnes.
+Quatre onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
+groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à répartir entre plusieurs personnes.
 **Sondages** : pour trancher une date ou un choix. **Parties** : un compteur de
 points pour Papayoo et une vingtaine d'autres jeux. Une page web, aucune
 dépendance, aucun build.
@@ -53,6 +53,15 @@ dépendance, aucun build.
   étiquetée de ce prénom et coupable sans déranger les autres ; refusé, il n'a
   jamais rien vu. Le lien ne passe pas ? Le nom du groupe et les six chiffres,
   dits de vive voix, font exactement la même chose.
+- **Chacun a son lien de retour.** Accepter quelqu'un fait entrer une *personne* :
+  ses appareils ont chacun leur clé, mais tous lui appartiennent — et elle peut se
+  faire un **lien à elle** qui rend une clé neuve à n'importe quel navigateur,
+  sans que personne n'ait à l'accepter de nouveau. C'est la réponse aux deux vrais
+  agacements : être entré depuis le navigateur d'une app de messagerie et vouloir
+  la même chose dans Safari, et réinstaller l'app. Ce lien **naît sur son
+  appareil** — celui qui fait entrer ne le voit jamais et ne peut donc pas se faire
+  passer pour elle — et se **coupe** depuis *Qui est dans le groupe* sans mettre
+  ses appareils dehors.
 - **La porte reste entre vos mains.** Seule la clé affichée à la création du
   groupe accepte les demandes ; celles distribuées ensuite voient et partagent,
   mais n'ouvrent à personne. *Qui est dans le groupe* liste les appareils, un par
@@ -139,6 +148,24 @@ type de sondage à choisir avant de poser la question.
 - **Clore** le sondage fige les réponses ; on peut le rouvrir.
 - **Partager** comme le reste : un lien, un code QR, chacun répond de son côté,
   et les réponses de chacun arrivent sans écraser celles des autres.
+
+## Ce que ça fait — par groupe, et par personne
+
+Avec plusieurs groupes, l'app ne mélange plus tout.
+
+- L'**Aperçu** ouvre sur un bloc par groupe : combien de listes, de sondages et
+  de parties y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
+  correspondant, déjà réglé sur ce groupe.
+- Les trois onglets portent alors les mêmes **pastilles** : *Tous*, puis un
+  groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
+  la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
+  *et* ses parties. Avec un seul groupe, il n'y a rien à choisir : pas de
+  pastilles.
+- **Qui fait quoi** liste les personnes que l'app connaît et ce qui les attend.
+  Derrière chaque nom, **sa page** : ses lignes à faire, ses votes donnés ou
+  manquants, ses dernières parties avec son rang. Les prénoms y sont rapprochés
+  sans accent ni majuscule, comme dans les statistiques — « alice » et « Alice »
+  sont la même personne, « Alex » et « Alexandre » restent deux.
 
 ## Jeux fournis
 
@@ -270,6 +297,7 @@ src/games.js      définition des jeux (presets) et de leurs compteurs
 src/helpers.js    arithmétique du compteur de cartes
 src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
+src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
 src/recap.js      le récapitulatif texte d'une partie
 src/export-docx.js  génération du .docx (zip et XML écrits à la main)
 src/export-pdf.js   génération du .pdf (objets et table de références)

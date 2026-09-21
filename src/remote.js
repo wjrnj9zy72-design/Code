@@ -182,6 +182,46 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     },
 
     /**
+     * This device's return link, drawn by itself: a token that brings its person
+     * back into the group from any browser, without anyone accepting again.
+     *
+     * It is minted here, shown once, and never known to whoever admits people —
+     * it belongs to the person, not to the gatekeeper. Drawing a new one kills
+     * the previous. Returns { status: 'ok', token, name } | { status: 'none' }
+     * for a key that belongs to no person (yours, or one from before).
+     */
+    async myLink(key) {
+      const answer = await call('marque_points_my_link', { p_key: key });
+      const status = answer?.status;
+      if (status === 'ok' && typeof answer.token === 'string') {
+        return { status, token: answer.token, name: answer.name || '' };
+      }
+      return { status: 'none' };
+    },
+
+    /**
+     * Come back with that link: a key of this device's own, tied to the same
+     * person, with nothing to ask of anyone.
+     *
+     * Returns { status: 'ok', key, who, id, name } | { status: 'unknown' }
+     *       | { status: 'busy' }
+     */
+    async returnWith(token, label = '') {
+      const answer = await call('marque_points_return', { p_token: token, p_label: label });
+      const status = answer?.status;
+      if (status === 'ok' && answer.key && answer.id) {
+        return { status, key: answer.key, who: answer.who || '', id: answer.id, name: answer.name || '' };
+      }
+      return { status: status === 'busy' ? 'busy' : 'unknown' };
+    },
+
+    /** Cut a person's return link. Returns 'ok' | 'unknown'. */
+    async forgetLink(key, person) {
+      const answer = await call('marque_points_forget_link', { p_key: key, p_person: person });
+      return answer?.status === 'ok' ? 'ok' : 'unknown';
+    },
+
+    /**
      * Let a device let people in, or stop it. Returns 'ok' | 'last' | 'unknown'
      * — 'last' when it would leave the group with nobody to accept anyone.
      */
@@ -305,6 +345,22 @@ export function gameIdFrom(pasted) {
   if (inLink) return inLink[1];
   // A bare id, as copied from the database's table editor.
   return /^[A-Za-z0-9_.~:@+-]{8,128}$/.test(text) ? text : null;
+}
+
+/**
+ * The link that brings a person back into a group: their own token, and nothing
+ * else. It goes in the fragment, after the `#`, which browsers never send to a
+ * server — so neither the host nor a link preview ever sees it.
+ */
+export function backLink(location, token) {
+  const { origin, pathname, search } = location;
+  return `${origin}${pathname}${search}#/back/${token}`;
+}
+
+/** The return token inside whatever was pasted, or null. */
+export function backTokenFrom(pasted) {
+  const found = String(pasted || '').trim().match(/#\/back\/([0-9a-f]{32})(?![0-9a-f])/);
+  return found ? found[1] : null;
 }
 
 /** The link to give someone so they open this very game. */
