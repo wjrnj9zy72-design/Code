@@ -36,6 +36,9 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
     // "quel soir ?" and "jeudi 20 h" are one thing, asked and answered.
     date: null,
     at: null,
+    // What the event will be called in a calendar. Empty until someone writes
+    // one: eventName() proposes one from the question until they do.
+    title: null,
     shared: Boolean(shared),
     groupId: groupId || null,
     removed: {},
@@ -60,6 +63,18 @@ export function setPollDate(poll, date, at = null) {
   const hour = day && /^\d{2}:\d{2}$/.test(String(at || '')) ? String(at) : null;
   if (day === (poll.date || null) && hour === (poll.at || null)) return poll;
   return touch(poll, { date: day, at: hour });
+}
+
+/**
+ * Name the event this poll became.
+ *
+ * Emptying the field does not leave a blank line in anyone's calendar: with no
+ * name of its own the event falls back on the one eventName() proposes from
+ * the question.
+ */
+export function setEventName(poll, name) {
+  const kept = String(name || '').trim() || null;
+  return kept === (poll.title || null) ? poll : touch(poll, { title: kept });
 }
 
 /**

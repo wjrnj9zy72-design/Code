@@ -43,7 +43,7 @@ test('the calendar function answers a subscription with a calendar', async () =>
       status: 'ok',
       name: 'Mifa',
       docs: [
-        { kind: 'poll', id: 'v_1', question: 'Quel soir ?', date: '2026-09-24', at: '20:00', people: [] },
+        { kind: 'poll', id: 'v_1', question: 'Quel soir pour la raclette ?', date: '2026-09-24', at: '20:00', people: [] },
         { kind: 'list', id: 'l_1', name: 'Courses', items: [{ id: 'i_1', text: 'Pain', due: '2026-09-25', done: false }], people: [] },
       ],
     },
@@ -55,7 +55,7 @@ test('the calendar function answers a subscription with a calendar', async () =>
   const body = await response.text();
   assert.ok(body.startsWith('BEGIN:VCALENDAR\r\n'));
   assert.ok(body.includes('X-WR-CALNAME:Mifa'));
-  assert.ok(body.includes('SUMMARY:Quel soir ?'), 'the settled poll');
+  assert.ok(body.includes('SUMMARY:Raclette\r\n'), 'the settled poll, named as an event rather than asked as a question');
   assert.ok(body.includes('DTSTART:20260924T200000'));
   assert.ok(body.includes('SUMMARY:Pain'), 'and the dated line');
   assert.ok(body.includes('DTSTART;VALUE=DATE:20260925'));

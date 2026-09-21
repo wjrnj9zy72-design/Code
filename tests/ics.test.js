@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { icsEscape, foldLine, vevent, icsFor, pollEvent, listEvents, agendaFor } from '../src/ics.js';
+import { icsEscape, foldLine, vevent, icsFor, pollEvent, listEvents, agendaFor, eventName } from '../src/ics.js';
 import { createList, addItems, setItemDue, toggleItem, archiveList, makeTemplate } from '../src/lists.js';
 import { createPoll } from '../src/polls.js';
 
@@ -71,8 +71,44 @@ test('a poll that has settled nothing is not an appointment', () => {
   const event = pollEvent(settled);
   assert.equal(event.day, '2026-09-24');
   assert.equal(event.at, '20:00');
-  assert.equal(event.summary, 'Quel soir ?');
+  assert.equal(event.summary, 'Quel soir', 'the question mark has no business in a calendar');
   assert.equal(event.description, 'Gui, Alice', 'who it is with');
+});
+
+test('an event is called what it is, not what was asked about it', () => {
+  // "Quel soir pour la raclette ?" in a calendar reads as a question still
+  // waiting for an answer, on the very evening it was answered.
+  const settled = (question, extra = {}) =>
+    pollEvent({ ...createPoll({ question, names: ['Gui'] }), date: '2026-09-24', ...extra }).summary;
+
+  assert.equal(settled('Quel soir pour la raclette ?'), 'Raclette');
+  assert.equal(settled('Quelle date pour l’anniversaire de Léa ?'), 'Anniversaire de Léa');
+  assert.equal(settled('Quand fait-on la crémaillère ?'), 'Crémaillère');
+  assert.equal(settled('On fait la raclette quand ?'), 'Raclette');
+  assert.equal(settled('What day for the picnic?'), 'Picnic');
+
+  assert.equal(settled('Quel soir pour la raclette ?', { title: 'Raclette chez Gui' }), 'Raclette chez Gui',
+    'a name written by hand always wins');
+});
+
+test('a question it cannot make a name of comes back whole', () => {
+  // Better the question than a verb on its own: "Mange" tells nobody anything,
+  // and the field is right there to be corrected.
+  const name = (question) => eventName({ question });
+
+  assert.equal(name('Quand est-ce qu’on mange ?'), 'Quand est-ce qu’on mange');
+  assert.equal(name('On se voit quel soir ?'), 'On se voit quel soir');
+  assert.equal(name('Quel soir ?'), 'Quel soir');
+  assert.equal(name('Réunion de rentrée'), 'Réunion de rentrée', 'a title is not a question to undo');
+  assert.equal(name(''), '');
+  assert.equal(eventName(null), '');
+});
+
+test('the article at the head is dropped whole, or not at all', () => {
+  // "les" must be tried before "le", or the entry keeps a stray s.
+  assert.equal(eventName({ question: 'Quel week-end pour les vacances au ski ?' }), 'Vacances au ski');
+  assert.equal(eventName({ question: 'Quel jour pour le ciné ?' }), 'Ciné');
+  assert.equal(eventName({ question: 'Quelle date pour des vacances ?' }), 'Vacances');
 });
 
 test('only the lines that have a day, and are not done, go in the calendar', () => {
