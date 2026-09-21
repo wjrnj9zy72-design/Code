@@ -2004,13 +2004,36 @@ se coller tel quel.
 
 1. Dans Supabase, **Edge Functions** → **Deploy a new function** → **Via Editor**.
 2. Nommez-la **`agenda`**, exactement. L'adresse en dépend.
-3. Collez le contenu de `index.ts` à la place de ce que l'éditeur propose.
+3. Collez le contenu de `index.ts` à la place de ce que l'éditeur propose —
+   **tout le fichier**, voir l'encadré juste en dessous.
 4. ⚠️ **Désactivez la vérification du JWT** (*Verify JWT with legacy secret*, ou
    *Enforce JWT Verification*, selon la version de l'écran). C'est le point qui
    casse tout : un agenda qui s'abonne ne peut envoyer aucun en-tête, donc une
    fonction qui exige un JWT lui répondra `401` — et l'agenda dira simplement
    « impossible de s'abonner », sans autre explication.
 5. Déployez.
+
+> **Collez le fichier en entier.** C'est le deuxième piège de cette étape,
+> après le commutateur du JWT. Un collage qui perd son début est refusé au
+> déploiement par un message qui ne dit rien de son vrai motif :
+>
+> ```
+> Failed to deploy edge function: Failed to bundle the function
+> (reason: The module's source code could not be parsed:
+> Expression expected at file:///tmp/…/source/index.ts:6:1 ]; ~)
+> ```
+>
+> « Expression expected » à la ligne 6 ne veut pas dire que le fichier est
+> cassé : il veut dire que ce qui est arrivé chez Supabase **commence au
+> milieu**. Le fichier annonce sa longueur dans son propre en-tête (« Le
+> fichier fait N lignes ») : comparez-la au compteur de lignes de l'éditeur,
+> une fois collé. Si le compte n'y est pas, faites **tout sélectionner** dans
+> l'éditeur (`Ctrl`/`Cmd` + `A`), puis recollez.
+>
+> Le plus sûr est de copier depuis la **version brute** du fichier sur GitHub —
+> le bouton **Raw** de `supabase/functions/agenda/index.ts` — qui affiche du
+> texte et rien d'autre, sans numéros de ligne ni mise en forme à emporter au
+> passage.
 
 > **Le commutateur se remet tout seul.** C'est un défaut connu de Supabase : la
 > case *Verify JWT with legacy secret*, désactivée à la main, **revient sur

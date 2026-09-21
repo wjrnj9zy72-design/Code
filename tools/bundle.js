@@ -166,14 +166,31 @@ export async function edgeFunction() {
     }
   }
 
-  return `${EDGE_HEADER}\n${parts.join('\n\n')}\n`;
+  const text = `${EDGE_HEADER}\n${parts.join('\n\n')}\n`;
+  // Le nombre de lignes est écrit dans le fichier lui-même : un collage
+  // incomplet — le piège de l'éditeur de Supabase — se voit alors d'un coup
+  // d'œil, au lieu de ressortir en « Expression expected » à la première ligne
+  // qui manque. Le compte est fait sur le texte fini, marque comprise : elle
+  // tient sur une ligne, quel que soit le nombre écrit dessus.
+  const lines = text.split('\n').length - 1;
+  if (!text.includes(LINE_COUNT_MARK)) {
+    throw new Error('Cannot build the calendar function: its header no longer says how long it is.');
+  }
+  return text.replace(LINE_COUNT_MARK, String(lines));
 }
+
+const LINE_COUNT_MARK = '{{lignes}}';
 
 const EDGE_HEADER = `// ${GENERATED_BY}
 //
 // Collez ce fichier dans Supabase → Edge Functions, sous le nom « agenda »,
 // avec la vérification du JWT **désactivée** : un agenda qui s'abonne ne peut
-// envoyer aucun en-tête. Voir docs/DEPLOIEMENT.md, étape 8.`;
+// envoyer aucun en-tête. Voir docs/DEPLOIEMENT.md, étape 8.
+//
+// Le fichier fait ${LINE_COUNT_MARK} lignes. Si l'éditeur en affiche moins une fois collé,
+// le collage est incomplet : refaites un « tout sélectionner » dans l'éditeur,
+// puis recollez. Le plus sûr est de copier depuis la version brute du fichier
+// sur GitHub (bouton « Raw »), qui est du texte et rien d'autre.`;
 
 /** Every substitution must fire: a silent no-op would ship a broken page. */
 function substitute(source, pattern, replacement, what) {
