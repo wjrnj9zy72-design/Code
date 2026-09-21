@@ -296,7 +296,16 @@ export function isValidSpend(value) {
       Array.isArray(value.people) &&
       Array.isArray(value.lines) &&
       value.lines.every(
-        (line) => line && typeof line.id === 'string' && Number.isFinite(line.amount) && Array.isArray(line.forWhom),
+        (line) =>
+          line &&
+          typeof line.id === 'string' &&
+          // Des centimes entiers, et rien d'autre. Un montant fractionnaire
+          // entré par un import ou par la base ferait des parts fractionnaires,
+          // des soldes qui ne font plus zéro et un remboursement d'un
+          // demi-centime — tout ce que compter en entiers sert à éviter.
+          Number.isInteger(line.amount) &&
+          line.amount > 0 &&
+          Array.isArray(line.forWhom),
       ),
   );
 }

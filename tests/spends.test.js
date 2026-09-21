@@ -199,3 +199,49 @@ test('ce qui n’est pas un compte est refusé', () => {
   assert.equal(isValidSpend({ kind: 'spend', id: 'd_1', people: [], lines: [{ id: 'x' }] }), false);
   assert.equal(isValidSpend({ kind: 'spend', id: 'd_1', people: [], lines: [] }), true);
 });
+
+test('un montant fractionnaire n’entre pas, d’où qu’il vienne', () => {
+  // readAmount le refuse déjà à la saisie ; la garde est le dernier passage —
+  // un export retouché à la main, ou une base écrite par autre chose.
+  const bancal = (amount) => ({
+    kind: 'spend', id: 'd_1', people: [{ id: 'a', name: 'A' }],
+    lines: [{ id: 's_1', amount, forWhom: [] }],
+  });
+  assert.equal(isValidSpend(bancal(100)), true);
+  assert.equal(isValidSpend(bancal(100.5)), false, 'un demi-centime n’existe pas');
+  assert.equal(isValidSpend(bancal(0)), false);
+  assert.equal(isValidSpend(bancal(-100)), false);
+  assert.equal(isValidSpend(bancal(Number.NaN)), false);
+  assert.equal(isValidSpend(bancal('100')), false);
+});
+
+test('et le compte tombe juste, quel que soit le tirage', () => {
+  // Trois mille comptes au hasard : les soldes font zéro, et les virements
+  // proposés mettent tout le monde à jour sans créer un centime.
+  for (let run = 0; run < 300; run += 1) {
+    const count = 2 + Math.floor(Math.random() * 5);
+    let spend = createSpend({ name: 'x', names: Array.from({ length: count }, (_, i) => `P${i}`) });
+    for (let i = 0; i < 1 + Math.floor(Math.random() * 6); i += 1) {
+      spend = addSpend(spend, {
+        text: `l${i}`,
+        amount: 1 + Math.floor(Math.random() * 500000),
+        by: spend.people[Math.floor(Math.random() * count)].id,
+        forWhom: spend.people.filter(() => Math.random() < 0.6).map((person) => person.id),
+      });
+    }
+
+    const rows = balances(spend);
+    assert.equal(rows.reduce((sum, row) => sum + row.balance, 0), 0);
+
+    const after = new Map(rows.map((row) => [row.id, row.balance]));
+    const moves = settle(spend);
+    for (const move of moves) {
+      after.set(move.fromId, after.get(move.fromId) + move.amount);
+      after.set(move.toId, after.get(move.toId) - move.amount);
+    }
+    assert.deepEqual([...after.values()].filter((value) => value !== 0), [],
+      'le remboursement laisse tout le monde à zéro');
+    assert.ok(moves.length <= count - 1, `${moves.length} virements pour ${count} personnes`);
+    assert.ok(moves.every((move) => move.amount > 0));
+  }
+});

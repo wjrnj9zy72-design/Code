@@ -403,7 +403,9 @@ textarea { min-height: 66px; resize: vertical; }
  */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  /* 72px au minimum : à quatre cases sur un écran de 320, elles passent à la
+     ligne plutôt que de rogner « Sondages » au milieu d'un mot. */
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   gap: 8px;
 }
 
@@ -421,7 +423,7 @@ button.tile { cursor: pointer; }
 button.tile:hover { background: var(--accent-soft); }
 
 .tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
-.tile__label { display: block; color: var(--muted); font-size: 0.72rem; }
+.tile__label { display: block; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
 
 /* One line of someone's file: what it is on the left, where it stands on the right. */
 .entries { display: flex; flex-direction: column; }
@@ -630,7 +632,9 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .line__who {
-  padding: 4px 10px;
+  /* Assez haute pour un doigt : elle se tapote autant que la ligne elle-même. */
+  min-height: 34px;
+  padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: none;
@@ -657,6 +661,10 @@ table.scores .meta-cell { color: var(--muted); }
  * Le montant et le payeur sur une même ligne : le montant garde de quoi écrire
  * « 1 234,50 », le nom prend le reste et se tronque plutôt que de l'écraser.
  */
+/* La rangée « date retenue » : elle passe à la ligne plutôt que de déborder. */
+#poll-day { flex: 1 1 9em; min-width: 8em; }
+#poll-hour { flex: 0 1 6em; min-width: 5em; }
+
 #spend-amount { flex: 0 1 7.5em; min-width: 5.5em; }
 #spend-by { flex: 1 1 6em; min-width: 0; }
 
@@ -753,13 +761,17 @@ table.scores .meta-cell { color: var(--muted); }
      other on exactly the narrow screens this is for. */
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  /* minmax(0, 1fr) et non 1fr : sans cela, chaque piste ne peut pas descendre
+     sous la largeur de son mot, et cinq onglets poussent la barre — donc toute
+     la page — de cent pixels sur un écran de 320. */
+  grid-auto-columns: minmax(0, 1fr);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
 .tab {
   padding: 12px 8px;
+  min-width: 0;
   border-bottom: 2px solid transparent;
   color: var(--muted);
   font-weight: 600;
@@ -771,6 +783,20 @@ table.scores .meta-cell { color: var(--muted); }
 .tab[aria-current="page"] {
   border-bottom-color: var(--accent);
   color: var(--text);
+}
+
+/*
+ * Cinq onglets, et « Sondages » fait huit lettres : sur un écran étroit les
+ * mots se resserrent plutôt que d'être coupés — un onglet à moitié lisible est
+ * pire qu'un onglet petit. Placé après .tab : à spécificité égale, c'est la
+ * dernière règle qui l'emporte.
+ */
+@media (max-width: 400px) {
+  .tab { padding: 12px 3px; font-size: 0.8rem; }
+}
+
+@media (max-width: 345px) {
+  .tab { padding: 12px 1px; font-size: 0.68rem; letter-spacing: -0.01em; }
 }
 
 /* ---------------------------------------------------------------- dialog --- */

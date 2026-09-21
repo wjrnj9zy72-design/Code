@@ -359,7 +359,7 @@ function pollView(poll) {
         ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
       </div>
       <p class="muted small">${escapeHtml(t('polls.dateHint'))}</p>
-      <div class="row row--tight">
+      <div class="row">
         <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
         <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
         <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
