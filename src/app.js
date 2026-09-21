@@ -192,8 +192,8 @@ function pollTitle(poll) {
 const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
 
 function pollCardHtml(poll) {
-  const { answered, leaders, rows } = tally(poll);
-  const leading = rows.find((row) => leaders.includes(row.option.id));
+  const { answered, leaders, ranked } = tally(poll);
+  const leading = ranked.find((row) => leaders.includes(row.option.id));
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
       <span class="game-card__title">

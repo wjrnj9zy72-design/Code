@@ -100,11 +100,13 @@ test('the count puts the evening that suits most people first', () => {
   poll = setVote(poll, people[2], options[2], 'maybe');
 
   const result = tally(poll);
-  assert.deepEqual(result.rows.map((row) => row.option.text), ['Samedi', 'Dimanche', 'Vendredi'],
+  assert.deepEqual(result.ranked.map((row) => row.option.text), ['Samedi', 'Dimanche', 'Vendredi'],
     'level on the count, the firmer yeses come first');
-  assert.equal(result.rows[1].yes, 1);
-  assert.equal(result.rows[1].maybe, 2);
-  assert.equal(result.rows[1].missing, 0);
+  assert.deepEqual(result.rows.map((row) => row.option.text), ['Vendredi', 'Samedi', 'Dimanche'],
+    'while the grid keeps the order the choices were written in');
+  assert.equal(result.ranked[1].yes, 1);
+  assert.equal(result.ranked[1].maybe, 2);
+  assert.equal(result.ranked[1].missing, 0);
   assert.deepEqual(result.leaders, [options[1]], 'and only the firmest of the two leads');
   assert.equal(result.answered, 3, 'everyone has answered something');
 });
@@ -117,7 +119,7 @@ test('a maybe is what separates two evenings otherwise level', () => {
   poll = setVote(poll, people[1], options[1], 'maybe');
 
   const result = tally(poll);
-  assert.equal(result.rows[0].option.text, 'Samedi', 'one yes and a maybe beats one yes alone');
+  assert.equal(result.ranked[0].option.text, 'Samedi', 'one yes and a maybe beats one yes alone');
   assert.deepEqual(result.leaders, [options[1]]);
 });
 
@@ -268,4 +270,34 @@ test('a poll that came back unchanged is the very same poll', () => {
 test('a poll starts with no choices, whatever it is handed', () => {
   const poll = createPoll({ question: 'Quel soir ?', names: ['Gui'] });
   assert.deepEqual(poll.options, [], 'choices are added with addOptions, and only there');
+});
+
+test('the grid keeps the order of the choices, however people answer', () => {
+  // A grid that re-sorts itself moves the row out from under the finger that
+  // just tapped it: answering three questions in a row becomes a chase.
+  let poll = addOptions(createPoll({ question: 'Quel soir ?', names: ['Gui', 'Alice'] }), 'lundi\nmardi\nmercredi\njeudi');
+  const order = (held) => tally(held).rows.map((row) => row.option.text).join(' > ');
+  const start = order(poll);
+  assert.equal(start, 'lundi > mardi > mercredi > jeudi');
+
+  const [gui] = poll.people;
+  const jeudi = poll.options[3];
+  poll = setVote(poll, gui.id, jeudi.id, 'yes');
+  assert.equal(order(poll), start, 'a yes on the last choice does not lift it to the top');
+
+  poll = setVote(poll, gui.id, poll.options[0].id, 'no');
+  assert.equal(order(poll), start, 'nor does a no on the first push it down');
+
+  // The ranking still exists — kept apart from the grid.
+  assert.equal(tally(poll).ranked[0].option.text, 'jeudi');
+  assert.deepEqual(tally(poll).leaders, [jeudi.id]);
+});
+
+test('the ranking is a sort of its own, not the rows rearranged', () => {
+  let poll = addOptions(createPoll({ question: 'Où ?', names: ['Gui'] }), 'a\nb');
+  poll = setVote(poll, poll.people[0].id, poll.options[1].id, 'yes');
+  const { rows, ranked } = tally(poll);
+  assert.deepEqual(rows.map((row) => row.option.text), ['a', 'b']);
+  assert.deepEqual(ranked.map((row) => row.option.text), ['b', 'a']);
+  assert.notEqual(rows, ranked, 'two arrays, not one sorted in place');
 });

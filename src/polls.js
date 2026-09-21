@@ -163,9 +163,16 @@ export function setClosed(poll, closed) {
 }
 
 /**
- * The count, choice by choice, best first.
+ * The count, choice by choice.
  *
- * A "maybe" is half a yes when ranking — enough to break a tie between two
+ * `rows` keeps the poll's own order — the order the choices were written in.
+ * That matters more than it sounds: the grid is drawn from it, and a grid that
+ * re-sorts itself as people vote moves the row out from under the finger that
+ * just tapped it. Answering three questions in a row then means chasing them
+ * around the screen.
+ *
+ * `ranked` is the same rows, best first, for whoever wants to know what is
+ * winning. A "maybe" is half a yes there — enough to break a tie between two
  * evenings everyone can half-make, never enough to beat one they can all make.
  * The counts themselves are reported whole, because that is what a table looks
  * at before deciding.
@@ -187,7 +194,8 @@ export function tally(poll) {
   const ranked = [...rows].sort((a, b) => b.score - a.score || b.yes - a.yes);
   const best = ranked[0];
   return {
-    rows: ranked,
+    rows,
+    ranked,
     // Nobody leads a poll nobody has answered.
     leaders:
       best && best.score > 0
