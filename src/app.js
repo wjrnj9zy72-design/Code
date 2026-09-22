@@ -369,7 +369,7 @@ function gaugeHtml(poll) {
     </section>`;
 }
 
-function pollView(poll) {
+function pollView(poll, { solo = false } = {}) {
   const me = state.prefs.voter?.[poll.id] || null;
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
@@ -395,15 +395,19 @@ function pollView(poll) {
         <p class="muted small">
           ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
           ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
-          ${poll.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+          ${poll.shared && !solo ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
-        ${escapeHtml(t('action.back'))}
-      </button>
+      ${
+        solo
+          ? ''
+          : `<button type="button" class="button button--small button--ghost" data-goto="#/polls">
+               ${escapeHtml(t('action.back'))}
+             </button>`
+      }
     </div>
 
-    ${inGroupHtml(poll)}
+    ${solo ? '' : inGroupHtml(poll)}
 
     ${
       poll.people.length
@@ -418,7 +422,9 @@ function pollView(poll) {
         : ''
     }
 
-    <section class="card stack stack--tight">
+    ${solo && !closed ? soloJoinHtml() : ''}
+
+    ${solo ? soloDateHtml(poll) : `<section class="card stack stack--tight">
       <div class="section__head">
         <h2>${escapeHtml(t('polls.date'))}</h2>
         ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
@@ -443,7 +449,7 @@ function pollView(poll) {
              </div>`
           : ''
       }
-    </section>
+    </section>`}
 
     ${gaugeHtml(poll)}
 
@@ -464,9 +470,13 @@ function pollView(poll) {
                      (row) => `
                        <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
                          <th scope="row">
-                           <button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
-                             ${escapeHtml(row.option.text)}
-                           </button>
+                           ${
+                             solo
+                               ? escapeHtml(row.option.text)
+                               : `<button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
+                                    ${escapeHtml(row.option.text)}
+                                  </button>`
+                           }
                          </th>
                          ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
                          <td class="votes__score">${row.yes}</td>
@@ -481,7 +491,7 @@ function pollView(poll) {
     }
 
     ${
-      closed
+      closed || solo
         ? ''
         : `<form id="add-choice" class="card stack stack--tight">
              <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
@@ -492,7 +502,7 @@ function pollView(poll) {
            </form>`
     }
 
-    <section class="section">
+    ${solo ? '' : `<section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
       <div class="row">
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
@@ -510,6 +520,34 @@ function pollView(poll) {
         </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`}`;
+}
+
+/**
+ * For a guest whose name the poll does not have yet: add it, and answer.
+ * Whoever sends a link to a chat does not know every name in it; without
+ * this, a guest could look but never tick.
+ */
+function soloJoinHtml() {
+  return `
+    <form id="solo-me-form" class="row row--tight">
+      <label class="visually-hidden" for="solo-me">${escapeHtml(t('polls.soloMe'))}</label>
+      <input type="text" id="solo-me" autocomplete="given-name" maxlength="${NAME_KEPT}"
+             placeholder="${escapeHtml(t('polls.soloMe'))}" />
+      <button type="submit" class="button">${escapeHtml(t('polls.soloAdd'))}</button>
+    </form>`;
+}
+
+/** The day the poll settled on, to read — and to take away — but not to change. */
+function soloDateHtml(poll) {
+  if (!poll.date) return '';
+  const when = [formatDayLong(poll.date), poll.at].filter(Boolean).join(' · ');
+  return `
+    <section class="card stack stack--tight">
+      <p><strong>${escapeHtml(t('polls.soloSettled', { when }))}</strong></p>
+      <div class="row">
+        <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
       </div>
     </section>`;
 }
@@ -709,6 +747,27 @@ function bindPoll(poll) {
       // grid had been left.
       showMyColumn({ always: true });
     });
+  });
+
+  // A guest not on the list adds their own name, and is then who answers.
+  view.querySelector('#solo-me-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = view.querySelector('#solo-me').value.trim();
+    if (!name) return;
+    // Matched the way everywhere else matches names — case, accents and
+    // blanks aside — so "chloe" does not add a second Chloé.
+    const same = (person) => sameName(person.name) === sameName(name);
+    let next = poll;
+    let person = poll.people.find(same);
+    if (!person) {
+      next = addPollPerson(poll, name);
+      person = next.people.find(same);
+    }
+    state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: person.id } };
+    savePrefs(state.prefs);
+    if (next === poll) render();
+    else replacePoll(next);
+    showMyColumn({ always: true });
   });
 
   // Opening the poll: straight to one's own column, so answering takes no
@@ -1932,7 +1991,8 @@ function route() {
   if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
-  if (name === 'poll' && param) return { name: 'poll', id: param };
+  // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
+  if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
 }
 
@@ -7254,9 +7314,50 @@ function restoreScrolls(kept) {
   });
 }
 
+/**
+ * The page reduced to one poll, for whoever opened a shared link.
+ *
+ * Someone who got the link in a Messenger chat came to tick their evenings,
+ * not to find an app: the tabs, the overview, the button that makes a new list
+ * were all doors into rooms that are none of theirs — empty rooms, since their
+ * device holds nothing else, but doors all the same. Here there are none. The
+ * tabs go, the name at the top stops being a link, and the poll page keeps
+ * only what a guest does with it.
+ *
+ * It is a way of showing, not a lock: the data was already walled off by the
+ * database, which lists nothing of a group without its key. Someone who edits
+ * the address by hand reaches the app — their own, empty one.
+ */
+function setSolo(on) {
+  document.body.classList.toggle('solo', on);
+  // Hidden outright, not only by the stylesheet: out of reach of a tap, of the
+  // keyboard and of a screen reader alike, whatever the styles do.
+  const tabs = document.getElementById('tabs');
+  if (tabs) tabs.hidden = on;
+  const brand = document.querySelector('.app-bar__brand');
+  if (!brand) return;
+  if (on) {
+    brand.removeAttribute('href');
+    brand.setAttribute('aria-disabled', 'true');
+  } else {
+    brand.setAttribute('href', '#/');
+    brand.removeAttribute('aria-disabled');
+  }
+}
+
+/** A poll that is not there: back to the list — or, for a guest, a sentence and nothing else. */
+function leavePoll(current) {
+  if (!current.solo) {
+    navigate('#/polls');
+    return;
+  }
+  view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+}
+
 function render() {
   const current = route();
   markTab(current);
+  setSolo(Boolean(current.solo));
   const kept = keptScrolls();
   // Nothing to fetch without a database, or before this device is in a group.
   const sync = document.getElementById('sync');
@@ -7346,16 +7447,16 @@ function render() {
             if (state.openingPoll !== asked) return;
             state.openingPoll = null;
             if (found) render();
-            else if (route().id === asked) navigate('#/polls');
+            else if (route().id === asked) leavePoll(current);
           });
         }
         return;
       }
-      navigate('#/polls');
+      leavePoll(current);
       return;
     }
     watchPoll(poll.id);
-    view.innerHTML = pollView(poll);
+    view.innerHTML = pollView(poll, { solo: current.solo });
     bindPoll(poll);
   } else if (current.name === 'stats') {
     stopWatching();

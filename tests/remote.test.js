@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRemote, pickNewer, shareLink } from '../src/remote.js';
+import { createRemote, pickNewer, shareLink, pollLink, pollIdFrom } from '../src/remote.js';
 import { createGame } from '../src/model.js';
 
 const CONFIG = { url: 'https://example.supabase.co/', key: 'public-anon-key' };
@@ -490,4 +490,13 @@ test('the return link answers with a key, or says why not', async () => {
     'an "ok" with no key is not a way back');
   assert.equal(await answering({ status: 'ok' }).forgetLink('k', 'per_1'), 'ok');
   assert.equal(await answering({ status: 'unknown' }).forgetLink('k', 'per_1'), 'unknown');
+});
+
+test('a poll is sent as a link that opens it alone', () => {
+  // Whoever receives it came to answer: the link says so, and the app shows
+  // them the poll and nothing else of itself.
+  const link = pollLink({ origin: 'https://gui.github.io', pathname: '/Code/', search: '' }, 'v_42');
+  assert.equal(link, 'https://gui.github.io/Code/#/poll/v_42/solo');
+  assert.equal(pollIdFrom(link), 'v_42', 'and pasting it back still finds the poll');
+  assert.equal(pollIdFrom('https://gui.github.io/Code/#/poll/v_42'), 'v_42', 'links sent before still work');
 });

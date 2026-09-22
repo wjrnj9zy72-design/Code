@@ -416,9 +416,14 @@ export function listIdFrom(pasted) {
 }
 
 /** The link to give someone so they answer this very poll. */
+/**
+ * The address to send for a poll. It opens the poll alone — no tabs, nothing
+ * else of the app — because whoever receives it came to answer, not to look
+ * around. Addresses sent before, without `/solo`, still open it in full.
+ */
 export function pollLink(location, pollId) {
   const { origin, pathname, search } = location;
-  return `${origin}${pathname}${search}#/poll/${pollId}`;
+  return `${origin}${pathname}${search}#/poll/${pollId}/solo`;
 }
 
 /** The poll id inside whatever was pasted, or null. */
