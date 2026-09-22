@@ -7360,9 +7360,34 @@ function persistPoll(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    pushPoll(changed).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
+}
+
+/**
+ * Send a poll — after taking in what the database already has.
+ *
+ * Writing this device's copy straight away used to erase whatever had come
+ * in since it last looked: Paul ticks Saturday from a link, the organiser
+ * ticks Friday a moment later on a copy without Paul, and Paul was gone —
+ * his tick and his name. The copy stored is now merged in first, cell by
+ * cell, exactly as a poll arriving on screen is; and the database does the
+ * same on its side, for the moment between this read and that write, and
+ * for any app not yet up to date.
+ */
+async function pushPoll(changed) {
+  let outgoing = changed;
+  try {
+    const stored = await state.remote.get(changed.id);
+    if (isValidPoll(stored) && adoptPoll(stored)) {
+      outgoing = getPoll(changed.id) || changed;
+      if (!isBusy()) render();
+    }
+  } catch {
+    // Unreadable just now: the database merges on its side all the same.
+  }
+  await state.remote.put(outgoing, keyFor(outgoing), organiserSecret(outgoing.id));
 }
 
 function getPoll(id) {
@@ -7800,12 +7825,20 @@ function adoptPoll(stored) {
 
 /** While a shared poll is on screen, watch for the answers coming in. */
 function watchPoll(id) {
+  // Already watching this one: a redraw — a vote, a tick — must not restart
+  // the clock, or answers would only ever arrive to a screen left untouched.
+  if (state.pollWatched === id && state.poll) return;
   stopWatching();
   if (!state.remote) return;
-  state.poll = setInterval(async () => {
+  state.pollWatched = id;
+  const look = async () => {
     if (isBusy()) return;
     if (await pullPoll(id)) render();
-  }, 5000);
+  };
+  // At once, and then every five seconds: opening a poll should show the
+  // answers that are already in, not the ones that were in last time.
+  void look();
+  state.poll = setInterval(look, 5000);
 }
 
 /** Le compte que la base détient, s'il est plus récent que celui d'ici. */
@@ -12370,6 +12403,16 @@ async function catchUpAll() {
       // One group out of reach is not a reason to skip the others.
     }
   }
+  // A link-only poll is listed for no group, on purpose — so no group's
+  // catch-up brings its answers. The devices that hold one ask for it by
+  // name instead: few of them, and the only way anyone would hear back.
+  for (const poll of state.polls.filter((held) => held.shared && held.linkOnly && !held.archivedAt)) {
+    try {
+      if (await pullPoll(poll.id)) taken += 1;
+    } catch {
+      // Out of reach now; the next catch-up asks again.
+    }
+  }
   state.syncedAt = Date.now();
   return taken;
 }
@@ -14465,6 +14508,8 @@ function watchGame(id) {
 function stopWatching() {
   if (state.poll) clearInterval(state.poll);
   state.poll = null;
+  // The same timer serves lists and games: forget whose it was.
+  state.pollWatched = null;
 }
 
 /** A list's identity for comparison: which games, and how recently each changed. */
@@ -14660,6 +14705,16 @@ if (state.remote) {
     if (document.visibilityState === 'visible') void catchUpQuietly();
   });
   window.addEventListener('focus', () => void catchUpQuietly());
+
+  // And while it stays open in front of someone: the answers to a poll left
+  // on the list, or on the overview, arrive without anyone having to leave
+  // and come back. Nothing is asked of a hidden page, nor more often than the
+  // catch-up allows itself: it is looked at every few seconds, and goes only
+  // when its own twenty have passed. Ticking at exactly twenty would miss by
+  // a hair every other time, and make it forty.
+  setInterval(() => {
+    if (document.visibilityState === 'visible') void catchUpQuietly();
+  }, 5000);
 }
 connectToStore();
 registerOfflineCache();

@@ -175,7 +175,9 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 > - **« Lien seulement »** : un document que seuls ceux qui ont le lien voient,
 >   absent des onglets et de l'agenda de vos groupes ;
 > - **l'organisateur** : qui crée un sondage garde seul la main sur la date,
->   la clôture, la question, les choix et la suppression ; les autres votent.
+>   la clôture, la question, les choix et la suppression ; les autres votent ;
+> - **les votes se fondent** au lieu d'être remplacés : une copie en retard
+>   n'efface plus ceux arrivés entre-temps.
 >
 > Sans lui, l'app demande deux jours et la base les ramène à un ; un « lien
 > seulement » atterrit dans les onglets du groupe comme n'importe quel autre
@@ -529,6 +531,31 @@ drop function if exists public.marque_points_delete(text);
 drop function if exists public.marque_points_put(text, jsonb, text);
 drop function if exists public.marque_points_delete(text, text);
 
+-- Deux copies d'un même sondage, fondues case par case : pour chaque case, la
+-- réponse la plus récente l'emporte, et une case décochée est une réponse
+-- datée comme une autre. C'est la règle de l'app ; la base la suit, pour
+-- qu'une copie en retard ne puisse plus effacer les votes arrivés entre-temps.
+create or replace function public.marque_points_merge_votes(p_stored jsonb, p_incoming jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(jsonb_object_agg(cells.key,
+           case
+             when cells.incoming is null then cells.stored
+             when cells.stored is null then cells.incoming
+             when coalesce((cells.incoming->>'at')::numeric, 0) >= coalesce((cells.stored->>'at')::numeric, 0)
+               then cells.incoming
+             else cells.stored
+           end), '{}'::jsonb)
+    from (
+      select coalesce(s.key, i.key) as key, s.value as stored, i.value as incoming
+        from jsonb_each(coalesce(p_stored, '{}'::jsonb)) s
+        full join jsonb_each(coalesce(p_incoming, '{}'::jsonb)) i on s.key = i.key
+    ) cells;
+$$;
+
 create or replace function public.marque_points_put(
   p_id text,
   p_data jsonb,
@@ -577,6 +604,23 @@ begin
   -- La ligne existe : qui a le lien peut y contribuer — entièrement si rien
   -- n'a d'organisateur ou si c'est lui qui écrit…
   if v_owner is null or md5(coalesce(p_owner, '') || p_id) = v_owner then
+    if v_stored->>'kind' = 'poll' and p_data->>'kind' = 'poll' then
+      -- …mais un sondage se fond, il ne se remplace pas : la copie qui arrive
+      -- peut ignorer un vote arrivé entre-temps, et l'écraser le perdrait.
+      -- Les personnes suivent la copie qui y a touché en dernier, comme dans
+      -- l'app.
+      p_data := p_data || jsonb_build_object(
+        'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+        'people', case
+                    when coalesce((p_data->>'peopleAt')::numeric, 0) >= coalesce((v_stored->>'peopleAt')::numeric, 0)
+                      then coalesce(p_data->'people', '[]'::jsonb)
+                    else coalesce(v_stored->'people', '[]'::jsonb)
+                  end,
+        'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
+                             coalesce((p_data->>'peopleAt')::numeric, 0)),
+        'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
+                              coalesce((p_data->>'updatedAt')::numeric, 0)));
+    end if;
     update public.marque_points_games
        set data = p_data, updated_at = now()
      where id = p_id and code_hash is null;
@@ -593,7 +637,7 @@ begin
   update public.marque_points_games
      set data = v_stored
            || jsonb_build_object(
-                'votes', coalesce(p_data->'votes', v_stored->'votes'),
+                'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
                 'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
                   select jsonb_agg(n.value)
                     from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
@@ -1405,6 +1449,7 @@ $$;
 -- code, c'est son rôle — pourrait refaire la clé d'un groupe dont il connaît le
 -- nom : tous les appareils dehors, et le groupe à lui.
 revoke all on function public.marque_points_fresh_code() from public, anon, authenticated;
+revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
 revoke all on function public.marque_points_new_group(text) from public, anon, authenticated;
 revoke all on function public.marque_points_new_group_key(text) from public, anon, authenticated;
 

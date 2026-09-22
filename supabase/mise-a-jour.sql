@@ -11,7 +11,9 @@
 --      absent des onglets et de l'agenda du groupe ;
 --   3. l'organisateur : qui crée un sondage garde seul la main sur la date,
 --      la clôture, la question, les choix et la suppression ; les autres
---      votent, et s'ajoutent eux-mêmes.
+--      votent, et s'ajoutent eux-mêmes ;
+--   4. un sondage se fond case par case au lieu d'être remplacé : une copie
+--      en retard n'efface plus les votes arrivés entre-temps.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -63,6 +65,28 @@ alter table public.marque_points_games
 
 alter table public.marque_points_games
   add column if not exists owner_hash text;
+
+-- 4. Les votes fondus case par case.
+create or replace function public.marque_points_merge_votes(p_stored jsonb, p_incoming jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(jsonb_object_agg(cells.key,
+           case
+             when cells.incoming is null then cells.stored
+             when cells.stored is null then cells.incoming
+             when coalesce((cells.incoming->>'at')::numeric, 0) >= coalesce((cells.stored->>'at')::numeric, 0)
+               then cells.incoming
+             else cells.stored
+           end), '{}'::jsonb)
+    from (
+      select coalesce(s.key, i.key) as key, s.value as stored, i.value as incoming
+        from jsonb_each(coalesce(p_stored, '{}'::jsonb)) s
+        full join jsonb_each(coalesce(p_incoming, '{}'::jsonb)) i on s.key = i.key
+    ) cells;
+$$;
 
 -- Les versions précédentes de l'écriture et de la suppression : remplacées
 -- ci-dessous par des versions qui connaissent l'organisateur. Les laisser
@@ -119,6 +143,23 @@ begin
   -- La ligne existe : qui a le lien peut y contribuer — entièrement si rien
   -- n'a d'organisateur ou si c'est lui qui écrit…
   if v_owner is null or md5(coalesce(p_owner, '') || p_id) = v_owner then
+    if v_stored->>'kind' = 'poll' and p_data->>'kind' = 'poll' then
+      -- …mais un sondage se fond, il ne se remplace pas : la copie qui arrive
+      -- peut ignorer un vote arrivé entre-temps, et l'écraser le perdrait.
+      -- Les personnes suivent la copie qui y a touché en dernier, comme dans
+      -- l'app.
+      p_data := p_data || jsonb_build_object(
+        'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+        'people', case
+                    when coalesce((p_data->>'peopleAt')::numeric, 0) >= coalesce((v_stored->>'peopleAt')::numeric, 0)
+                      then coalesce(p_data->'people', '[]'::jsonb)
+                    else coalesce(v_stored->'people', '[]'::jsonb)
+                  end,
+        'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
+                             coalesce((p_data->>'peopleAt')::numeric, 0)),
+        'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
+                              coalesce((p_data->>'updatedAt')::numeric, 0)));
+    end if;
     update public.marque_points_games
        set data = p_data, updated_at = now()
      where id = p_id and code_hash is null;
@@ -135,7 +176,7 @@ begin
   update public.marque_points_games
      set data = v_stored
            || jsonb_build_object(
-                'votes', coalesce(p_data->'votes', v_stored->'votes'),
+                'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
                 'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
                   select jsonb_agg(n.value)
                     from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
@@ -245,9 +286,11 @@ begin
 end;
 $$;
 
--- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus.
+-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;
+-- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.
 grant execute on function public.marque_points_invite(text, integer, integer) to anon, authenticated;
 grant execute on function public.marque_points_put(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
+revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
