@@ -281,16 +281,25 @@ export const STRINGS = {
     'groups.add': 'Entrer dans un groupe',
     'groups.invite': 'Inviter',
     'groups.inviteTitle': 'Entrer dans {name}',
-    'groups.inviteWhich': 'Quelle invitation ?',
+    'groups.inviteWhich': 'Pour qui ?',
     'groups.inviteWhichHint':
-      'Dans les deux cas, personne n’entre sans que vous l’acceptiez : une invitation ne donne que le droit de frapper.',
-    'groups.inviteOpen': 'Un lien pour la journée, plusieurs personnes',
-    'groups.inviteOne': 'Une seule personne, la journée aussi',
-    'groups.inviteHintOpen':
-      'Envoyez ce lien à qui vous voulez — la famille, un groupe de discussion. Il vaut {hours} h et plusieurs personnes ; chacune n’aura que son prénom à écrire, et vous verrez sa demande dans l’Aperçu.',
-    'groups.inviteHintOne':
-      'Envoyez ce lien à cette personne : elle n’aura que son prénom à écrire. Il vaut {hours} h et une seule demande, que vous devrez accepter — un lien transféré ne servira donc à personne d’autre.',
-    'groups.inviteText': 'Un lien pour entrer dans {name}',
+      'Les deux valent deux jours, et dans les deux cas personne n’entre sans que vous l’acceptiez.',
+    'groups.inviteOpen': 'Plusieurs personnes',
+    'groups.inviteOne': 'Une seule personne',
+    // Le message qui part vraiment. Court, parce que c'est la seule chose que
+    // la personne lira : le nom et le code à recopier, le lien, et comment
+    // poser l'app. Rien d'autre — le reste ne se retient pas.
+    'groups.inviteText':
+      'Rejoins {name} sur Together.\n\n'
+      + 'Nom : {name}\n'
+      + 'Code : {code}\n\n'
+      + '1. Ouvre le lien : {url}\n'
+      + '2. Installe l’app : iPhone (Safari) → Partager → « Sur l’écran d’accueil ». '
+      + 'Android (Chrome) → ⋮ → « Installer l’application ».\n'
+      + '3. Dans l’app : Aperçu → Entrer dans un groupe → colle le nom et le code.\n\n'
+      + 'Valable {days} jours.',
+    'groups.inviteReady': 'Invitation à {name}',
+    'groups.inviteWhy': 'Envoyez ce message tel quel : tout y est.',
     'groups.namePlaceholder': 'nom du groupe',
     'groups.codePlaceholder': 'code à six chiffres',
     'groups.codeHint':
@@ -315,9 +324,9 @@ export const STRINGS = {
       'Vous êtes dans {name}. Gardez votre lien de retour — bouton « Mon lien de retour » — : c’est lui qui vous ramènera depuis un autre navigateur ou après une réinstallation.',
     'groups.joinedWithKeepLink':
       'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s). Gardez votre lien de retour — bouton « Mon lien de retour ».',
-    'groups.codeLabel': 'Les six chiffres du lien',
+    'groups.codeLabel': 'Le code',
     'groups.codeInLink':
-      'Ils sont déjà dans le lien : à dire de vive voix seulement si le lien ne passe pas.',
+      'Déjà dans le message et dans le lien : à dire de vive voix seulement si rien ne passe.',
     'groups.shared': '{count} partagé(s) ici',
     'groups.catchUp': 'Tout récupérer',
     'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
@@ -989,16 +998,22 @@ export const STRINGS = {
     'groups.add': 'Join a group',
     'groups.invite': 'Invite',
     'groups.inviteTitle': 'Join {name}',
-    'groups.inviteWhich': 'Which invitation?',
+    'groups.inviteWhich': 'For whom?',
     'groups.inviteWhichHint':
-      'Either way nobody gets in until you accept them: an invitation only grants the right to knock.',
-    'groups.inviteOpen': 'A link for the day, several people',
-    'groups.inviteOne': 'One person, for the day too',
-    'groups.inviteHintOpen':
-      'Send this link to whoever you like — the family, a group chat. It is good for {hours} h and several people; each writes nothing but their first name, and you see their request in the Overview.',
-    'groups.inviteHintOne':
-      'Send this link to that person: all they write is their first name. It is good for {hours} h and one request, which you will have to accept — so a forwarded link is no use to anyone else.',
-    'groups.inviteText': 'A link to join {name}',
+      'Both are good for two days, and either way nobody gets in until you accept them.',
+    'groups.inviteOpen': 'Several people',
+    'groups.inviteOne': 'One person',
+    'groups.inviteText':
+      'Join {name} on Together.\n\n'
+      + 'Name: {name}\n'
+      + 'Code: {code}\n\n'
+      + '1. Open the link: {url}\n'
+      + '2. Install the app: iPhone (Safari) → Share → "Add to Home Screen". '
+      + 'Android (Chrome) → ⋮ → "Install app".\n'
+      + '3. In the app: Overview → Join a group → paste the name and the code.\n\n'
+      + 'Good for {days} days.',
+    'groups.inviteReady': 'Invitation to {name}',
+    'groups.inviteWhy': 'Send this message as it is: everything is in it.',
     'groups.namePlaceholder': 'group name',
     'groups.codePlaceholder': 'six-digit code',
     'groups.codeHint':
@@ -1022,8 +1037,8 @@ export const STRINGS = {
       'You are in {name}. Keep your return link — the “My return link” button — it is what brings you back from another browser or after reinstalling.',
     'groups.joinedWithKeepLink':
       'You are in {name}, with {count} item(s) already shared. Keep your return link — the “My return link” button.',
-    'groups.codeLabel': 'The link\'s six digits',
-    'groups.codeInLink': 'They are already in the link: say them out loud only if the link does not get through.',
+    'groups.codeLabel': 'The code',
+    'groups.codeInLink': 'Already in the message and in the link: say them out loud only if nothing gets through.',
     'groups.shared': '{count} shared here',
     'groups.catchUp': 'Fetch everything',
     'groups.caughtUp': '{count} item(s) fetched from the group.',

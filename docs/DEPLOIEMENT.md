@@ -164,6 +164,37 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 
 **SQL Editor** → **New query**, collez **tout** ce bloc, puis **Run**.
 
+> **Votre base existe déjà ?** Recoller le bloc entier est sans danger — tout y
+> est en `create or replace` / `create table if not exists`, et rien n'efface de
+> données. Si vous ne voulez repasser que le dernier changement (les invitations
+> portées de un à **deux jours**), une requête suffit :
+>
+> ```sql
+> create or replace function public.marque_points_invite(
+>   p_key text, p_minutes integer default 30, p_uses integer default 1
+> ) returns jsonb language plpgsql security definer set search_path = public as $$
+> declare
+>   v_group text; v_name text; v_code text;
+>   v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 2880));
+>   v_uses integer := greatest(1, least(coalesce(p_uses, 1), 200));
+> begin
+>   select g.id, g.name into v_group, v_name
+>     from public.marque_points_group_key k
+>     join public.marque_points_group g on g.id = k.group_id
+>    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+>   if v_group is null then raise exception 'cle de groupe invalide'; end if;
+>   delete from public.marque_points_invite
+>    where expires_at < now() or uses <= 0 or tries >= 10;
+>   v_code := public.marque_points_fresh_code();
+>   insert into public.marque_points_invite (code, group_id, expires_at, uses)
+>   values (v_code, v_group, now() + make_interval(mins => v_minutes), v_uses);
+>   return jsonb_build_object('code', v_code, 'name', v_name, 'minutes', v_minutes, 'uses', v_uses);
+> end; $$;
+> ```
+>
+> Sans elle, l'app demandera deux jours et la base les ramènera à un, sans
+> rien dire.
+
 ```sql
 -- ---------------------------------------------------------------------------
 -- Les groupes, et les liens qui portent plusieurs choses à la fois.
@@ -692,7 +723,10 @@ declare
   v_group text;
   v_name text;
   v_code text;
-  v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 1440));
+  -- Deux jours au plus : un lien envoyé le soir doit survivre à quelqu'un qui
+  -- lit ses messages le lendemain soir, et un lien retrouvé la semaine d'après
+  -- doit être mort.
+  v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 2880));
   v_uses integer := greatest(1, least(coalesce(p_uses, 1), 200));
 begin
   select g.id, g.name into v_group, v_name
@@ -1447,20 +1481,40 @@ C'est cette clé — et elle seule — qui **fait entrer les autres**. Gardez-la
 votre appareil : les clés distribuées ensuite voient tout et partagent, mais
 n'acceptent personne.
 
-**Tous les autres frappent, et c'est vous qui ouvrez :**
+**Tous les autres frappent, et c'est vous qui ouvrez.** Touchez **Inviter** à
+côté du nom du groupe, choisissez **plusieurs personnes** (la conversation de
+famille) ou **une seule personne** (la première demande consomme le lien, donc
+un lien transféré ne sert à personne d'autre), et **envoyez le message tel
+quel**. Les deux valent **deux jours**.
 
-1. sur votre appareil, touchez **Inviter** à côté du nom du groupe, puis
-   choisissez :
-   - **un lien pour la journée, plusieurs personnes** — celui qu'on envoie dans
-     la conversation de famille ;
-   - **une seule personne, la journée aussi** — pour quelqu'un d'extérieur au
-     cercle : la première demande consomme le lien, donc un lien transféré ne
-     sert à personne d'autre ;
-2. envoyez le lien — message, courriel, QR code montré à l'écran ;
-3. en face, le lien ouvre une page qui ne demande qu'**un prénom**, puis
-   **Entrer**. Rien ne s'ouvre : la demande arrive chez vous ;
-4. dans votre **Aperçu**, sous *On frappe*, la demande apparaît avec ce prénom :
-   **Accepter** ou **Refuser**.
+Le message porte tout ce que la personne aura à savoir, et rien d'autre :
+
+```
+Rejoins Mifa sur Together.
+
+Nom : Mifa
+Code : 556237
+
+1. Ouvre le lien : https://votre-compte.github.io/Code/#/join/556237/Mifa
+2. Installe l'app : iPhone (Safari) → Partager → « Sur l'écran d'accueil ».
+   Android (Chrome) → ⋮ → « Installer l'application ».
+3. Dans l'app : Aperçu → Entrer dans un groupe → colle le nom et le code.
+
+Valable 2 jours.
+```
+
+L'ordre compte, et c'est pour ça qu'il est écrit : **installer d'abord, entrer
+ensuite, depuis l'app**. Un lien s'ouvre toujours dans le navigateur, jamais
+dans une app posée sur un écran d'accueil — celle-ci a son propre stockage, et
+entrer depuis le navigateur la laisserait vide.
+
+**Coller suffit.** La personne colle le message — en entier, sans rien y
+sélectionner — dans la case du nom *ou* dans celle du code : l'app y lit le nom
+du groupe et les six chiffres, et remplit les deux. Elle ajoute son prénom,
+touche **Entrer**, et rien ne s'ouvre : la demande arrive chez vous.
+
+Dans votre **Aperçu**, sous *On frappe*, elle apparaît avec ce prénom :
+**Accepter** ou **Refuser**.
 
 Accepté, l'appareil d'en face s'en aperçoit tout seul (sa page regarde, et
 l'acceptation est vue de toute façon à la prochaine ouverture de l'app), reçoit
@@ -1477,7 +1531,7 @@ Si le lien ne passe pas — un message qui l'abîme, quelqu'un au téléphone �
 en dépliant *Nom du groupe et code*. La suite est la même : ça frappe, vous
 acceptez.
 
-> C'est ce qui rend le lien du jour tranquille : **une invitation ne donne que le
+> C'est ce qui rend le lien tranquille : **une invitation ne donne que le
 > droit de frapper**. Transférée, capturée, retrouvée dans un fil de discussion,
 > elle ne fait entrer personne sans vous. Une demande de trop se refuse d'une
 > touche, et n'a rien vu entre-temps.
