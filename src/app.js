@@ -380,10 +380,15 @@ function pollView(poll, { solo = false } = {}) {
 
   const cellHtml = (option, person) => {
     const yes = voteOf(poll, person.id, option.id) === 'yes';
+    // Once this device has said who it answers for, the other columns are out
+    // of reach: a thumb that lands one column over would tick someone else's
+    // evening, and nothing on screen would say so. Switching name is still one
+    // tap on the chips above — a choice, rather than a slip.
+    const others = Boolean(me) && person.id !== me;
     return `
       <td class="${person.id === me ? 'votes__mine' : ''}">
-        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'}"
-                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'} ${others ? 'vote--other' : ''}"
+                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed || others ? 'disabled' : ''}
                 aria-pressed="${yes ? 'true' : 'false'}"
                 aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
           ${yes ? VOTE_MARK.yes : ''}
@@ -490,7 +495,11 @@ function pollView(poll, { solo = false } = {}) {
                </tbody>
              </table>
            </div>
-           <p class="muted small">${escapeHtml(t('polls.tapHint'))}</p>`
+           <p class="muted small">${escapeHtml(
+             me && !closed
+               ? t('polls.answeringAs', { name: poll.people.find((person) => person.id === me)?.name || '' })
+               : t('polls.tapHint'),
+           )}</p>`
         : `<p class="muted small">${escapeHtml(poll.people.length ? t('polls.addChoices') : t('polls.addPeople'))}</p>`
     }
 
@@ -755,6 +764,9 @@ function bindPoll(poll) {
   view.querySelectorAll('[data-vote]').forEach((button) => {
     button.addEventListener('click', () => {
       const [personId, optionId] = button.dataset.vote.split('|');
+      // The screen already refuses; this refuses too, whatever the screen did.
+      const answeringAs = state.prefs.voter?.[poll.id];
+      if (answeringAs && answeringAs !== personId) return;
       const next = setVote(poll, personId, optionId, nextValue(voteOf(poll, personId, optionId)));
       if (next === poll) return;
       // Remember who this device answers as, so its column stands out.
