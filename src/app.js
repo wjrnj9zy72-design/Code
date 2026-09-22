@@ -558,6 +558,14 @@ function bindNewPoll() {
     });
   };
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelector('#add-person')?.addEventListener('click', () => {
     snapshot();
     newPollPeople = [...newPollPeople, ''];
@@ -586,17 +594,19 @@ function bindNewPoll() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
+    const group = chosenGroupForNew();
 
     let poll = createPoll({
       question: newPollQuestion,
       names: newPollPeople,
-      shared: Boolean(groupForNew()),
-      groupId: groupForNew()?.id || null,
+      shared: Boolean(group),
+      groupId: group?.id || null,
     });
     poll = addOptions(poll, newPollChoices);
 
     state.polls = [...state.polls, poll];
     persistPoll(poll);
+    resetGroupChoice();
     newPollQuestion = '';
     newPollChoices = '';
     newPollPeople = withMeFirst(['', ''], myName());
@@ -4677,13 +4687,56 @@ function groupForNew() {
   return autoGroup();
 }
 
-/** What a creation form says about where the thing will land. */
+/**
+ * Where a thing about to be created will land — decided on the form, before it
+ * exists, rather than left for a later that never came.
+ *
+ * A dialog would do the job and was tried; it puts a modal in front of every
+ * single creation, which is a heavy price for a question whose answer is
+ * almost always the obvious one. Chips answer it in advance, in the open, and
+ * cost a tap only when the answer is wrong.
+ *
+ * `chosen` is null until someone touches a chip, and only then does it beat
+ * the default — so opening the form after changing the pastille follows the
+ * pastille rather than a stale choice.
+ */
+let newGroupChoice = { touched: false, id: null };
+
+function resetGroupChoice() {
+  newGroupChoice = { touched: false, id: null };
+}
+
+/** The group a new thing goes into, chip or no chip. */
+function chosenGroupForNew() {
+  const held = groups();
+  if (!state.remote || !held.length) return null;
+  if (newGroupChoice.touched) {
+    return newGroupChoice.id ? held.find((group) => group.id === newGroupChoice.id) || null : null;
+  }
+  // Nobody has touched anything: the group being looked at, the only one there
+  // is, or — with several and none chosen — none, said plainly on the form.
+  return groupForNew() || (held.length === 1 ? held[0] : null);
+}
+
+/** The chips that say where it will land, and change it. */
 function willBeInHtml() {
-  if (!state.remote || !groups().length) return '';
-  const group = groupForNew();
-  return `<p class="muted small">${escapeHtml(
-    group ? t('groups.willBeIn', { name: group.name }) : t('groups.willBeInNone'),
-  )}</p>`;
+  const held = groups();
+  if (!state.remote || !held.length) return '';
+  const chosen = chosenGroupForNew();
+  const chip = (id, label) => `
+    <button type="button" class="chip ${(chosen?.id || '') === id ? 'chip--on' : ''}"
+            data-new-group="${escapeHtml(id)}" aria-pressed="${(chosen?.id || '') === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
+  return `
+    <div class="stack stack--tight">
+      <span class="muted small">${escapeHtml(t('groups.willGoIn'))}</span>
+      <div class="row row--tight" role="group" aria-label="${escapeHtml(t('groups.willGoIn'))}">
+        ${held.map((group) => chip(group.id, group.name)).join('')}
+        ${chip('', t('groups.keepToMyself'))}
+      </div>
+      ${chosen ? '' : `<p class="muted small">${escapeHtml(t('groups.willBeInNone'))}</p>`}
+    </div>`;
 }
 
 /** The group a document belongs to, when it belongs to one this device knows. */
@@ -4712,7 +4765,11 @@ function inGroupHtml(document_) {
       </span>
       ${
         group
-          ? ''
+          ? groups().length > 1
+            ? `<button type="button" class="button button--small button--ghost" data-copy-to-group="${escapeHtml(document_.id)}">
+                 ${escapeHtml(t('groups.copyTo'))}
+               </button>`
+            : ''
           : `<button type="button" class="button button--small" data-put-in-group="${escapeHtml(document_.id)}">
                ${escapeHtml(t('groups.putIn'))}
              </button>`
@@ -4754,6 +4811,72 @@ async function putInGroup(id) {
   else replaceGame(next);
 }
 
+/**
+ * Copy a thing into another group.
+ *
+ * A copy and not a move, and deliberately so: what is shared travels by its
+ * own identifier, and the database fixes a document's group when it is first
+ * written — a later write never moves it. Worse, a move that only happened
+ * here would be undone by anyone else's device, which still holds the thing
+ * under the old group and would write it back there at their next change. A
+ * copy owes nothing to the old group: a new identifier, a new row, and the
+ * original left exactly where it was.
+ */
+async function copyToGroup(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const game = getGame(id);
+  const spend = getSpend(id);
+  const document_ = poll || list || game || spend;
+  if (!document_ || !state.remote) return;
+
+  const group = await askGroup({ title: t('groups.copyWhere'), except: document_.groupId, always: true });
+  if (!group) {
+    render();
+    return;
+  }
+
+  const now = Date.now();
+  const copy = {
+    ...document_,
+    id: uid(document_.id.split('_')[0] || 'id'),
+    shared: true,
+    groupId: group.id,
+    // A copy is its own thing from here on: it is new to the group receiving
+    // it, whatever age the original had reached.
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  };
+
+  try {
+    await state.remote.put(copy, group.key);
+  } catch {
+    flash(t('share.pushFailed'), 'error');
+    render();
+    return;
+  }
+
+  flash(t('groups.copiedTo', { name: group.name }));
+  if (poll) {
+    state.polls = [...state.polls, copy];
+    persistPoll(copy);
+    navigate(`#/poll/${copy.id}`);
+  } else if (list) {
+    state.lists = [...state.lists, copy];
+    persistList(copy);
+    navigate(`#/list/${copy.id}`);
+  } else if (spend) {
+    state.spends = [...state.spends, copy];
+    persistSpend(copy);
+    navigate(`#/spend/${copy.id}`);
+  } else {
+    state.games = [...state.games, copy];
+    persist(copy);
+    navigate(`#/game/${copy.id}`);
+  }
+}
+
 /** The key a document was shared with, or the only group's, or none. */
 function keyFor(document_) {
   const held = groups();
@@ -4768,16 +4891,19 @@ function keyFor(document_) {
  * Which group to share this in. Answers straight away when there is only one
  * — the usual case — and asks when there are several.
  */
-async function askGroup() {
-  const held = groups();
+async function askGroup({ title = null, except = null, keepToMyself = false, always = false } = {}) {
+  const held = groups().filter((group) => group.id !== except);
   if (!held.length) return null;
-  if (held.length === 1) return held[0];
+  // One group and nothing to weigh it against: asking would be a question with
+  // a single answer. With "keep it to myself" on the table there are two — and
+  // an action worth a second look asks whatever the count.
+  if (held.length === 1 && !keepToMyself && !always) return held[0];
 
   return new Promise((resolve) => {
     const dialog = makeDialog('dialog dialog--ask');
     dialog.innerHTML = `
       <div class="stack">
-        <h2>${escapeHtml(t('groups.which'))}</h2>
+        <h2>${escapeHtml(title || t('groups.which'))}</h2>
         <div class="stack stack--tight">
           ${held
             .map(
@@ -4785,6 +4911,14 @@ async function askGroup() {
             )
             .join('')}
         </div>
+        ${
+          keepToMyself
+            ? `<button type="button" class="button button--block button--ghost" id="group-none">
+                 ${escapeHtml(t('groups.keepToMyself'))}
+               </button>
+               <p class="muted small">${escapeHtml(t('groups.keepToMyselfHint'))}</p>`
+            : ''
+        }
         <div class="row">
           <button type="button" class="button" id="group-cancel">${escapeHtml(t('action.cancel'))}</button>
         </div>
@@ -4799,6 +4933,7 @@ async function askGroup() {
     };
     dialog.addEventListener('close', () => done(null));
     dialog.querySelector('#group-cancel').addEventListener('click', () => done(null));
+    dialog.querySelector('#group-none')?.addEventListener('click', () => done(null));
     dialog.querySelectorAll('[data-group]').forEach((button) => {
       button.addEventListener('click', () => done(held.find((group) => group.id === button.dataset.group)));
     });
@@ -5764,6 +5899,14 @@ function bindNewList() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-suggest]').forEach((chip) => {
     chip.addEventListener('click', () => {
       snapshot();
@@ -5779,18 +5922,20 @@ function bindNewList() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
+    const group = chosenGroupForNew();
 
     let list = createList({
       name: newListName,
       names: newListPeople,
       // A device that sends everything by choice sends its lists too.
-      shared: Boolean(groupForNew()),
-      groupId: groupForNew()?.id || null,
+      shared: Boolean(group),
+      groupId: group?.id || null,
     });
     list = addItems(list, newListLines);
 
     state.lists = [...state.lists, list];
     persistList(list);
+    resetGroupChoice();
     newListName = '';
     newListPeople = withMeFirst(['', ''], myName());
     newListLines = '';
@@ -6213,6 +6358,16 @@ function bindNewGame() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshotNames();
+      state.newName = view.querySelector('#game-name').value;
+      state.newConfig = readConfigFromForm();
+      newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-remove-name]').forEach((button) => {
     button.addEventListener('click', () => {
       snapshotNames();
@@ -6223,7 +6378,7 @@ function bindNewGame() {
     });
   });
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     snapshotNames();
     const presetId = state.newPresetId || PRESETS[0].id;
@@ -6245,16 +6400,18 @@ function bindNewGame() {
       return;
     }
 
+    const group = chosenGroupForNew();
     const game = createGame({
       presetId,
       names,
       overrides: config,
       name: view.querySelector('#game-name').value,
-      shared: Boolean(groupForNew()),
-      groupId: groupForNew()?.id || null,
+      shared: Boolean(group),
+      groupId: group?.id || null,
     });
     state.games = [...state.games, game];
     persist(game);
+    resetGroupChoice();
 
     newGameNames = ['', '', ''];
     newGameTouched = false;
@@ -7066,6 +7223,13 @@ function render() {
     node.addEventListener('click', () => {
       node.disabled = true;
       void putInGroup(node.dataset.putInGroup);
+    });
+  });
+
+  view.querySelectorAll('[data-copy-to-group]').forEach((node) => {
+    node.addEventListener('click', () => {
+      node.disabled = true;
+      void copyToGroup(node.dataset.copyToGroup);
     });
   });
 

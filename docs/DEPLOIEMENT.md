@@ -2170,6 +2170,26 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
 - **Un groupe est une clé.** Qui l'a peut partager dans ce groupe et voir tout
   ce qui y est partagé ; qui ne l'a pas ne peut rien y créer. La clé se colle sur
   chaque appareil, et se renouvelle en une requête si elle fuite.
+- **Un groupe ne voit pas un autre groupe.** C'est vrai au niveau de la base, pas
+  seulement à l'écran : `marque_points_group_docs` ne rend que les documents dont
+  le `group_id` correspond à la clé présentée. La clé des *Copains* ne liste rien
+  de *Mifa*, n'en connaît aucun identifiant, et n'a aucun moyen d'en découvrir.
+  Le groupe d'un document est fixé à sa **première** écriture et ne bouge plus :
+  une écriture ultérieure, avec n'importe quelle clé, ne le déplace pas.
+- **La seule porte entre deux groupes est un lien envoyé à la main.** Lire un
+  document par son identifiant ne demande aucune clé — c'est ce qui permet
+  d'envoyer un sondage à quelqu'un qui n'est dans aucun groupe. L'identifiant
+  fait 122 bits d'aléa et ne se devine pas ; mais qui le reçoit peut lire, quel
+  que soit son groupe. Un lien envoyé est une porte ouverte, et c'est vous qui
+  l'ouvrez.
+- **Copier, oui ; déplacer, non.** L'app copie un document vers un autre groupe :
+  nouvel identifiant, nouvelle ligne, l'original ne bouge pas. Elle ne le
+  *déplace* pas, et ce n'est pas un oubli — le groupe étant fixé à la première
+  écriture, un déplacement devrait effacer la ligne d'origine, et n'importe quel
+  autre appareil du premier groupe, qui en garde une copie locale, la
+  réécrirait là-bas à sa prochaine modification. Tant que la base ne sait pas
+  dire « ce document a quitté ce groupe », déplacer serait une promesse qu'on ne
+  peut pas tenir.
 - **Contribuer ne demande rien.** Un lien envoyé à quelqu'un d'extérieur lui
   permet d'ajouter une manche, de cocher une ligne, de répondre à un sondage —
   et rien d'autre : il ne voit pas le reste du groupe et ne peut rien partager.

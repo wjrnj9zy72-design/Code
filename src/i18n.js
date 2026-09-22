@@ -339,10 +339,17 @@ export const STRINGS = {
     'groups.inNone': 'Dans aucun groupe — personne d’autre ne le voit.',
     'groups.putIn': 'Mettre dans un groupe',
     'groups.putInDone': 'Mis dans {name}. Le groupe le voit maintenant.',
-    'groups.willBeIn': 'Ira dans le groupe {name}.',
     'groups.willBeInNone':
       'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut d’un onglet, ou mettez-le dans un groupe une fois créé.',
     'groups.which': 'Partager dans quel groupe ?',
+    'groups.willGoIn': 'Dans quel groupe ?',
+    'groups.keepToMyself': 'Garder pour moi',
+    'groups.keepToMyselfHint':
+      'Rien ne partira : ce sera visible sur cet appareil seulement. Vous pourrez le mettre dans un groupe plus tard, depuis sa page.',
+    'groups.copyTo': 'Copier vers un autre groupe',
+    'groups.copyWhere': 'Copier vers quel groupe ?',
+    'groups.copiedTo':
+      'Copie faite dans {name}. Les deux vivent leur vie chacune de leur côté — l’original n’a pas bougé.',
     'groups.needOne':
       'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Aperçu.',
     'me.title': 'Moi',
@@ -1038,10 +1045,17 @@ export const STRINGS = {
     'groups.inNone': 'In no group — nobody else can see it.',
     'groups.putIn': 'Put in a group',
     'groups.putInDone': 'Put in {name}. The group can see it now.',
-    'groups.willBeIn': 'Will go in the group {name}.',
     'groups.willBeInNone':
       'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of a tab, or put it in one once it is made.',
     'groups.which': 'Share in which group?',
+    'groups.willGoIn': 'In which group?',
+    'groups.keepToMyself': 'Keep it to myself',
+    'groups.keepToMyselfHint':
+      'Nothing will be sent: it will be on this device only. You can put it in a group later, from its own page.',
+    'groups.copyTo': 'Copy to another group',
+    'groups.copyWhere': 'Copy to which group?',
+    'groups.copiedTo':
+      'Copied into {name}. The two go their own way from here — the original has not moved.',
     'groups.needOne': 'Sharing takes a group: paste its key in the Overview tab.',
     'me.title': 'Me',
     'me.hint':
