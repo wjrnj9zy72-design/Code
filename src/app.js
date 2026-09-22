@@ -369,8 +369,12 @@ function gaugeHtml(poll) {
     </section>`;
 }
 
-function pollView(poll) {
+function pollView(poll, { solo = false } = {}) {
   const me = state.prefs.voter?.[poll.id] || null;
+  // Solo: a visitor from a link, with the app's chrome gone too. Guest: anyone
+  // who is not the organiser — a visitor, or another member of the group — and
+  // who is therefore shown the voting and nothing else.
+  const guest = solo || !isOrganiser(poll);
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
 
@@ -395,15 +399,19 @@ function pollView(poll) {
         <p class="muted small">
           ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
           ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
-          ${poll.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+          ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
-        ${escapeHtml(t('action.back'))}
-      </button>
+      ${
+        solo
+          ? ''
+          : `<button type="button" class="button button--small button--ghost" data-goto="#/polls">
+               ${escapeHtml(t('action.back'))}
+             </button>`
+      }
     </div>
 
-    ${inGroupHtml(poll)}
+    ${guest ? '' : inGroupHtml(poll)}
 
     ${
       poll.people.length
@@ -418,7 +426,9 @@ function pollView(poll) {
         : ''
     }
 
-    <section class="card stack stack--tight">
+    ${guest && !closed ? soloJoinHtml() : ''}
+
+    ${guest ? soloDateHtml(poll) : `<section class="card stack stack--tight">
       <div class="section__head">
         <h2>${escapeHtml(t('polls.date'))}</h2>
         ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
@@ -443,7 +453,7 @@ function pollView(poll) {
              </div>`
           : ''
       }
-    </section>
+    </section>`}
 
     ${gaugeHtml(poll)}
 
@@ -464,9 +474,13 @@ function pollView(poll) {
                      (row) => `
                        <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
                          <th scope="row">
-                           <button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
-                             ${escapeHtml(row.option.text)}
-                           </button>
+                           ${
+                             guest
+                               ? escapeHtml(row.option.text)
+                               : `<button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
+                                    ${escapeHtml(row.option.text)}
+                                  </button>`
+                           }
                          </th>
                          ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
                          <td class="votes__score">${row.yes}</td>
@@ -481,7 +495,7 @@ function pollView(poll) {
     }
 
     ${
-      closed
+      closed || guest
         ? ''
         : `<form id="add-choice" class="card stack stack--tight">
              <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
@@ -492,7 +506,7 @@ function pollView(poll) {
            </form>`
     }
 
-    <section class="section">
+    ${guest ? '' : `<section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
       <div class="row">
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
@@ -510,6 +524,34 @@ function pollView(poll) {
         </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
+      </div>
+    </section>`}`;
+}
+
+/**
+ * For a guest whose name the poll does not have yet: add it, and answer.
+ * Whoever sends a link to a chat does not know every name in it; without
+ * this, a guest could look but never tick.
+ */
+function soloJoinHtml() {
+  return `
+    <form id="solo-me-form" class="row row--tight">
+      <label class="visually-hidden" for="solo-me">${escapeHtml(t('polls.soloMe'))}</label>
+      <input type="text" id="solo-me" autocomplete="given-name" maxlength="${NAME_KEPT}"
+             placeholder="${escapeHtml(t('polls.soloMe'))}" />
+      <button type="submit" class="button">${escapeHtml(t('polls.soloAdd'))}</button>
+    </form>`;
+}
+
+/** The day the poll settled on, to read — and to take away — but not to change. */
+function soloDateHtml(poll) {
+  if (!poll.date) return '';
+  const when = [formatDayLong(poll.date), poll.at].filter(Boolean).join(' · ');
+  return `
+    <section class="card stack stack--tight">
+      <p><strong>${escapeHtml(t('polls.soloSettled', { when }))}</strong></p>
+      <div class="row">
+        <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
       </div>
     </section>`;
 }
@@ -555,7 +597,7 @@ function persistPoll(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -569,7 +611,7 @@ function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -638,7 +680,7 @@ function bindNewPoll() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    let poll = landing(createPoll({ question: newPollQuestion, names: newPollPeople }));
+    let poll = organise(landing(createPoll({ question: newPollQuestion, names: newPollPeople })));
     poll = addOptions(poll, newPollChoices);
 
     state.polls = [...state.polls, poll];
@@ -711,6 +753,27 @@ function bindPoll(poll) {
     });
   });
 
+  // A guest not on the list adds their own name, and is then who answers.
+  view.querySelector('#solo-me-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = view.querySelector('#solo-me').value.trim();
+    if (!name) return;
+    // Matched the way everywhere else matches names — case, accents and
+    // blanks aside — so "chloe" does not add a second Chloé.
+    const same = (person) => sameName(person.name) === sameName(name);
+    let next = poll;
+    let person = poll.people.find(same);
+    if (!person) {
+      next = addPollPerson(poll, name);
+      person = next.people.find(same);
+    }
+    state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: person.id } };
+    savePrefs(state.prefs);
+    if (next === poll) render();
+    else replacePoll(next);
+    showMyColumn({ always: true });
+  });
+
   // Opening the poll: straight to one's own column, so answering takes no
   // scrolling at all. A redraw of the same poll keeps its place instead — see
   // render(), which runs after this and puts the grid back where it was.
@@ -771,7 +834,7 @@ function bindPoll(poll) {
     state.polls = state.polls.filter((item) => item.id !== poll.id);
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
-    if (state.remote) state.remote.remove(poll.id, keyFor(poll)).catch(() => {});
+    if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
     navigate('#/polls');
   });
 
@@ -1326,7 +1389,7 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -1335,7 +1398,7 @@ function persist(changed) {
 function forget(id, game = null) {
   saveGames(state.games);
   if (state.store) void state.store.remove(id);
-  if (state.remote) state.remote.remove(id, keyFor(game)).catch(() => {});
+  if (state.remote) state.remote.remove(id, keyFor(game), organiserSecret(id)).catch(() => {});
 }
 
 function getGame(id) {
@@ -1713,7 +1776,7 @@ function bindSpend(spend) {
     state.spends = state.spends.filter((item) => item.id !== spend.id);
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
-    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend)).catch(() => {});
+    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
     navigate('#/spends');
   });
 }
@@ -1932,7 +1995,8 @@ function route() {
   if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
-  if (name === 'poll' && param) return { name: 'poll', id: param };
+  // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
+  if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
 }
 
@@ -4535,7 +4599,7 @@ function importGames(source) {
 
   for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
-    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
+    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_), organiserSecret(document_.id)).catch(() => {});
   }
   flash(t('home.importDone', {
     count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
@@ -4996,7 +5060,7 @@ async function putInGroup(id) {
 
   const next = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
-    await state.remote.put(next, group.key);
+    await state.remote.put(next, group.key, organiserSecret(next.id));
   } catch {
     flash(t('share.pushFailed'), 'error');
     render();
@@ -5036,7 +5100,7 @@ async function copyToGroup(id) {
   }
 
   const now = Date.now();
-  const copy = {
+  const fresh = {
     ...document_,
     id: uid(document_.id.split('_')[0] || 'id'),
     shared: true,
@@ -5050,9 +5114,11 @@ async function copyToGroup(id) {
     updatedAt: now,
     archivedAt: null,
   };
+  // A copied poll is a new poll, and whoever copies it organises it.
+  const copy = poll ? organise(fresh) : fresh;
 
   try {
-    await state.remote.put(copy, group.key);
+    await state.remote.put(copy, group.key, organiserSecret(copy.id));
   } catch {
     flash(t('share.pushFailed'), 'error');
     render();
@@ -5077,6 +5143,37 @@ async function copyToGroup(id) {
     persist(copy);
     navigate(`#/game/${copy.id}`);
   }
+}
+
+/**
+ * The organiser of a poll: the device that created it, holding a secret the
+ * database knows only by its fingerprint.
+ *
+ * Everyone else — the other members of the group as much as a visitor from a
+ * link — ticks their evenings and adds their own name, and that is all: the
+ * day, the closing, the question, the choices, the list of people and the
+ * poll itself are the organiser's. The screen hides what is not theirs, and
+ * the database, told nothing it can check, keeps what the organiser set.
+ *
+ * The secret lives on this device only. A poll made before the organiser
+ * existed has none, and stays open to all, as it always was.
+ */
+function organiserSecret(id) {
+  return state.prefs.organiser?.[id] || null;
+}
+
+function isOrganiser(poll) {
+  return !poll?.owned || Boolean(organiserSecret(poll.id));
+}
+
+/** Make this device the organiser of a new poll: a secret, kept here. */
+function organise(poll) {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const secret = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  state.prefs = { ...state.prefs, organiser: { ...state.prefs.organiser, [poll.id]: secret } };
+  savePrefs(state.prefs);
+  return { ...poll, owned: true };
 }
 
 /** The key a document was shared with, or the only group's, or none. */
@@ -5159,7 +5256,7 @@ async function startSharing(document_) {
 
   const shared = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
-    await state.remote.put(shared, group.key);
+    await state.remote.put(shared, group.key, organiserSecret(shared.id));
   } catch (error) {
     flash(remoteReason(error), 'error');
     render();
@@ -5767,7 +5864,7 @@ async function shareGames(games, group) {
       const next = document_.shared
         ? document_
         : { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
-      await state.remote.put(next, group.key);
+      await state.remote.put(next, group.key, organiserSecret(next.id));
       if (next === document_) continue;
       state.games = state.games.map((item) => (item.id === next.id ? next : item));
       state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
@@ -6046,7 +6143,7 @@ function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -6226,7 +6323,7 @@ function bindList(list) {
     state.lists = state.lists.filter((item) => item.id !== list.id);
     saveLists(state.lists);
     if (state.store) void state.store.remove(list.id);
-    if (state.remote) state.remote.remove(list.id, keyFor(list)).catch(() => {});
+    if (state.remote) state.remote.remove(list.id, keyFor(list), organiserSecret(list.id)).catch(() => {});
     navigate('#/lists');
   });
 
@@ -7254,9 +7351,50 @@ function restoreScrolls(kept) {
   });
 }
 
+/**
+ * The page reduced to one poll, for whoever opened a shared link.
+ *
+ * Someone who got the link in a Messenger chat came to tick their evenings,
+ * not to find an app: the tabs, the overview, the button that makes a new list
+ * were all doors into rooms that are none of theirs — empty rooms, since their
+ * device holds nothing else, but doors all the same. Here there are none. The
+ * tabs go, the name at the top stops being a link, and the poll page keeps
+ * only what a guest does with it.
+ *
+ * It is a way of showing, not a lock: the data was already walled off by the
+ * database, which lists nothing of a group without its key. Someone who edits
+ * the address by hand reaches the app — their own, empty one.
+ */
+function setSolo(on) {
+  document.body.classList.toggle('solo', on);
+  // Hidden outright, not only by the stylesheet: out of reach of a tap, of the
+  // keyboard and of a screen reader alike, whatever the styles do.
+  const tabs = document.getElementById('tabs');
+  if (tabs) tabs.hidden = on;
+  const brand = document.querySelector('.app-bar__brand');
+  if (!brand) return;
+  if (on) {
+    brand.removeAttribute('href');
+    brand.setAttribute('aria-disabled', 'true');
+  } else {
+    brand.setAttribute('href', '#/');
+    brand.removeAttribute('aria-disabled');
+  }
+}
+
+/** A poll that is not there: back to the list — or, for a guest, a sentence and nothing else. */
+function leavePoll(current) {
+  if (!current.solo) {
+    navigate('#/polls');
+    return;
+  }
+  view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+}
+
 function render() {
   const current = route();
   markTab(current);
+  setSolo(Boolean(current.solo));
   const kept = keptScrolls();
   // Nothing to fetch without a database, or before this device is in a group.
   const sync = document.getElementById('sync');
@@ -7346,16 +7484,16 @@ function render() {
             if (state.openingPoll !== asked) return;
             state.openingPoll = null;
             if (found) render();
-            else if (route().id === asked) navigate('#/polls');
+            else if (route().id === asked) leavePoll(current);
           });
         }
         return;
       }
-      navigate('#/polls');
+      leavePoll(current);
       return;
     }
     watchPoll(poll.id);
-    view.innerHTML = pollView(poll);
+    view.innerHTML = pollView(poll, { solo: current.solo });
     bindPoll(poll);
   } else if (current.name === 'stats') {
     stopWatching();

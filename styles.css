@@ -789,6 +789,15 @@ table.scores .meta-cell { color: var(--muted); }
 
 :root[data-theme="dark"] .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
 
+/* ------------------------------------------------------------------ solo --- */
+/*
+ * A shared poll opened from its link: the poll and nothing else. No tabs, no
+ * sync button, and the name at the top is no longer a way home.
+ */
+body.solo .tabs,
+body.solo #sync { display: none; }
+body.solo .app-bar__brand { cursor: default; }
+
 /* ----------------------------------------------------------------- gauge --- */
 /*
  * The poll's answer at a glance: one bar per choice, the longest first. The
