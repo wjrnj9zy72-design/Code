@@ -39,6 +39,13 @@ test('a document with no group is in every view, and in none of the group ones',
   assert.equal(inGroup(undefined, 'g1'), false, 'nothing is in no group');
 });
 
+test('a link-only document is in no group view, not even the one that created it', () => {
+  // The database never lists it for that group: counting it there would tell
+  // the group about something it cannot see.
+  assert.equal(inGroup({ groupId: 'g1', linkOnly: true }, 'g1'), false);
+  assert.equal(inGroup({ groupId: 'g1', linkOnly: true }, ''), true, 'but "All" shows it, to whoever holds it');
+});
+
 test('a group is counted on what it holds, not on what the device holds', () => {
   const data = {
     lists: [courses('mifa'), courses('copains')],
