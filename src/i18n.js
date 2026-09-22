@@ -335,6 +335,13 @@ export const STRINGS = {
     'groups.leave': 'Quitter',
     'groups.confirmLeave':
       'Quitter ce groupe sur cet appareil ? Ce qui est déjà ici y reste, mais vous ne pourrez plus rien y partager ni récupérer sans recoller la clé.',
+    'groups.inGroup': 'Dans le groupe {name}.',
+    'groups.inNone': 'Dans aucun groupe — personne d’autre ne le voit.',
+    'groups.putIn': 'Mettre dans un groupe',
+    'groups.putInDone': 'Mis dans {name}. Le groupe le voit maintenant.',
+    'groups.willBeIn': 'Ira dans le groupe {name}.',
+    'groups.willBeInNone':
+      'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut d’un onglet, ou mettez-le dans un groupe une fois créé.',
     'groups.which': 'Partager dans quel groupe ?',
     'groups.needOne':
       'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Aperçu.',
@@ -1027,6 +1034,13 @@ export const STRINGS = {
     'groups.leave': 'Leave',
     'groups.confirmLeave':
       'Leave this group on this device? What is already here stays, but you will not be able to share or fetch anything there without pasting the key again.',
+    'groups.inGroup': 'In the group {name}.',
+    'groups.inNone': 'In no group — nobody else can see it.',
+    'groups.putIn': 'Put in a group',
+    'groups.putInDone': 'Put in {name}. The group can see it now.',
+    'groups.willBeIn': 'Will go in the group {name}.',
+    'groups.willBeInNone':
+      'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of a tab, or put it in one once it is made.',
     'groups.which': 'Share in which group?',
     'groups.needOne': 'Sharing takes a group: paste its key in the Overview tab.',
     'me.title': 'Me',

@@ -323,6 +323,7 @@ function newPollView() {
         }
       </div>
 
+      ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('polls.create'))}</button>
     </form>`;
 }
@@ -359,6 +360,8 @@ function pollView(poll) {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${inGroupHtml(poll)}
 
     ${
       poll.people.length
@@ -587,8 +590,8 @@ function bindNewPoll() {
     let poll = createPoll({
       question: newPollQuestion,
       names: newPollPeople,
-      shared: Boolean(autoGroup()),
-      groupId: autoGroup()?.id || null,
+      shared: Boolean(groupForNew()),
+      groupId: groupForNew()?.id || null,
     });
     poll = addOptions(poll, newPollChoices);
 
@@ -1100,6 +1103,7 @@ function newListView() {
         <textarea id="list-lines" rows="5" placeholder="${escapeHtml(t('lists.firstLinesPlaceholder'))}">${escapeHtml(newListLines)}</textarea>
       </label>
 
+      ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('lists.create'))}</button>
     </form>`;
 }
@@ -1158,6 +1162,8 @@ function listView(list) {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${inGroupHtml(list)}
 
     <form id="add-line" class="card stack stack--tight">
       <label class="visually-hidden" for="new-line">${escapeHtml(t('lists.addLine'))}</label>
@@ -1398,6 +1404,8 @@ function spendView(spend) {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${inGroupHtml(spend)}
 
     ${
       spend.people.length
@@ -3851,6 +3859,7 @@ function newGameView() {
         </label>
       </div>
 
+      ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('new.start'))}</button>
     </form>`;
 }
@@ -4001,6 +4010,8 @@ function gameView(game) {
       </div>
       <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
     </div>
+
+    ${inGroupHtml(game)}
 
     ${winnerBanner}
 
@@ -4649,6 +4660,98 @@ function autoGroup() {
   if (!state.prefs.autoShare || !state.remote) return null;
   const held = groups();
   return held.length === 1 ? held[0] : null;
+}
+
+/**
+ * The group a new thing goes into: the one being looked at, or the only one
+ * this device sends to on its own.
+ *
+ * Looking at Mifa and writing a list means writing a list for Mifa. Choosing
+ * the group again, in a dialog, for something that was made inside that very
+ * filter, is a question whose answer is already on the screen — and one that,
+ * unasked, left the list in no group at all.
+ */
+function groupForNew() {
+  const chosen = groupFilter();
+  if (chosen) return groups().find((group) => group.id === chosen) || null;
+  return autoGroup();
+}
+
+/** What a creation form says about where the thing will land. */
+function willBeInHtml() {
+  if (!state.remote || !groups().length) return '';
+  const group = groupForNew();
+  return `<p class="muted small">${escapeHtml(
+    group ? t('groups.willBeIn', { name: group.name }) : t('groups.willBeInNone'),
+  )}</p>`;
+}
+
+/** The group a document belongs to, when it belongs to one this device knows. */
+function groupOf(document_) {
+  return document_?.groupId ? groups().find((group) => group.id === document_.groupId) || null : null;
+}
+
+/**
+ * Which group a thing is in, said on the thing itself — and the way to put it
+ * in one.
+ *
+ * Until now the only way to attach a list or a poll to a group was the Share
+ * button, which reads as "give me a link", not as "put this in Mifa". With a
+ * single group the app did it silently and nobody had to know; with two, it
+ * stopped doing it and still nobody was told. So a document sat in no group,
+ * invisible to everyone else and hidden by every filter, with nothing on the
+ * page to say so or to fix it.
+ */
+function inGroupHtml(document_) {
+  if (!state.remote || !groups().length) return '';
+  const group = groupOf(document_);
+  return `
+    <div class="row row--tight">
+      <span class="muted small">
+        ${escapeHtml(group ? t('groups.inGroup', { name: group.name }) : t('groups.inNone'))}
+      </span>
+      ${
+        group
+          ? ''
+          : `<button type="button" class="button button--small" data-put-in-group="${escapeHtml(document_.id)}">
+               ${escapeHtml(t('groups.putIn'))}
+             </button>`
+      }
+    </div>`;
+}
+
+/**
+ * Put a document in a group, whichever kind it is. The document travels from
+ * here on, and stops being hidden by the group pastilles.
+ */
+async function putInGroup(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const game = getGame(id);
+  const spend = getSpend(id);
+  const document_ = poll || list || game || spend;
+  if (!document_ || !state.remote) return;
+
+  const group = await askGroup();
+  if (!group) {
+    render();
+    return;
+  }
+
+  const next = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
+  try {
+    await state.remote.put(next, group.key);
+  } catch {
+    flash(t('share.pushFailed'), 'error');
+    render();
+    return;
+  }
+
+  flash(t('groups.putInDone', { name: group.name }));
+  if (poll) replacePoll(next);
+  else if (list) replaceList(next);
+  else if (spend) replaceSpend(next);
+  else replaceGame(next);
 }
 
 /** The key a document was shared with, or the only group's, or none. */
@@ -5681,8 +5784,8 @@ function bindNewList() {
       name: newListName,
       names: newListPeople,
       // A device that sends everything by choice sends its lists too.
-      shared: Boolean(autoGroup()),
-      groupId: autoGroup()?.id || null,
+      shared: Boolean(groupForNew()),
+      groupId: groupForNew()?.id || null,
     });
     list = addItems(list, newListLines);
 
@@ -6147,8 +6250,8 @@ function bindNewGame() {
       names,
       overrides: config,
       name: view.querySelector('#game-name').value,
-      shared: Boolean(autoGroup()),
-      groupId: autoGroup()?.id || null,
+      shared: Boolean(groupForNew()),
+      groupId: groupForNew()?.id || null,
     });
     state.games = [...state.games, game];
     persist(game);
@@ -6959,6 +7062,13 @@ function render() {
       render();
     });
   });
+  view.querySelectorAll('[data-put-in-group]').forEach((node) => {
+    node.addEventListener('click', () => {
+      node.disabled = true;
+      void putInGroup(node.dataset.putInGroup);
+    });
+  });
+
   view.querySelectorAll('[data-group-tile]').forEach((node) => {
     node.addEventListener('click', () => {
       setGroupFilter(node.dataset.groupTile);
