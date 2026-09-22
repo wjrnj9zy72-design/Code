@@ -802,6 +802,9 @@ body.solo .tabs,
 body.solo #sync { display: none; }
 body.solo .app-bar__brand { cursor: default; }
 
+/* « Proposé par … », sous un titre : qui demande, en un coup d'œil. */
+.signed { margin: 2px 0 0; color: var(--muted); font-style: italic; }
+
 /* ----------------------------------------------------------------- gauge --- */
 /*
  * The poll's answer at a glance: one bar per choice, the longest first. The

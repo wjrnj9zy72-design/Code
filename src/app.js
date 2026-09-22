@@ -406,6 +406,7 @@ function pollView(poll, { solo = false } = {}) {
           ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
           ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
+        ${signedByHtml(poll)}
       </div>
       ${
         solo
@@ -532,6 +533,7 @@ function pollView(poll, { solo = false } = {}) {
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
     </section>`}`;
@@ -714,7 +716,7 @@ function bindNewPoll() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    let poll = organise(landing(createPoll({ question: newPollQuestion, names: newPollPeople })));
+    let poll = signed(organise(landing(createPoll({ question: newPollQuestion, names: newPollPeople }))));
     poll = addOptions(poll, newPollChoices);
 
     state.polls = [...state.polls, poll];
@@ -865,6 +867,8 @@ function bindPoll(poll) {
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
+  view.querySelector('#poll-sign')?.addEventListener('click', () =>
+    openSignatureDialog(poll, (signedBy) => replacePoll({ ...poll, signedBy, updatedAt: Date.now() })));
 
   view.querySelector('#poll-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('polls.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
@@ -1033,6 +1037,72 @@ function openPollNameDialog(poll) {
   });
   dialog.querySelector('#poll-name-cancel').addEventListener('click', () => dialog.close());
 
+  dialog.showModal();
+  field.focus();
+  field.select();
+}
+
+/**
+ * "Proposé par …": a nickname under the title of a list or a poll, for the
+ * people who open it from a link and would otherwise not know who is asking.
+ *
+ * Per document, because the same person is "Gui" to the family and "le voisin
+ * du 3e" to the building. One nickname is remembered and put on whatever this
+ * device creates next; each list or poll can then carry another, or none, and
+ * change at any time. On a poll with an organiser it is the organiser's to
+ * set, like the rest of what frames the poll — the database keeps it so.
+ */
+function signedByHtml(document_) {
+  const name = String(document_?.signedBy || '').trim();
+  if (!name) return '';
+  return `<p class="signed small">${escapeHtml(t('sign.by', { name }))}</p>`;
+}
+
+/** A new list or poll takes the nickname this device signs with, if it has one. */
+function signed(document_) {
+  const name = String(state.prefs.signature || '').trim();
+  return name ? { ...document_, signedBy: name } : document_;
+}
+
+function openSignatureDialog(document_, save) {
+  const current = String(document_.signedBy || '').trim();
+  const remembered = String(state.prefs.signature || '').trim();
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(t('sign.edit'))}</h2>
+      <p class="muted small">${escapeHtml(t('sign.hint'))}</p>
+      <label class="visually-hidden" for="sign-name">${escapeHtml(t('sign.placeholder'))}</label>
+      <input type="text" id="sign-name" maxlength="40" autocomplete="nickname"
+             value="${escapeHtml(current || remembered)}" placeholder="${escapeHtml(t('sign.placeholder'))}" />
+      <label class="checkbox">
+        <input type="checkbox" id="sign-remember" ${!remembered || remembered === (current || remembered) ? 'checked' : ''} />
+        ${escapeHtml(t('sign.remember'))}
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="sign-save">${escapeHtml(t('action.save'))}</button>
+        <button type="button" class="button" id="sign-cancel">${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </form>`;
+
+  const field = dialog.querySelector('#sign-name');
+  const done = () => {
+    const name = field.value.trim().slice(0, 40) || null;
+    if (dialog.querySelector('#sign-remember').checked) {
+      state.prefs = { ...state.prefs, signature: name };
+      savePrefs(state.prefs);
+    }
+    dialog.close();
+    // Emptied: the signature comes off this one, and says so nowhere else.
+    if (name !== (current || null)) save(name);
+  };
+  dialog.querySelector('#sign-save').addEventListener('click', done);
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    done();
+  });
+  dialog.querySelector('#sign-cancel').addEventListener('click', () => dialog.close());
   dialog.showModal();
   field.focus();
   field.select();
@@ -1353,6 +1423,7 @@ function listView(list) {
           ${escapeHtml(total ? t('lists.progress', { done, total }) : t('lists.empty'))}
           ${list.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
+        ${signedByHtml(list)}
       </div>
       <button type="button" class="button button--small button--ghost" data-goto="#/lists">
         ${escapeHtml(t('action.back'))}
@@ -1415,6 +1486,7 @@ function listView(list) {
           ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
     </section>`;
@@ -6276,7 +6348,7 @@ function bindNewList() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    let list = landing(createList({ name: newListName, names: newListPeople }));
+    let list = signed(landing(createList({ name: newListName, names: newListPeople })));
     list = addItems(list, newListLines);
 
     state.lists = [...state.lists, list];
@@ -6372,6 +6444,8 @@ function bindList(list) {
   });
 
   view.querySelector('#list-rename')?.addEventListener('click', () => openListNameDialog(list));
+  view.querySelector('#list-sign')?.addEventListener('click', () =>
+    openSignatureDialog(list, (signedBy) => replaceList({ ...list, signedBy, updatedAt: Date.now() })));
 
   view.querySelector('#list-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('lists.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
