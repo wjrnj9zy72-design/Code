@@ -66,11 +66,13 @@ test('answering the same thing twice changes nothing', () => {
   assert.equal(setVote(poll, people[0], options[0], 'yes'), poll);
 });
 
-test('tapping a cell goes round: yes, maybe, no, nothing', () => {
+test('a tap ticks an evening, a second tap unticks it', () => {
   assert.equal(nextValue(null), 'yes');
-  assert.equal(nextValue('yes'), 'maybe');
-  assert.equal(nextValue('maybe'), 'no');
-  assert.equal(nextValue('no'), null);
+  assert.equal(nextValue('yes'), null);
+  // Answers given before "maybe" and "no" were dropped are still there; a tap
+  // on one makes it what the grid can now say.
+  assert.equal(nextValue('maybe'), 'yes');
+  assert.equal(nextValue('no'), 'yes');
 });
 
 test('a closed poll takes no more answers', () => {
@@ -91,36 +93,38 @@ test('a closed poll takes no more answers', () => {
 test('the count puts the evening that suits most people first', () => {
   let poll = sample();
   const { people, options } = idsOf(poll);
-  // Vendredi : un oui. Samedi : deux oui. Dimanche : un oui et deux peut-être.
+  // Vendredi : un oui. Samedi : deux oui. Dimanche : un oui.
   poll = setVote(poll, people[0], options[0], 'yes');
   poll = setVote(poll, people[0], options[1], 'yes');
   poll = setVote(poll, people[1], options[1], 'yes');
   poll = setVote(poll, people[1], options[2], 'yes');
-  poll = setVote(poll, people[0], options[2], 'maybe');
-  poll = setVote(poll, people[2], options[2], 'maybe');
 
   const result = tally(poll);
-  assert.deepEqual(result.ranked.map((row) => row.option.text), ['Samedi', 'Dimanche', 'Vendredi'],
-    'level on the count, the firmer yeses come first');
+  assert.deepEqual(result.ranked.map((row) => row.option.text), ['Samedi', 'Vendredi', 'Dimanche'],
+    'most available first; level, in the order they were written');
   assert.deepEqual(result.rows.map((row) => row.option.text), ['Vendredi', 'Samedi', 'Dimanche'],
     'while the grid keeps the order the choices were written in');
-  assert.equal(result.ranked[1].yes, 1);
-  assert.equal(result.ranked[1].maybe, 2);
-  assert.equal(result.ranked[1].missing, 0);
-  assert.deepEqual(result.leaders, [options[1]], 'and only the firmest of the two leads');
-  assert.equal(result.answered, 3, 'everyone has answered something');
+  assert.equal(result.ranked[0].yes, 2);
+  assert.equal(result.ranked[0].missing, 1);
+  assert.deepEqual(result.leaders, [options[1]]);
+  assert.equal(result.answered, 2, 'the third person has ticked nothing yet');
 });
 
-test('a maybe is what separates two evenings otherwise level', () => {
+test('an old "maybe" or "no" counts for nothing, as the grid shows nothing for it', () => {
+  // A poll answered before the change: its maybes and noes are still stored.
+  // The grid no longer draws them, so the count must not weigh them either —
+  // or the gauge would crown an evening with fewer ticks than another.
   let poll = sample();
   const { people, options } = idsOf(poll);
   poll = setVote(poll, people[0], options[0], 'yes');
   poll = setVote(poll, people[0], options[1], 'yes');
   poll = setVote(poll, people[1], options[1], 'maybe');
+  poll = setVote(poll, people[2], options[1], 'maybe');
 
   const result = tally(poll);
-  assert.equal(result.ranked[0].option.text, 'Samedi', 'one yes and a maybe beats one yes alone');
-  assert.deepEqual(result.leaders, [options[1]]);
+  assert.equal(result.rows[1].yes, 1);
+  assert.equal(result.rows[1].score, 1, 'two maybes add nothing');
+  assert.deepEqual(result.leaders, [options[0], options[1]], 'one tick each: both lead');
 });
 
 test('a poll nobody has answered has no leader', () => {

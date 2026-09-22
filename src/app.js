@@ -208,7 +208,8 @@ function pollTitle(poll) {
   return poll.question || t('polls.untitled');
 }
 
-const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
+/** A cell says one thing: available. What was "maybe" or "no" before shows as nothing. */
+const VOTE_MARK = { yes: '✓' };
 
 function pollCardHtml(poll) {
   const { answered, leaders, ranked } = tally(poll);
@@ -224,9 +225,7 @@ function pollCardHtml(poll) {
       ${
         leading
           ? `<span class="game-card__meta">${escapeHtml(
-              leading.yes
-                ? t('polls.leading', { option: leading.option.text, count: leading.yes })
-                : t('polls.leadingMaybe', { option: leading.option.text, count: leading.maybe }),
+              t('polls.leading', { option: leading.option.text, count: leading.yes }),
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
@@ -328,19 +327,62 @@ function newPollView() {
     </form>`;
 }
 
+/**
+ * Which evenings suit the most people, at a glance: one bar per choice, the
+ * longest first.
+ *
+ * The grid answers "who can make what"; this answers "so, which one?", which
+ * is the question everyone opens the poll to ask. A bar's full length is
+ * everyone asked — not the best score — so three out of twelve looks like
+ * three out of twelve, and not like a landslide. The exact count sits at the
+ * end of every bar, in plain text: the length is for the eye, the number is
+ * for certainty. Ranked, unlike the grid: nobody taps a bar, so nothing moves
+ * under anyone's finger when the order changes.
+ */
+function gaugeHtml(poll) {
+  const total = poll.people.length;
+  const { ranked, leaders } = tally(poll);
+  if (!total || !ranked.some((row) => row.yes > 0)) return '';
+  return `
+    <section class="gauge" aria-labelledby="gauge-title">
+      <h2 id="gauge-title" class="gauge__title">${escapeHtml(t('polls.gauge'))}</h2>
+      <ol class="gauge__rows">
+        ${ranked
+          .map((row) => {
+            const share = Math.round((row.yes / total) * 100);
+            const lead = leaders.includes(row.option.id);
+            const said = t('polls.countLine', { yes: row.yes, total });
+            return `
+              <li class="gauge__row ${lead ? 'gauge__row--lead' : ''}" title="${escapeHtml(`${row.option.text} — ${said}`)}">
+                <span class="gauge__label">${escapeHtml(row.option.text)}</span>
+                <span class="gauge__track" aria-hidden="true">
+                  <span class="gauge__fill" style="width: ${share}%"></span>
+                </span>
+                <span class="gauge__count">
+                  <span aria-hidden="true">${row.yes}/${total}</span>
+                  <span class="visually-hidden">${escapeHtml(said)}</span>
+                </span>
+              </li>`;
+          })
+          .join('')}
+      </ol>
+    </section>`;
+}
+
 function pollView(poll) {
   const me = state.prefs.voter?.[poll.id] || null;
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
 
   const cellHtml = (option, person) => {
-    const value = voteOf(poll, person.id, option.id);
+    const yes = voteOf(poll, person.id, option.id) === 'yes';
     return `
       <td class="${person.id === me ? 'votes__mine' : ''}">
-        <button type="button" class="vote ${value ? `vote--${value}` : 'vote--none'}"
+        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'}"
                 data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+                aria-pressed="${yes ? 'true' : 'false'}"
                 aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
-          ${escapeHtml(value ? VOTE_MARK[value] : '·')}
+          ${yes ? VOTE_MARK.yes : ''}
         </button>
       </td>`;
   };
@@ -403,9 +445,11 @@ function pollView(poll) {
       }
     </section>
 
+    ${gaugeHtml(poll)}
+
     ${
       poll.options.length && poll.people.length
-        ? `<div class="table-wrap">
+        ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
                  <tr>
@@ -425,7 +469,7 @@ function pollView(poll) {
                            </button>
                          </th>
                          ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
-                         <td class="votes__score">${row.yes}${row.maybe ? `<span class="muted small"> +${row.maybe}~</span>` : ''}</td>
+                         <td class="votes__score">${row.yes}</td>
                        </tr>`,
                    )
                    .join('')}
@@ -607,6 +651,39 @@ function bindNewPoll() {
   });
 }
 
+/**
+ * Bring one's own column into view in the poll grid, just right of the column
+ * of choices, which stays put. Does nothing when it is already in sight,
+ * unless asked to.
+ */
+function showMyColumn({ always = false } = {}) {
+  const box = view.querySelector('.table-wrap[data-keep-scroll]');
+  const mine = box?.querySelector('thead th.votes__mine');
+  const first = box?.querySelector('thead th');
+  if (!box || !mine || !first) return;
+  const start = mine.offsetLeft - first.offsetWidth;
+  const inSight = start >= box.scrollLeft && mine.offsetLeft + mine.offsetWidth <= box.scrollLeft + box.clientWidth;
+  if (inSight && !always) return;
+
+  // Opening the poll: a quiet jump, before anything has been looked at.
+  if (!always) {
+    box.scrollLeft = Math.max(0, start);
+    return;
+  }
+
+  // Asked for with a tap on a name: go there, visibly. The name chips sit at
+  // the top of the page and the grid well below them — below the fold on a
+  // phone — so lighting up a column nobody can see answered nothing. The page
+  // comes down to the grid, just under the bar that stays at the top, and the
+  // grid slides to the column; both move, so the eye follows where it went.
+  const still = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const behavior = still ? 'auto' : 'smooth';
+  const bar = document.querySelector('.app-bar');
+  const top = box.getBoundingClientRect().top + window.scrollY - (bar?.offsetHeight || 0) - 8;
+  window.scrollTo({ top: Math.max(0, top), behavior });
+  box.scrollTo({ left: Math.max(0, start), behavior });
+}
+
 function bindPoll(poll) {
   view.querySelectorAll('[data-vote]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -628,8 +705,16 @@ function bindPoll(poll) {
       state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: chosen } };
       savePrefs(state.prefs);
       render();
+      // Asked for by the tap itself: show that person's column, wherever the
+      // grid had been left.
+      showMyColumn({ always: true });
     });
   });
+
+  // Opening the poll: straight to one's own column, so answering takes no
+  // scrolling at all. A redraw of the same poll keeps its place instead — see
+  // render(), which runs after this and puts the grid back where it was.
+  showMyColumn();
 
   view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -857,7 +942,7 @@ function openPollNameDialog(poll) {
 function pollText(poll) {
   const { rows } = tally(poll);
   const line = (row) =>
-    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, maybe: row.maybe, no: row.no })}`;
+    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, total: poll.people.length })}`;
   return [pollTitle(poll), '', ...rows.map(line)].join('\n');
 }
 
@@ -7143,9 +7228,36 @@ function bindChrome() {
 
 /* ----------------------------------------------------------------- render --- */
 
+/**
+ * Where each marked box was scrolled to, taken just before a redraw.
+ *
+ * A redraw replaces the whole view, and a box that scrolls sideways — the poll
+ * grid with a dozen people across it — comes back at its left edge. Tapping
+ * Léa's cell at the far right then threw the grid back to Gui's, every single
+ * time. Boxes that should hold their place carry data-keep-scroll, keyed by
+ * what they show; a redraw of the same thing puts them back where they were.
+ */
+function keptScrolls() {
+  const kept = new Map();
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    kept.set(box.dataset.keepScroll, { left: box.scrollLeft, top: box.scrollTop });
+  });
+  return kept;
+}
+
+function restoreScrolls(kept) {
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    const was = kept.get(box.dataset.keepScroll);
+    if (!was) return;
+    box.scrollLeft = was.left;
+    box.scrollTop = was.top;
+  });
+}
+
 function render() {
   const current = route();
   markTab(current);
+  const kept = keptScrolls();
   // Nothing to fetch without a database, or before this device is in a group.
   const sync = document.getElementById('sync');
   if (sync) sync.hidden = !(state.remote && groups().length);
@@ -7351,6 +7463,8 @@ function render() {
   view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
     button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
   });
+
+  restoreScrolls(kept);
 }
 
 /**
