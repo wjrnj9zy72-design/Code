@@ -405,7 +405,7 @@ function pollView(poll) {
 
     ${
       poll.options.length && poll.people.length
-        ? `<div class="table-wrap">
+        ? `<div class="table-wrap" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
                  <tr>
@@ -607,6 +607,22 @@ function bindNewPoll() {
   });
 }
 
+/**
+ * Bring one's own column into view in the poll grid, just right of the column
+ * of choices, which stays put. Does nothing when it is already in sight,
+ * unless asked to.
+ */
+function showMyColumn({ always = false } = {}) {
+  const box = view.querySelector('.table-wrap[data-keep-scroll]');
+  const mine = box?.querySelector('thead th.votes__mine');
+  const first = box?.querySelector('thead th');
+  if (!box || !mine || !first) return;
+  const start = mine.offsetLeft - first.offsetWidth;
+  const inSight = start >= box.scrollLeft && mine.offsetLeft + mine.offsetWidth <= box.scrollLeft + box.clientWidth;
+  if (inSight && !always) return;
+  box.scrollLeft = Math.max(0, start);
+}
+
 function bindPoll(poll) {
   view.querySelectorAll('[data-vote]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -628,8 +644,16 @@ function bindPoll(poll) {
       state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: chosen } };
       savePrefs(state.prefs);
       render();
+      // Asked for by the tap itself: show that person's column, wherever the
+      // grid had been left.
+      showMyColumn({ always: true });
     });
   });
+
+  // Opening the poll: straight to one's own column, so answering takes no
+  // scrolling at all. A redraw of the same poll keeps its place instead — see
+  // render(), which runs after this and puts the grid back where it was.
+  showMyColumn();
 
   view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -7143,9 +7167,36 @@ function bindChrome() {
 
 /* ----------------------------------------------------------------- render --- */
 
+/**
+ * Where each marked box was scrolled to, taken just before a redraw.
+ *
+ * A redraw replaces the whole view, and a box that scrolls sideways — the poll
+ * grid with a dozen people across it — comes back at its left edge. Tapping
+ * Léa's cell at the far right then threw the grid back to Gui's, every single
+ * time. Boxes that should hold their place carry data-keep-scroll, keyed by
+ * what they show; a redraw of the same thing puts them back where they were.
+ */
+function keptScrolls() {
+  const kept = new Map();
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    kept.set(box.dataset.keepScroll, { left: box.scrollLeft, top: box.scrollTop });
+  });
+  return kept;
+}
+
+function restoreScrolls(kept) {
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    const was = kept.get(box.dataset.keepScroll);
+    if (!was) return;
+    box.scrollLeft = was.left;
+    box.scrollTop = was.top;
+  });
+}
+
 function render() {
   const current = route();
   markTab(current);
+  const kept = keptScrolls();
   // Nothing to fetch without a database, or before this device is in a group.
   const sync = document.getElementById('sync');
   if (sync) sync.hidden = !(state.remote && groups().length);
@@ -7351,6 +7402,8 @@ function render() {
   view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
     button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
   });
+
+  restoreScrolls(kept);
 }
 
 /**

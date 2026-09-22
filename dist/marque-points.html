@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="d4086069" />
+    <meta name="app-build" content="72b8bd41" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -751,6 +751,28 @@ table.scores .meta-cell { color: var(--muted); }
 .votes tbody tr { border-top: 1px solid var(--border); }
 
 .votes__leader { background: var(--accent-soft); }
+
+/*
+ * With a dozen people across, the grid scrolls sideways — and without this the
+ * choices scroll away with it, leaving a column of ✓ with no evening beside
+ * them. The first column stays; it needs a background of its own to hide what
+ * slides underneath, the leader's tint included.
+ */
+.votes tbody th,
+.votes thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  /* Wide enough to read an evening, narrow enough to leave room for the grid.
+     Words wrap whole: "anywhere" would let the table squeeze the column down
+     to one letter a line. */
+  min-width: 5.5em;
+  max-width: 9em;
+  overflow-wrap: break-word;
+}
+
+.votes tbody tr.votes__leader th { background: var(--accent-soft); }
 
 .votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
@@ -7067,7 +7089,7 @@ function pollView(poll) {
 
     ${
       poll.options.length && poll.people.length
-        ? `<div class="table-wrap">
+        ? `<div class="table-wrap" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
                  <tr>
@@ -7269,6 +7291,22 @@ function bindNewPoll() {
   });
 }
 
+/**
+ * Bring one's own column into view in the poll grid, just right of the column
+ * of choices, which stays put. Does nothing when it is already in sight,
+ * unless asked to.
+ */
+function showMyColumn({ always = false } = {}) {
+  const box = view.querySelector('.table-wrap[data-keep-scroll]');
+  const mine = box?.querySelector('thead th.votes__mine');
+  const first = box?.querySelector('thead th');
+  if (!box || !mine || !first) return;
+  const start = mine.offsetLeft - first.offsetWidth;
+  const inSight = start >= box.scrollLeft && mine.offsetLeft + mine.offsetWidth <= box.scrollLeft + box.clientWidth;
+  if (inSight && !always) return;
+  box.scrollLeft = Math.max(0, start);
+}
+
 function bindPoll(poll) {
   view.querySelectorAll('[data-vote]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -7290,8 +7328,16 @@ function bindPoll(poll) {
       state.prefs = { ...state.prefs, voter: { ...state.prefs.voter, [poll.id]: chosen } };
       savePrefs(state.prefs);
       render();
+      // Asked for by the tap itself: show that person's column, wherever the
+      // grid had been left.
+      showMyColumn({ always: true });
     });
   });
+
+  // Opening the poll: straight to one's own column, so answering takes no
+  // scrolling at all. A redraw of the same poll keeps its place instead — see
+  // render(), which runs after this and puts the grid back where it was.
+  showMyColumn();
 
   view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -13805,9 +13851,36 @@ function bindChrome() {
 
 /* ----------------------------------------------------------------- render --- */
 
+/**
+ * Where each marked box was scrolled to, taken just before a redraw.
+ *
+ * A redraw replaces the whole view, and a box that scrolls sideways — the poll
+ * grid with a dozen people across it — comes back at its left edge. Tapping
+ * Léa's cell at the far right then threw the grid back to Gui's, every single
+ * time. Boxes that should hold their place carry data-keep-scroll, keyed by
+ * what they show; a redraw of the same thing puts them back where they were.
+ */
+function keptScrolls() {
+  const kept = new Map();
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    kept.set(box.dataset.keepScroll, { left: box.scrollLeft, top: box.scrollTop });
+  });
+  return kept;
+}
+
+function restoreScrolls(kept) {
+  view.querySelectorAll('[data-keep-scroll]').forEach((box) => {
+    const was = kept.get(box.dataset.keepScroll);
+    if (!was) return;
+    box.scrollLeft = was.left;
+    box.scrollTop = was.top;
+  });
+}
+
 function render() {
   const current = route();
   markTab(current);
+  const kept = keptScrolls();
   // Nothing to fetch without a database, or before this device is in a group.
   const sync = document.getElementById('sync');
   if (sync) sync.hidden = !(state.remote && groups().length);
@@ -14013,6 +14086,8 @@ function render() {
   view.querySelectorAll('[data-rename-everywhere]').forEach((button) => {
     button.addEventListener('click', () => renameEverywhere(button.dataset.renameEverywhere));
   });
+
+  restoreScrolls(kept);
 }
 
 /**

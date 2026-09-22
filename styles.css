@@ -736,6 +736,28 @@ table.scores .meta-cell { color: var(--muted); }
 
 .votes__leader { background: var(--accent-soft); }
 
+/*
+ * With a dozen people across, the grid scrolls sideways — and without this the
+ * choices scroll away with it, leaving a column of ✓ with no evening beside
+ * them. The first column stays; it needs a background of its own to hide what
+ * slides underneath, the leader's tint included.
+ */
+.votes tbody th,
+.votes thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  /* Wide enough to read an evening, narrow enough to leave room for the grid.
+     Words wrap whole: "anywhere" would let the table squeeze the column down
+     to one letter a line. */
+  min-width: 5.5em;
+  max-width: 9em;
+  overflow-wrap: break-word;
+}
+
+.votes tbody tr.votes__leader th { background: var(--accent-soft); }
+
 .votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
 .votes__score { font-variant-numeric: tabular-nums; font-weight: 650; }
