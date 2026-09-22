@@ -59,6 +59,11 @@ test('the update brings what the app now relies on', async () => {
   assert.match(update, /add column if not exists owner_hash text/);
   assert.match(inUpdate.get('marque_points_put'), /p_owner text default null/);
   assert.match(inUpdate.get('marque_points_delete'), /reserve a l''organisateur/);
+
+  // A poll is merged cell by cell, on both paths: a late copy must not erase
+  // the votes that arrived in between — and the merge is not a door of its own.
+  assert.equal((inUpdate.get('marque_points_put').match(/marque_points_merge_votes\(/g) || []).length, 2);
+  assert.match(update, /revoke all on function public\.marque_points_merge_votes\(jsonb, jsonb\) from public, anon, authenticated;/);
 });
 
 test('the update erases no data', async () => {
