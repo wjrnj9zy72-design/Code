@@ -758,6 +758,11 @@ table.scores .meta-cell { color: var(--muted); }
 
 .votes tbody tr.votes__leader th { background: var(--accent-soft); }
 
+/* The box that scrolls has a few pixels of padding on its left, and what slid
+   under the sticky column showed through them. Flush on that side, there is
+   nothing left to show through. */
+.table-wrap--flush { margin-left: 0; padding-left: 0; }
+
 .votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
 .votes__score { font-variant-numeric: tabular-nums; font-weight: 650; }

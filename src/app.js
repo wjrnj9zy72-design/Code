@@ -405,7 +405,7 @@ function pollView(poll) {
 
     ${
       poll.options.length && poll.people.length
-        ? `<div class="table-wrap" data-keep-scroll="poll-${escapeHtml(poll.id)}">
+        ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
                  <tr>
@@ -620,7 +620,24 @@ function showMyColumn({ always = false } = {}) {
   const start = mine.offsetLeft - first.offsetWidth;
   const inSight = start >= box.scrollLeft && mine.offsetLeft + mine.offsetWidth <= box.scrollLeft + box.clientWidth;
   if (inSight && !always) return;
-  box.scrollLeft = Math.max(0, start);
+
+  // Opening the poll: a quiet jump, before anything has been looked at.
+  if (!always) {
+    box.scrollLeft = Math.max(0, start);
+    return;
+  }
+
+  // Asked for with a tap on a name: go there, visibly. The name chips sit at
+  // the top of the page and the grid well below them — below the fold on a
+  // phone — so lighting up a column nobody can see answered nothing. The page
+  // comes down to the grid, just under the bar that stays at the top, and the
+  // grid slides to the column; both move, so the eye follows where it went.
+  const still = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const behavior = still ? 'auto' : 'smooth';
+  const bar = document.querySelector('.app-bar');
+  const top = box.getBoundingClientRect().top + window.scrollY - (bar?.offsetHeight || 0) - 8;
+  window.scrollTo({ top: Math.max(0, top), behavior });
+  box.scrollTo({ left: Math.max(0, start), behavior });
 }
 
 function bindPoll(poll) {

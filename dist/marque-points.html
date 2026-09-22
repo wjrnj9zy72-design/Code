@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="72b8bd41" />
+    <meta name="app-build" content="ffe48c94" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -773,6 +773,11 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .votes tbody tr.votes__leader th { background: var(--accent-soft); }
+
+/* The box that scrolls has a few pixels of padding on its left, and what slid
+   under the sticky column showed through them. Flush on that side, there is
+   nothing left to show through. */
+.table-wrap--flush { margin-left: 0; padding-left: 0; }
 
 .votes__mine { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
@@ -7089,7 +7094,7 @@ function pollView(poll) {
 
     ${
       poll.options.length && poll.people.length
-        ? `<div class="table-wrap" data-keep-scroll="poll-${escapeHtml(poll.id)}">
+        ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
                  <tr>
@@ -7304,7 +7309,24 @@ function showMyColumn({ always = false } = {}) {
   const start = mine.offsetLeft - first.offsetWidth;
   const inSight = start >= box.scrollLeft && mine.offsetLeft + mine.offsetWidth <= box.scrollLeft + box.clientWidth;
   if (inSight && !always) return;
-  box.scrollLeft = Math.max(0, start);
+
+  // Opening the poll: a quiet jump, before anything has been looked at.
+  if (!always) {
+    box.scrollLeft = Math.max(0, start);
+    return;
+  }
+
+  // Asked for with a tap on a name: go there, visibly. The name chips sit at
+  // the top of the page and the grid well below them — below the fold on a
+  // phone — so lighting up a column nobody can see answered nothing. The page
+  // comes down to the grid, just under the bar that stays at the top, and the
+  // grid slides to the column; both move, so the eye follows where it went.
+  const still = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const behavior = still ? 'auto' : 'smooth';
+  const bar = document.querySelector('.app-bar');
+  const top = box.getBoundingClientRect().top + window.scrollY - (bar?.offsetHeight || 0) - 8;
+  window.scrollTo({ top: Math.max(0, top), behavior });
+  box.scrollTo({ left: Math.max(0, start), behavior });
 }
 
 function bindPoll(poll) {
