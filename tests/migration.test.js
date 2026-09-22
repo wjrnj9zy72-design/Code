@@ -54,13 +54,29 @@ test('the update brings what the app now relies on', async () => {
   assert.match(inUpdate.get('marque_points_put'), /linkOnly/);
   assert.match(inUpdate.get('marque_points_group_docs'), /and g\.listed/);
   assert.match(inUpdate.get('marque_points_agenda'), /and g\.listed/);
+
+  // The organiser: a column, a fourth parameter, and a delete that asks for it.
+  assert.match(update, /add column if not exists owner_hash text/);
+  assert.match(inUpdate.get('marque_points_put'), /p_owner text default null/);
+  assert.match(inUpdate.get('marque_points_delete'), /reserve a l''organisateur/);
 });
 
-test('the update erases nothing', async () => {
+test('the update erases no data', async () => {
   const { update } = await sources();
   const statements = update.replace(/--.*$/gm, '');
   // The functions it installs clean up after themselves (expired invitations),
   // which is theirs to do when they run — not the update's, when it is pasted.
   const outside = statements.replace(/\$\$[\s\S]*?\$\$/g, '');
-  assert.equal(/\b(drop|delete|truncate)\b/i.test(outside), false, 'no drop, delete or truncate at the top level');
+  assert.equal(/\b(delete|truncate)\b/i.test(outside), false, 'no delete or truncate at the top level');
+  // Dropping a function replaces code, not data — and an older signature has
+  // to go, or two functions of one name leave the database unable to choose.
+  const drops = outside.match(/\bdrop\s+\w+/gi) || [];
+  assert.ok(drops.every((drop) => /^drop\s+function$/i.test(drop)), `only functions are dropped: ${drops.join(', ')}`);
+});
+
+test('every function the update drops, it puts back', async () => {
+  const { update } = await sources();
+  const dropped = [...update.matchAll(/drop function if exists public\.(\w+)\(/g)].map((match) => match[1]);
+  const installed = functionsIn(update);
+  for (const name of dropped) assert.ok(installed.has(name), `${name} is dropped and never recreated`);
 });

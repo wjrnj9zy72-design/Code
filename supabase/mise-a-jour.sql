@@ -8,7 +8,10 @@
 --
 --   1. les invitations valent deux jours au lieu d'un ;
 --   2. « Lien seulement » : un document que seuls ceux qui ont le lien voient,
---      absent des onglets et de l'agenda du groupe.
+--      absent des onglets et de l'agenda du groupe ;
+--   3. l'organisateur : qui crée un sondage garde seul la main sur la date,
+--      la clôture, la question, les choix et la suppression ; les autres
+--      votent, et s'ajoutent eux-mêmes.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -54,18 +57,34 @@ begin
 end;
 $$;
 
--- 2. « Lien seulement ».
+-- 2. « Lien seulement », et 3. l'organisateur.
 alter table public.marque_points_games
   add column if not exists listed boolean not null default true;
 
-create or replace function public.marque_points_put(p_id text, p_data jsonb, p_key text default null)
+alter table public.marque_points_games
+  add column if not exists owner_hash text;
+
+-- Les versions précédentes de l'écriture et de la suppression : remplacées
+-- ci-dessous par des versions qui connaissent l'organisateur. Les laisser
+-- ferait deux fonctions du même nom, entre lesquelles la base refuserait de
+-- choisir. Ce sont des fonctions, pas des données : rien n'est perdu.
+drop function if exists public.marque_points_put(text, jsonb, text);
+drop function if exists public.marque_points_delete(text, text);
+
+create or replace function public.marque_points_put(
+  p_id text,
+  p_data jsonb,
+  p_key text default null,
+  p_owner text default null
+)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_exists boolean;
+  v_stored jsonb;
+  v_owner text;
   v_group text;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
@@ -75,11 +94,13 @@ begin
     raise exception 'donnee trop volumineuse';
   end if;
 
-  select true into v_exists
+  select data, owner_hash into v_stored, v_owner
     from public.marque_points_games
    where id = p_id and code_hash is null;
 
-  if v_exists is null then
+  -- FOUND, et non une variable remplie par la requête : quand aucune ligne ne
+  -- revient, SELECT … INTO met toutes ses variables à NULL, la témoin comprise.
+  if not found then
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
     select group_id into v_group from public.marque_points_group_key
@@ -88,15 +109,83 @@ begin
       raise exception 'cle de groupe invalide';
     end if;
 
-    insert into public.marque_points_games (id, data, updated_at, group_id, listed)
+    insert into public.marque_points_games (id, data, updated_at, group_id, listed, owner_hash)
     values (p_id, p_data, now(), v_group,
-            not coalesce((p_data->>'linkOnly')::boolean, false));
-  else
-    -- La ligne existe : qui a le lien peut y contribuer.
+            not coalesce((p_data->>'linkOnly')::boolean, false),
+            case when p_owner is not null and length(p_owner) >= 16 then md5(p_owner || p_id) end);
+    return;
+  end if;
+
+  -- La ligne existe : qui a le lien peut y contribuer — entièrement si rien
+  -- n'a d'organisateur ou si c'est lui qui écrit…
+  if v_owner is null or md5(coalesce(p_owner, '') || p_id) = v_owner then
     update public.marque_points_games
        set data = p_data, updated_at = now()
      where id = p_id and code_hash is null;
+    return;
   end if;
+
+  -- …et sinon, seulement en votant. Tout le reste est repris tel qu'il était :
+  -- la date, la clôture, la question, les choix. Les personnes ne peuvent que
+  -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
+  if v_stored->>'kind' is distinct from 'poll' then
+    return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
+  end if;
+
+  update public.marque_points_games
+     set data = v_stored
+           || jsonb_build_object(
+                'votes', coalesce(p_data->'votes', v_stored->'votes'),
+                'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
+                  select jsonb_agg(n.value)
+                    from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
+                   where not exists (
+                     select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
+                      where o.value->>'id' = n.value->>'id')
+                ), '[]'::jsonb),
+                'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
+                                     coalesce((p_data->>'peopleAt')::numeric, 0)),
+                'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
+                                      coalesce((p_data->>'updatedAt')::numeric, 0))),
+         updated_at = now()
+   where id = p_id and code_hash is null;
+end;
+$$;
+
+create or replace function public.marque_points_delete(
+  p_id text,
+  p_key text default null,
+  p_owner text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_owner text;
+begin
+  select group_id, owner_hash into v_group, v_owner from public.marque_points_games
+   where id = p_id and code_hash is null;
+  if not found then
+    return; -- rien à supprimer, rien à refuser
+  end if;
+
+  if v_group is null or v_group is distinct from (
+    select group_id from public.marque_points_group_key
+     where key_hash = md5(coalesce(p_key, '') || key_salt)
+  ) then
+    raise exception 'cle de groupe invalide';
+  end if;
+
+  -- Un sondage qui a un organisateur ne se supprime que de sa main : la clé du
+  -- groupe, que tous les membres ont, n'y suffit pas.
+  if v_owner is not null and md5(coalesce(p_owner, '') || p_id) is distinct from v_owner then
+    raise exception 'reserve a l''organisateur';
+  end if;
+
+  delete from public.marque_points_games where id = p_id and code_hash is null;
 end;
 $$;
 
@@ -156,8 +245,9 @@ begin
 end;
 $$;
 
--- Les mêmes droits qu'avant, rien de plus.
+-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus.
 grant execute on function public.marque_points_invite(text, integer, integer) to anon, authenticated;
-grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
+grant execute on function public.marque_points_put(text, jsonb, text, text) to anon, authenticated;
+grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;

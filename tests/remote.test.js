@@ -500,3 +500,33 @@ test('a poll is sent as a link that opens it alone', () => {
   assert.equal(pollIdFrom(link), 'v_42', 'and pasting it back still finds the poll');
   assert.equal(pollIdFrom('https://gui.github.io/Code/#/poll/v_42'), 'v_42', 'links sent before still work');
 });
+
+test('the organiser’s secret goes with a write, when there is one', async () => {
+  const { fetchImpl, calls } = stubFetch(ok(undefined, 204));
+  const remote = createRemote(CONFIG, fetchImpl);
+  await remote.put({ id: 'v_1', kind: 'poll' }, 'cle', 'secret-de-l-organisateur');
+  await remote.put({ id: 'v_2', kind: 'poll' }, 'cle');
+  assert.equal(calls[0].body.p_owner, 'secret-de-l-organisateur');
+  assert.equal('p_owner' in calls[1].body, false, 'no secret, no parameter: an older database must not trip on it');
+});
+
+test('a database not yet updated still takes the poll, without its organiser', async () => {
+  // PostgREST answers 404 PGRST202 when no function takes the parameters sent.
+  // Refusing the poll outright would leave it unshared until the SQL is run;
+  // sending it without the secret shares it — with no organiser, as before.
+  const { fetchImpl, calls } = stubFetch((url, options) =>
+    'p_owner' in JSON.parse(options.body)
+      ? { ok: false, status: 404, text: async () => '{"code":"PGRST202","message":"Could not find the function public.marque_points_put(p_data, p_id, p_key, p_owner)"}' }
+      : ok(undefined, 204));
+  const remote = createRemote(CONFIG, fetchImpl);
+  await remote.put({ id: 'v_1', kind: 'poll' }, 'cle', 'secret-de-l-organisateur');
+  assert.equal(calls.length, 2, 'asked once with the secret, once without');
+  assert.equal('p_owner' in calls[1].body, false);
+});
+
+test('any other refusal is not mistaken for an old database', async () => {
+  const { fetchImpl, calls } = stubFetch({ ok: false, status: 400, text: async () => '{"message":"reserve a l\'organisateur"}' });
+  const remote = createRemote(CONFIG, fetchImpl);
+  await assert.rejects(remote.remove('v_1', 'cle', 'mauvais-secret-0123456789'));
+  assert.equal(calls.length, 1, 'a refusal is a refusal: no second try without the secret');
+});

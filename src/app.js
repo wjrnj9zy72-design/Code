@@ -371,6 +371,10 @@ function gaugeHtml(poll) {
 
 function pollView(poll, { solo = false } = {}) {
   const me = state.prefs.voter?.[poll.id] || null;
+  // Solo: a visitor from a link, with the app's chrome gone too. Guest: anyone
+  // who is not the organiser — a visitor, or another member of the group — and
+  // who is therefore shown the voting and nothing else.
+  const guest = solo || !isOrganiser(poll);
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
 
@@ -395,7 +399,7 @@ function pollView(poll, { solo = false } = {}) {
         <p class="muted small">
           ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
           ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
-          ${poll.shared && !solo ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
+          ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
       ${
@@ -407,7 +411,7 @@ function pollView(poll, { solo = false } = {}) {
       }
     </div>
 
-    ${solo ? '' : inGroupHtml(poll)}
+    ${guest ? '' : inGroupHtml(poll)}
 
     ${
       poll.people.length
@@ -422,9 +426,9 @@ function pollView(poll, { solo = false } = {}) {
         : ''
     }
 
-    ${solo && !closed ? soloJoinHtml() : ''}
+    ${guest && !closed ? soloJoinHtml() : ''}
 
-    ${solo ? soloDateHtml(poll) : `<section class="card stack stack--tight">
+    ${guest ? soloDateHtml(poll) : `<section class="card stack stack--tight">
       <div class="section__head">
         <h2>${escapeHtml(t('polls.date'))}</h2>
         ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
@@ -471,7 +475,7 @@ function pollView(poll, { solo = false } = {}) {
                        <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
                          <th scope="row">
                            ${
-                             solo
+                             guest
                                ? escapeHtml(row.option.text)
                                : `<button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
                                     ${escapeHtml(row.option.text)}
@@ -491,7 +495,7 @@ function pollView(poll, { solo = false } = {}) {
     }
 
     ${
-      closed || solo
+      closed || guest
         ? ''
         : `<form id="add-choice" class="card stack stack--tight">
              <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
@@ -502,7 +506,7 @@ function pollView(poll, { solo = false } = {}) {
            </form>`
     }
 
-    ${solo ? '' : `<section class="section">
+    ${guest ? '' : `<section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
       <div class="row">
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
@@ -593,7 +597,7 @@ function persistPoll(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -607,7 +611,7 @@ function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -676,7 +680,7 @@ function bindNewPoll() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    let poll = landing(createPoll({ question: newPollQuestion, names: newPollPeople }));
+    let poll = organise(landing(createPoll({ question: newPollQuestion, names: newPollPeople })));
     poll = addOptions(poll, newPollChoices);
 
     state.polls = [...state.polls, poll];
@@ -830,7 +834,7 @@ function bindPoll(poll) {
     state.polls = state.polls.filter((item) => item.id !== poll.id);
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
-    if (state.remote) state.remote.remove(poll.id, keyFor(poll)).catch(() => {});
+    if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
     navigate('#/polls');
   });
 
@@ -1385,7 +1389,7 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -1394,7 +1398,7 @@ function persist(changed) {
 function forget(id, game = null) {
   saveGames(state.games);
   if (state.store) void state.store.remove(id);
-  if (state.remote) state.remote.remove(id, keyFor(game)).catch(() => {});
+  if (state.remote) state.remote.remove(id, keyFor(game), organiserSecret(id)).catch(() => {});
 }
 
 function getGame(id) {
@@ -1772,7 +1776,7 @@ function bindSpend(spend) {
     state.spends = state.spends.filter((item) => item.id !== spend.id);
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
-    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend)).catch(() => {});
+    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
     navigate('#/spends');
   });
 }
@@ -4595,7 +4599,7 @@ function importGames(source) {
 
   for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
-    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_)).catch(() => {});
+    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_), organiserSecret(document_.id)).catch(() => {});
   }
   flash(t('home.importDone', {
     count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
@@ -5056,7 +5060,7 @@ async function putInGroup(id) {
 
   const next = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
-    await state.remote.put(next, group.key);
+    await state.remote.put(next, group.key, organiserSecret(next.id));
   } catch {
     flash(t('share.pushFailed'), 'error');
     render();
@@ -5096,7 +5100,7 @@ async function copyToGroup(id) {
   }
 
   const now = Date.now();
-  const copy = {
+  const fresh = {
     ...document_,
     id: uid(document_.id.split('_')[0] || 'id'),
     shared: true,
@@ -5110,9 +5114,11 @@ async function copyToGroup(id) {
     updatedAt: now,
     archivedAt: null,
   };
+  // A copied poll is a new poll, and whoever copies it organises it.
+  const copy = poll ? organise(fresh) : fresh;
 
   try {
-    await state.remote.put(copy, group.key);
+    await state.remote.put(copy, group.key, organiserSecret(copy.id));
   } catch {
     flash(t('share.pushFailed'), 'error');
     render();
@@ -5137,6 +5143,37 @@ async function copyToGroup(id) {
     persist(copy);
     navigate(`#/game/${copy.id}`);
   }
+}
+
+/**
+ * The organiser of a poll: the device that created it, holding a secret the
+ * database knows only by its fingerprint.
+ *
+ * Everyone else — the other members of the group as much as a visitor from a
+ * link — ticks their evenings and adds their own name, and that is all: the
+ * day, the closing, the question, the choices, the list of people and the
+ * poll itself are the organiser's. The screen hides what is not theirs, and
+ * the database, told nothing it can check, keeps what the organiser set.
+ *
+ * The secret lives on this device only. A poll made before the organiser
+ * existed has none, and stays open to all, as it always was.
+ */
+function organiserSecret(id) {
+  return state.prefs.organiser?.[id] || null;
+}
+
+function isOrganiser(poll) {
+  return !poll?.owned || Boolean(organiserSecret(poll.id));
+}
+
+/** Make this device the organiser of a new poll: a secret, kept here. */
+function organise(poll) {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const secret = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  state.prefs = { ...state.prefs, organiser: { ...state.prefs.organiser, [poll.id]: secret } };
+  savePrefs(state.prefs);
+  return { ...poll, owned: true };
 }
 
 /** The key a document was shared with, or the only group's, or none. */
@@ -5219,7 +5256,7 @@ async function startSharing(document_) {
 
   const shared = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
-    await state.remote.put(shared, group.key);
+    await state.remote.put(shared, group.key, organiserSecret(shared.id));
   } catch (error) {
     flash(remoteReason(error), 'error');
     render();
@@ -5827,7 +5864,7 @@ async function shareGames(games, group) {
       const next = document_.shared
         ? document_
         : { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
-      await state.remote.put(next, group.key);
+      await state.remote.put(next, group.key, organiserSecret(next.id));
       if (next === document_) continue;
       state.games = state.games.map((item) => (item.id === next.id ? next : item));
       state.lists = state.lists.map((item) => (item.id === next.id ? next : item));
@@ -6106,7 +6143,7 @@ function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
   }
   return ok;
 }
@@ -6286,7 +6323,7 @@ function bindList(list) {
     state.lists = state.lists.filter((item) => item.id !== list.id);
     saveLists(state.lists);
     if (state.store) void state.store.remove(list.id);
-    if (state.remote) state.remote.remove(list.id, keyFor(list)).catch(() => {});
+    if (state.remote) state.remote.remove(list.id, keyFor(list), organiserSecret(list.id)).catch(() => {});
     navigate('#/lists');
   });
 

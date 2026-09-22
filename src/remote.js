@@ -58,6 +58,23 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
   if (!config?.url || !config?.key || typeof fetchImpl !== 'function') return null;
   const base = normaliseUrl(config.url);
 
+  /**
+   * A call that carries the organiser's secret when there is one — and, on a
+   * database not yet updated, which has never heard of that parameter and
+   * answers that no such function exists, the same call without it. The poll
+   * is then shared with no organiser rather than not shared at all; running
+   * supabase/mise-a-jour.sql is what gives it one.
+   */
+  async function withOwner(fn, body, owner) {
+    if (!owner) return call(fn, body);
+    try {
+      return await call(fn, { ...body, p_owner: owner });
+    } catch (error) {
+      if (!unknownParameter(error)) throw error;
+      return call(fn, body);
+    }
+  }
+
   async function call(fn, body) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -78,6 +95,7 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
         const detail = await response.text().catch(() => '');
         const error = new Error(`${fn} failed: ${response.status} ${detail.slice(0, 200)}`);
         error.status = response.status;
+        error.detail = detail;
         throw error;
       }
       // A function returning void answers 204 with an empty body.
@@ -345,13 +363,17 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
      * shared takes none, which is what lets a link be sent to someone outside
      * the group without giving them the run of it.
      */
-    async put(document_, key = null) {
-      await call('marque_points_put', { p_id: document_.id, p_data: document_, p_key: key });
+    async put(document_, key = null, owner = null) {
+      // The organiser's secret travels only when this device holds one: sent
+      // by anyone else, the database keeps what the organiser set and takes
+      // their votes alone.
+      const body = { p_id: document_.id, p_data: document_, p_key: key };
+      await withOwner('marque_points_put', body, owner);
     },
 
-    /** Unshare: the key of the group it belongs to, and nobody else's. */
-    async remove(id, key = null) {
-      await call('marque_points_delete', { p_id: id, p_key: key });
+    /** Unshare: the key of the group it belongs to, and nobody else's — and the organiser's, when there is one. */
+    async remove(id, key = null, owner = null) {
+      await withOwner('marque_points_delete', { p_id: id, p_key: key }, owner);
     },
   };
 }
@@ -360,6 +382,15 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
  * Which of two copies of a game to keep: the one changed most recently.
  * Returns 'local', 'remote', or 'same'.
  */
+/**
+ * Whether the database refused a call because it knows no function taking
+ * those parameters — what PostgREST says (PGRST202, as a 404) when a newer app
+ * calls with a parameter an older schema never had.
+ */
+function unknownParameter(error) {
+  return error?.status === 404 && /PGRST202|Could not find the function/.test(error.detail || error.message || '');
+}
+
 export function pickNewer(local, remote) {
   if (!remote) return 'local';
   if (!local) return 'remote';

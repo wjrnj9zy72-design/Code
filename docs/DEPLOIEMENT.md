@@ -173,11 +173,15 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 >
 > - les invitations valent **deux jours** au lieu d'un ;
 > - **« Lien seulement »** : un document que seuls ceux qui ont le lien voient,
->   absent des onglets et de l'agenda de vos groupes.
+>   absent des onglets et de l'agenda de vos groupes ;
+> - **l'organisateur** : qui crée un sondage garde seul la main sur la date,
+>   la clôture, la question, les choix et la suppression ; les autres votent.
 >
-> Sans lui, l'app demande deux jours et la base les ramène à un ; et un
-> « lien seulement » atterrit dans les onglets du groupe comme n'importe quel
-> autre document. On peut le repasser sans danger : il remplace en place. Un
+> Sans lui, l'app demande deux jours et la base les ramène à un ; un « lien
+> seulement » atterrit dans les onglets du groupe comme n'importe quel autre
+> document ; et un sondage créé est partagé **sans organisateur**, donc
+> réglable par tous comme avant — l'app s'en rend compte et renvoie sans le
+> secret que l'ancienne base ne connaît pas, plutôt que de ne rien partager. On peut le repasser sans danger : il remplace en place. Un
 > test vérifie qu'il dit exactement la même chose que le bloc ci-dessous.
 
 ```sql
@@ -421,6 +425,14 @@ alter table public.marque_points_games
 alter table public.marque_points_games
   add column if not exists listed boolean not null default true;
 
+-- L'organisateur : qui a créé un sondage garde seul la main sur ce qui le
+-- règle — la date retenue, la clôture, la question, les choix, la liste des
+-- personnes, sa suppression. Les autres, membres du groupe ou visiteurs d'un
+-- lien, votent et s'ajoutent eux-mêmes ; rien d'autre ne passe. La base ne
+-- garde qu'une empreinte du secret de l'organisateur, jamais le secret.
+alter table public.marque_points_games
+  add column if not exists owner_hash text;
+
 create index if not exists marque_points_games_group on public.marque_points_games (group_id);
 
 -- Crée un groupe et affiche sa clé UNE fois. Ne s'exécute que d'ici, depuis
@@ -512,15 +524,25 @@ $$;
 
 drop function if exists public.marque_points_put(text, jsonb);
 drop function if exists public.marque_points_delete(text);
+-- Les versions sans organisateur, remplacées ci-dessous : les laisser créerait
+-- deux fonctions du même nom, entre lesquelles la base refuserait de choisir.
+drop function if exists public.marque_points_put(text, jsonb, text);
+drop function if exists public.marque_points_delete(text, text);
 
-create or replace function public.marque_points_put(p_id text, p_data jsonb, p_key text default null)
+create or replace function public.marque_points_put(
+  p_id text,
+  p_data jsonb,
+  p_key text default null,
+  p_owner text default null
+)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_exists boolean;
+  v_stored jsonb;
+  v_owner text;
   v_group text;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
@@ -530,11 +552,13 @@ begin
     raise exception 'donnee trop volumineuse';
   end if;
 
-  select true into v_exists
+  select data, owner_hash into v_stored, v_owner
     from public.marque_points_games
    where id = p_id and code_hash is null;
 
-  if v_exists is null then
+  -- FOUND, et non une variable remplie par la requête : quand aucune ligne ne
+  -- revient, SELECT … INTO met toutes ses variables à NULL, la témoin comprise.
+  if not found then
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
     select group_id into v_group from public.marque_points_group_key
@@ -543,21 +567,56 @@ begin
       raise exception 'cle de groupe invalide';
     end if;
 
-    insert into public.marque_points_games (id, data, updated_at, group_id, listed)
+    insert into public.marque_points_games (id, data, updated_at, group_id, listed, owner_hash)
     values (p_id, p_data, now(), v_group,
-            not coalesce((p_data->>'linkOnly')::boolean, false));
-  else
-    -- La ligne existe : qui a le lien peut y contribuer.
+            not coalesce((p_data->>'linkOnly')::boolean, false),
+            case when p_owner is not null and length(p_owner) >= 16 then md5(p_owner || p_id) end);
+    return;
+  end if;
+
+  -- La ligne existe : qui a le lien peut y contribuer — entièrement si rien
+  -- n'a d'organisateur ou si c'est lui qui écrit…
+  if v_owner is null or md5(coalesce(p_owner, '') || p_id) = v_owner then
     update public.marque_points_games
        set data = p_data, updated_at = now()
      where id = p_id and code_hash is null;
+    return;
   end if;
+
+  -- …et sinon, seulement en votant. Tout le reste est repris tel qu'il était :
+  -- la date, la clôture, la question, les choix. Les personnes ne peuvent que
+  -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
+  if v_stored->>'kind' is distinct from 'poll' then
+    return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
+  end if;
+
+  update public.marque_points_games
+     set data = v_stored
+           || jsonb_build_object(
+                'votes', coalesce(p_data->'votes', v_stored->'votes'),
+                'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
+                  select jsonb_agg(n.value)
+                    from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
+                   where not exists (
+                     select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
+                      where o.value->>'id' = n.value->>'id')
+                ), '[]'::jsonb),
+                'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
+                                     coalesce((p_data->>'peopleAt')::numeric, 0)),
+                'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
+                                      coalesce((p_data->>'updatedAt')::numeric, 0))),
+         updated_at = now()
+   where id = p_id and code_hash is null;
 end;
 $$;
 
 -- Supprimer ce qui est partagé demande la clé du groupe : sinon, quiconque a
 -- reçu un lien pourrait effacer la partie de tout le monde.
-create or replace function public.marque_points_delete(p_id text, p_key text default null)
+create or replace function public.marque_points_delete(
+  p_id text,
+  p_key text default null,
+  p_owner text default null
+)
 returns void
 language plpgsql
 security definer
@@ -565,8 +624,9 @@ set search_path = public
 as $$
 declare
   v_group text;
+  v_owner text;
 begin
-  select group_id into v_group from public.marque_points_games
+  select group_id, owner_hash into v_group, v_owner from public.marque_points_games
    where id = p_id and code_hash is null;
   if not found then
     return; -- rien à supprimer, rien à refuser
@@ -577,6 +637,12 @@ begin
      where key_hash = md5(coalesce(p_key, '') || key_salt)
   ) then
     raise exception 'cle de groupe invalide';
+  end if;
+
+  -- Un sondage qui a un organisateur ne se supprime que de sa main : la clé du
+  -- groupe, que tous les membres ont, n'y suffit pas.
+  if v_owner is not null and md5(coalesce(p_owner, '') || p_id) is distinct from v_owner then
+    raise exception 'reserve a l''organisateur';
   end if;
 
   delete from public.marque_points_games where id = p_id and code_hash is null;
@@ -1355,8 +1421,8 @@ grant execute on function public.marque_points_return(text, text) to anon, authe
 grant execute on function public.marque_points_forget_link(text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_of(text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
-grant execute on function public.marque_points_put(text, jsonb, text) to anon, authenticated;
-grant execute on function public.marque_points_delete(text, text) to anon, authenticated;
+grant execute on function public.marque_points_put(text, jsonb, text, text) to anon, authenticated;
+grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
 ```
@@ -2233,6 +2299,16 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
   fixé à la création : quelqu'un qui a le lien ne peut pas le faire apparaître
   dans le groupe. Revers : vos autres appareils ne le reçoivent pas non plus
   d'eux-mêmes — ouvrez-y le lien.
+- **Un sondage a un organisateur** : l'appareil qui l'a créé. Lui seul règle
+  la date, clôt, change la question ou les choix, gère les personnes et
+  supprime. Les autres — membres du groupe comme visiteurs d'un lien — voient
+  la grille, la jauge et la date retenue (qu'ils peuvent ajouter à leur
+  agenda), votent, et peuvent s'ajouter eux-mêmes à la liste ; rien d'autre ne
+  leur est montré. La base l'impose aussi : elle ne garde du secret de
+  l'organisateur qu'une empreinte, et reprend tel quel ce qu'il a réglé quand
+  quelqu'un d'autre écrit — même avec la clé du groupe. Revers : le secret
+  vit sur l'appareil qui a créé le sondage ; un autre de vos appareils y est
+  un simple votant. Les sondages créés avant restent réglables par tous.
 - **La seule porte entre deux groupes est un lien envoyé à la main.** Lire un
   document par son identifiant ne demande aucune clé — c'est ce qui permet
   d'envoyer un sondage à quelqu'un qui n'est dans aucun groupe. L'identifiant
