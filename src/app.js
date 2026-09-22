@@ -31,7 +31,7 @@ import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } fr
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
-import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
+import { canSeal, newCode, readCode, readInvite, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
@@ -2267,7 +2267,7 @@ function groupsHtml() {
         <input type="text" id="group-name" autocomplete="off"
                placeholder="${escapeHtml(t('groups.namePlaceholder'))}" />
         <input type="text" id="group-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
-               maxlength="7" placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
+               placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
         <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('gate.knock'))}</button>
       </div>
       <p class="muted small" id="group-state">${escapeHtml(t('groups.codeHint'))}</p>
@@ -2505,6 +2505,38 @@ function overviewView() {
     </section>`;
 }
 
+/**
+ * Paste an invitation into either field and both fill.
+ *
+ * Whatever lands in the name or the code box is read as a whole invitation
+ * first: the message carries the name, the six digits and the link, and
+ * selecting exactly one of them on a phone is the step people fail at. What is
+ * not an invitation is left to paste normally.
+ */
+function bindInvitationPaste(nameField, codeField) {
+  if (!nameField || !codeField) return;
+  const take = (event) => {
+    const pasted = event.clipboardData?.getData('text') || '';
+    const { name, code } = readInvite(pasted);
+    if (!code && !name) return;
+    event.preventDefault();
+    if (name) nameField.value = name;
+    if (code) codeField.value = code;
+    // Where the paste landed is where the eye is; the other field is now
+    // filled behind it, so the button is the only thing left to press.
+    (code ? codeField : nameField).focus();
+  };
+  nameField.addEventListener('paste', take);
+  codeField.addEventListener('paste', take);
+
+  // Typed, or pasted by a route that skips the event: the digits are the only
+  // thing this box is for.
+  codeField.addEventListener('input', () => {
+    const digits = codeField.value.replace(/[^0-9]/g, '').slice(0, 6);
+    if (digits !== codeField.value) codeField.value = digits;
+  });
+}
+
 function bindOverview() {
   bindData();
   bindInAppWarning();
@@ -2523,6 +2555,8 @@ function bindOverview() {
   const joining = (line, message) => {
     line.textContent = message;
   };
+
+  bindInvitationPaste(view.querySelector('#group-name'), view.querySelector('#group-code'));
 
   view.querySelector('#group-join')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -2638,18 +2672,17 @@ function bindOverview() {
         return;
       }
       render();
-      // One link, and whoever receives it types their first name and nothing
-      // else. The digits stay on show underneath, to be said out loud instead.
-      await shareUrl({
-        url: joinLink(location, group.name, invitation.code),
-        title: t('groups.inviteTitle', { name: group.name }),
-        hint: t(shape.uses > 1 ? 'groups.inviteHintOpen' : 'groups.inviteHintOne', {
-          hours: Math.round(invitation.minutes / 60),
-        }),
-        text: t('groups.inviteText', { name: group.name }),
+      // Everything in one message: the group, the code in plain sight, the link
+      // and how to install the app. It is the only thing the person will read —
+      // they will not open a guide, and will remember nothing else.
+      const url = joinLink(location, group.name, invitation.code);
+      const days = Math.max(1, Math.round(invitation.minutes / (24 * 60)));
+      await shareMessage({
+        title: t('groups.inviteReady', { name: group.name }),
+        hint: t('groups.inviteWhy'),
+        message: t('groups.inviteText', { name: group.name, code: invitation.code, url, days }),
+        url,
         code: invitation.code,
-        codeLabel: 'groups.codeLabel',
-        codeHint: 'groups.codeInLink',
       });
     });
   });
@@ -3054,7 +3087,7 @@ function joinView(invitation) {
           <input type="text" id="join-group" autocomplete="off" value="${escapeHtml(invitation.group)}"
                  placeholder="${escapeHtml(t('groups.namePlaceholder'))}" aria-label="${escapeHtml(t('groups.namePlaceholder'))}" />
           <input type="text" id="join-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
-                 maxlength="7" value="${escapeHtml(invitation.code || '')}" placeholder="000000"
+                 value="${escapeHtml(invitation.code || '')}" placeholder="000000"
                  aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
         </div>
       </details>
@@ -3132,10 +3165,19 @@ function waitingView(knock) {
 }
 
 /**
- * Which invitation to draw. Both last the day — long enough that nobody has to
- * hurry, and short enough that a link found later is dead. What separates them
- * is how many people may knock with it: the first is for a family, the second
- * for someone you would rather not see a link forwarded for.
+ * How long an invitation lasts: two days.
+ *
+ * A day was too short for a link sent in the evening to someone who opens
+ * their messages the following evening; two covers a weekend, and a link found
+ * a week later is still dead. The database caps it as well — the guide's SQL
+ * has to allow it, or the server quietly shortens it back.
+ */
+const INVITE_MINUTES = 2 * 24 * 60;
+
+/**
+ * Which invitation to draw. Both last two days; what separates them is how many
+ * people may knock with it: the first is for a family, the second for someone
+ * you would rather not see a link forwarded for.
  */
 async function askInvitationShape() {
   return new Promise((resolve) => {
@@ -3166,8 +3208,8 @@ async function askInvitationShape() {
     };
     dialog.addEventListener('close', () => done(null));
     dialog.querySelector('#invite-cancel').addEventListener('click', () => done(null));
-    dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: 1440, uses: 50 }));
-    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: 1440, uses: 1 }));
+    dialog.querySelector('#invite-open').addEventListener('click', () => done({ minutes: INVITE_MINUTES, uses: 50 }));
+    dialog.querySelector('#invite-one').addEventListener('click', () => done({ minutes: INVITE_MINUTES, uses: 1 }));
     dialog.showModal();
   });
 }
@@ -3200,6 +3242,7 @@ let knocking = false;
 
 function bindJoin() {
   bindInAppWarning();
+  bindInvitationPaste(view.querySelector('#join-group'), view.querySelector('#join-code'));
 
   view.querySelector('#join-copy-code')?.addEventListener('click', () => {
     const invitation = route();
@@ -4271,6 +4314,9 @@ function showCopyDialog({
   hint,
   text: content,
   qr = false,
+  // The QR carries the link, while the box shows the whole message: a QR of a
+  // twelve-line message is unreadable, and a link is what a camera is for.
+  qrText = null,
   code = null,
   send = false,
   // A lot's code is a second secret, to be sent by another route; an
@@ -4294,7 +4340,7 @@ function showCopyDialog({
           <span class="muted small" id="export-code-hint"></span>
         </div>
         <div id="export-qr" class="qr" hidden></div>
-        <textarea id="export-text" readonly rows="8"></textarea>
+        <textarea id="export-text" readonly rows="12"></textarea>
         <div class="row">
           <button type="button" class="button button--primary" id="export-copy"></button>
           <button type="button" class="button" id="export-send" hidden></button>
@@ -4339,7 +4385,7 @@ function showCopyDialog({
   text.setAttribute('aria-label', title);
 
   const image = dialog.querySelector('#export-qr');
-  const svg = qr ? qrFor(content) : null;
+  const svg = qr ? qrFor(qrText || content) : null;
   image.innerHTML = svg || '';
   image.hidden = !svg;
   if (svg) image.setAttribute('aria-label', t('share.qrLabel'));
@@ -4358,6 +4404,10 @@ function showCopyDialog({
   dialog.querySelector('#export-copy').textContent = t('action.copy');
   dialog.querySelector('#export-close').textContent = t('action.close');
   dialog.showModal();
+  // After opening, not before: opening the dialog puts the caret at the end of
+  // the box, and a message longer than it then starts on its last line — which
+  // reads as if the beginning were missing.
+  text.scrollTop = 0;
 }
 
 /**
@@ -4567,6 +4617,37 @@ function openLinkDialog() {
  * Hand a link over the easy way when the device offers one — one tap to a
  * message — and fall back to the text with its QR code everywhere else.
  */
+/**
+ * Hand over a whole message rather than a bare link.
+ *
+ * An invitation is not a link with a sentence around it: it is a name, a code,
+ * a link and how to install the app, and all four have to survive the trip.
+ * navigator.share puts `text` and `url` together for the messaging app; where
+ * it is absent, the message is on screen in one block, ready to copy.
+ */
+async function shareMessage({ title, hint, message, url, code = null }) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t('app.title'), text: message, url });
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+    }
+  }
+  // The six digits stay in their own box, big, above the message: they are
+  // what gets read out over the phone when the link will not go through.
+  showCopyDialog({
+    title,
+    hint,
+    text: message,
+    qr: true,
+    qrText: url,
+    code,
+    codeLabel: 'groups.codeLabel',
+    codeHint: 'groups.codeInLink',
+  });
+}
+
 async function shareUrl({ url, title, hint, text, code = null, codeLabel, codeHint }) {
   if (navigator.share) {
     try {

@@ -61,6 +61,42 @@ export function readCode(value) {
   return digits.length === DIGITS ? digits : null;
 }
 
+/**
+ * What can be pulled out of an invitation pasted whole.
+ *
+ * The message that travels carries the group's name, the six digits and the
+ * link. Asking someone to select exactly "Mifa" and exactly "123456" out of it,
+ * on a phone, with two taps of a magnifier, is asking for the paste to fail —
+ * so anything pasted into either field is read for both.
+ *
+ * Returns { name, code }, either of which may be null.
+ */
+export function readInvite(text) {
+  const source = String(text ?? '');
+
+  // The link is the most reliable of the three, because the app wrote it.
+  const link = /#\/join\/(\d{6})(?:\/([^\s/?#]+))?/.exec(source);
+
+  const labelled = /(?:^|\n)\s*(?:code)\s*[:：]\s*(\d{6})\b/i.exec(source);
+  const bare = /^\s*(\d{6})\s*$/.exec(source);
+  const code = link?.[1] || labelled?.[1] || bare?.[1] || null;
+
+  let name = null;
+  if (link?.[2]) {
+    try {
+      name = decodeURIComponent(link[2]).trim() || null;
+    } catch {
+      name = link[2].trim() || null;
+    }
+  }
+  if (!name) {
+    const written = /(?:^|\n)\s*(?:nom|name|groupe|group)\s*[:：]\s*(.+)/i.exec(source);
+    name = written ? written[1].trim() || null : null;
+  }
+
+  return { name, code };
+}
+
 const toBase64 = (bytes) => btoa(String.fromCharCode(...bytes));
 const fromBase64 = (text) => Uint8Array.from(atob(String(text)), (char) => char.charCodeAt(0));
 
