@@ -783,19 +783,59 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
-.vote--maybe { border-color: #b8761a; background: var(--accent-soft); color: #8a5712; }
-.vote--no { border-color: #a33c32; background: #f7e7e5; color: #8c2f26; }
 .vote[disabled] { cursor: default; opacity: 0.75; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
-  :root:not([data-theme="light"]) .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
-  :root:not([data-theme="light"]) .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
 }
 
 :root[data-theme="dark"] .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
-:root[data-theme="dark"] .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
-:root[data-theme="dark"] .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+
+/* ----------------------------------------------------------------- gauge --- */
+/*
+ * The poll's answer at a glance: one bar per choice, the longest first. The
+ * track is everyone asked, so a bar's length is a share of the people, not of
+ * the winner. One colour for every bar — the leader is told apart by weight,
+ * not by a second hue — and the number at the end, in text ink, says what the
+ * length only suggests.
+ */
+.gauge { margin: 4px 0 16px; }
+.gauge__title { font-size: 0.95rem; margin: 0 0 8px; }
+.gauge__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gauge__row {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 7.5em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.gauge__label { overflow-wrap: break-word; min-width: 0; }
+.gauge__track {
+  height: 12px;
+  border-radius: 0 4px 4px 0;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+.gauge__fill {
+  display: block;
+  height: 100%;
+  /* Anchored square on the baseline, rounded at the end the data reaches. */
+  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+.gauge__count {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.gauge__row--lead .gauge__label,
+.gauge__row--lead .gauge__count { font-weight: 700; color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge__fill { transition: none; }
+}
 
 /* ------------------------------------------------------------------ tabs --- */
 /*
@@ -1476,15 +1516,15 @@ const STRINGS = {
     'polls.none': 'Aucun sondage pour l’instant. Posez une question : un soir, un lieu, un cadeau.',
     'polls.answered': '{count} réponse(s) sur {total}',
     'polls.noAnswerYet': 'Personne n’a encore répondu.',
-    'polls.leading': 'En tête : {option} ({count} oui)',
-    'polls.leadingMaybe': 'En tête : {option} ({count} peut-être)',
+    'polls.leading': 'En tête : {option} ({count} dispo)',
+    'polls.gauge': 'Les dates qui arrangent le plus',
     'polls.closed': 'clos',
     'polls.close': 'Clore le sondage',
     'polls.reopen': 'Rouvrir le sondage',
     'polls.choice': 'Choix',
     'polls.count': 'Oui',
     'polls.iAm': 'Je suis :',
-    'polls.tapHint': 'Touchez une case pour passer de oui à peut-être, puis non, puis rien.',
+    'polls.tapHint': 'Cochez les dates où vous êtes disponible. Touchez à nouveau pour décocher.',
     'polls.addChoice': 'Ajouter un choix',
     'polls.addChoices': 'Ajoutez les choix ci-dessous.',
     'polls.addPeople': 'Ajoutez d’abord les personnes à qui vous demandez.',
@@ -1498,7 +1538,7 @@ const STRINGS = {
     'polls.shareHint':
       'Scannez le code, ou envoyez le lien : la personne répond de son côté, et le compte se met à jour ici.',
     'polls.loading': 'Ouverture du sondage…',
-    'polls.countLine': '{yes} oui, {maybe} peut-être, {no} non',
+    'polls.countLine': '{yes} dispo sur {total}',
     'tab.lists': 'Listes',
     'lists.new': 'Nouvelle liste',
     'lists.name': 'Titre de la liste',
@@ -2187,15 +2227,15 @@ const STRINGS = {
     'polls.none': 'No polls yet. Ask something: an evening, a place, a present.',
     'polls.answered': '{count} of {total} answered',
     'polls.noAnswerYet': 'Nobody has answered yet.',
-    'polls.leading': 'Leading: {option} ({count} yes)',
-    'polls.leadingMaybe': 'Leading: {option} ({count} maybe)',
+    'polls.leading': 'Leading: {option} ({count} available)',
+    'polls.gauge': 'The dates that suit most people',
     'polls.closed': 'closed',
     'polls.close': 'Close the poll',
     'polls.reopen': 'Reopen the poll',
     'polls.choice': 'Choice',
     'polls.count': 'Yes',
     'polls.iAm': 'I am:',
-    'polls.tapHint': 'Tap a cell to go from yes to maybe, then no, then nothing.',
+    'polls.tapHint': 'Tick the dates you can make. Tap again to untick.',
     'polls.addChoice': 'Add a choice',
     'polls.addChoices': 'Add the choices below.',
     'polls.addPeople': 'Start by adding the people you are asking.',
@@ -2209,7 +2249,7 @@ const STRINGS = {
     'polls.shareHint':
       'Scan the code, or send the link: they answer on their side, and the count updates here.',
     'polls.loading': 'Opening the poll…',
-    'polls.countLine': '{yes} yes, {maybe} maybe, {no} no',
+    'polls.countLine': '{yes} of {total} available',
     'tab.lists': 'Lists',
     'lists.new': 'New list',
     'lists.name': 'List title',
@@ -4450,10 +4490,11 @@ function voteOf(poll, personId, optionId) {
 
 /** The next answer when the same cell is tapped again. */
 function nextValue(value) {
-  if (value === null) return 'yes';
-  if (value === 'yes') return 'maybe';
-  if (value === 'maybe') return 'no';
-  return null;
+  // Available, or not said: a tap ticks, a second tap unticks. "Maybe" and
+  // "no" asked people to grade their evenings when all anyone wanted to know
+  // was which ones they can make. They are still read — polls answered before
+  // keep their answers — but a tap on one of them simply makes it a yes.
+  return value === 'yes' ? null : 'yes';
 }
 
 /** The people being asked — named for the poll, so no two modules clash. */
@@ -4486,10 +4527,10 @@ function setClosed(poll, closed) {
  * around the screen.
  *
  * `ranked` is the same rows, best first, for whoever wants to know what is
- * winning. A "maybe" is half a yes there — enough to break a tie between two
- * evenings everyone can half-make, never enough to beat one they can all make.
- * The counts themselves are reported whole, because that is what a table looks
- * at before deciding.
+ * winning — by how many people can make it, and nothing else. A "maybe" or a
+ * "no" left over from before is not a yes, and is not counted as one: the
+ * grid shows neither any more, and the count must never disagree with what
+ * is on screen.
  */
 function tally(poll) {
   const rows = poll.options.map((option) => {
@@ -4499,24 +4540,18 @@ function tally(poll) {
       if (value) counts[value] += 1;
       else counts.missing += 1;
     }
-    return { option, ...counts, score: counts.yes + counts.maybe / 2 };
+    return { option, ...counts, score: counts.yes };
   });
 
-  // Ranked by how many can make it, counting a maybe as half a yes: enough to
-  // separate two evenings everyone can half-make, never enough to beat one
-  // they can all make. Level on that, the firmer yeses win.
-  const ranked = [...rows].sort((a, b) => b.score - a.score || b.yes - a.yes);
+  // Level on the count, the order the choices were written in decides: a
+  // stable sort keeps it, so the gauge does not shuffle equal evenings.
+  const ranked = [...rows].sort((a, b) => b.yes - a.yes);
   const best = ranked[0];
   return {
     rows,
     ranked,
-    // Nobody leads a poll nobody has answered.
-    leaders:
-      best && best.score > 0
-        ? rows
-            .filter((row) => row.score === best.score && row.yes === best.yes)
-            .map((row) => row.option.id)
-        : [],
+    // Nobody leads a poll nobody is available for.
+    leaders: best && best.yes > 0 ? rows.filter((row) => row.yes === best.yes).map((row) => row.option.id) : [],
     answered: poll.people.filter((person) =>
       poll.options.some((option) => voteOf(poll, person.id, option.id)),
     ).length,
@@ -6883,7 +6918,8 @@ function pollTitle(poll) {
   return poll.question || t('polls.untitled');
 }
 
-const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
+/** A cell says one thing: available. What was "maybe" or "no" before shows as nothing. */
+const VOTE_MARK = { yes: '✓' };
 
 function pollCardHtml(poll) {
   const { answered, leaders, ranked } = tally(poll);
@@ -6899,9 +6935,7 @@ function pollCardHtml(poll) {
       ${
         leading
           ? `<span class="game-card__meta">${escapeHtml(
-              leading.yes
-                ? t('polls.leading', { option: leading.option.text, count: leading.yes })
-                : t('polls.leadingMaybe', { option: leading.option.text, count: leading.maybe }),
+              t('polls.leading', { option: leading.option.text, count: leading.yes }),
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
@@ -7003,19 +7037,62 @@ function newPollView() {
     </form>`;
 }
 
+/**
+ * Which evenings suit the most people, at a glance: one bar per choice, the
+ * longest first.
+ *
+ * The grid answers "who can make what"; this answers "so, which one?", which
+ * is the question everyone opens the poll to ask. A bar's full length is
+ * everyone asked — not the best score — so three out of twelve looks like
+ * three out of twelve, and not like a landslide. The exact count sits at the
+ * end of every bar, in plain text: the length is for the eye, the number is
+ * for certainty. Ranked, unlike the grid: nobody taps a bar, so nothing moves
+ * under anyone's finger when the order changes.
+ */
+function gaugeHtml(poll) {
+  const total = poll.people.length;
+  const { ranked, leaders } = tally(poll);
+  if (!total || !ranked.some((row) => row.yes > 0)) return '';
+  return `
+    <section class="gauge" aria-labelledby="gauge-title">
+      <h2 id="gauge-title" class="gauge__title">${escapeHtml(t('polls.gauge'))}</h2>
+      <ol class="gauge__rows">
+        ${ranked
+          .map((row) => {
+            const share = Math.round((row.yes / total) * 100);
+            const lead = leaders.includes(row.option.id);
+            const said = t('polls.countLine', { yes: row.yes, total });
+            return `
+              <li class="gauge__row ${lead ? 'gauge__row--lead' : ''}" title="${escapeHtml(`${row.option.text} — ${said}`)}">
+                <span class="gauge__label">${escapeHtml(row.option.text)}</span>
+                <span class="gauge__track" aria-hidden="true">
+                  <span class="gauge__fill" style="width: ${share}%"></span>
+                </span>
+                <span class="gauge__count">
+                  <span aria-hidden="true">${row.yes}/${total}</span>
+                  <span class="visually-hidden">${escapeHtml(said)}</span>
+                </span>
+              </li>`;
+          })
+          .join('')}
+      </ol>
+    </section>`;
+}
+
 function pollView(poll) {
   const me = state.prefs.voter?.[poll.id] || null;
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
 
   const cellHtml = (option, person) => {
-    const value = voteOf(poll, person.id, option.id);
+    const yes = voteOf(poll, person.id, option.id) === 'yes';
     return `
       <td class="${person.id === me ? 'votes__mine' : ''}">
-        <button type="button" class="vote ${value ? `vote--${value}` : 'vote--none'}"
+        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'}"
                 data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+                aria-pressed="${yes ? 'true' : 'false'}"
                 aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
-          ${escapeHtml(value ? VOTE_MARK[value] : '·')}
+          ${yes ? VOTE_MARK.yes : ''}
         </button>
       </td>`;
   };
@@ -7078,6 +7155,8 @@ function pollView(poll) {
       }
     </section>
 
+    ${gaugeHtml(poll)}
+
     ${
       poll.options.length && poll.people.length
         ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
@@ -7100,7 +7179,7 @@ function pollView(poll) {
                            </button>
                          </th>
                          ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
-                         <td class="votes__score">${row.yes}${row.maybe ? `<span class="muted small"> +${row.maybe}~</span>` : ''}</td>
+                         <td class="votes__score">${row.yes}</td>
                        </tr>`,
                    )
                    .join('')}
@@ -7573,7 +7652,7 @@ function openPollNameDialog(poll) {
 function pollText(poll) {
   const { rows } = tally(poll);
   const line = (row) =>
-    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, maybe: row.maybe, no: row.no })}`;
+    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, total: poll.people.length })}`;
   return [pollTitle(poll), '', ...rows.map(line)].join('\n');
 }
 

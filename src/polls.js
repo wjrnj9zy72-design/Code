@@ -151,10 +151,11 @@ export function voteOf(poll, personId, optionId) {
 
 /** The next answer when the same cell is tapped again. */
 export function nextValue(value) {
-  if (value === null) return 'yes';
-  if (value === 'yes') return 'maybe';
-  if (value === 'maybe') return 'no';
-  return null;
+  // Available, or not said: a tap ticks, a second tap unticks. "Maybe" and
+  // "no" asked people to grade their evenings when all anyone wanted to know
+  // was which ones they can make. They are still read — polls answered before
+  // keep their answers — but a tap on one of them simply makes it a yes.
+  return value === 'yes' ? null : 'yes';
 }
 
 /** The people being asked — named for the poll, so no two modules clash. */
@@ -187,10 +188,10 @@ export function setClosed(poll, closed) {
  * around the screen.
  *
  * `ranked` is the same rows, best first, for whoever wants to know what is
- * winning. A "maybe" is half a yes there — enough to break a tie between two
- * evenings everyone can half-make, never enough to beat one they can all make.
- * The counts themselves are reported whole, because that is what a table looks
- * at before deciding.
+ * winning — by how many people can make it, and nothing else. A "maybe" or a
+ * "no" left over from before is not a yes, and is not counted as one: the
+ * grid shows neither any more, and the count must never disagree with what
+ * is on screen.
  */
 export function tally(poll) {
   const rows = poll.options.map((option) => {
@@ -200,24 +201,18 @@ export function tally(poll) {
       if (value) counts[value] += 1;
       else counts.missing += 1;
     }
-    return { option, ...counts, score: counts.yes + counts.maybe / 2 };
+    return { option, ...counts, score: counts.yes };
   });
 
-  // Ranked by how many can make it, counting a maybe as half a yes: enough to
-  // separate two evenings everyone can half-make, never enough to beat one
-  // they can all make. Level on that, the firmer yeses win.
-  const ranked = [...rows].sort((a, b) => b.score - a.score || b.yes - a.yes);
+  // Level on the count, the order the choices were written in decides: a
+  // stable sort keeps it, so the gauge does not shuffle equal evenings.
+  const ranked = [...rows].sort((a, b) => b.yes - a.yes);
   const best = ranked[0];
   return {
     rows,
     ranked,
-    // Nobody leads a poll nobody has answered.
-    leaders:
-      best && best.score > 0
-        ? rows
-            .filter((row) => row.score === best.score && row.yes === best.yes)
-            .map((row) => row.option.id)
-        : [],
+    // Nobody leads a poll nobody is available for.
+    leaders: best && best.yes > 0 ? rows.filter((row) => row.yes === best.yes).map((row) => row.option.id) : [],
     answered: poll.people.filter((person) =>
       poll.options.some((option) => voteOf(poll, person.id, option.id)),
     ).length,

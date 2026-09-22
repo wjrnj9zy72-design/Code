@@ -208,7 +208,8 @@ function pollTitle(poll) {
   return poll.question || t('polls.untitled');
 }
 
-const VOTE_MARK = { yes: '✓', maybe: '~', no: '✗' };
+/** A cell says one thing: available. What was "maybe" or "no" before shows as nothing. */
+const VOTE_MARK = { yes: '✓' };
 
 function pollCardHtml(poll) {
   const { answered, leaders, ranked } = tally(poll);
@@ -224,9 +225,7 @@ function pollCardHtml(poll) {
       ${
         leading
           ? `<span class="game-card__meta">${escapeHtml(
-              leading.yes
-                ? t('polls.leading', { option: leading.option.text, count: leading.yes })
-                : t('polls.leadingMaybe', { option: leading.option.text, count: leading.maybe }),
+              t('polls.leading', { option: leading.option.text, count: leading.yes }),
             )}</span>`
           : `<span class="game-card__meta">${escapeHtml(t('polls.noAnswerYet'))}</span>`
       }
@@ -328,19 +327,62 @@ function newPollView() {
     </form>`;
 }
 
+/**
+ * Which evenings suit the most people, at a glance: one bar per choice, the
+ * longest first.
+ *
+ * The grid answers "who can make what"; this answers "so, which one?", which
+ * is the question everyone opens the poll to ask. A bar's full length is
+ * everyone asked — not the best score — so three out of twelve looks like
+ * three out of twelve, and not like a landslide. The exact count sits at the
+ * end of every bar, in plain text: the length is for the eye, the number is
+ * for certainty. Ranked, unlike the grid: nobody taps a bar, so nothing moves
+ * under anyone's finger when the order changes.
+ */
+function gaugeHtml(poll) {
+  const total = poll.people.length;
+  const { ranked, leaders } = tally(poll);
+  if (!total || !ranked.some((row) => row.yes > 0)) return '';
+  return `
+    <section class="gauge" aria-labelledby="gauge-title">
+      <h2 id="gauge-title" class="gauge__title">${escapeHtml(t('polls.gauge'))}</h2>
+      <ol class="gauge__rows">
+        ${ranked
+          .map((row) => {
+            const share = Math.round((row.yes / total) * 100);
+            const lead = leaders.includes(row.option.id);
+            const said = t('polls.countLine', { yes: row.yes, total });
+            return `
+              <li class="gauge__row ${lead ? 'gauge__row--lead' : ''}" title="${escapeHtml(`${row.option.text} — ${said}`)}">
+                <span class="gauge__label">${escapeHtml(row.option.text)}</span>
+                <span class="gauge__track" aria-hidden="true">
+                  <span class="gauge__fill" style="width: ${share}%"></span>
+                </span>
+                <span class="gauge__count">
+                  <span aria-hidden="true">${row.yes}/${total}</span>
+                  <span class="visually-hidden">${escapeHtml(said)}</span>
+                </span>
+              </li>`;
+          })
+          .join('')}
+      </ol>
+    </section>`;
+}
+
 function pollView(poll) {
   const me = state.prefs.voter?.[poll.id] || null;
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
 
   const cellHtml = (option, person) => {
-    const value = voteOf(poll, person.id, option.id);
+    const yes = voteOf(poll, person.id, option.id) === 'yes';
     return `
       <td class="${person.id === me ? 'votes__mine' : ''}">
-        <button type="button" class="vote ${value ? `vote--${value}` : 'vote--none'}"
+        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'}"
                 data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+                aria-pressed="${yes ? 'true' : 'false'}"
                 aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
-          ${escapeHtml(value ? VOTE_MARK[value] : '·')}
+          ${yes ? VOTE_MARK.yes : ''}
         </button>
       </td>`;
   };
@@ -403,6 +445,8 @@ function pollView(poll) {
       }
     </section>
 
+    ${gaugeHtml(poll)}
+
     ${
       poll.options.length && poll.people.length
         ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
@@ -425,7 +469,7 @@ function pollView(poll) {
                            </button>
                          </th>
                          ${poll.people.map((person) => cellHtml(row.option, person)).join('')}
-                         <td class="votes__score">${row.yes}${row.maybe ? `<span class="muted small"> +${row.maybe}~</span>` : ''}</td>
+                         <td class="votes__score">${row.yes}</td>
                        </tr>`,
                    )
                    .join('')}
@@ -898,7 +942,7 @@ function openPollNameDialog(poll) {
 function pollText(poll) {
   const { rows } = tally(poll);
   const line = (row) =>
-    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, maybe: row.maybe, no: row.no })}`;
+    `${row.option.text} — ${t('polls.countLine', { yes: row.yes, total: poll.people.length })}`;
   return [pollTitle(poll), '', ...rows.map(line)].join('\n');
 }
 

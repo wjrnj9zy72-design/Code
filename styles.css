@@ -781,19 +781,59 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
-.vote--maybe { border-color: #b8761a; background: var(--accent-soft); color: #8a5712; }
-.vote--no { border-color: #a33c32; background: #f7e7e5; color: #8c2f26; }
 .vote[disabled] { cursor: default; opacity: 0.75; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
-  :root:not([data-theme="light"]) .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
-  :root:not([data-theme="light"]) .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
 }
 
 :root[data-theme="dark"] .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
-:root[data-theme="dark"] .vote--maybe { border-color: #e0a33f; background: #332b1c; color: #e8bd76; }
-:root[data-theme="dark"] .vote--no { border-color: #c2665c; background: #331d1b; color: #e8a49c; }
+
+/* ----------------------------------------------------------------- gauge --- */
+/*
+ * The poll's answer at a glance: one bar per choice, the longest first. The
+ * track is everyone asked, so a bar's length is a share of the people, not of
+ * the winner. One colour for every bar — the leader is told apart by weight,
+ * not by a second hue — and the number at the end, in text ink, says what the
+ * length only suggests.
+ */
+.gauge { margin: 4px 0 16px; }
+.gauge__title { font-size: 0.95rem; margin: 0 0 8px; }
+.gauge__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gauge__row {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 7.5em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.gauge__label { overflow-wrap: break-word; min-width: 0; }
+.gauge__track {
+  height: 12px;
+  border-radius: 0 4px 4px 0;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+.gauge__fill {
+  display: block;
+  height: 100%;
+  /* Anchored square on the baseline, rounded at the end the data reaches. */
+  border-radius: 0 4px 4px 0;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+.gauge__count {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.gauge__row--lead .gauge__label,
+.gauge__row--lead .gauge__count { font-weight: 700; color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gauge__fill { transition: none; }
+}
 
 /* ------------------------------------------------------------------ tabs --- */
 /*
