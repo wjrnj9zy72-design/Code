@@ -782,6 +782,10 @@ table.scores .meta-cell { color: var(--muted); }
 
 .vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
 .vote[disabled] { cursor: default; opacity: 0.75; }
+/* The others' cells, while this device answers for someone: still readable,
+   plainly not for touching. */
+.vote--other { opacity: 0.45; border-style: dashed; }
+.vote--other.vote--yes { opacity: 0.6; border-style: solid; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }

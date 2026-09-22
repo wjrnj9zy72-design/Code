@@ -784,6 +784,10 @@ table.scores .meta-cell { color: var(--muted); }
 
 .vote--yes { border-color: #2f7d4f; background: #e7f3ec; color: #1e5c39; }
 .vote[disabled] { cursor: default; opacity: 0.75; }
+/* The others' cells, while this device answers for someone: still readable,
+   plainly not for touching. */
+.vote--other { opacity: 0.45; border-style: dashed; }
+.vote--other.vote--yes { opacity: 0.6; border-style: solid; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .vote--yes { border-color: #4a9a6a; background: #17301f; color: #8fd3a8; }
@@ -1537,7 +1541,8 @@ const STRINGS = {
     'polls.choice': 'Choix',
     'polls.count': 'Oui',
     'polls.iAm': 'Je suis :',
-    'polls.tapHint': 'Cochez les dates où vous êtes disponible. Touchez à nouveau pour décocher.',
+    'polls.tapHint': 'Choisissez votre prénom, puis cochez les dates où vous êtes disponible.',
+    'polls.answeringAs': 'Vous répondez pour {name} : seule sa colonne se coche. Touchez un autre prénom plus haut pour changer.',
     'polls.addChoice': 'Ajouter un choix',
     'polls.addChoices': 'Ajoutez les choix ci-dessous.',
     'polls.addPeople': 'Ajoutez d’abord les personnes à qui vous demandez.',
@@ -2252,7 +2257,8 @@ const STRINGS = {
     'polls.choice': 'Choice',
     'polls.count': 'Yes',
     'polls.iAm': 'I am:',
-    'polls.tapHint': 'Tick the dates you can make. Tap again to untick.',
+    'polls.tapHint': 'Choose your name, then tick the dates you can make.',
+    'polls.answeringAs': 'You are answering for {name}: only that column can be ticked. Tap another name above to change.',
     'polls.addChoice': 'Add a choice',
     'polls.addChoices': 'Add the choices below.',
     'polls.addPeople': 'Start by adding the people you are asking.',
@@ -7143,10 +7149,15 @@ function pollView(poll, { solo = false } = {}) {
 
   const cellHtml = (option, person) => {
     const yes = voteOf(poll, person.id, option.id) === 'yes';
+    // Once this device has said who it answers for, the other columns are out
+    // of reach: a thumb that lands one column over would tick someone else's
+    // evening, and nothing on screen would say so. Switching name is still one
+    // tap on the chips above — a choice, rather than a slip.
+    const others = Boolean(me) && person.id !== me;
     return `
       <td class="${person.id === me ? 'votes__mine' : ''}">
-        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'}"
-                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed ? 'disabled' : ''}
+        <button type="button" class="vote ${yes ? 'vote--yes' : 'vote--none'} ${others ? 'vote--other' : ''}"
+                data-vote="${escapeHtml(person.id)}|${escapeHtml(option.id)}" ${closed || others ? 'disabled' : ''}
                 aria-pressed="${yes ? 'true' : 'false'}"
                 aria-label="${escapeHtml(`${person.name} — ${option.text}`)}">
           ${yes ? VOTE_MARK.yes : ''}
@@ -7253,7 +7264,11 @@ function pollView(poll, { solo = false } = {}) {
                </tbody>
              </table>
            </div>
-           <p class="muted small">${escapeHtml(t('polls.tapHint'))}</p>`
+           <p class="muted small">${escapeHtml(
+             me && !closed
+               ? t('polls.answeringAs', { name: poll.people.find((person) => person.id === me)?.name || '' })
+               : t('polls.tapHint'),
+           )}</p>`
         : `<p class="muted small">${escapeHtml(poll.people.length ? t('polls.addChoices') : t('polls.addPeople'))}</p>`
     }
 
@@ -7518,6 +7533,9 @@ function bindPoll(poll) {
   view.querySelectorAll('[data-vote]').forEach((button) => {
     button.addEventListener('click', () => {
       const [personId, optionId] = button.dataset.vote.split('|');
+      // The screen already refuses; this refuses too, whatever the screen did.
+      const answeringAs = state.prefs.voter?.[poll.id];
+      if (answeringAs && answeringAs !== personId) return;
       const next = setVote(poll, personId, optionId, nextValue(voteOf(poll, personId, optionId)));
       if (next === poll) return;
       // Remember who this device answers as, so its column stands out.
