@@ -164,36 +164,21 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 
 **SQL Editor** → **New query**, collez **tout** ce bloc, puis **Run**.
 
-> **Votre base existe déjà ?** Recoller le bloc entier est sans danger — tout y
-> est en `create or replace` / `create table if not exists`, et rien n'efface de
-> données. Si vous ne voulez repasser que le dernier changement (les invitations
-> portées de un à **deux jours**), une requête suffit :
+> **Votre base existe déjà ?** Pas besoin de recoller ce bloc : ouvrez
+> **`supabase/mise-a-jour.sql`** dans le dépôt, bouton **Raw**, copiez **tout**,
+> collez dans **SQL Editor → New query**, **Run**. Réponse attendue :
+> `Success. No rows returned`.
 >
-> ```sql
-> create or replace function public.marque_points_invite(
->   p_key text, p_minutes integer default 30, p_uses integer default 1
-> ) returns jsonb language plpgsql security definer set search_path = public as $$
-> declare
->   v_group text; v_name text; v_code text;
->   v_minutes integer := greatest(5, least(coalesce(p_minutes, 30), 2880));
->   v_uses integer := greatest(1, least(coalesce(p_uses, 1), 200));
-> begin
->   select g.id, g.name into v_group, v_name
->     from public.marque_points_group_key k
->     join public.marque_points_group g on g.id = k.group_id
->    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
->   if v_group is null then raise exception 'cle de groupe invalide'; end if;
->   delete from public.marque_points_invite
->    where expires_at < now() or uses <= 0 or tries >= 10;
->   v_code := public.marque_points_fresh_code();
->   insert into public.marque_points_invite (code, group_id, expires_at, uses)
->   values (v_code, v_group, now() + make_interval(mins => v_minutes), v_uses);
->   return jsonb_build_object('code', v_code, 'name', v_name, 'minutes', v_minutes, 'uses', v_uses);
-> end; $$;
-> ```
+> Il apporte, sans rien effacer, les deux derniers changements :
 >
-> Sans elle, l'app demandera deux jours et la base les ramènera à un, sans
-> rien dire.
+> - les invitations valent **deux jours** au lieu d'un ;
+> - **« Lien seulement »** : un document que seuls ceux qui ont le lien voient,
+>   absent des onglets et de l'agenda de vos groupes.
+>
+> Sans lui, l'app demande deux jours et la base les ramène à un ; et un
+> « lien seulement » atterrit dans les onglets du groupe comme n'importe quel
+> autre document. On peut le repasser sans danger : il remplace en place. Un
+> test vérifie qu'il dit exactement la même chose que le bloc ci-dessous.
 
 ```sql
 -- ---------------------------------------------------------------------------
@@ -428,6 +413,14 @@ alter table public.marque_points_group_key
 alter table public.marque_points_games
   add column if not exists group_id text;
 
+-- « Lien seulement » : un document créé avec la clé d'un groupe — c'est elle
+-- qui garde le droit de le supprimer, et qui tient la base à l'abri des
+-- inconnus — mais que le groupe ne liste pas. Ni ses onglets, ni son agenda
+-- ne le voient : seuls ceux qui ont reçu le lien. Fixé à la première écriture,
+-- comme le groupe : quelqu'un qui a le lien ne peut pas le faire apparaître.
+alter table public.marque_points_games
+  add column if not exists listed boolean not null default true;
+
 create index if not exists marque_points_games_group on public.marque_points_games (group_id);
 
 -- Crée un groupe et affiche sa clé UNE fois. Ne s'exécute que d'ici, depuis
@@ -513,7 +506,8 @@ as $$
     from public.marque_points_games g
     join public.marque_points_group_key k on k.group_id = g.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
-     and g.code_hash is null;
+     and g.code_hash is null
+     and g.listed;
 $$;
 
 drop function if exists public.marque_points_put(text, jsonb);
@@ -549,8 +543,9 @@ begin
       raise exception 'cle de groupe invalide';
     end if;
 
-    insert into public.marque_points_games (id, data, updated_at, group_id)
-    values (p_id, p_data, now(), v_group);
+    insert into public.marque_points_games (id, data, updated_at, group_id, listed)
+    values (p_id, p_data, now(), v_group,
+            not coalesce((p_data->>'linkOnly')::boolean, false));
   else
     -- La ligne existe : qui a le lien peut y contribuer.
     update public.marque_points_games
@@ -1197,6 +1192,7 @@ begin
         from public.marque_points_games g
        where g.group_id = v_group.id
          and g.code_hash is null
+         and g.listed
          and g.data->>'kind' in ('list', 'poll')
     ), '[]'::jsonb));
 end;
@@ -2230,6 +2226,13 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
   de *Mifa*, n'en connaît aucun identifiant, et n'a aucun moyen d'en découvrir.
   Le groupe d'un document est fixé à sa **première** écriture et ne bouge plus :
   une écriture ultérieure, avec n'importe quelle clé, ne le déplace pas.
+- **« Lien seulement »** : un document créé avec la clé d'un de vos groupes —
+  c'est elle qui vous garde le droit de le supprimer, et qui tient les inconnus
+  hors de la base — mais que la base ne liste pour aucun groupe : ni ses
+  onglets, ni son agenda. Seuls ceux qui reçoivent le lien le voient. C'est
+  fixé à la création : quelqu'un qui a le lien ne peut pas le faire apparaître
+  dans le groupe. Revers : vos autres appareils ne le reçoivent pas non plus
+  d'eux-mêmes — ouvrez-y le lien.
 - **La seule porte entre deux groupes est un lien envoyé à la main.** Lire un
   document par son identifiant ne demande aucune clé — c'est ce qui permet
   d'envoyer un sondage à quelqu'un qui n'est dans aucun groupe. L'identifiant

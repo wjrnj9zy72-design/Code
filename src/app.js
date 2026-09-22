@@ -594,14 +594,7 @@ function bindNewPoll() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = chosenGroupForNew();
-
-    let poll = createPoll({
-      question: newPollQuestion,
-      names: newPollPeople,
-      shared: Boolean(group),
-      groupId: group?.id || null,
-    });
+    let poll = landing(createPoll({ question: newPollQuestion, names: newPollPeople }));
     poll = addOptions(poll, newPollChoices);
 
     state.polls = [...state.polls, poll];
@@ -4788,35 +4781,67 @@ function resetGroupChoice() {
 }
 
 /** The group a new thing goes into, chip or no chip. */
-function chosenGroupForNew() {
+/** The chip that means "only those who get the link". */
+const LINK_ONLY = '@lien';
+
+/**
+ * Where a new thing lands: a group, nowhere, or "link only".
+ *
+ * Link only still needs a group behind it. Creating anything in the database
+ * takes a group's key — that is what keeps strangers from filling it — and the
+ * key that created a thing is the one that may delete it. So a link-only thing
+ * is written with a key of this device's, and the database is told the group
+ * must not list it: not in its tabs, not in its calendar. Which group lends
+ * the key matters to nobody but the one deleting, so it is the one being
+ * looked at, or the first by name.
+ */
+function destinationForNew() {
   const held = groups();
-  if (!state.remote || !held.length) return null;
+  if (!state.remote || !held.length) return { group: null, linkOnly: false };
   if (newGroupChoice.touched) {
-    return newGroupChoice.id ? held.find((group) => group.id === newGroupChoice.id) || null : null;
+    if (newGroupChoice.id === LINK_ONLY) {
+      return { group: groupForNew() || groupsByName()[0], linkOnly: true };
+    }
+    const group = newGroupChoice.id ? held.find((item) => item.id === newGroupChoice.id) || null : null;
+    return { group, linkOnly: false };
   }
   // Nobody has touched anything: the group being looked at, the only one there
   // is, or — with several and none chosen — none, said plainly on the form.
-  return groupForNew() || (held.length === 1 ? held[0] : null);
+  return { group: groupForNew() || (held.length === 1 ? held[0] : null), linkOnly: false };
+}
+
+/** What a new document carries about where it went. */
+function landing(document_) {
+  const { group, linkOnly } = destinationForNew();
+  return {
+    ...document_,
+    shared: Boolean(group),
+    groupId: group?.id || null,
+    ...(linkOnly ? { linkOnly: true } : {}),
+  };
 }
 
 /** The chips that say where it will land, and change it. */
 function willBeInHtml() {
   const held = groups();
   if (!state.remote || !held.length) return '';
-  const chosen = chosenGroupForNew();
+  const { group, linkOnly } = destinationForNew();
+  const on = linkOnly ? LINK_ONLY : group?.id || '';
   const chip = (id, label) => `
-    <button type="button" class="chip ${(chosen?.id || '') === id ? 'chip--on' : ''}"
-            data-new-group="${escapeHtml(id)}" aria-pressed="${(chosen?.id || '') === id ? 'true' : 'false'}">
+    <button type="button" class="chip ${on === id ? 'chip--on' : ''}"
+            data-new-group="${escapeHtml(id)}" aria-pressed="${on === id ? 'true' : 'false'}">
       ${escapeHtml(label)}
     </button>`;
+  const note = linkOnly ? t('groups.linkOnlyHint') : group ? '' : t('groups.willBeInNone');
   return `
     <div class="stack stack--tight">
       <span class="muted small">${escapeHtml(t('groups.willGoIn'))}</span>
       <div class="row row--tight" role="group" aria-label="${escapeHtml(t('groups.willGoIn'))}">
-        ${held.map((group) => chip(group.id, group.name)).join('')}
+        ${groupsByName().map((item) => chip(item.id, item.name)).join('')}
+        ${chip(LINK_ONLY, t('groups.linkOnly'))}
         ${chip('', t('groups.keepToMyself'))}
       </div>
-      ${chosen ? '' : `<p class="muted small">${escapeHtml(t('groups.willBeInNone'))}</p>`}
+      ${note ? `<p class="muted small">${escapeHtml(note)}</p>` : ''}
     </div>`;
 }
 
@@ -4838,6 +4863,14 @@ function groupOf(document_) {
  */
 function inGroupHtml(document_) {
   if (!state.remote || !groups().length) return '';
+  if (document_.linkOnly) {
+    // No group to name, and none to put it in: the database fixed that at
+    // its first write. What it is, and how it travels, is all there is to say.
+    return `
+      <div class="row row--tight">
+        <span class="muted small">${escapeHtml(t('groups.inLinkOnly'))}</span>
+      </div>`;
+  }
   const group = groupOf(document_);
   return `
     <div class="row row--tight">
@@ -4923,6 +4956,9 @@ async function copyToGroup(id) {
     id: uid(document_.id.split('_')[0] || 'id'),
     shared: true,
     groupId: group.id,
+    // Copied into a group, it is the group's: a link-only original makes a
+    // copy the group can see, which is the point of copying it there.
+    linkOnly: false,
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,
@@ -6003,15 +6039,7 @@ function bindNewList() {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = chosenGroupForNew();
-
-    let list = createList({
-      name: newListName,
-      names: newListPeople,
-      // A device that sends everything by choice sends its lists too.
-      shared: Boolean(group),
-      groupId: group?.id || null,
-    });
+    let list = landing(createList({ name: newListName, names: newListPeople }));
     list = addItems(list, newListLines);
 
     state.lists = [...state.lists, list];
@@ -6481,15 +6509,12 @@ function bindNewGame() {
       return;
     }
 
-    const group = chosenGroupForNew();
-    const game = createGame({
+    const game = landing(createGame({
       presetId,
       names,
       overrides: config,
       name: view.querySelector('#game-name').value,
-      shared: Boolean(group),
-      groupId: group?.id || null,
-    });
+    }));
     state.games = [...state.games, game];
     persist(game);
     resetGroupChoice();

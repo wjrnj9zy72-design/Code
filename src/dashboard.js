@@ -17,9 +17,17 @@ import { balances } from './spends.js';
 import { standings, gameStatus } from './scoring.js';
 import { sameName } from './stats.js';
 
-/** Whether a document is in the chosen group. No group chosen means all of them. */
+/**
+ * Whether a document is in the chosen group. No group chosen means all of them.
+ *
+ * A link-only document carries a group — the one whose key created it, and so
+ * the one that may delete it — without belonging to it: the group never sees
+ * it. Counting it under that group here would say the opposite of what the
+ * database does.
+ */
 export function inGroup(document_, groupId) {
-  return groupId ? document_?.groupId === groupId : true;
+  if (!groupId) return true;
+  return document_?.groupId === groupId && !document_?.linkOnly;
 }
 
 /**

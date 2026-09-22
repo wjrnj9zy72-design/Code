@@ -353,6 +353,10 @@ export const STRINGS = {
     'groups.which': 'Partager dans quel groupe ?',
     'groups.willGoIn': 'Dans quel groupe ?',
     'groups.keepToMyself': 'Garder pour moi',
+    'groups.linkOnly': 'Lien seulement',
+    'groups.linkOnlyHint':
+      'Seuls ceux à qui vous envoyez le lien le verront — une conversation Messenger, des voisins. Aucun groupe ne le voit : ni ses onglets, ni son agenda.',
+    'groups.inLinkOnly': 'Lien seulement — seuls ceux qui ont reçu le lien le voient. Touchez « Partager » pour l’envoyer.',
     'groups.keepToMyselfHint':
       'Rien ne partira : ce sera visible sur cet appareil seulement. Vous pourrez le mettre dans un groupe plus tard, depuis sa page.',
     'groups.copyTo': 'Copier vers un autre groupe',
@@ -1065,6 +1069,10 @@ export const STRINGS = {
     'groups.which': 'Share in which group?',
     'groups.willGoIn': 'In which group?',
     'groups.keepToMyself': 'Keep it to myself',
+    'groups.linkOnly': 'Link only',
+    'groups.linkOnlyHint':
+      'Only the people you send the link to will see it — a Messenger chat, the neighbours. No group sees it: not in its tabs, not in its calendar.',
+    'groups.inLinkOnly': 'Link only — only those who got the link can see it. Tap “Share” to send it.',
     'groups.keepToMyselfHint':
       'Nothing will be sent: it will be on this device only. You can put it in a group later, from its own page.',
     'groups.copyTo': 'Copy to another group',
