@@ -2783,6 +2783,13 @@ function overviewView() {
       )}</p>
       <p class="muted small">${escapeHtml(t('data.holds', heldCounts()))}</p>
       ${
+        Object.keys(heldOrganiserSecrets()).length
+          ? `<p class="muted small" id="organiser-backup">${escapeHtml(
+              t('data.organiserBackup', { count: Object.keys(heldOrganiserSecrets()).length }),
+            )}</p>`
+          : ''
+      }
+      ${
         appVersion()
           ? `<p class="muted small">
                ${escapeHtml(t('data.version', { version: appVersion() }))}
@@ -4582,7 +4589,20 @@ const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : '
 
 function exportGames() {
   const json = JSON.stringify(
-    { version: 1, games: state.games, lists: state.lists, polls: state.polls, spends: state.spends }, null, 2,
+    {
+      version: 1,
+      games: state.games,
+      lists: state.lists,
+      polls: state.polls,
+      spends: state.spends,
+      // The organiser's secrets, for the polls in this file: they live on this
+      // device alone, and a phone replaced, or Safari clearing the app after
+      // a few weeks unopened, would leave those polls with no one to set
+      // their date or close them. Group keys stay out, as always.
+      organiser: heldOrganiserSecrets(),
+    },
+    null,
+    2,
   );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
@@ -4738,6 +4758,11 @@ function importGames(source) {
     return false;
   }
 
+  // First, so that what is sent below goes with its organiser — and for the
+  // polls already here too: after a reinstall, the group brings the polls
+  // back, but only a backup brings back the right to set them.
+  const organising = restoreOrganiserSecrets(Array.isArray(parsed) ? null : parsed?.organiser);
+
   const knownGames = new Set(state.games.map((game) => game.id));
   const freshGames = games.filter((game) => !knownGames.has(game.id));
   state.games = [...state.games, ...freshGames];
@@ -4766,9 +4791,10 @@ function importGames(source) {
         .catch((error) => wasDeleted(error) && dropDeleted(document_.id));
     }
   }
-  flash(t('home.importDone', {
-    count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
-  }));
+  const count = freshGames.length + freshLists.length + freshPolls.length + freshSpends.length;
+  flash(organising
+    ? t('home.importOrganiser', { count, polls: organising })
+    : t('home.importDone', { count }));
   return true;
 }
 
@@ -5327,6 +5353,33 @@ async function copyToGroup(id) {
  */
 function organiserSecret(id) {
   return state.prefs.organiser?.[id] || null;
+}
+
+/** The organiser's secrets for the polls this device still holds. */
+function heldOrganiserSecrets() {
+  const held = state.prefs.organiser || {};
+  return Object.fromEntries(state.polls.filter((poll) => held[poll.id]).map((poll) => [poll.id, held[poll.id]]));
+}
+
+/**
+ * Take back the organiser's secrets from an export. Only well-formed ones, and
+ * never over a secret already here: the one this device holds is the one the
+ * database knows. Returns how many polls this device organises again.
+ */
+function restoreOrganiserSecrets(found) {
+  if (!found || typeof found !== 'object' || Array.isArray(found)) return 0;
+  const held = { ...state.prefs.organiser };
+  let restored = 0;
+  for (const [id, secret] of Object.entries(found)) {
+    if (typeof secret !== 'string' || !/^[0-9a-f]{16,128}$/.test(secret) || held[id]) continue;
+    held[id] = secret;
+    restored += 1;
+  }
+  if (restored) {
+    state.prefs = { ...state.prefs, organiser: held };
+    savePrefs(state.prefs);
+  }
+  return restored;
 }
 
 function isOrganiser(poll) {

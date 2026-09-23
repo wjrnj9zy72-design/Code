@@ -385,6 +385,8 @@ export const STRINGS = {
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
     'data.holds':
       'Sur cet appareil : {lists} liste(s), {polls} sondage(s), {games} partie(s), {spends} compte(s) — dont {shared} partagé(s) et {archived} archivé(s).',
+    'data.organiserBackup':
+      'Vous organisez {count} sondage(s) : ce droit ne vit que sur cet appareil. Exporter le garde ; Importer le rend, sur un nouveau téléphone par exemple. Ne donnez pas ce fichier.',
     'data.version': 'Version de l’app : {version}.',
     'data.lookForUpdate': 'Chercher une mise à jour',
     'data.updateComing':
@@ -655,10 +657,12 @@ export const STRINGS = {
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
     'export.hint':
-      'Copiez ce texte et gardez-le où vous voulez. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
+      'Copiez ce texte et gardez-le pour vous : il porte aussi vos droits d’organisateur. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
     'export.copied': 'Copié !',
     'export.copyByHand': 'Texte sélectionné — copiez-le',
-    'home.importDone': '{count} partie(s) importée(s).',
+    'home.importDone': '{count} élément(s) importé(s).',
+    'home.importOrganiser':
+      '{count} élément(s) importé(s), et vous organisez de nouveau {polls} sondage(s).',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
       'Impossible d’enregistrer sur cet appareil : ce qui vient d’être fait sera perdu au prochain rechargement. Le stockage est peut-être plein, ou refusé (navigation privée).',
@@ -1114,6 +1118,8 @@ export const STRINGS = {
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
     'data.holds':
       'On this device: {lists} list(s), {polls} poll(s), {games} game(s), {spends} account(s) — of which {shared} shared and {archived} archived.',
+    'data.organiserBackup':
+      'You organise {count} poll(s): that right lives on this device only. Export keeps it; Import brings it back, on a new phone for instance. Do not hand that file out.',
     'data.version': 'App version: {version}.',
     'data.lookForUpdate': 'Look for an update',
     'data.updateComing': 'A new version is on its way: the app reloads itself in a moment.',
@@ -1379,10 +1385,11 @@ export const STRINGS = {
     'action.close': 'Close',
     'export.title': 'Your games, as text',
     'export.hint':
-      'Copy this text and keep it wherever you like. To bring it back into the app later, save it as a .json file and use Import.',
+      'Copy this text and keep it to yourself: it also carries your organiser rights. To bring it back into the app later, save it as a .json file and use Import.',
     'export.copied': 'Copied!',
     'export.copyByHand': 'Text selected — copy it',
-    'home.importDone': 'Imported {count} game(s).',
+    'home.importDone': 'Imported {count} item(s).',
+    'home.importOrganiser': 'Imported {count} item(s), and you organise {polls} poll(s) again.',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':
       'Nothing can be stored on this device: what was just done will be lost at the next reload. Storage may be full, or refused (private browsing).',
