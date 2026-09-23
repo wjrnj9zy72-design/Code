@@ -349,19 +349,6 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return answer?.status === 'ok';
     },
 
-    /**
-     * Which version of the schema the database runs: 0 for one that predates
-     * the question — its update has not been run yet.
-     */
-    async schema() {
-      try {
-        return Number(await call('marque_points_schema', {})) || 0;
-      } catch (error) {
-        if (unknownParameter(error)) return 0;
-        throw error;
-      }
-    },
-
     /** The stored game, or null when nobody has ever shared that id. */
     async get(id) {
       const data = await call('marque_points_get', { p_id: id });

@@ -33,7 +33,6 @@ import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
 import { canSeal, newCode, readCode, readInvite, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
-import { SCHEMA_VERSION, SCHEMA_UPDATE } from './schema-update.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
 
 const view = document.getElementById('view');
@@ -68,9 +67,6 @@ const state = {
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
-  // The version of the schema the database runs, once asked; null before.
-  schema: null,
-  checkingSchema: false,
 };
 
 // The new-list form's draft, kept across re-renders like the new-game one:
@@ -2765,7 +2761,6 @@ function overviewView() {
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
-      ${schemaHtml()}
       <div class="row">
         <button type="button" class="button button--small button--ghost" id="share-app">${escapeHtml(t('action.shareApp'))}</button>
         <button type="button" class="button button--small" id="export">${escapeHtml(t('action.export'))}</button>
@@ -6328,107 +6323,11 @@ function bindHome() {
   });
 }
 
-/* ------------------------------------------------------- database update --- */
-
-/**
- * Whoever runs the database needs to know when it is behind the app, and to
- * bring it up to date without hunting for a file: the app asks the database
- * which schema it runs, and when it is older than the one this app was built
- * with, hands over the update to copy and a link straight to the SQL editor.
- *
- * Shown only to the devices that can let people into a group — whoever set
- * it up, and those they gave that right to. Not to the other members, who
- * have nothing to do about it; nor to a device in no group yet — someone who
- * has just installed the app and not typed their code — for whom a technical
- * notice would be the first thing the app says.
- */
-function runsTheDatabase() {
-  return groups().some((group) => group.admits);
-}
-
-function schemaHtml() {
-  if (!state.remote || !runsTheDatabase() || state.schema === null) return '';
-  if (state.schema >= SCHEMA_VERSION) {
-    return `<p class="muted small" id="schema-ok">${escapeHtml(t('schema.ok'))}</p>`;
-  }
-  return `
-    <div class="banner banner--warn stack" id="schema-behind">
-      <strong>${escapeHtml(t('schema.title'))}</strong>
-      <span class="small">${escapeHtml(t('schema.why'))}</span>
-      <ol class="steps small">
-        <li>
-          <button type="button" class="button button--small button--primary" id="schema-copy">${escapeHtml(t('schema.copy'))}</button>
-        </li>
-        <li>
-          <a class="button button--small" id="schema-open" href="${escapeHtml(sqlEditorUrl())}" target="_blank" rel="noopener">${escapeHtml(t('schema.open'))}</a>
-        </li>
-        <li>${escapeHtml(t('schema.paste'))}</li>
-      </ol>
-      <div class="row">
-        <button type="button" class="button button--small button--ghost" id="schema-check">${escapeHtml(t('schema.check'))}</button>
-      </div>
-    </div>`;
-}
-
-/** The SQL editor of this very project, when its address says which one it is. */
-function sqlEditorUrl() {
-  const ref = /^https:\/\/([a-z0-9]+)\.supabase\.co\b/i.exec(remoteConfig()?.url || '')?.[1];
-  return ref ? `https://supabase.com/dashboard/project/${ref}/sql/new` : 'https://supabase.com/dashboard';
-}
-
-const SCHEMA_LINES = SCHEMA_UPDATE.split('\n').length - 1;
-
-/** Ask the database once per session, or again when asked to check. */
-async function checkSchema({ again = false } = {}) {
-  if (!state.remote || state.checkingSchema || (state.schema !== null && !again)) return;
-  state.checkingSchema = true;
-  try {
-    state.schema = await state.remote.schema();
-  } catch {
-    // Out of reach: say nothing rather than something untrue.
-  } finally {
-    state.checkingSchema = false;
-  }
-}
-
-function bindSchema() {
-  if (state.remote && runsTheDatabase() && state.schema === null && !state.checkingSchema) {
-    checkSchema().then(() => {
-      if (state.schema !== null && route().name === 'overview' && !isBusy()) render();
-    });
-  }
-
-  view.querySelector('#schema-copy')?.addEventListener('click', async (event) => {
-    const button = event.currentTarget;
-    // Where the clipboard is blocked, or never answers, the text is shown to
-    // be copied by hand — the same box as an export.
-    const copied = await Promise.race([
-      Promise.resolve(navigator.clipboard?.writeText(SCHEMA_UPDATE)).then(() => Boolean(navigator.clipboard), () => false),
-      new Promise((done) => setTimeout(() => done(false), 600)),
-    ]);
-    if (copied) {
-      button.textContent = t('schema.copied', { lines: SCHEMA_LINES });
-      return;
-    }
-    showCopyDialog({ title: t('schema.copyTitle'), hint: t('schema.copyHint', { lines: SCHEMA_LINES }), text: SCHEMA_UPDATE });
-  });
-
-  view.querySelector('#schema-check')?.addEventListener('click', async (event) => {
-    event.currentTarget.disabled = true;
-    await checkSchema({ again: true });
-    if (state.schema === null) flash(t('data.updateUnknown'), 'error');
-    else if (state.schema >= SCHEMA_VERSION) flash(t('schema.done'));
-    else flash(t('schema.stillBehind'), 'error');
-    render();
-  });
-}
-
 /**
  * The data section, which belongs to the app rather than to any one tab: the
  * app's own link, what leaves the device and what comes back.
  */
 function bindData() {
-  bindSchema();
   view.querySelector('#look-update')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
