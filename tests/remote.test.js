@@ -543,15 +543,3 @@ test('a write refused because the thing was deleted says so', async () => {
   assert.equal(wasDeleted({ detail: '{"message":"cle de groupe invalide"}' }), false);
   assert.equal(wasDeleted(undefined), false);
 });
-
-test('the database says which schema it runs — 0 when it predates the question', async () => {
-  const current = createRemote(CONFIG, stubFetch(ok(1)).fetchImpl);
-  assert.equal(await current.schema(), 1);
-  const older = createRemote(CONFIG, stubFetch({
-    ok: false, status: 404, text: async () => '{"code":"PGRST202","message":"Could not find the function public.marque_points_schema"}',
-  }).fetchImpl);
-  assert.equal(await older.schema(), 0);
-  // Out of reach is not "old": the app must not ask for an update it cannot know is due.
-  const unreachable = createRemote(CONFIG, async () => { throw new TypeError('Failed to fetch'); });
-  await assert.rejects(unreachable.schema());
-});

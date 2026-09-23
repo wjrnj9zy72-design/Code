@@ -20,7 +20,7 @@
 
 const VERSION = 'v10';
 /** Written by tools/bundle.js from the sources: it moves whenever they do. */
-const BUILD = '963687bc';
+const BUILD = 'df797319';
 const CACHE = `marque-points-${VERSION}-${BUILD}`;
 
 const SHELL = [
@@ -51,7 +51,6 @@ const SHELL = [
   './src/config.js',
   './src/qr.js',
   './src/lock.js',
-  './src/schema-update.js',
   './src/remote.js',
   './src/cloud.js',
   './src/i18n.js',
