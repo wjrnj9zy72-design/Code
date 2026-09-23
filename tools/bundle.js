@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto';
 const root = resolve(import.meta.dirname, '..');
 
 /** Modules in dependency order: each one only uses what comes before it. */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'spends.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'spends.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'schema-update.js', 'remote.js', 'cloud.js', 'app.js'];
 
 /**
  * An import, on one line or spread over several — a long list of names wraps,
@@ -181,6 +181,30 @@ export async function edgeFunction() {
 
 const LINE_COUNT_MARK = '{{lignes}}';
 
+/**
+ * The database update, as a module the app carries: so that whoever runs the
+ * database can copy it from the app in one tap — no GitHub, no Raw view, no
+ * select-all on a phone — and so the app knows which version of the schema it
+ * expects. Both come from supabase/mise-a-jour.sql, which the tests hold to
+ * the guide; the version is what its marque_points_schema() answers.
+ */
+export async function schemaModule() {
+  const sql = await readFile(join(root, 'supabase', 'mise-a-jour.sql'), 'utf8');
+  const version = /function public\.marque_points_schema\(\)[\s\S]*?select (\d+);/.exec(sql)?.[1];
+  if (!version) {
+    throw new Error('Cannot build: supabase/mise-a-jour.sql no longer says its version (marque_points_schema).');
+  }
+  return `// ${GENERATED_BY}
+// Source : supabase/mise-a-jour.sql.
+
+/** The schema version this app expects: what marque_points_schema() answers once the update has run. */
+export const SCHEMA_VERSION = ${version};
+
+/** supabase/mise-a-jour.sql, to be copied from the app and pasted into Supabase's SQL editor. */
+export const SCHEMA_UPDATE = ${JSON.stringify(sql)};
+`;
+}
+
 const EDGE_HEADER = `// ${GENERATED_BY}
 //
 // Collez ce fichier dans Supabase → Edge Functions, sous le nom « agenda »,
@@ -301,6 +325,9 @@ export async function bundle(target = 'page') {
 
 // Only write the files when run as a command, not when imported by a test.
 if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
+  // First: the bundle below reads it like any other module.
+  await writeFile(join(root, 'src', 'schema-update.js'), await schemaModule());
+  console.log('src/schema-update.js');
   await mkdir(join(root, 'dist'), { recursive: true });
   for (const [target, name] of [['page', 'marque-points.html'], ['artifact', 'marque-points.artifact.html']]) {
     const output = await bundle(target);

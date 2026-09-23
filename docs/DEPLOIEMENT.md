@@ -164,10 +164,23 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 
 **SQL Editor** → **New query**, collez **tout** ce bloc, puis **Run**.
 
-> **Votre base existe déjà ?** Pas besoin de recoller ce bloc : ouvrez
-> **`supabase/mise-a-jour.sql`** dans le dépôt, bouton **Raw**, copiez **tout**,
-> collez dans **SQL Editor → New query**, **Run**. Réponse attendue :
-> `Success. No rows returned`.
+> **Votre base existe déjà ?** Pas besoin de recoller ce bloc. Le plus simple :
+> dans l'app, **Aperçu → Données**. Quand la base est en retard sur l'app, un
+> encadré le dit, avec trois gestes :
+>
+> 1. **Copier la mise à jour** — tout est copié d'un coup, le bouton dit combien
+>    de lignes ;
+> 2. **Ouvrir l'éditeur SQL de Supabase** — directement sur votre projet ;
+> 3. coller, **Run** (réponse attendue : `Success. No rows returned`), puis
+>    **C'est fait : vérifier** dans l'app.
+>
+> L'encadré ne s'affiche que sur les appareils qui gèrent un groupe (ceux qui
+> peuvent faire entrer quelqu'un) ; les autres membres ne voient rien. Quand
+> tout est à jour, une ligne discrète le dit : « Base de données à jour. »
+>
+> Sans l'app sous la main : ouvrez **`supabase/mise-a-jour.sql`** dans le dépôt,
+> bouton **Raw**, copiez **tout**, collez dans **SQL Editor → New query**,
+> **Run**. C'est exactement le même texte.
 >
 > Il apporte, sans rien effacer, les derniers changements :
 >
@@ -1467,6 +1480,18 @@ begin
 end;
 $$;
 
+-- La version de ce schéma. L'app la lit pour savoir s'il reste une mise à jour
+-- à passer, et le dit dans « Données » — avec de quoi la copier en un geste.
+-- Chaque changement de ce bloc qui demande une mise à jour augmente ce nombre.
+create or replace function public.marque_points_schema()
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select 1;
+$$;
+
 -- PostgreSQL accorde l'exécution à tout le monde par défaut : ce qui ne doit
 -- s'exécuter que d'ici, depuis l'éditeur SQL, doit être retiré explicitement.
 -- Sans cette ligne, quiconque a la clé publique de la page — elle est dans le
@@ -1494,6 +1519,7 @@ grant execute on function public.marque_points_put(text, jsonb, text, text) to a
 grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
+grant execute on function public.marque_points_schema() to anon, authenticated;
 ```
 
 Attendu : **Success. No rows returned.**

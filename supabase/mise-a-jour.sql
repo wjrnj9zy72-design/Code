@@ -306,6 +306,16 @@ begin
 end;
 $$;
 
+-- La version du schéma : l'app la lit pour savoir si cette mise à jour est passée.
+create or replace function public.marque_points_schema()
+returns integer
+language sql
+immutable
+set search_path = public
+as $$
+  select 1;
+$$;
+
 -- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;
 -- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.
 grant execute on function public.marque_points_invite(text, integer, integer) to anon, authenticated;
@@ -313,4 +323,5 @@ grant execute on function public.marque_points_put(text, jsonb, text, text) to a
 grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
+grant execute on function public.marque_points_schema() to anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
