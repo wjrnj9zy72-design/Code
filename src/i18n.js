@@ -485,6 +485,8 @@ export const STRINGS = {
     'polls.soloAdd': 'C’est moi',
     'polls.soloSettled': 'Date retenue : {when}',
     'polls.soloGone': 'Ce sondage n’existe plus, ou le lien est incomplet.',
+    'polls.unreachable': 'Le sondage n’a pas pu être chargé : pas de réseau pour l’instant.',
+    'polls.retry': 'Réessayer',
     'polls.closed': 'clos',
     'polls.close': 'Clore le sondage',
     'polls.reopen': 'Rouvrir le sondage',
@@ -645,7 +647,8 @@ export const STRINGS = {
       'Scannez le code, ou envoyez le lien : il ouvre cette partie, avec ses scores, et la personne peut y ajouter des manches.',
     'share.loading': 'Ouverture de la partie…',
     'share.pushFailed':
-      'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
+      'Enregistré ici, mais pas envoyé aux autres. Cela repartira à la prochaine modification.',
+    'share.deleted': '« {name} » a été supprimé par son auteur : il est retiré de cet appareil.',
     'home.storedShared':
       'Tout est enregistré sur cet appareil. Le bouton Partager, dans une partie, une liste ou un sondage, l’envoie dans un de vos groupes et donne un lien qui l’ouvre chez quelqu’un d’autre.',
     'action.copy': 'Copier',
@@ -1207,6 +1210,8 @@ export const STRINGS = {
     'polls.soloAdd': 'That’s me',
     'polls.soloSettled': 'Settled on: {when}',
     'polls.soloGone': 'This poll no longer exists, or the link is incomplete.',
+    'polls.unreachable': 'The poll could not be loaded: no network just now.',
+    'polls.retry': 'Try again',
     'polls.closed': 'closed',
     'polls.close': 'Close the poll',
     'polls.reopen': 'Reopen the poll',
@@ -1366,7 +1371,8 @@ export const STRINGS = {
       'Scan the code, or send the link: it opens this game, with its scores, and they can add rounds to it.',
     'share.loading': 'Opening the game…',
     'share.pushFailed':
-      'Game saved here, but not sent to the others. It will go up with the next change.',
+      'Saved here, but not sent to the others. It will go up with the next change.',
+    'share.deleted': '“{name}” was deleted by whoever made it: it has been removed from this device.',
     'home.storedShared':
       'Everything is stored on this device. The Share button — in a game, a list or a poll — sends it to one of your groups and gives a link that opens it for someone else.',
     'action.copy': 'Copy',

@@ -30,7 +30,7 @@ import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
 import { canSeal, newCode, readCode, readInvite, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -603,12 +603,52 @@ function keptElsewhere(changed, { store = false } = {}) {
   return Boolean(store && state.store && changed);
 }
 
+/**
+ * What to do when a write does not go through. Most often it is the network:
+ * the copy here stays, and goes up with the next change. But when the
+ * database answers that the thing was deleted, keeping it would only fail
+ * again at every change — so it leaves this device too, and the page says why.
+ */
+function pushFailed(changed) {
+  return (error) => {
+    if (wasDeleted(error)) dropDeleted(changed.id);
+    else flash(t('share.pushFailed'), 'error');
+  };
+}
+
+function dropDeleted(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const spend = getSpend(id);
+  const game = getGame(id);
+  if (poll) {
+    state.polls = state.polls.filter((item) => item.id !== id);
+    savePolls(state.polls);
+  } else if (list) {
+    state.lists = state.lists.filter((item) => item.id !== id);
+    saveLists(state.lists);
+  } else if (spend) {
+    state.spends = state.spends.filter((item) => item.id !== id);
+    saveSpends(state.spends);
+  } else if (game) {
+    state.games = state.games.filter((item) => item.id !== id);
+    saveGames(state.games);
+  } else {
+    return;
+  }
+  if (state.store) void state.store.remove(id);
+  const name = poll ? pollTitle(poll) : list ? listTitle(list) : spend ? spendTitle(spend) : gameTitle(game);
+  flash(t('share.deleted', { name }));
+  // On its page, the page finds it gone and says so as any missing thing does.
+  if (route().id === id) render();
+}
+
 function persistPoll(changed) {
   const ok = savePolls(state.polls);
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    pushPoll(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+    pushPoll(changed).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -647,7 +687,7 @@ function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -1116,14 +1156,18 @@ function pollText(poll) {
   return [pollTitle(poll), '', ...rows.map(line)].join('\n');
 }
 
-/** Fetch a poll from the shared database and take what it knows. */
+/**
+ * Fetch a poll from the shared database and take what it knows. False when
+ * there is nothing new, and null — falsy all the same — when the database
+ * could not be reached: "this poll no longer exists" would be untrue then.
+ */
 async function pullPoll(id) {
   if (!state.remote) return false;
   let stored = null;
   try {
     stored = await state.remote.get(id);
   } catch {
-    return false;
+    return null;
   }
   return isValidPoll(stored) ? adoptPoll(stored) : false;
 }
@@ -1506,7 +1550,7 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -4716,7 +4760,11 @@ function importGames(source) {
 
   for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
-    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_), organiserSecret(document_.id)).catch(() => {});
+    if (state.remote && document_.shared) {
+      // A backup older than a deletion must not bring the thing back for everyone.
+      state.remote.put(document_, keyFor(document_), organiserSecret(document_.id))
+        .catch((error) => wasDeleted(error) && dropDeleted(document_.id));
+    }
   }
   flash(t('home.importDone', {
     count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
@@ -4881,13 +4929,15 @@ function openLinkDialog() {
  *
  * An invitation is not a link with a sentence around it: it is a name, a code,
  * a link and how to install the app, and all four have to survive the trip.
- * navigator.share puts `text` and `url` together for the messaging app; where
- * it is absent, the message is on screen in one block, ready to copy.
+ * The message already carries the link, so it goes alone: handed `url` as
+ * well, iOS and Android add the link a second time under the text. Where
+ * navigator.share is absent, the message is on screen in one block, ready to
+ * copy.
  */
 async function shareMessage({ title, hint, message, url, code = null }) {
   if (navigator.share) {
     try {
-      await navigator.share({ title: t('app.title'), text: message, url });
+      await navigator.share({ title: t('app.title'), text: message.includes(url) ? message : `${message}\n${url}` });
       return;
     } catch (error) {
       if (error?.name === 'AbortError') return;
@@ -5178,8 +5228,8 @@ async function putInGroup(id) {
   const next = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
     await state.remote.put(next, group.key, organiserSecret(next.id));
-  } catch {
-    flash(t('share.pushFailed'), 'error');
+  } catch (error) {
+    pushFailed(next)(error);
     render();
     return;
   }
@@ -6270,7 +6320,7 @@ function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -7511,13 +7561,24 @@ function setSolo(on) {
   }
 }
 
-/** A poll that is not there: back to the list — or, for a guest, a sentence and nothing else. */
-function leavePoll(current) {
+/**
+ * A poll that is not there: back to the list — or, for a guest, a sentence and
+ * nothing else. Out of reach is not gone: the guest is asked to try again.
+ */
+function leavePoll(current, { unreachable = false } = {}) {
   if (!current.solo) {
+    if (unreachable) flash(t('polls.unreachable'), 'error');
     navigate('#/polls');
     return;
   }
-  view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+  if (!unreachable) {
+    view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+    return;
+  }
+  view.innerHTML = `
+    <p class="lead">${escapeHtml(t('polls.unreachable'))}</p>
+    <button type="button" class="button" id="poll-retry">${escapeHtml(t('polls.retry'))}</button>`;
+  view.querySelector('#poll-retry').addEventListener('click', () => render());
 }
 
 function render() {
@@ -7613,7 +7674,7 @@ function render() {
             if (state.openingPoll !== asked) return;
             state.openingPoll = null;
             if (found) render();
-            else if (route().id === asked) leavePoll(current);
+            else if (route().id === asked) leavePoll(current, { unreachable: found === null });
           });
         }
         return;

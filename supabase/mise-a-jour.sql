@@ -13,7 +13,10 @@
 --      la clôture, la question, les choix et la suppression ; les autres
 --      votent, et s'ajoutent eux-mêmes ;
 --   4. un sondage se fond case par case au lieu d'être remplacé : une copie
---      en retard n'efface plus les votes arrivés entre-temps.
+--      en retard n'efface plus les votes arrivés entre-temps ;
+--   5. ce qui est supprimé ne revient plus : un téléphone qui gardait un
+--      sondage supprimé ne peut plus le recréer, ni le ranger dans un autre
+--      groupe ; et un sondage clos ne prend plus de votes.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -88,6 +91,13 @@ as $$
     ) cells;
 $$;
 
+-- 5. La trace de ce qui a été supprimé : des identifiants, rien du contenu.
+create table if not exists public.marque_points_gone (
+  id text primary key,
+  gone_at timestamptz not null default now()
+);
+alter table public.marque_points_gone enable row level security;
+
 -- Les versions précédentes de l'écriture et de la suppression : remplacées
 -- ci-dessous par des versions qui connaissent l'organisateur. Les laisser
 -- ferait deux fonctions du même nom, entre lesquelles la base refuserait de
@@ -125,6 +135,12 @@ begin
   -- FOUND, et non une variable remplie par la requête : quand aucune ligne ne
   -- revient, SELECT … INTO met toutes ses variables à NULL, la témoin comprise.
   if not found then
+    -- Supprimé : on ne le recrée pas, ni ici ni ailleurs. L'app qui l'avait
+    -- encore le retire de son côté en lisant cette réponse.
+    if exists (select 1 from public.marque_points_gone where id = p_id) then
+      raise exception 'document supprime';
+    end if;
+
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
     select group_id into v_group from public.marque_points_group_key
@@ -171,6 +187,9 @@ begin
   -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
   if v_stored->>'kind' is distinct from 'poll' then
     return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
+  end if;
+  if coalesce(v_stored->>'closedAt', '') <> '' then
+    return; -- clos : les votes sont arrêtés, pour l'app comme pour la base
   end if;
 
   update public.marque_points_games
@@ -227,6 +246,7 @@ begin
   end if;
 
   delete from public.marque_points_games where id = p_id and code_hash is null;
+  insert into public.marque_points_gone (id) values (p_id) on conflict (id) do nothing;
 end;
 $$;
 

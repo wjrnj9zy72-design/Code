@@ -391,6 +391,15 @@ function unknownParameter(error) {
   return error?.status === 404 && /PGRST202|Could not find the function/.test(error.detail || error.message || '');
 }
 
+/**
+ * Whether the database refused a write because the thing was deleted: it keeps
+ * a trace of what was, so a phone still holding a copy cannot bring it back —
+ * in its old group, or in another.
+ */
+export function wasDeleted(error) {
+  return /document supprime/.test(error?.detail || error?.message || '');
+}
+
 export function pickNewer(local, remote) {
   if (!remote) return 'local';
   if (!local) return 'remote';

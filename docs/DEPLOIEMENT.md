@@ -169,7 +169,7 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 > collez dans **SQL Editor → New query**, **Run**. Réponse attendue :
 > `Success. No rows returned`.
 >
-> Il apporte, sans rien effacer, les deux derniers changements :
+> Il apporte, sans rien effacer, les derniers changements :
 >
 > - les invitations valent **deux jours** au lieu d'un ;
 > - **« Lien seulement »** : un document que seuls ceux qui ont le lien voient,
@@ -177,7 +177,11 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 > - **l'organisateur** : qui crée un sondage garde seul la main sur la date,
 >   la clôture, la question, les choix et la suppression ; les autres votent ;
 > - **les votes se fondent** au lieu d'être remplacés : une copie en retard
->   n'efface plus ceux arrivés entre-temps.
+>   n'efface plus ceux arrivés entre-temps ;
+> - **ce qui est supprimé ne revient plus** : le téléphone d'un invité qui
+>   avait encore le sondage à l'écran le recréait à son coché suivant — et,
+>   s'il était d'un autre groupe, le rangeait chez lui ; et un sondage clos ne
+>   prend plus de votes.
 >
 > Sans lui, l'app demande deux jours et la base les ramène à un ; un « lien
 > seulement » atterrit dans les onglets du groupe comme n'importe quel autre
@@ -435,6 +439,16 @@ alter table public.marque_points_games
 alter table public.marque_points_games
   add column if not exists owner_hash text;
 
+-- Ce qui a été supprimé ne revient pas. Sans cette trace, le téléphone d'un
+-- visiteur qui gardait le sondage à l'écran le recréait à son coché suivant —
+-- et, s'il avait la clé d'un autre groupe, le rangeait dans celui-là, où tout
+-- ce groupe le voyait. Seuls les identifiants sont gardés, rien du contenu.
+create table if not exists public.marque_points_gone (
+  id text primary key,
+  gone_at timestamptz not null default now()
+);
+alter table public.marque_points_gone enable row level security;
+
 create index if not exists marque_points_games_group on public.marque_points_games (group_id);
 
 -- Crée un groupe et affiche sa clé UNE fois. Ne s'exécute que d'ici, depuis
@@ -586,6 +600,12 @@ begin
   -- FOUND, et non une variable remplie par la requête : quand aucune ligne ne
   -- revient, SELECT … INTO met toutes ses variables à NULL, la témoin comprise.
   if not found then
+    -- Supprimé : on ne le recrée pas, ni ici ni ailleurs. L'app qui l'avait
+    -- encore le retire de son côté en lisant cette réponse.
+    if exists (select 1 from public.marque_points_gone where id = p_id) then
+      raise exception 'document supprime';
+    end if;
+
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
     select group_id into v_group from public.marque_points_group_key
@@ -632,6 +652,9 @@ begin
   -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
   if v_stored->>'kind' is distinct from 'poll' then
     return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
+  end if;
+  if coalesce(v_stored->>'closedAt', '') <> '' then
+    return; -- clos : les votes sont arrêtés, pour l'app comme pour la base
   end if;
 
   update public.marque_points_games
@@ -690,6 +713,7 @@ begin
   end if;
 
   delete from public.marque_points_games where id = p_id and code_hash is null;
+  insert into public.marque_points_gone (id) values (p_id) on conflict (id) do nothing;
 end;
 $$;
 
