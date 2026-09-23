@@ -80,6 +80,11 @@ test('the update brings what the app now relies on', async () => {
 
   // A closed poll takes no more votes, from a copy that missed the closing.
   assert.match(inUpdate.get('marque_points_put'), /closedAt/);
+
+  // The schema says its version, so the app can tell when an update is due —
+  // and anyone may ask: the app asks before it has any key.
+  assert.match(inUpdate.get('marque_points_schema'), /select \d+;/);
+  assert.match(update, /grant execute on function public\.marque_points_schema\(\) to anon, authenticated;/);
 });
 
 test('the update erases no data', async () => {

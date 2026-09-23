@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { bundle, edgeFunction } from '../tools/bundle.js';
+import { bundle, edgeFunction, schemaModule } from '../tools/bundle.js';
+import { SCHEMA_VERSION, SCHEMA_UPDATE } from '../src/schema-update.js';
 
 const root = resolve(import.meta.dirname, '..');
 const BUILDS = [
@@ -123,6 +124,22 @@ test('the build stamps itself, and the same sources give the same stamp', async 
   const { bundle } = await import('../tools/bundle.js');
   await bundle('page');
   assert.deepEqual(await stampOf(), before, 'the same sources stamp the same');
+});
+
+test('the database update the app carries is the committed one', async () => {
+  const [built, committed, update] = await Promise.all([
+    schemaModule(),
+    readFile(join(root, 'src', 'schema-update.js'), 'utf8'),
+    readFile(join(root, 'supabase', 'mise-a-jour.sql'), 'utf8'),
+  ]);
+  assert.equal(built, committed, 'src/schema-update.js is stale — run `npm run bundle` and commit the result.');
+  // Copied from the app, it must be the file — to the character.
+  assert.equal(SCHEMA_UPDATE, update);
+  // And the version the app expects is the one that update installs: an app
+  // expecting more would ask for an update forever; less, never.
+  const installs = Number(/function public\.marque_points_schema\(\)[\s\S]*?select (\d+);/.exec(update)?.[1]);
+  assert.ok(SCHEMA_VERSION >= 1);
+  assert.equal(SCHEMA_VERSION, installs);
 });
 
 test('the committed calendar function is up to date', async () => {
