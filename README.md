@@ -344,6 +344,19 @@ manche entière de Papayoo comptée carte par carte fait bien 250), cohérence
 des presets et des traductions, et fraîcheur des fichiers livrés dans
 `dist/`.
 
+Deux batteries de plus, plus lentes, pour ce que `npm test` ne voit pas :
+
+```bash
+tests/navigateur/lancer.sh            # l'app dans Chromium, contre une fausse base (~10 min)
+tests/navigateur/lancer.sh polltest   # une suite seulement
+tests/sql/verifier.sh                 # le SQL du guide sur un vrai PostgreSQL
+tests/sql/verifier.sh --depuis <commit>   # la mise à jour d'une base plus ancienne
+```
+
+La première installe Playwright hors du projet si besoin et utilise le Chromium
+de l'environnement (`/opt/pw-browsers/chromium`) ; la seconde demande
+PostgreSQL (`apt-get install -y postgresql`) et lance un serveur jetable.
+
 ## Organisation du code
 
 ```
