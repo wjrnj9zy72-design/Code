@@ -437,6 +437,13 @@ Le bouton *Exporter* reste le filet de sécurité : il produit un JSON
 réimportable (ou, là où l'hôte interdit les téléchargements, le même texte à
 copier).
 
+Il porte aussi le **droit d'organisateur** des sondages que vous avez créés :
+ce droit ne vit que sur l'appareil qui a créé le sondage, et un téléphone
+remplacé — ou Safari qui efface une app restée quelques semaines sans être
+ouverte — le perdrait. Importer la sauvegarde le rend, y compris pour les
+sondages que le groupe a déjà ramenés. Ce fichier ne se donne donc pas ; les
+clés de groupe, elles, n'y sont jamais.
+
 - **Et, si elle est configurée** (`src/config.js`), dans une base partagée que
   vous hébergez — mais **seulement pour les parties effectivement partagées**.
   Une partie reste sur l'appareil jusqu'à ce que quelqu'un appuie sur *Partager*,

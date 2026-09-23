@@ -64,6 +64,22 @@ test('the update brings what the app now relies on', async () => {
   // the votes that arrived in between — and the merge is not a door of its own.
   assert.equal((inUpdate.get('marque_points_put').match(/marque_points_merge_votes\(/g) || []).length, 2);
   assert.match(update, /revoke all on function public\.marque_points_merge_votes\(jsonb, jsonb\) from public, anon, authenticated;/);
+
+  // What is deleted stays deleted: the delete leaves a trace, and a write
+  // that would create the thing again is refused — in its own group or any
+  // other. The trace is a table nobody outside reads: row security, no grant.
+  assert.match(update, /create table if not exists public\.marque_points_gone \(/);
+  assert.match(update, /alter table public\.marque_points_gone enable row level security;/);
+  assert.doesNotMatch(update, /grant [^;]* on (table )?public\.marque_points_gone/);
+  assert.match(inUpdate.get('marque_points_delete'), /insert into public\.marque_points_gone/);
+  assert.match(inUpdate.get('marque_points_put'), /from public\.marque_points_gone where id = p_id/);
+  assert.ok(
+    update.indexOf('create table if not exists public.marque_points_gone') < update.indexOf('create or replace function public.marque_points_put('),
+    'the table is there before the functions that use it',
+  );
+
+  // A closed poll takes no more votes, from a copy that missed the closing.
+  assert.match(inUpdate.get('marque_points_put'), /closedAt/);
 });
 
 test('the update erases no data', async () => {

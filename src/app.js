@@ -30,7 +30,7 @@ import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
-import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom } from './remote.js';
+import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
 import { canSeal, newCode, readCode, readInvite, seal, unseal } from './lock.js';
 import { remoteConfig } from './config.js';
 import { t, setLanguage, getLanguage, detectLanguage } from './i18n.js';
@@ -603,12 +603,52 @@ function keptElsewhere(changed, { store = false } = {}) {
   return Boolean(store && state.store && changed);
 }
 
+/**
+ * What to do when a write does not go through. Most often it is the network:
+ * the copy here stays, and goes up with the next change. But when the
+ * database answers that the thing was deleted, keeping it would only fail
+ * again at every change — so it leaves this device too, and the page says why.
+ */
+function pushFailed(changed) {
+  return (error) => {
+    if (wasDeleted(error)) dropDeleted(changed.id);
+    else flash(t('share.pushFailed'), 'error');
+  };
+}
+
+function dropDeleted(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const spend = getSpend(id);
+  const game = getGame(id);
+  if (poll) {
+    state.polls = state.polls.filter((item) => item.id !== id);
+    savePolls(state.polls);
+  } else if (list) {
+    state.lists = state.lists.filter((item) => item.id !== id);
+    saveLists(state.lists);
+  } else if (spend) {
+    state.spends = state.spends.filter((item) => item.id !== id);
+    saveSpends(state.spends);
+  } else if (game) {
+    state.games = state.games.filter((item) => item.id !== id);
+    saveGames(state.games);
+  } else {
+    return;
+  }
+  if (state.store) void state.store.remove(id);
+  const name = poll ? pollTitle(poll) : list ? listTitle(list) : spend ? spendTitle(spend) : gameTitle(game);
+  flash(t('share.deleted', { name }));
+  // On its page, the page finds it gone and says so as any missing thing does.
+  if (route().id === id) render();
+}
+
 function persistPoll(changed) {
   const ok = savePolls(state.polls);
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    pushPoll(changed).catch(() => flash(t('share.pushFailed'), 'error'));
+    pushPoll(changed).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -647,7 +687,7 @@ function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -1116,14 +1156,18 @@ function pollText(poll) {
   return [pollTitle(poll), '', ...rows.map(line)].join('\n');
 }
 
-/** Fetch a poll from the shared database and take what it knows. */
+/**
+ * Fetch a poll from the shared database and take what it knows. False when
+ * there is nothing new, and null — falsy all the same — when the database
+ * could not be reached: "this poll no longer exists" would be untrue then.
+ */
 async function pullPoll(id) {
   if (!state.remote) return false;
   let stored = null;
   try {
     stored = await state.remote.get(id);
   } catch {
-    return false;
+    return null;
   }
   return isValidPoll(stored) ? adoptPoll(stored) : false;
 }
@@ -1506,7 +1550,7 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -2738,6 +2782,13 @@ function overviewView() {
         t(state.remote ? 'home.storedShared' : state.store ? 'home.storedCloud' : 'home.storedLocal'),
       )}</p>
       <p class="muted small">${escapeHtml(t('data.holds', heldCounts()))}</p>
+      ${
+        Object.keys(heldOrganiserSecrets()).length
+          ? `<p class="muted small" id="organiser-backup">${escapeHtml(
+              t('data.organiserBackup', { count: Object.keys(heldOrganiserSecrets()).length }),
+            )}</p>`
+          : ''
+      }
       ${
         appVersion()
           ? `<p class="muted small">
@@ -4538,7 +4589,20 @@ const EXPORT_MODE = globalThis.MARQUE_POINTS_EXPORT_MODE === 'copy' ? 'copy' : '
 
 function exportGames() {
   const json = JSON.stringify(
-    { version: 1, games: state.games, lists: state.lists, polls: state.polls, spends: state.spends }, null, 2,
+    {
+      version: 1,
+      games: state.games,
+      lists: state.lists,
+      polls: state.polls,
+      spends: state.spends,
+      // The organiser's secrets, for the polls in this file: they live on this
+      // device alone, and a phone replaced, or Safari clearing the app after
+      // a few weeks unopened, would leave those polls with no one to set
+      // their date or close them. Group keys stay out, as always.
+      organiser: heldOrganiserSecrets(),
+    },
+    null,
+    2,
   );
   if (EXPORT_MODE === 'copy') {
     showExportDialog(json);
@@ -4694,6 +4758,11 @@ function importGames(source) {
     return false;
   }
 
+  // First, so that what is sent below goes with its organiser — and for the
+  // polls already here too: after a reinstall, the group brings the polls
+  // back, but only a backup brings back the right to set them.
+  const organising = restoreOrganiserSecrets(Array.isArray(parsed) ? null : parsed?.organiser);
+
   const knownGames = new Set(state.games.map((game) => game.id));
   const freshGames = games.filter((game) => !knownGames.has(game.id));
   state.games = [...state.games, ...freshGames];
@@ -4716,11 +4785,16 @@ function importGames(source) {
 
   for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
     if (state.store) void state.store.save(document_);
-    if (state.remote && document_.shared) state.remote.put(document_, keyFor(document_), organiserSecret(document_.id)).catch(() => {});
+    if (state.remote && document_.shared) {
+      // A backup older than a deletion must not bring the thing back for everyone.
+      state.remote.put(document_, keyFor(document_), organiserSecret(document_.id))
+        .catch((error) => wasDeleted(error) && dropDeleted(document_.id));
+    }
   }
-  flash(t('home.importDone', {
-    count: freshGames.length + freshLists.length + freshPolls.length + freshSpends.length,
-  }));
+  const count = freshGames.length + freshLists.length + freshPolls.length + freshSpends.length;
+  flash(organising
+    ? t('home.importOrganiser', { count, polls: organising })
+    : t('home.importDone', { count }));
   return true;
 }
 
@@ -4881,13 +4955,15 @@ function openLinkDialog() {
  *
  * An invitation is not a link with a sentence around it: it is a name, a code,
  * a link and how to install the app, and all four have to survive the trip.
- * navigator.share puts `text` and `url` together for the messaging app; where
- * it is absent, the message is on screen in one block, ready to copy.
+ * The message already carries the link, so it goes alone: handed `url` as
+ * well, iOS and Android add the link a second time under the text. Where
+ * navigator.share is absent, the message is on screen in one block, ready to
+ * copy.
  */
 async function shareMessage({ title, hint, message, url, code = null }) {
   if (navigator.share) {
     try {
-      await navigator.share({ title: t('app.title'), text: message, url });
+      await navigator.share({ title: t('app.title'), text: message.includes(url) ? message : `${message}\n${url}` });
       return;
     } catch (error) {
       if (error?.name === 'AbortError') return;
@@ -5178,8 +5254,8 @@ async function putInGroup(id) {
   const next = { ...document_, shared: true, groupId: group.id, updatedAt: Date.now() };
   try {
     await state.remote.put(next, group.key, organiserSecret(next.id));
-  } catch {
-    flash(t('share.pushFailed'), 'error');
+  } catch (error) {
+    pushFailed(next)(error);
     render();
     return;
   }
@@ -5277,6 +5353,33 @@ async function copyToGroup(id) {
  */
 function organiserSecret(id) {
   return state.prefs.organiser?.[id] || null;
+}
+
+/** The organiser's secrets for the polls this device still holds. */
+function heldOrganiserSecrets() {
+  const held = state.prefs.organiser || {};
+  return Object.fromEntries(state.polls.filter((poll) => held[poll.id]).map((poll) => [poll.id, held[poll.id]]));
+}
+
+/**
+ * Take back the organiser's secrets from an export. Only well-formed ones, and
+ * never over a secret already here: the one this device holds is the one the
+ * database knows. Returns how many polls this device organises again.
+ */
+function restoreOrganiserSecrets(found) {
+  if (!found || typeof found !== 'object' || Array.isArray(found)) return 0;
+  const held = { ...state.prefs.organiser };
+  let restored = 0;
+  for (const [id, secret] of Object.entries(found)) {
+    if (typeof secret !== 'string' || !/^[0-9a-f]{16,128}$/.test(secret) || held[id]) continue;
+    held[id] = secret;
+    restored += 1;
+  }
+  if (restored) {
+    state.prefs = { ...state.prefs, organiser: held };
+    savePrefs(state.prefs);
+  }
+  return restored;
 }
 
 function isOrganiser(poll) {
@@ -6270,7 +6373,7 @@ function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(() => flash(t('share.pushFailed'), 'error'));
+    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -7511,13 +7614,24 @@ function setSolo(on) {
   }
 }
 
-/** A poll that is not there: back to the list — or, for a guest, a sentence and nothing else. */
-function leavePoll(current) {
+/**
+ * A poll that is not there: back to the list — or, for a guest, a sentence and
+ * nothing else. Out of reach is not gone: the guest is asked to try again.
+ */
+function leavePoll(current, { unreachable = false } = {}) {
   if (!current.solo) {
+    if (unreachable) flash(t('polls.unreachable'), 'error');
     navigate('#/polls');
     return;
   }
-  view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+  if (!unreachable) {
+    view.innerHTML = `<p class="lead">${escapeHtml(t('polls.soloGone'))}</p>`;
+    return;
+  }
+  view.innerHTML = `
+    <p class="lead">${escapeHtml(t('polls.unreachable'))}</p>
+    <button type="button" class="button" id="poll-retry">${escapeHtml(t('polls.retry'))}</button>`;
+  view.querySelector('#poll-retry').addEventListener('click', () => render());
 }
 
 function render() {
@@ -7613,7 +7727,7 @@ function render() {
             if (state.openingPoll !== asked) return;
             state.openingPoll = null;
             if (found) render();
-            else if (route().id === asked) leavePoll(current);
+            else if (route().id === asked) leavePoll(current, { unreachable: found === null });
           });
         }
         return;

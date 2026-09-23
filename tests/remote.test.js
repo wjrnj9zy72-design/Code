@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRemote, pickNewer, shareLink, pollLink, pollIdFrom } from '../src/remote.js';
+import { createRemote, pickNewer, shareLink, pollLink, pollIdFrom, wasDeleted } from '../src/remote.js';
 import { createGame } from '../src/model.js';
 
 const CONFIG = { url: 'https://example.supabase.co/', key: 'public-anon-key' };
@@ -529,4 +529,17 @@ test('any other refusal is not mistaken for an old database', async () => {
   const remote = createRemote(CONFIG, fetchImpl);
   await assert.rejects(remote.remove('v_1', 'cle', 'mauvais-secret-0123456789'));
   assert.equal(calls.length, 1, 'a refusal is a refusal: no second try without the secret');
+});
+
+test('a write refused because the thing was deleted says so', async () => {
+  // PostgREST relays the exception as a 400 with its message: the app reads it
+  // to drop its copy, rather than failing again at every change.
+  const { fetchImpl } = stubFetch({ ok: false, status: 400, text: async () => '{"code":"P0001","message":"document supprime"}' });
+  const remote = createRemote(CONFIG, fetchImpl);
+  const error = await remote.put({ id: 'v_1', kind: 'poll' }, 'cle').catch((caught) => caught);
+  assert.equal(wasDeleted(error), true);
+  // …and nothing else is taken for a deletion: the network, a wrong key.
+  assert.equal(wasDeleted(new TypeError('Failed to fetch')), false);
+  assert.equal(wasDeleted({ detail: '{"message":"cle de groupe invalide"}' }), false);
+  assert.equal(wasDeleted(undefined), false);
 });

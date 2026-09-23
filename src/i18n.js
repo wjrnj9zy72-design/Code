@@ -385,6 +385,8 @@ export const STRINGS = {
     'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
     'data.holds':
       'Sur cet appareil : {lists} liste(s), {polls} sondage(s), {games} partie(s), {spends} compte(s) — dont {shared} partagé(s) et {archived} archivé(s).',
+    'data.organiserBackup':
+      'Vous organisez {count} sondage(s) : ce droit ne vit que sur cet appareil. Exporter le garde ; Importer le rend, sur un nouveau téléphone par exemple. Ne donnez pas ce fichier.',
     'data.version': 'Version de l’app : {version}.',
     'data.lookForUpdate': 'Chercher une mise à jour',
     'data.updateComing':
@@ -485,6 +487,8 @@ export const STRINGS = {
     'polls.soloAdd': 'C’est moi',
     'polls.soloSettled': 'Date retenue : {when}',
     'polls.soloGone': 'Ce sondage n’existe plus, ou le lien est incomplet.',
+    'polls.unreachable': 'Le sondage n’a pas pu être chargé : pas de réseau pour l’instant.',
+    'polls.retry': 'Réessayer',
     'polls.closed': 'clos',
     'polls.close': 'Clore le sondage',
     'polls.reopen': 'Rouvrir le sondage',
@@ -645,17 +649,20 @@ export const STRINGS = {
       'Scannez le code, ou envoyez le lien : il ouvre cette partie, avec ses scores, et la personne peut y ajouter des manches.',
     'share.loading': 'Ouverture de la partie…',
     'share.pushFailed':
-      'Partie enregistrée ici, mais pas envoyée aux autres. Elle repartira à la prochaine modification.',
+      'Enregistré ici, mais pas envoyé aux autres. Cela repartira à la prochaine modification.',
+    'share.deleted': '« {name} » a été supprimé par son auteur : il est retiré de cet appareil.',
     'home.storedShared':
       'Tout est enregistré sur cet appareil. Le bouton Partager, dans une partie, une liste ou un sondage, l’envoie dans un de vos groupes et donne un lien qui l’ouvre chez quelqu’un d’autre.',
     'action.copy': 'Copier',
     'action.close': 'Fermer',
     'export.title': 'Vos parties, en texte',
     'export.hint':
-      'Copiez ce texte et gardez-le où vous voulez. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
+      'Copiez ce texte et gardez-le pour vous : il porte aussi vos droits d’organisateur. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
     'export.copied': 'Copié !',
     'export.copyByHand': 'Texte sélectionné — copiez-le',
-    'home.importDone': '{count} partie(s) importée(s).',
+    'home.importDone': '{count} élément(s) importé(s).',
+    'home.importOrganiser':
+      '{count} élément(s) importé(s), et vous organisez de nouveau {polls} sondage(s).',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
       'Impossible d’enregistrer sur cet appareil : ce qui vient d’être fait sera perdu au prochain rechargement. Le stockage est peut-être plein, ou refusé (navigation privée).',
@@ -1111,6 +1118,8 @@ export const STRINGS = {
     'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
     'data.holds':
       'On this device: {lists} list(s), {polls} poll(s), {games} game(s), {spends} account(s) — of which {shared} shared and {archived} archived.',
+    'data.organiserBackup':
+      'You organise {count} poll(s): that right lives on this device only. Export keeps it; Import brings it back, on a new phone for instance. Do not hand that file out.',
     'data.version': 'App version: {version}.',
     'data.lookForUpdate': 'Look for an update',
     'data.updateComing': 'A new version is on its way: the app reloads itself in a moment.',
@@ -1207,6 +1216,8 @@ export const STRINGS = {
     'polls.soloAdd': 'That’s me',
     'polls.soloSettled': 'Settled on: {when}',
     'polls.soloGone': 'This poll no longer exists, or the link is incomplete.',
+    'polls.unreachable': 'The poll could not be loaded: no network just now.',
+    'polls.retry': 'Try again',
     'polls.closed': 'closed',
     'polls.close': 'Close the poll',
     'polls.reopen': 'Reopen the poll',
@@ -1366,17 +1377,19 @@ export const STRINGS = {
       'Scan the code, or send the link: it opens this game, with its scores, and they can add rounds to it.',
     'share.loading': 'Opening the game…',
     'share.pushFailed':
-      'Game saved here, but not sent to the others. It will go up with the next change.',
+      'Saved here, but not sent to the others. It will go up with the next change.',
+    'share.deleted': '“{name}” was deleted by whoever made it: it has been removed from this device.',
     'home.storedShared':
       'Everything is stored on this device. The Share button — in a game, a list or a poll — sends it to one of your groups and gives a link that opens it for someone else.',
     'action.copy': 'Copy',
     'action.close': 'Close',
     'export.title': 'Your games, as text',
     'export.hint':
-      'Copy this text and keep it wherever you like. To bring it back into the app later, save it as a .json file and use Import.',
+      'Copy this text and keep it to yourself: it also carries your organiser rights. To bring it back into the app later, save it as a .json file and use Import.',
     'export.copied': 'Copied!',
     'export.copyByHand': 'Text selected — copy it',
-    'home.importDone': 'Imported {count} game(s).',
+    'home.importDone': 'Imported {count} item(s).',
+    'home.importOrganiser': 'Imported {count} item(s), and you organise {polls} poll(s) again.',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':
       'Nothing can be stored on this device: what was just done will be lost at the next reload. Storage may be full, or refused (private browsing).',
