@@ -13189,13 +13189,14 @@ function bindHome() {
  * which schema it runs, and when it is older than the one this app was built
  * with, hands over the update to copy and a link straight to the SQL editor.
  *
- * Shown to the devices that can let people into a group — the ones who set
- * it up — and to a device in no group yet; the other members have nothing to
- * do about it, and a technical notice would only worry them.
+ * Shown only to the devices that can let people into a group — whoever set
+ * it up, and those they gave that right to. Not to the other members, who
+ * have nothing to do about it; nor to a device in no group yet — someone who
+ * has just installed the app and not typed their code — for whom a technical
+ * notice would be the first thing the app says.
  */
 function runsTheDatabase() {
-  const held = groups();
-  return !held.length || held.some((group) => group.admits);
+  return groups().some((group) => group.admits);
 }
 
 function schemaHtml() {

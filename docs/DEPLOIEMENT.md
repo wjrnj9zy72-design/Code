@@ -174,8 +174,10 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 > 3. coller, **Run** (réponse attendue : `Success. No rows returned`), puis
 >    **C'est fait : vérifier** dans l'app.
 >
-> L'encadré ne s'affiche que sur les appareils qui gèrent un groupe (ceux qui
-> peuvent faire entrer quelqu'un) ; les autres membres ne voient rien. Quand
+> L'encadré ne s'affiche que sur les appareils qui gèrent un groupe : le
+> vôtre, et ceux à qui vous avez donné « fait entrer ». Les autres membres, les
+> visiteurs d'un lien et un appareil pas encore entré dans un groupe ne voient
+> rien. Quand
 > tout est à jour, une ligne discrète le dit : « Base de données à jour. »
 >
 > Sans l'app sous la main : ouvrez **`supabase/mise-a-jour.sql`** dans le dépôt,
