@@ -64,11 +64,17 @@ check('un compte se crée avec ses personnes',
 /* ---- 3. noter des dépenses ----------------------------------------------- */
 
 const spend = async (what, amount, by) => {
+  await page.click('[data-spend-tab="expenses"]');
+  await page.waitForSelector('#add-spend');
   await page.fill('#spend-text', what);
   await page.fill('#spend-amount', amount);
   await page.selectOption('#spend-by', { label: by });
   await page.click('#add-spend button[type=submit]');
   await page.waitForFunction((text) => [...document.querySelectorAll('.line__text')].some((n) => n.textContent.includes(text)), what);
+};
+const showBalances = async () => {
+  await page.click('[data-spend-tab="balances"]');
+  await page.waitForSelector('.entry, .settled-banner');
 };
 
 await spend('Gîte', '300', 'Gui');
@@ -78,6 +84,7 @@ check('les deux dépenses sont là', (await page.locator('.line').count()) === 2
 check('et le total est juste', /364,50/.test(await page.locator('.spread').first().textContent()),
   (await page.locator('.spread').first().textContent()).replace(/\s+/g, ' ').trim());
 
+await showBalances();
 const balance = async (name) => (await page.locator('.entry', { hasText: name }).first().locator('.entry__value').textContent()).trim();
 check('Gui a avancé, on lui doit', /on lui doit 178,50/.test(await balance('Gui')), await balance('Gui'));
 check('Bob n’a rien payé, il doit son tiers', /doit 121,50/.test(await balance('Bob')), await balance('Bob'));
@@ -99,6 +106,8 @@ await page.waitForTimeout(300);
 check('une dépense peut ne concerner que deux personnes',
   /pour Gui, Bob/.test(await page.locator('.line', { hasText: 'Taxi' }).textContent()),
   (await page.locator('.line', { hasText: 'Taxi' }).textContent()).replace(/\s+/g, ' ').trim());
+
+await showBalances();
 check('et Alice n’en paie rien', /doit 57,00/.test(await balance('Alice')), await balance('Alice'));
 
 /* ---- 5. ce que le compte refuse ------------------------------------------ */
@@ -114,6 +123,8 @@ check('et personne n’a été retiré', (await page.locator('.entry', { hasText
 
 /* ---- 6. un montant qui n’en est pas un ----------------------------------- */
 
+await page.click('[data-spend-tab="expenses"]');
+await page.waitForSelector('#add-spend');
 await page.fill('#spend-text', 'Rien');
 await page.fill('#spend-amount', 'douze euros');
 await page.click('#add-spend button[type=submit]');
