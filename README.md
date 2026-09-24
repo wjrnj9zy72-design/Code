@@ -217,7 +217,9 @@ type de sondage à choisir avant de poser la question.
 Avec plusieurs groupes, l'app ne mélange plus tout.
 
 - Les onglets sont **en bas de l'écran**, à portée du pouce, et y restent quand
-  on fait défiler. Au milieu, un **« + »** crée une liste, un sondage, un
+  on fait défiler : Listes et Sondages à gauche, Parties et Agenda à droite.
+  L'Aperçu, c'est le nom **Together** en haut — l'app s'ouvre dessus. Pile au
+  milieu, à cheval sur la barre, un **« + »** crée une liste, un sondage, un
   événement, une partie ou un compte, depuis n'importe quelle page ; il dit
   dans quel groupe la chose ira (modifiable sur le formulaire).
 - L'**Aperçu** ouvre sur un bloc par groupe : combien de listes, de sondages et
@@ -225,17 +227,20 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
   (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
   vient, les listes, les sondages, les parties, les comptes à solder — avec
-  « Tout voir » vers l'onglet, déjà réglé sur ce groupe.
+  « Tout voir » vers l'onglet, déjà réglé sur ce groupe. Repliée en bas :
+  « Voir qui doit quoi », les prénoms de ce groupe et ce qui les attend.
 - Les trois onglets portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
   *et* ses parties. Avec un seul groupe, il n'y a rien à choisir : pas de
   pastilles.
-- **Qui fait quoi** liste les personnes que l'app connaît et ce qui les attend.
-  Derrière chaque nom, **sa page** : ses lignes à faire, ses votes donnés ou
-  manquants, ses dernières parties avec son rang. Les prénoms y sont rapprochés
-  sans accent ni majuscule, comme dans les statistiques — « alice » et « Alice »
-  sont la même personne, « Alex » et « Alexandre » restent deux.
+- **La page d'une personne** (`#/person/<nom>`) résume ce qui l'attend : ses
+  lignes à faire, ses votes donnés ou manquants, ses dernières parties avec son
+  rang. Les prénoms y sont rapprochés sans accent ni majuscule, comme dans les
+  statistiques — « alice » et « Alice » sont la même personne, « Alex » et
+  « Alexandre » restent deux. On y arrive depuis la page d'un groupe (« Voir
+  qui doit quoi ») ou les statistiques (renommer) ; l'Aperçu ne liste plus les
+  personnes une à une, pour rester court.
 - **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
   personne dans les parties, les listes et les sondages à la fois : deux
   orthographes redeviennent une seule personne partout d'un coup.

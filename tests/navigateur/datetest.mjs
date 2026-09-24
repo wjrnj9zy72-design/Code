@@ -108,18 +108,16 @@ check('la carte de la liste compte le retard',
   /1 en retard/.test(await page.locator('.game-card').first().textContent()),
   (await page.locator('.game-card').first().textContent()).replace(/\s+/g, ' ').trim());
 
-await page.click('[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('.tiles');
 check('le bloc du groupe aussi',
   /1 en retard/.test(await page.locator('.card', { has: page.locator('.tiles') }).first().textContent()));
 
-const aliceRow = page.locator('.section', { hasText: 'Qui fait quoi' }).locator('.game-card', { hasText: 'Alice' }).first();
-check('et la ligne d’Alice met le retard en premier',
-  /^1 en retard · 2 ligne\(s\) à faire/.test((await aliceRow.locator('.game-card__meta').textContent()).trim()),
-  (await aliceRow.locator('.game-card__meta').textContent()).trim());
-
-await aliceRow.click();
+await page.evaluate(() => { location.hash = '#/person/Alice'; });
 await page.waitForSelector('.who');
+check('et sa page met le retard en premier',
+  /^1 en retard · 2 ligne\(s\) à faire/.test((await page.locator('.banner').first().textContent()).trim()),
+  (await page.locator('.banner').first().textContent()).trim());
 const tiles = await page.locator('.tile__value').allTextContents();
 check('sa page compte le retard à part', tiles.join(',') === '1,0,2,1', tiles.join(','));
 check('et sa liste dit depuis quand',
@@ -172,7 +170,7 @@ check('et la liste attend dans l’archive',
   /1 archivé/.test(await page.locator('details.details').first().textContent()),
   (await page.locator('details.details').first().textContent()).replace(/\s+/g, ' ').trim().slice(0, 60));
 
-await page.click('[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('.tiles');
 const numbers = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
 check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,1,1,0', numbers.join(','));

@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="7c71ba64" />
+    <meta name="app-build" content="2c6b3834" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -872,7 +872,8 @@ body.solo .app-bar__brand { cursor: default; }
  * The parts of the app, along the bottom of the screen: within the thumb's
  * reach, and still there halfway down a long list. An icon over each word, so
  * the words can stay small on a narrow phone without the bar turning to
- * guesswork. The "+" in the middle makes a new thing from wherever one is.
+ * guesswork. The "+" sits astride the bar's top edge, exactly in the middle:
+ * two tabs each side, and a column of its own between them.
  */
 .tabs {
   position: fixed;
@@ -881,11 +882,10 @@ body.solo .app-bar__brand { cursor: default; }
   bottom: 0;
   z-index: 20;
   display: grid;
-  /* Two tabs, the "+" at its own width, three tabs: every pixel the button
-     does not need goes to the words. minmax(0, 1fr) et non 1fr : sans cela,
-     chaque piste ne peut pas descendre sous la largeur de son mot, et les
-     onglets poussent la barre — donc toute la page — sur un écran de 320. */
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(3, minmax(0, 1fr));
+  /* minmax(0, 1fr) et non 1fr : sans cela, chaque piste ne peut pas descendre
+     sous la largeur de son mot, et les onglets poussent la barre — donc toute
+     la page — sur un écran de 320. */
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 76px repeat(2, minmax(0, 1fr));
   align-items: stretch;
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -895,7 +895,7 @@ body.solo .app-bar__brand { cursor: default; }
 
 /* The bar covers the bottom of the page; the page makes room for it. */
 body:not(.solo) .view {
-  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
 }
 
 .tab {
@@ -939,26 +939,34 @@ body:not(.solo) .view {
 }
 
 .tabs__new {
-  align-self: center;
-  margin: 0 4px;
+  grid-column: 3;
+  justify-self: center;
+  align-self: start;
+  /* Half above the bar, half on it. */
+  margin-top: -28px;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 60px;
+  height: 60px;
   padding: 0;
-  border: none;
+  /* A ring the colour of the page cuts the bar's edge around the button. */
+  border: 4px solid var(--bg);
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-text);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
 }
 
-.tabs__new svg { stroke-width: 2.4; }
+.tabs__new svg { width: 28px; height: 28px; stroke-width: 2.4; }
+
+/* The overview has no tab: the name at the top is its way in, and says so. */
+.app-bar__brand[aria-current="page"] strong { color: var(--accent); }
 
 @media (max-width: 345px) {
-  .tab { font-size: 0.62rem; letter-spacing: -0.02em; }
-  .tabs__new { width: 42px; height: 42px; }
+  .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)) 68px repeat(2, minmax(0, 1fr)); }
+  .tab { font-size: 0.66rem; }
+  .tabs__new { width: 54px; height: 54px; margin-top: -24px; }
 }
 
 /* The "+" menu: what can be made, one big button each. */
@@ -1123,23 +1131,21 @@ body:not(.solo) .view {
     </header>
 
     <!-- At the bottom, within the thumb's reach, and always there: a phone is
-         held from below. The "+" in the middle makes anything, from anywhere. -->
+         held from below. The "+" in the middle makes anything, from anywhere;
+         two tabs each side keep it in the middle. The overview is the name at
+         the top, where the app opens anyway. -->
     <nav class="tabs" id="tabs" aria-label="Sections">
-      <a class="tab" href="#/" data-tab="overview">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
-        <span data-i18n="tab.overview">Aperçu</span>
-      </a>
       <a class="tab" href="#/lists" data-tab="lists">
         <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg>
         <span data-i18n="tab.lists">Listes</span>
       </a>
-      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
       <a class="tab" href="#/polls" data-tab="polls">
         <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h16M4 17h7"/></svg>
         <span data-i18n="tab.polls">Sondages</span>
       </a>
+      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
       <a class="tab" href="#/games" data-tab="games">
         <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>
         <span data-i18n="tab.games">Parties</span>
@@ -1327,6 +1333,7 @@ const STRINGS = {
     'group.open': 'Ouvrir',
     'group.seeAll': 'Tout voir',
     'group.nothing': 'Rien en cours dans ce groupe.',
+    'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
     'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
@@ -1406,8 +1413,6 @@ const STRINGS = {
     'dash.gate': 'vous ouvrez la porte',
     'dash.member': 'membre',
     'dash.peopleCount': '{count} personne(s)',
-    'dash.people': 'Qui fait quoi',
-    'dash.others': '{count} autre(s)',
     'dash.you': '{name} (vous)',
     'dash.votes': '{count} vote(s) en attente',
     'dash.nothing': 'rien en attente',
@@ -2095,6 +2100,7 @@ const STRINGS = {
     'group.open': 'Open',
     'group.seeAll': 'See all',
     'group.nothing': 'Nothing going on in this group.',
+    'group.who': 'See who owes what',
     'spends.new': 'New account',
     'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
@@ -2174,8 +2180,6 @@ const STRINGS = {
     'dash.gate': 'you let people in',
     'dash.member': 'member',
     'dash.peopleCount': '{count} person(s)',
-    'dash.people': 'Who does what',
-    'dash.others': '{count} more',
     'dash.you': '{name} (you)',
     'dash.votes': '{count} vote(s) awaited',
     'dash.nothing': 'nothing waiting',
@@ -9983,6 +9987,37 @@ function groupBoardHtml(group) {
 }
 
 /**
+ * Who is in a group, and what is still waiting on each of them — folded away
+ * by default. It used to sit in the open on the overview, for every group at
+ * once; on a page already scoped to one group, it earns a spot, but not one
+ * that pushes past what a group is coming here for: what is going on.
+ */
+function groupPeopleHtml(group) {
+  const mine = (documents) => documents.filter((document_) => inGroup(document_, group.id));
+  const me = sameName(myName());
+  const names = [...peopleIn({
+    lists: mine(state.lists), polls: mine(state.polls), games: mine(state.games), spends: mine(state.spends),
+  })].sort((a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b));
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = waitingLine(counts);
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('group.who'))}</summary>
+      <div class="game-list">${names.map(row).join('')}</div>
+    </details>`;
+}
+
+/**
  * One group, and everything going on in it, on one page.
  *
  * The tabs sort by kind — lists here, polls there — but the question people
@@ -10043,7 +10078,8 @@ function groupView(group) {
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
     </button>
-    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}
+    ${groupPeopleHtml(group)}`;
 }
 
 /**
@@ -10083,9 +10119,6 @@ function openCreateMenu() {
   dialog.showModal();
 }
 
-/** How many names the overview lists before folding the rest away. */
-const PEOPLE_SHOWN = 12;
-
 /**
  * What is waiting on someone, in one line. Late first: a line whose day has
  * passed is the only part of this that is worse today than it was yesterday.
@@ -10101,50 +10134,6 @@ function waitingLine(counts) {
     .join(' · ');
 }
 
-/**
- * Who the app knows about, and what is still waiting on each of them.
- *
- * Every name from every list, poll and game, me first and then alphabetical —
- * an order that does not move under the finger, unlike one that follows who
- * owes what.
- */
-function whoHtml() {
-  const me = sameName(myName());
-  const names = [...peopleIn(state)].sort(
-    (a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b),
-  );
-  if (!names.length) return '';
-
-  const row = (name) => {
-    const { counts } = personFile(state, name);
-    const waiting = waitingLine(counts);
-    return `
-      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
-        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
-        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
-      </button>`;
-  };
-
-  const shown = names.slice(0, PEOPLE_SHOWN);
-  const rest = names.slice(PEOPLE_SHOWN);
-  return `
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('dash.people'))}</h2>
-        <span class="muted small">${escapeHtml(t('dash.peopleCount', { count: names.length }))}</span>
-      </div>
-      <div class="game-list">${shown.map(row).join('')}</div>
-      ${
-        rest.length
-          ? `<details class="details">
-               <summary>${escapeHtml(t('dash.others', { count: rest.length }))}</summary>
-               <div class="game-list">${rest.map(row).join('')}</div>
-             </details>`
-          : ''
-      }
-    </section>`;
-}
-
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -10155,12 +10144,6 @@ function overviewView() {
   return `
     ${flashHtml()}
     <p class="lead">${escapeHtml(t('overview.what'))}</p>
-
-    <div class="row">
-      <button type="button" class="button button--small" data-goto="#/lists/new">+ ${escapeHtml(t('lists.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/polls/new">+ ${escapeHtml(t('polls.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
-    </div>
 
     ${byGroupHtml()}
 
@@ -10178,8 +10161,6 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
-
-    ${whoHtml()}
 
     ${meHtml()}
 
@@ -15360,6 +15341,11 @@ function markTab(current) {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
+  // The overview has no tab of its own: the name at the top leads there.
+  const brand = document.querySelector('.app-bar__brand');
+  if (!brand) return;
+  if (here === 'overview') brand.setAttribute('aria-current', 'page');
+  else brand.removeAttribute('aria-current');
 }
 
 /**

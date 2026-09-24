@@ -68,7 +68,7 @@ await page.evaluate(() => {
 });
 await page.reload();
 await page.waitForSelector('.app-bar');
-await page.click('[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('[data-calendar]');
 const coming = page.locator('.section').filter({ hasText: 'Ce qui vient' }).first();
 const comingText = (await coming.textContent()).replace(/\s+/g, ' ');

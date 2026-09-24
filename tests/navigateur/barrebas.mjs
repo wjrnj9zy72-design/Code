@@ -48,11 +48,17 @@ async function open(width, height) {
 const page = await open(390, 800);
 const bar = await page.locator('#tabs').boundingBox();
 check('la barre est collée en bas de l’écran', Math.abs(bar.y + bar.height - 800) < 2, JSON.stringify(bar));
+check('sur une seule ligne', bar.height < 90, JSON.stringify(bar));
 const tabs = (await page.locator('.tab').allTextContents()).map((s) => s.trim());
-check('cinq onglets, dans le même ordre',
-  tabs.join(' / ') === 'Aperçu / Listes / Sondages / Parties / Agenda', tabs.join(' / '));
-check('chacun a son icône', (await page.locator('.tab .tab__icon').count()) === 5);
+check('quatre onglets, deux de chaque côté du « + »',
+  tabs.join(' / ') === 'Listes / Sondages / Parties / Agenda', tabs.join(' / '));
+check('chacun a son icône', (await page.locator('.tab .tab__icon').count()) === 4);
 check('le « + » est dans la barre', await page.locator('#tabs #create').isVisible());
+const plus = await page.locator('#create').boundingBox();
+check('le « + » est pile au milieu', Math.abs(plus.x + plus.width / 2 - 195) < 1, JSON.stringify(plus));
+check('et à cheval sur le bord de la barre', plus.y < bar.y && plus.y + plus.height > bar.y, JSON.stringify(plus));
+check('l’app s’ouvre sur l’aperçu, que le nom en haut signale',
+  (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
 
 await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 await page.waitForTimeout(200);
@@ -85,7 +91,7 @@ check('Annuler ferme le menu', (await page.locator('dialog[open]').count()) === 
 
 /* --- la page d'un groupe -------------------------------------------------- */
 
-await page.click('.tab[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('.group-link');
 check('chaque groupe de l’aperçu s’ouvre', (await page.locator('.group-link').count()) === 2);
 await page.locator('.group-link', { hasText: 'Mifa' }).click();
@@ -96,8 +102,16 @@ const text = await page.locator('#view').textContent();
 check('on y voit la liste du groupe', text.includes('Courses Mifa'));
 check('et son sondage', text.includes('Quel soir pour la raclette'));
 check('pas ce qui est à un autre groupe', !text.includes('Bières Copains'));
-check('l’onglet Aperçu reste allumé',
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Aperçu');
+
+// « Voir qui doit quoi » : replié, et scopé à ce groupe.
+check('le lien vers les personnes est replié', !(await page.locator('.details .game-card').first().isVisible()));
+await page.click('.details summary');
+const whoText = await page.locator('.details').last().textContent();
+check('Gui, seul nom de ce groupe, y est', whoText.includes('Gui'));
+
+check('le nom en haut reste allumé, aucun onglet',
+  (await page.locator('.tab[aria-current]').count()) === 0
+  && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
 
 await page.click('#create');
 await page.waitForSelector('dialog[open] [data-create]');

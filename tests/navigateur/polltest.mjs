@@ -17,9 +17,9 @@ async function device(label) {
 }
 
 const page = await device('moi');
-check('cinq onglets, l’agenda en dernier',
+check('quatre onglets, l’agenda en dernier',
   (await page.locator('.tab').allTextContents()).map((x) => x.trim()).join(' / ')
-    === 'Aperçu / Listes / Sondages / Parties / Agenda',
+    === 'Listes / Sondages / Parties / Agenda',
   (await page.locator('.tab').allTextContents()).join(' / '));
 
 await page.click('.tab[data-tab="polls"]');

@@ -27,12 +27,14 @@ async function device(label, { key = null } = {}) {
 
 const page = await device('moi');
 const tabs = (await page.locator('.tab').allTextContents()).map((s) => s.trim());
-check('cinq onglets, l’agenda en dernier',
-  tabs.join(' / ') === 'Aperçu / Listes / Sondages / Parties / Agenda', tabs.join(' / '));
+check('quatre onglets, l’agenda en dernier',
+  tabs.join(' / ') === 'Listes / Sondages / Parties / Agenda', tabs.join(' / '));
 check("l'app ouvre sur l'aperçu",
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Aperçu');
+  (await page.locator('.tab[aria-current]').count()) === 0
+  && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
 check("l'aperçu dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);
-check('et propose les trois créations', (await page.locator('[data-goto$="/new"]').count()) === 3);
+check('le « + » de la barre crée, l’aperçu n’a plus ses propres boutons',
+  (await page.locator('#tabs #create').isVisible()) && (await page.locator('[data-goto$="/new"]').count()) === 0);
 check('les groupes ont leur section',
   (await page.locator('#group-name').count()) === 1 && (await page.locator('#group-code').count()) === 1);
 check('sans groupe, il le dit', (await page.locator('#group-state').count()) === 1
@@ -59,7 +61,7 @@ check('et la liste reste locale', stored === false, String(stored));
 
 /* --- entrer dans un groupe ----------------------------------------------- */
 
-await page.click('.tab[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('.details summary');
 await page.click('.details summary');
 await page.fill('#group-key', 'pas-une-cle');
@@ -100,7 +102,7 @@ await other.waitForSelector('.game-card', { timeout: 15000 });
 check('ouvrir l’app ramène ce que le groupe partage, sans rien toucher',
   (await other.locator('.game-card').textContent()).includes('Courses'),
   await other.locator('.game-card').textContent());
-await other.click('.tab[data-tab="overview"]');
+await other.click('.app-bar__brand');
 await other.click('[data-catch-up]');
 await other.waitForSelector('.banner', { timeout: 15000 });
 check('« Tout récupérer » le confirme sans rien ramener deux fois',
@@ -108,7 +110,7 @@ check('« Tout récupérer » le confirme sans rien ramener deux fois',
   await other.locator('.banner').textContent());
 
 // une deuxième fois : rien de neuf
-await other.click('.tab[data-tab="overview"]');
+await other.click('.app-bar__brand');
 await other.click('[data-catch-up]');
 await other.waitForSelector('.banner', { timeout: 15000 });
 check('rattraper deux fois ne ramène rien de neuf',

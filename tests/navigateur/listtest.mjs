@@ -18,12 +18,13 @@ async function device(label) {
 
 const page = await device('moi');
 check("l'app s'appelle Together", (await page.locator('.app-bar strong').textContent()) === 'Together');
-check('cinq onglets, l’agenda en dernier',
+check('quatre onglets, l’agenda en dernier',
   (await page.locator('.tab').allTextContents()).map((x) => x.trim()).join(' / ')
-    === 'Aperçu / Listes / Sondages / Parties / Agenda',
+    === 'Listes / Sondages / Parties / Agenda',
   (await page.locator('.tab').allTextContents()).join(' / '));
 check("l'app ouvre sur l'aperçu",
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Aperçu');
+  (await page.locator('.tab[aria-current]').count()) === 0
+  && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
 
 await page.click('.tab[data-tab="lists"]');
 await page.waitForSelector('[data-goto="#/lists/new"]');

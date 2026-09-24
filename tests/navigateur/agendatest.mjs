@@ -94,7 +94,7 @@ await page.waitForSelector('#poll-ics');
 
 /* ---- 4. l'adresse de l'agenda -------------------------------------------- */
 
-await page.click('[data-tab="overview"]');
+await page.click('.app-bar__brand');
 await page.waitForSelector('[data-calendar]');
 await page.click('[data-calendar]');
 await page.waitForSelector('dialog[open] #export-text', { timeout: 15000 });

@@ -2957,6 +2957,37 @@ function groupBoardHtml(group) {
 }
 
 /**
+ * Who is in a group, and what is still waiting on each of them — folded away
+ * by default. It used to sit in the open on the overview, for every group at
+ * once; on a page already scoped to one group, it earns a spot, but not one
+ * that pushes past what a group is coming here for: what is going on.
+ */
+function groupPeopleHtml(group) {
+  const mine = (documents) => documents.filter((document_) => inGroup(document_, group.id));
+  const me = sameName(myName());
+  const names = [...peopleIn({
+    lists: mine(state.lists), polls: mine(state.polls), games: mine(state.games), spends: mine(state.spends),
+  })].sort((a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b));
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = waitingLine(counts);
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('group.who'))}</summary>
+      <div class="game-list">${names.map(row).join('')}</div>
+    </details>`;
+}
+
+/**
  * One group, and everything going on in it, on one page.
  *
  * The tabs sort by kind — lists here, polls there — but the question people
@@ -3017,7 +3048,8 @@ function groupView(group) {
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
     </button>
-    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}
+    ${groupPeopleHtml(group)}`;
 }
 
 /**
@@ -3057,9 +3089,6 @@ function openCreateMenu() {
   dialog.showModal();
 }
 
-/** How many names the overview lists before folding the rest away. */
-const PEOPLE_SHOWN = 12;
-
 /**
  * What is waiting on someone, in one line. Late first: a line whose day has
  * passed is the only part of this that is worse today than it was yesterday.
@@ -3075,50 +3104,6 @@ function waitingLine(counts) {
     .join(' · ');
 }
 
-/**
- * Who the app knows about, and what is still waiting on each of them.
- *
- * Every name from every list, poll and game, me first and then alphabetical —
- * an order that does not move under the finger, unlike one that follows who
- * owes what.
- */
-function whoHtml() {
-  const me = sameName(myName());
-  const names = [...peopleIn(state)].sort(
-    (a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b),
-  );
-  if (!names.length) return '';
-
-  const row = (name) => {
-    const { counts } = personFile(state, name);
-    const waiting = waitingLine(counts);
-    return `
-      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
-        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
-        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
-      </button>`;
-  };
-
-  const shown = names.slice(0, PEOPLE_SHOWN);
-  const rest = names.slice(PEOPLE_SHOWN);
-  return `
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('dash.people'))}</h2>
-        <span class="muted small">${escapeHtml(t('dash.peopleCount', { count: names.length }))}</span>
-      </div>
-      <div class="game-list">${shown.map(row).join('')}</div>
-      ${
-        rest.length
-          ? `<details class="details">
-               <summary>${escapeHtml(t('dash.others', { count: rest.length }))}</summary>
-               <div class="game-list">${rest.map(row).join('')}</div>
-             </details>`
-          : ''
-      }
-    </section>`;
-}
-
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -3129,12 +3114,6 @@ function overviewView() {
   return `
     ${flashHtml()}
     <p class="lead">${escapeHtml(t('overview.what'))}</p>
-
-    <div class="row">
-      <button type="button" class="button button--small" data-goto="#/lists/new">+ ${escapeHtml(t('lists.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/polls/new">+ ${escapeHtml(t('polls.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
-    </div>
 
     ${byGroupHtml()}
 
@@ -3152,8 +3131,6 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
-
-    ${whoHtml()}
 
     ${meHtml()}
 
@@ -8334,6 +8311,11 @@ function markTab(current) {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
+  // The overview has no tab of its own: the name at the top leads there.
+  const brand = document.querySelector('.app-bar__brand');
+  if (!brand) return;
+  if (here === 'overview') brand.setAttribute('aria-current', 'page');
+  else brand.removeAttribute('aria-current');
 }
 
 /**

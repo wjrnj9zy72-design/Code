@@ -59,7 +59,7 @@ await sister.click('.tab[data-tab="polls"]'); await sister.waitForTimeout(400);
 const hers = (await sister.locator('.game-card__title').allTextContents()).map((s) => s.replace(/\s+/g, ' ').trim());
 check('Claire voit le sondage de famille', hers.some((h) => /raclette/.test(h)), hers.join(' | '));
 check('mais pas celui des voisins', !hers.some((h) => /voisins/.test(h)), hers.join(' | '));
-await sister.click('[data-tab="overview"]'); await sister.waitForSelector('#export');
+await sister.click('.app-bar__brand'); await sister.waitForSelector('#export');
 const coming = await text(sister, '.section:has-text("Ce qui vient")');
 check('ni dans « Ce qui vient »', /Raclette/.test(coming) && !/voisins/i.test(coming), coming.slice(0, 120));
 
