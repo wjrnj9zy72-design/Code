@@ -60,14 +60,14 @@ await flaky.waitForTimeout(800);
 check('au départ, le portier a ses blocs', (await flaky.locator('.details summary').count()) >= 1);
 await flaky.route('**/marque_points_requests', (r) => r.abort());
 await flaky.click('.tab[data-tab="games"]');
-await flaky.click('.tab[data-tab="overview"]');
+await flaky.click('.app-bar__brand');
 await flaky.waitForTimeout(1200);
 check('une panne réseau ne l’enregistre pas comme « ne fait pas entrer »',
   (await prefsOf(flaky)).groups[0].admits === true,
   JSON.stringify((await prefsOf(flaky)).groups[0]));
 await flaky.unroute('**/marque_points_requests');
 await flaky.click('.tab[data-tab="games"]');
-await flaky.click('.tab[data-tab="overview"]');
+await flaky.click('.app-bar__brand');
 await flaky.waitForTimeout(1500);
 check('et la porte revient d’elle-même quand le réseau revient',
   (await flaky.locator('.details summary').count()) >= 1);

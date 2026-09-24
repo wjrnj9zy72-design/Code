@@ -39,7 +39,7 @@ const pollId = await gui.evaluate(() => location.hash.split('/')[2]);
 await gui.waitForTimeout(800);
 
 // --- l'aperçu le rappelle, et l'export le porte
-await gui.click('.tab[data-tab="overview"]').catch(() => gui.goto(`${PAGE}#/`));
+await gui.click('.app-bar__brand').catch(() => gui.goto(`${PAGE}#/`));
 await gui.waitForSelector('#export');
 const hint = (await gui.locator('#organiser-backup').textContent().catch(() => '')).replace(/\s+/g, ' ');
 check('l’aperçu dit que le droit ne vit qu’ici, et comment le garder', /organisez 1 sondage/.test(hint) && /Exporter/.test(hint), hint);

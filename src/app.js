@@ -8334,6 +8334,11 @@ function markTab(current) {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
+  // The overview has no tab of its own: the name at the top leads there.
+  const brand = document.querySelector('.app-bar__brand');
+  if (!brand) return;
+  if (here === 'overview') brand.setAttribute('aria-current', 'page');
+  else brand.removeAttribute('aria-current');
 }
 
 /**

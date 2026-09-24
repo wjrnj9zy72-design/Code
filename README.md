@@ -217,7 +217,9 @@ type de sondage à choisir avant de poser la question.
 Avec plusieurs groupes, l'app ne mélange plus tout.
 
 - Les onglets sont **en bas de l'écran**, à portée du pouce, et y restent quand
-  on fait défiler. Au milieu, un **« + »** crée une liste, un sondage, un
+  on fait défiler : Listes et Sondages à gauche, Parties et Agenda à droite.
+  L'Aperçu, c'est le nom **Together** en haut — l'app s'ouvre dessus. Pile au
+  milieu, à cheval sur la barre, un **« + »** crée une liste, un sondage, un
   événement, une partie ou un compte, depuis n'importe quelle page ; il dit
   dans quel groupe la chose ira (modifiable sur le formulaire).
 - L'**Aperçu** ouvre sur un bloc par groupe : combien de listes, de sondages et
