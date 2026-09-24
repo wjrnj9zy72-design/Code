@@ -227,7 +227,8 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
   (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
   vient, les listes, les sondages, les parties, les comptes à solder — avec
-  « Tout voir » vers l'onglet, déjà réglé sur ce groupe.
+  « Tout voir » vers l'onglet, déjà réglé sur ce groupe. Repliée en bas :
+  « Voir qui doit quoi », les prénoms de ce groupe et ce qui les attend.
 - Les trois onglets portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
@@ -237,9 +238,9 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   lignes à faire, ses votes donnés ou manquants, ses dernières parties avec son
   rang. Les prénoms y sont rapprochés sans accent ni majuscule, comme dans les
   statistiques — « alice » et « Alice » sont la même personne, « Alex » et
-  « Alexandre » restent deux. On y arrive depuis les statistiques (renommer) ou
-  par un lien gardé ; l'Aperçu ne liste plus les personnes une à une, pour
-  rester court.
+  « Alexandre » restent deux. On y arrive depuis la page d'un groupe (« Voir
+  qui doit quoi ») ou les statistiques (renommer) ; l'Aperçu ne liste plus les
+  personnes une à une, pour rester court.
 - **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
   personne dans les parties, les listes et les sondages à la fois : deux
   orthographes redeviennent une seule personne partout d'un coup.

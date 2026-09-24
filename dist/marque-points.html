@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="5654109c" />
+    <meta name="app-build" content="2c6b3834" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -1333,6 +1333,7 @@ const STRINGS = {
     'group.open': 'Ouvrir',
     'group.seeAll': 'Tout voir',
     'group.nothing': 'Rien en cours dans ce groupe.',
+    'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
     'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
@@ -1412,7 +1413,9 @@ const STRINGS = {
     'dash.gate': 'vous ouvrez la porte',
     'dash.member': 'membre',
     'dash.peopleCount': '{count} personne(s)',
+    'dash.you': '{name} (vous)',
     'dash.votes': '{count} vote(s) en attente',
+    'dash.nothing': 'rien en attente',
     'person.none': 'Personne de ce nom dans ce que tient cet appareil.',
     'person.statGames': 'parties',
     'person.statWins': 'victoires',
@@ -2097,6 +2100,7 @@ const STRINGS = {
     'group.open': 'Open',
     'group.seeAll': 'See all',
     'group.nothing': 'Nothing going on in this group.',
+    'group.who': 'See who owes what',
     'spends.new': 'New account',
     'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
@@ -2176,7 +2180,9 @@ const STRINGS = {
     'dash.gate': 'you let people in',
     'dash.member': 'member',
     'dash.peopleCount': '{count} person(s)',
+    'dash.you': '{name} (you)',
     'dash.votes': '{count} vote(s) awaited',
+    'dash.nothing': 'nothing waiting',
     'person.none': 'Nobody by that name in what this device holds.',
     'person.statGames': 'games',
     'person.statWins': 'wins',
@@ -9981,6 +9987,37 @@ function groupBoardHtml(group) {
 }
 
 /**
+ * Who is in a group, and what is still waiting on each of them — folded away
+ * by default. It used to sit in the open on the overview, for every group at
+ * once; on a page already scoped to one group, it earns a spot, but not one
+ * that pushes past what a group is coming here for: what is going on.
+ */
+function groupPeopleHtml(group) {
+  const mine = (documents) => documents.filter((document_) => inGroup(document_, group.id));
+  const me = sameName(myName());
+  const names = [...peopleIn({
+    lists: mine(state.lists), polls: mine(state.polls), games: mine(state.games), spends: mine(state.spends),
+  })].sort((a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b));
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = waitingLine(counts);
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('group.who'))}</summary>
+      <div class="game-list">${names.map(row).join('')}</div>
+    </details>`;
+}
+
+/**
  * One group, and everything going on in it, on one page.
  *
  * The tabs sort by kind — lists here, polls there — but the question people
@@ -10041,7 +10078,8 @@ function groupView(group) {
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
     </button>
-    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}
+    ${groupPeopleHtml(group)}`;
 }
 
 /**

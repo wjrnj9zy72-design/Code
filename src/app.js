@@ -27,7 +27,7 @@ import {
   balances, spendTotal, settle, mergeSpends, isValidSpend,
 } from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
+import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
@@ -2957,6 +2957,37 @@ function groupBoardHtml(group) {
 }
 
 /**
+ * Who is in a group, and what is still waiting on each of them — folded away
+ * by default. It used to sit in the open on the overview, for every group at
+ * once; on a page already scoped to one group, it earns a spot, but not one
+ * that pushes past what a group is coming here for: what is going on.
+ */
+function groupPeopleHtml(group) {
+  const mine = (documents) => documents.filter((document_) => inGroup(document_, group.id));
+  const me = sameName(myName());
+  const names = [...peopleIn({
+    lists: mine(state.lists), polls: mine(state.polls), games: mine(state.games), spends: mine(state.spends),
+  })].sort((a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b));
+  if (!names.length) return '';
+
+  const row = (name) => {
+    const { counts } = personFile(state, name);
+    const waiting = waitingLine(counts);
+    return `
+      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
+        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
+        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
+      </button>`;
+  };
+
+  return `
+    <details class="details">
+      <summary>${escapeHtml(t('group.who'))}</summary>
+      <div class="game-list">${names.map(row).join('')}</div>
+    </details>`;
+}
+
+/**
  * One group, and everything going on in it, on one page.
  *
  * The tabs sort by kind — lists here, polls there — but the question people
@@ -3017,7 +3048,8 @@ function groupView(group) {
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
     </button>
-    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}
+    ${groupPeopleHtml(group)}`;
 }
 
 /**

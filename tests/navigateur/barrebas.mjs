@@ -102,6 +102,13 @@ const text = await page.locator('#view').textContent();
 check('on y voit la liste du groupe', text.includes('Courses Mifa'));
 check('et son sondage', text.includes('Quel soir pour la raclette'));
 check('pas ce qui est à un autre groupe', !text.includes('Bières Copains'));
+
+// « Voir qui doit quoi » : replié, et scopé à ce groupe.
+check('le lien vers les personnes est replié', !(await page.locator('.details .game-card').first().isVisible()));
+await page.click('.details summary');
+const whoText = await page.locator('.details').last().textContent();
+check('Gui, seul nom de ce groupe, y est', whoText.includes('Gui'));
+
 check('le nom en haut reste allumé, aucun onglet',
   (await page.locator('.tab[aria-current]').count()) === 0
   && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
