@@ -79,6 +79,11 @@ let newListLines = '';
 let newSpendName = '';
 let newSpendPeople = ['', ''];
 
+// Which half of an account's page is showing — reset when a different
+// account is opened, kept when this one just redraws (adding a line, say).
+let spendTabId = null;
+let spendTab = 'expenses';
+
 // And the new-poll form's.
 let newEventName = '';
 let newEventDay = '';
@@ -1968,9 +1973,156 @@ function spendLineHtml(spend, line) {
 }
 
 function spendView(spend) {
+  if (spendTabId !== spend.id) {
+    spendTabId = spend.id;
+    spendTab = 'expenses';
+  }
   const rows = balances(spend);
   const moves = settle(spend);
   const me = sameName(myName());
+
+  const segmented = `
+    <div class="segmented" role="tablist" aria-label="${escapeHtml(t('spends.sections'))}">
+      <button type="button" class="segmented__option" data-spend-tab="expenses"
+              role="tab" aria-selected="${spendTab === 'expenses' ? 'true' : 'false'}"
+              aria-current="${spendTab === 'expenses' ? 'true' : 'false'}">
+        ${escapeHtml(t('spend.tabExpenses'))}
+      </button>
+      <button type="button" class="segmented__option" data-spend-tab="balances"
+              role="tab" aria-selected="${spendTab === 'balances' ? 'true' : 'false'}"
+              aria-current="${spendTab === 'balances' ? 'true' : 'false'}">
+        ${escapeHtml(t('spend.tabBalances'))}
+      </button>
+    </div>`;
+
+  const expensesTab = `
+    ${
+      spend.people.length
+        ? `<form id="add-spend" class="card stack">
+             <label>
+               ${escapeHtml(t('spends.what'))}
+               <input class="field-pill" type="text" id="spend-text"
+                      placeholder="${escapeHtml(t('spends.textPlaceholder'))}" autocomplete="off" />
+             </label>
+
+             <label>
+               ${escapeHtml(t('spends.amount'))}
+               <span class="field-pill field-pill--amount">
+                 <input type="text" id="spend-amount" inputmode="decimal" placeholder="0,00" />
+                 <span class="field-pill__suffix">€</span>
+               </span>
+             </label>
+
+             <div class="field-row">
+               <label>
+                 ${escapeHtml(t('spends.by'))}
+                 <select class="field-pill" id="spend-by">
+                   ${spend.people
+                     .map(
+                       (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
+                          ${escapeHtml(person.name)}
+                        </option>`,
+                     )
+                     .join('')}
+                 </select>
+               </label>
+               <label>
+                 ${escapeHtml(t('spends.when'))}
+                 <input class="field-pill" type="date" id="spend-day" value="${escapeHtml(dayNow())}" />
+               </label>
+             </div>
+
+             ${
+               spend.people.length > 1
+                 ? `<div class="split-list">
+                      <div class="split-list__head">
+                        <span>${escapeHtml(t('spends.splitTitle'))}</span>
+                        <span class="muted small">${escapeHtml(t('spends.splitHint'))}</span>
+                      </div>
+                      ${spend.people
+                        .map(
+                          (person) => `
+                            <label class="split-row">
+                              <input type="checkbox" data-for="${escapeHtml(person.id)}" checked />
+                              <span class="split-row__name">${escapeHtml(person.name)}</span>
+                            </label>`,
+                        )
+                        .join('')}
+                    </div>`
+                 : ''
+             }
+
+             <button type="submit" class="button button--primary button--block field-pill--submit">
+               ${escapeHtml(t('spends.add'))}
+             </button>
+           </form>`
+        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<ul class="lines">${[...spend.lines]
+            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
+            .map((line) => spendLineHtml(spend, line))
+            .join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
+    }`;
+
+  const balancesTab = !spend.lines.length
+    ? `<p class="muted small">${escapeHtml(t('spends.balancesEmpty'))}</p>`
+    : `
+    <section class="section card">
+      <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
+      <div class="entries">
+        ${rows
+          .map(
+            (row) => `
+              <div class="entry">
+                <span class="entry__what">
+                  ${escapeHtml(row.name)}
+                  <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                </span>
+                <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
+                  ${escapeHtml(
+                    row.balance === 0
+                      ? t('spends.even')
+                      : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                          amount: showAmount(Math.abs(row.balance), getLanguage()),
+                        }),
+                  )}
+                </span>
+              </div>`,
+          )
+          .join('')}
+      </div>
+    </section>
+
+    ${
+      moves.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
+             <div class="entries">
+               ${moves
+                 .map(
+                   (move) => `
+                     <div class="entry">
+                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
+           </section>`
+        : `<div class="settled-banner">
+             <span class="settled-banner__icon" aria-hidden="true">👍</span>
+             <span>
+               <strong class="settled-banner__title">${escapeHtml(t('spends.allSettled'))}</strong>
+               <br />
+               <span class="muted small">${escapeHtml(t('spends.allSettledHint'))}</span>
+             </span>
+           </div>`
+    }`;
 
   return `
     ${flashHtml()}
@@ -1991,89 +2143,9 @@ function spendView(spend) {
 
     ${inGroupHtml(spend)}
 
-    ${
-      spend.people.length
-        ? `<form id="add-spend" class="card stack stack--tight">
-             <label class="visually-hidden" for="spend-text">${escapeHtml(t('spends.what'))}</label>
-             <input type="text" id="spend-text" placeholder="${escapeHtml(t('spends.what'))}" autocomplete="off" />
-             <div class="row row--tight">
-               <label class="visually-hidden" for="spend-amount">${escapeHtml(t('spends.amount'))}</label>
-               <input type="text" id="spend-amount" inputmode="decimal" placeholder="${escapeHtml(t('spends.amount'))}" />
-               <label class="visually-hidden" for="spend-by">${escapeHtml(t('spends.by'))}</label>
-               <select id="spend-by">
-                 ${spend.people
-                   .map(
-                     (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
-                        ${escapeHtml(person.name)}
-                      </option>`,
-                   )
-                   .join('')}
-               </select>
-               <button type="submit" class="button button--primary">+</button>
-             </div>
-             <p class="muted small">${escapeHtml(t('spends.addHint'))}</p>
-           </form>`
-        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
-    }
+    ${segmented}
 
-    ${
-      spend.lines.length
-        ? `<ul class="lines">${[...spend.lines]
-            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
-            .map((line) => spendLineHtml(spend, line))
-            .join('')}</ul>`
-        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
-    }
-
-    ${
-      spend.lines.length
-        ? `<section class="section card">
-             <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
-             <div class="entries">
-               ${rows
-                 .map(
-                   (row) => `
-                     <div class="entry">
-                       <span class="entry__what">
-                         ${escapeHtml(row.name)}
-                         <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
-                       </span>
-                       <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
-                         ${escapeHtml(
-                           row.balance === 0
-                             ? t('spends.even')
-                             : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
-                                 amount: showAmount(Math.abs(row.balance), getLanguage()),
-                               }),
-                         )}
-                       </span>
-                     </div>`,
-                 )
-                 .join('')}
-             </div>
-           </section>`
-        : ''
-    }
-
-    ${
-      moves.length
-        ? `<section class="section card">
-             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
-             <div class="entries">
-               ${moves
-                 .map(
-                   (move) => `
-                     <div class="entry">
-                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
-                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
-                     </div>`,
-                 )
-                 .join('')}
-             </div>
-             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
-           </section>`
-        : ''
-    }
+    ${spendTab === 'balances' ? balancesTab : expensesTab}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
@@ -2149,6 +2221,13 @@ function bindNewSpend() {
 function bindSpend(spend) {
   bindData();
 
+  view.querySelectorAll('[data-spend-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      spendTab = button.dataset.spendTab;
+      render();
+    });
+  });
+
   view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const text = view.querySelector('#spend-text');
@@ -2159,11 +2238,21 @@ function bindSpend(spend) {
       render();
       return;
     }
+    const boxes = [...view.querySelectorAll('#add-spend [data-for]')];
+    const checked = boxes.filter((box) => box.checked).map((box) => box.dataset.for);
+    if (boxes.length && !checked.length) {
+      flash(t('spends.noOneChosen'), 'error');
+      render();
+      return;
+    }
+    // Tous cochés (ou une seule personne, sans case) : « tout le monde » au
+    // sens large, qui inclut qui rejoint le compte plus tard. Voir addSpend().
     replaceSpend(addSpend(spend, {
       text: text.value,
       amount: cents,
       by: view.querySelector('#spend-by').value,
-      day: dayNow(),
+      forWhom: checked.length === boxes.length ? [] : checked,
+      day: view.querySelector('#spend-day')?.value || dayNow(),
     }));
   });
 

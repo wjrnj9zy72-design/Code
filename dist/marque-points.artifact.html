@@ -713,6 +713,129 @@ table.scores .meta-cell { color: var(--muted); }
 .row--tight { flex-wrap: nowrap; gap: 8px; }
 .row--tight input { flex: 1; }
 
+/* ------------------------------------------------------------- segmented --- */
+/*
+ * Two or three ways to look at the same thing (an account's expenses versus
+ * its balances), switched in place rather than by leaving the page: a pill
+ * inside a pill, the way iOS and most banking apps do it.
+ */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+}
+
+.segmented__option {
+  padding: 10px 4px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.segmented__option[aria-current="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
+}
+
+/* --------------------------------------------------------------- pill form -- */
+/*
+ * A softer, borderless take on the usual boxed input: filled with the page's
+ * own alt surface instead of outlined, fully rounded. Used where a form is
+ * the whole point of the screen (adding an expense) rather than one control
+ * among many.
+ */
+.field-pill,
+input.field-pill,
+select.field-pill {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+}
+
+.field-pill--amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-pill--amount input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.field-pill--amount input:focus { outline: none; }
+
+.field-pill__suffix { color: var(--muted); font-weight: 600; }
+
+.field-pill--submit { border-radius: 999px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Who a new expense is split between: a plain checklist, ticked by default —
+   unticking someone is the exception, so it is the only thing to notice. */
+.split-list {
+  display: grid;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.split-list__head {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.split-list__head .muted { font-weight: 550; }
+
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  font-weight: 550;
+}
+
+.split-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.split-row input[type='checkbox'] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+
+/* The balances tab once nothing is left to settle: a plain state deserves a
+   plain, good-news answer rather than an empty section. */
+.settled-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.settled-banner__icon { flex: none; font-size: 1.7rem; }
+.settled-banner__title { font-size: 1.05rem; }
+
 /* ----------------------------------------------------------------- votes --- */
 /*
  * The poll grid: choices down the side, people across. Cells are square and
@@ -1331,11 +1454,22 @@ const STRINGS = {
     'spends.create': 'Créer le compte',
     'spends.total': '{amount} en tout',
     'spends.what': 'Quoi ?',
+    'spends.textPlaceholder': 'Ex. Courses, essence, restau…',
     'spends.amount': 'Combien ?',
     'spends.by': 'Payé par',
-    'spends.addHint': 'Partagé entre tout le monde. Touchez la ligne ensuite pour n’en concerner qu’une partie.',
+    'spends.when': 'Quand',
+    'spends.splitTitle': 'Concerne qui ?',
+    'spends.splitHint': 'Partagé également entre les personnes cochées.',
+    'spends.noOneChosen': 'Choisissez au moins une personne.',
+    'spends.add': 'Ajouter la dépense',
     'spends.addFirst': 'Aucune dépense pour l’instant.',
     'spends.noPeople': 'Ajoutez d’abord les personnes que ce compte concerne.',
+    'spends.sections': 'Sections du compte',
+    'spend.tabExpenses': 'Dépenses',
+    'spend.tabBalances': 'Soldes',
+    'spends.balancesEmpty': 'Ajoutez d’abord des dépenses.',
+    'spends.allSettled': 'Tout est réglé',
+    'spends.allSettledHint': 'Personne ne doit rien à personne.',
     'spends.notAnAmount': 'Ce n’est pas un montant. Par exemple : 12,50',
     'spends.paidBy': 'payé par {name}',
     'spends.paidByNobody': 'payé par personne',
@@ -2098,11 +2232,22 @@ const STRINGS = {
     'spends.create': 'Create the account',
     'spends.total': '{amount} in all',
     'spends.what': 'What?',
+    'spends.textPlaceholder': 'E.g. Groceries, fuel, dinner…',
     'spends.amount': 'How much?',
     'spends.by': 'Paid by',
-    'spends.addHint': 'Split between everyone. Tap the line afterwards to make it concern only some.',
+    'spends.when': 'When',
+    'spends.splitTitle': 'Who does it concern?',
+    'spends.splitHint': 'Split equally between those ticked.',
+    'spends.noOneChosen': 'Choose at least one person.',
+    'spends.add': 'Add the expense',
     'spends.addFirst': 'Nothing spent yet.',
     'spends.noPeople': 'Add the people this account is between first.',
+    'spends.sections': 'Account sections',
+    'spend.tabExpenses': 'Expenses',
+    'spend.tabBalances': 'Balances',
+    'spends.balancesEmpty': 'Add expenses first.',
+    'spends.allSettled': 'All settled',
+    'spends.allSettledHint': 'Nobody owes anybody anything.',
     'spends.notAnAmount': 'That is not an amount. For example: 12.50',
     'spends.paidBy': 'paid by {name}',
     'spends.paidByNobody': 'paid by nobody',
@@ -7095,6 +7240,11 @@ let newListLines = '';
 let newSpendName = '';
 let newSpendPeople = ['', ''];
 
+// Which half of an account's page is showing — reset when a different
+// account is opened, kept when this one just redraws (adding a line, say).
+let spendTabId = null;
+let spendTab = 'expenses';
+
 // And the new-poll form's.
 let newEventName = '';
 let newEventDay = '';
@@ -8984,9 +9134,156 @@ function spendLineHtml(spend, line) {
 }
 
 function spendView(spend) {
+  if (spendTabId !== spend.id) {
+    spendTabId = spend.id;
+    spendTab = 'expenses';
+  }
   const rows = balances(spend);
   const moves = settle(spend);
   const me = sameName(myName());
+
+  const segmented = `
+    <div class="segmented" role="tablist" aria-label="${escapeHtml(t('spends.sections'))}">
+      <button type="button" class="segmented__option" data-spend-tab="expenses"
+              role="tab" aria-selected="${spendTab === 'expenses' ? 'true' : 'false'}"
+              aria-current="${spendTab === 'expenses' ? 'true' : 'false'}">
+        ${escapeHtml(t('spend.tabExpenses'))}
+      </button>
+      <button type="button" class="segmented__option" data-spend-tab="balances"
+              role="tab" aria-selected="${spendTab === 'balances' ? 'true' : 'false'}"
+              aria-current="${spendTab === 'balances' ? 'true' : 'false'}">
+        ${escapeHtml(t('spend.tabBalances'))}
+      </button>
+    </div>`;
+
+  const expensesTab = `
+    ${
+      spend.people.length
+        ? `<form id="add-spend" class="card stack">
+             <label>
+               ${escapeHtml(t('spends.what'))}
+               <input class="field-pill" type="text" id="spend-text"
+                      placeholder="${escapeHtml(t('spends.textPlaceholder'))}" autocomplete="off" />
+             </label>
+
+             <label>
+               ${escapeHtml(t('spends.amount'))}
+               <span class="field-pill field-pill--amount">
+                 <input type="text" id="spend-amount" inputmode="decimal" placeholder="0,00" />
+                 <span class="field-pill__suffix">€</span>
+               </span>
+             </label>
+
+             <div class="field-row">
+               <label>
+                 ${escapeHtml(t('spends.by'))}
+                 <select class="field-pill" id="spend-by">
+                   ${spend.people
+                     .map(
+                       (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
+                          ${escapeHtml(person.name)}
+                        </option>`,
+                     )
+                     .join('')}
+                 </select>
+               </label>
+               <label>
+                 ${escapeHtml(t('spends.when'))}
+                 <input class="field-pill" type="date" id="spend-day" value="${escapeHtml(dayNow())}" />
+               </label>
+             </div>
+
+             ${
+               spend.people.length > 1
+                 ? `<div class="split-list">
+                      <div class="split-list__head">
+                        <span>${escapeHtml(t('spends.splitTitle'))}</span>
+                        <span class="muted small">${escapeHtml(t('spends.splitHint'))}</span>
+                      </div>
+                      ${spend.people
+                        .map(
+                          (person) => `
+                            <label class="split-row">
+                              <input type="checkbox" data-for="${escapeHtml(person.id)}" checked />
+                              <span class="split-row__name">${escapeHtml(person.name)}</span>
+                            </label>`,
+                        )
+                        .join('')}
+                    </div>`
+                 : ''
+             }
+
+             <button type="submit" class="button button--primary button--block field-pill--submit">
+               ${escapeHtml(t('spends.add'))}
+             </button>
+           </form>`
+        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
+    }
+
+    ${
+      spend.lines.length
+        ? `<ul class="lines">${[...spend.lines]
+            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
+            .map((line) => spendLineHtml(spend, line))
+            .join('')}</ul>`
+        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
+    }`;
+
+  const balancesTab = !spend.lines.length
+    ? `<p class="muted small">${escapeHtml(t('spends.balancesEmpty'))}</p>`
+    : `
+    <section class="section card">
+      <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
+      <div class="entries">
+        ${rows
+          .map(
+            (row) => `
+              <div class="entry">
+                <span class="entry__what">
+                  ${escapeHtml(row.name)}
+                  <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                </span>
+                <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
+                  ${escapeHtml(
+                    row.balance === 0
+                      ? t('spends.even')
+                      : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
+                          amount: showAmount(Math.abs(row.balance), getLanguage()),
+                        }),
+                  )}
+                </span>
+              </div>`,
+          )
+          .join('')}
+      </div>
+    </section>
+
+    ${
+      moves.length
+        ? `<section class="section card">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
+             <div class="entries">
+               ${moves
+                 .map(
+                   (move) => `
+                     <div class="entry">
+                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                     </div>`,
+                 )
+                 .join('')}
+             </div>
+             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
+           </section>`
+        : `<div class="settled-banner">
+             <span class="settled-banner__icon" aria-hidden="true">👍</span>
+             <span>
+               <strong class="settled-banner__title">${escapeHtml(t('spends.allSettled'))}</strong>
+               <br />
+               <span class="muted small">${escapeHtml(t('spends.allSettledHint'))}</span>
+             </span>
+           </div>`
+    }`;
 
   return `
     ${flashHtml()}
@@ -9007,89 +9304,9 @@ function spendView(spend) {
 
     ${inGroupHtml(spend)}
 
-    ${
-      spend.people.length
-        ? `<form id="add-spend" class="card stack stack--tight">
-             <label class="visually-hidden" for="spend-text">${escapeHtml(t('spends.what'))}</label>
-             <input type="text" id="spend-text" placeholder="${escapeHtml(t('spends.what'))}" autocomplete="off" />
-             <div class="row row--tight">
-               <label class="visually-hidden" for="spend-amount">${escapeHtml(t('spends.amount'))}</label>
-               <input type="text" id="spend-amount" inputmode="decimal" placeholder="${escapeHtml(t('spends.amount'))}" />
-               <label class="visually-hidden" for="spend-by">${escapeHtml(t('spends.by'))}</label>
-               <select id="spend-by">
-                 ${spend.people
-                   .map(
-                     (person) => `<option value="${escapeHtml(person.id)}" ${me && sameName(person.name) === me ? 'selected' : ''}>
-                        ${escapeHtml(person.name)}
-                      </option>`,
-                   )
-                   .join('')}
-               </select>
-               <button type="submit" class="button button--primary">+</button>
-             </div>
-             <p class="muted small">${escapeHtml(t('spends.addHint'))}</p>
-           </form>`
-        : `<p class="muted small">${escapeHtml(t('spends.noPeople'))}</p>`
-    }
+    ${segmented}
 
-    ${
-      spend.lines.length
-        ? `<ul class="lines">${[...spend.lines]
-            .sort((a, b) => (b.day || '').localeCompare(a.day || '') || b.createdAt - a.createdAt)
-            .map((line) => spendLineHtml(spend, line))
-            .join('')}</ul>`
-        : `<p class="muted small">${escapeHtml(t('spends.addFirst'))}</p>`
-    }
-
-    ${
-      spend.lines.length
-        ? `<section class="section card">
-             <div class="section__head"><h2>${escapeHtml(t('spends.balances'))}</h2></div>
-             <div class="entries">
-               ${rows
-                 .map(
-                   (row) => `
-                     <div class="entry">
-                       <span class="entry__what">
-                         ${escapeHtml(row.name)}
-                         <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
-                       </span>
-                       <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
-                         ${escapeHtml(
-                           row.balance === 0
-                             ? t('spends.even')
-                             : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
-                                 amount: showAmount(Math.abs(row.balance), getLanguage()),
-                               }),
-                         )}
-                       </span>
-                     </div>`,
-                 )
-                 .join('')}
-             </div>
-           </section>`
-        : ''
-    }
-
-    ${
-      moves.length
-        ? `<section class="section card">
-             <div class="section__head"><h2>${escapeHtml(t('spends.settle'))}</h2></div>
-             <div class="entries">
-               ${moves
-                 .map(
-                   (move) => `
-                     <div class="entry">
-                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
-                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
-                     </div>`,
-                 )
-                 .join('')}
-             </div>
-             <p class="muted small">${escapeHtml(t('spends.settleHint'))}</p>
-           </section>`
-        : ''
-    }
+    ${spendTab === 'balances' ? balancesTab : expensesTab}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
@@ -9165,6 +9382,13 @@ function bindNewSpend() {
 function bindSpend(spend) {
   bindData();
 
+  view.querySelectorAll('[data-spend-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      spendTab = button.dataset.spendTab;
+      render();
+    });
+  });
+
   view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const text = view.querySelector('#spend-text');
@@ -9175,11 +9399,21 @@ function bindSpend(spend) {
       render();
       return;
     }
+    const boxes = [...view.querySelectorAll('#add-spend [data-for]')];
+    const checked = boxes.filter((box) => box.checked).map((box) => box.dataset.for);
+    if (boxes.length && !checked.length) {
+      flash(t('spends.noOneChosen'), 'error');
+      render();
+      return;
+    }
+    // Tous cochés (ou une seule personne, sans case) : « tout le monde » au
+    // sens large, qui inclut qui rejoint le compte plus tard. Voir addSpend().
     replaceSpend(addSpend(spend, {
       text: text.value,
       amount: cents,
       by: view.querySelector('#spend-by').value,
-      day: dayNow(),
+      forWhom: checked.length === boxes.length ? [] : checked,
+      day: view.querySelector('#spend-day')?.value || dayNow(),
     }));
   });
 

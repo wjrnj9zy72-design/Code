@@ -711,6 +711,129 @@ table.scores .meta-cell { color: var(--muted); }
 .row--tight { flex-wrap: nowrap; gap: 8px; }
 .row--tight input { flex: 1; }
 
+/* ------------------------------------------------------------- segmented --- */
+/*
+ * Two or three ways to look at the same thing (an account's expenses versus
+ * its balances), switched in place rather than by leaving the page: a pill
+ * inside a pill, the way iOS and most banking apps do it.
+ */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+}
+
+.segmented__option {
+  padding: 10px 4px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.segmented__option[aria-current="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
+}
+
+/* --------------------------------------------------------------- pill form -- */
+/*
+ * A softer, borderless take on the usual boxed input: filled with the page's
+ * own alt surface instead of outlined, fully rounded. Used where a form is
+ * the whole point of the screen (adding an expense) rather than one control
+ * among many.
+ */
+.field-pill,
+input.field-pill,
+select.field-pill {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+}
+
+.field-pill--amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-pill--amount input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+.field-pill--amount input:focus { outline: none; }
+
+.field-pill__suffix { color: var(--muted); font-weight: 600; }
+
+.field-pill--submit { border-radius: 999px; }
+
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Who a new expense is split between: a plain checklist, ticked by default —
+   unticking someone is the exception, so it is the only thing to notice. */
+.split-list {
+  display: grid;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.split-list__head {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.split-list__head .muted { font-weight: 550; }
+
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  font-weight: 550;
+}
+
+.split-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.split-row input[type='checkbox'] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+
+/* The balances tab once nothing is left to settle: a plain state deserves a
+   plain, good-news answer rather than an empty section. */
+.settled-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.settled-banner__icon { flex: none; font-size: 1.7rem; }
+.settled-banner__title { font-size: 1.05rem; }
+
 /* ----------------------------------------------------------------- votes --- */
 /*
  * The poll grid: choices down the side, people across. Cells are square and

@@ -250,9 +250,13 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
 Un compte — vacances, coloc, week-end — tient des personnes et des lignes.
 Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.
 
-- **Le partage est égal** entre les personnes concernées, et « pour tout le
-  monde » est le cas par défaut : noter une baguette ne demande que deux champs.
-  Une ligne peut ensuite ne concerner que certains — le taxi de la gare.
+- **La page d'un compte a deux volets** : *Dépenses* (le formulaire pour noter,
+  la liste des lignes) et *Soldes* (qui a trop avancé, qui rembourse qui —
+  « Tout est réglé » quand il n'y a rien à faire). Un bandeau en haut bascule
+  de l'un à l'autre.
+- **Le partage est égal** entre les personnes cochées, toutes par défaut :
+  noter une baguette ne demande que deux champs, et une case à décocher fait
+  qu'une ligne ne concerne que certains — le taxi de la gare.
 - **Qui rembourse qui**, en aussi peu de virements que possible : le plus gros
   débiteur paie le plus gros créancier, et on recommence. Au plus une
   personne de moins qu'il n'y en a.
