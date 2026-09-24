@@ -853,53 +853,101 @@ body.solo .app-bar__brand { cursor: default; }
 
 /* ------------------------------------------------------------------ tabs --- */
 /*
- * The parts of the app, side by side across the full width: few enough that
- * the thumb never has to aim, and the columns divide themselves however many
- * there are.
+ * The parts of the app, along the bottom of the screen: within the thumb's
+ * reach, and still there halfway down a long list. An icon over each word, so
+ * the words can stay small on a narrow phone without the bar turning to
+ * guesswork. The "+" in the middle makes a new thing from wherever one is.
  */
 .tabs {
-  /* Not sticky: the bar above it is, and guessing that bar's height — which
-     changes with the tagline's wrapping — would put the two on top of each
-     other on exactly the narrow screens this is for. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
   display: grid;
-  grid-auto-flow: column;
-  /* minmax(0, 1fr) et non 1fr : sans cela, chaque piste ne peut pas descendre
-     sous la largeur de son mot, et cinq onglets poussent la barre — donc toute
-     la page — de cent pixels sur un écran de 320. */
-  grid-auto-columns: minmax(0, 1fr);
-  border-bottom: 1px solid var(--border);
+  /* Two tabs, the "+" at its own width, three tabs: every pixel the button
+     does not need goes to the words. minmax(0, 1fr) et non 1fr : sans cela,
+     chaque piste ne peut pas descendre sous la largeur de son mot, et les
+     onglets poussent la barre — donc toute la page — sur un écran de 320. */
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  border-top: 1px solid var(--border);
   background: var(--surface);
+  /* The iPhone's home bar: the tabs sit above it, the colour runs under it. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The bar covers the bottom of the page; the page makes room for it. */
+body:not(.solo) .view {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .tab {
-  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 6px;
   min-width: 0;
-  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  margin-top: -1px;
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
   text-align: center;
   text-decoration: none;
 }
 
-.tab[aria-current="page"] {
-  border-bottom-color: var(--accent);
-  color: var(--text);
+.tab > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/*
- * Cinq onglets, et « Sondages » fait huit lettres : sur un écran étroit les
- * mots se resserrent plutôt que d'être coupés — un onglet à moitié lisible est
- * pire qu'un onglet petit. Placé après .tab : à spécificité égale, c'est la
- * dernière règle qui l'emporte.
- */
-@media (max-width: 400px) {
-  .tab { padding: 12px 3px; font-size: 0.8rem; }
+.tab__icon,
+.tabs__new svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+
+.tab[aria-current="page"] {
+  border-top-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabs__new {
+  align-self: center;
+  margin: 0 4px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.tabs__new svg { stroke-width: 2.4; }
 
 @media (max-width: 345px) {
-  .tab { padding: 12px 1px; font-size: 0.68rem; letter-spacing: -0.01em; }
+  .tab { font-size: 0.62rem; letter-spacing: -0.02em; }
+  .tabs__new { width: 42px; height: 42px; }
 }
+
+/* The "+" menu: what can be made, one big button each. */
+.create-menu { display: grid; gap: 8px; }
+.create-menu .button { justify-content: flex-start; text-align: left; }
 
 /* ---------------------------------------------------------------- dialog --- */
 .dialog {
@@ -1015,3 +1063,19 @@ body.solo .app-bar__brand { cursor: default; }
 }
 
 .qr svg { max-width: 100%; height: auto; }
+
+/* A group's name on the overview: the door to its own page. */
+.group-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.group-link span { white-space: nowrap; }

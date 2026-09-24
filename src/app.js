@@ -2416,6 +2416,8 @@ function route() {
   if ((name === 'person' || name === 'personne') && param) {
     return { name: 'person', who: personFrom(param) };
   }
+  // One group, everything in it: #/group/<id>, from the overview.
+  if (name === 'group' && param) return { name: 'group', id: decodeSegment(param) };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -2434,6 +2436,15 @@ function route() {
   // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
   if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
+}
+
+/** A segment of the address, decoded if it can be. */
+function decodeSegment(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 /** The name written in `#/person/<name>`, decoded if it can be. */
@@ -2919,7 +2930,10 @@ function groupBoardHtml(group) {
   return `
     <div class="card stack stack--tight">
       <div class="spread">
-        <strong>${escapeHtml(group.name)}</strong>
+        <button type="button" class="group-link" data-goto="#/group/${escapeHtml(encodeURIComponent(group.id))}">
+          <strong>${escapeHtml(group.name)}</strong>
+          <span class="muted small">${escapeHtml(t('group.open'))} ›</span>
+        </button>
         ${
           // The key that may let people in is the one worth naming: it is the
           // only one whose holder has anything to do when someone knocks.
@@ -2940,6 +2954,107 @@ function groupBoardHtml(group) {
         }${counts.late ? ` · <span class="late">${escapeHtml(t('lists.late', { count: counts.late }))}</span>` : ''}
       </p>
     </div>`;
+}
+
+/**
+ * One group, and everything going on in it, on one page.
+ *
+ * The tabs sort by kind — lists here, polls there — but the question people
+ * come with is about a group: "what is on with the Thursday lot?". So the
+ * answer is on one page: what is coming, what is left to tick, to vote, to
+ * play, to pay back. Only what is in progress; "see all" opens the tab,
+ * already set on this group, for the rest.
+ */
+function groupView(group) {
+  const ours = (documents) => documents.filter((document_) => isLive(document_) && inGroup(document_, group.id));
+  const today = dayNow();
+  const byDay = (a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || ''));
+  const recent = (a, b) => b.updatedAt - a.updatedAt;
+  const events = ours(state.polls).filter((poll) => poll.date && poll.date >= today).sort(byDay);
+  const polls = ours(state.polls)
+    .filter((poll) => !isEvent(poll) && !poll.closedAt && !events.includes(poll))
+    .sort(recent);
+  const lists = ours(state.lists).filter((list) => progress(list).left > 0).sort(recent);
+  const games = ours(state.games).filter((game) => !gameStatus(game).finished).sort(recent);
+  const spends = ours(state.spends)
+    .filter((spend) => balances(spend).some((row) => row.balance !== 0))
+    .sort(recent);
+  const counts = groupCounts(state, group.id);
+
+  const section = (title, documents, cardHtml, tab) =>
+    documents.length
+      ? `<section class="section">
+           <div class="section__head">
+             <h2>${escapeHtml(title)}</h2>
+             <button type="button" class="button button--small button--ghost"
+                     data-group-tile="${escapeHtml(group.id)}" data-tile-goto="${tab}">
+               ${escapeHtml(t('group.seeAll'))}
+             </button>
+           </div>
+           <div class="game-list">${documents.map(cardHtml).join('')}</div>
+         </section>`
+      : '';
+
+  const sections = [
+    section(t('events.coming'), events, eventCardHtml, '#/agenda'),
+    section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
+    section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
+    section(t('home.ongoing'), games, gameCardHtml, '#/games'),
+    section(t('events.accounts'), spends, spendCardHtml, '#/agenda'),
+  ].join('');
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(group.name)}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+    <p class="muted small">
+      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(t('overview.counts', counts))}
+    </p>
+    <button type="button" class="button button--primary button--block" data-create-menu>
+      + ${escapeHtml(t('create.title'))}
+    </button>
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+}
+
+/**
+ * The "+" in the tab bar: whatever can be made, from wherever one is.
+ *
+ * The group is not asked here: every form already has its chips for that,
+ * set on the group being looked at. The menu only says which one it will be,
+ * so nobody is surprised on the next page.
+ */
+function openCreateMenu() {
+  const dialog = makeDialog();
+  const into = groupForNew();
+  const choice = (goto, label) => `
+    <button type="button" class="button button--block" data-create="${goto}">+ ${escapeHtml(label)}</button>`;
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('create.what'))}</h2>
+      <div class="create-menu">
+        ${choice('#/lists/new', t('lists.new'))}
+        ${choice('#/polls/new', t('polls.new'))}
+        ${choice('#/agenda/new', t('events.new'))}
+        ${choice('#/new', t('action.newGame'))}
+        ${choice('#/spends/new', t('spends.new'))}
+      </div>
+      ${into ? `<p class="muted small">${escapeHtml(t('create.into', { name: into.name }))}</p>` : ''}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-create-close>${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelectorAll('[data-create]').forEach((node) => {
+    node.addEventListener('click', () => {
+      dialog.close();
+      navigate(node.dataset.create);
+    });
+  });
+  dialog.querySelector('[data-create-close]').addEventListener('click', () => dialog.close());
+  dialog.showModal();
 }
 
 /** How many names the overview lists before folding the rest away. */
@@ -7818,6 +7933,7 @@ function currentThemeIsDark() {
 }
 
 function bindChrome() {
+  document.getElementById('create')?.addEventListener('click', openCreateMenu);
   document.getElementById('theme-toggle').addEventListener('click', () => {
     state.prefs = { ...state.prefs, theme: currentThemeIsDark() ? 'light' : 'dark' };
     savePrefs(state.prefs);
@@ -8091,6 +8207,17 @@ function render() {
   } else if (current.name === 'person') {
     stopWatching();
     view.innerHTML = personView(current.who);
+  } else if (current.name === 'group') {
+    stopWatching();
+    const group = groups().find((held) => held.id === current.id);
+    if (!group) {
+      navigate('#/');
+      return;
+    }
+    // Looking at a group is looking at it everywhere: the tabs follow, and so
+    // does whatever the "+" makes from here.
+    if (groupFilter() !== group.id) setGroupFilter(group.id);
+    view.innerHTML = groupView(group);
   } else if (current.name === 'back') {
     stopWatching();
     view.innerHTML = backView(current.token);
@@ -8113,6 +8240,9 @@ function render() {
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
+  });
+  view.querySelectorAll('[data-create-menu]').forEach((node) => {
+    node.addEventListener('click', openCreateMenu);
   });
 
   // The group pastilles, and the overview's numbers — which pick a group and
