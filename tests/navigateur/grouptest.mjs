@@ -27,8 +27,8 @@ async function device(label, { key = null } = {}) {
 
 const page = await device('moi');
 const tabs = (await page.locator('.tab').allTextContents()).map((s) => s.trim());
-check('cinq onglets, les dépenses en dernier',
-  tabs.join(' / ') === 'Aperçu / Listes / Sondages / Parties / Dépenses', tabs.join(' / '));
+check('cinq onglets, l’agenda en dernier',
+  tabs.join(' / ') === 'Aperçu / Listes / Sondages / Parties / Agenda', tabs.join(' / '));
 check("l'app ouvre sur l'aperçu",
   (await page.locator('.tab[aria-current]').textContent()).trim() === 'Aperçu');
 check("l'aperçu dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);

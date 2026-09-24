@@ -4,7 +4,9 @@ Cinq onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
 groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à
 répartir entre plusieurs personnes. **Sondages** : pour trancher une date ou un
 choix. **Parties** : un compteur de points pour Papayoo et une vingtaine
-d'autres jeux. **Dépenses** : qui a payé quoi, et qui rembourse qui. Une page
+d'autres jeux. **Agenda** : ce qui vient, jour par jour, avec pour chaque
+événement sa liste et son compte — et les comptes de dépenses : qui a payé
+quoi, et qui rembourse qui. Une page
 web, aucune dépendance, aucun build.
 
 <p>
@@ -176,6 +178,23 @@ personnes dispo sur le choix qui l'a emporté (tout le monde s'il y a égalité)
 Le sondage montre ensuite où en sont la liste et le compte ; la liste et le
 compte ramènent au sondage. Rien de nouveau n'est stocké : la liste et le
 compte disent pour quel sondage ils ont été faits.
+
+Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
+l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il
+s'ouvre sur la même page, sans rien à voter (en coulisse : un sondage déjà
+tranché, sans choix).
+
+L'onglet **Agenda** montre :
+
+- **À venir** : les événements par date, qu'ils viennent d'un sondage ou non,
+  chacun avec où en sont sa liste et son compte ;
+- **Comptes en cours** : les comptes sans événement à venir — une coloc, ou le
+  week-end passé qui n'est pas encore soldé — et de quoi en ouvrir un seul ;
+- **Passés**, repliés en bas. Les anciens liens `#/spends` y mènent.
+
+Avec au moins un groupe, une pastille **Autres** rejoint *Tous* et les groupes
+dans chaque onglet : ce qui n'est dans aucun groupe — gardé pour soi, envoyé
+par lien seulement, ou venu d'un groupe dont l'appareil n'est pas.
 
 ## Ce que ça fait — onglet Sondages
 

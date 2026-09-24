@@ -8,7 +8,7 @@ const results = [];
 const check = (n, ok, d = '') => results.push({ n, ok, d });
 const CONFIG = JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' });
 const PAGE = 'http://localhost:8099/dist/marque-points.html';
-const MARKS = { lists: '#/lists/new', polls: '#/polls/new', games: '#/new', spends: '#/spends/new' };
+const MARKS = { lists: '#/lists/new', polls: '#/polls/new', games: '#/new', agenda: '#/spends/new' };
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const errors = [];
@@ -37,13 +37,13 @@ const page = await device('moi', { key: 'la-cle-famille', me: 'Gui' });
 
 /* ---- 1. un onglet de plus ------------------------------------------------ */
 
-check('un cinquième onglet, et il tient sur l’écran',
+check('cinq onglets, les comptes dans l’Agenda, et ils tiennent sur l’écran',
   (await page.locator('.tab').count()) === 5
-  && (await page.locator('[data-tab="spends"]').textContent()).trim() === 'Dépenses');
+  && (await page.locator('[data-tab="agenda"]').textContent()).trim() === 'Agenda');
 
 /* ---- 2. créer un compte -------------------------------------------------- */
 
-await page.openTab('spends');
+await page.openTab('agenda');
 check('sans compte, l’onglet dit quoi en faire',
   /Vacances, coloc/.test(await page.locator('#view').textContent()));
 
@@ -142,7 +142,7 @@ check('sa page montre le compte',
 
 /* ---- 8. partagé, et repris par un autre appareil ------------------------- */
 
-await page.click('[data-tab="spends"]');
+await page.click('[data-tab="agenda"]');
 await page.waitForSelector('[data-goto="#/spends/new"]');
 await page.click('.game-card');
 await page.waitForSelector('#spend-share');
@@ -153,7 +153,7 @@ check('le compte se partage dans le groupe',
   (await page.locator('.banner').first().textContent()).trim());
 
 const other = await device('autre', { key: 'la-cle-famille', me: 'Bob' });
-await other.openTab('spends');
+await other.openTab('agenda');
 await other.waitForSelector('.game-card', { timeout: 15000 });
 check('un autre appareil du groupe le récupère',
   /Vacances/.test(await other.locator('.game-card').first().textContent()));
