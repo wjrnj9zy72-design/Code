@@ -319,3 +319,19 @@ test('who is coming: those free on the one choice that leads, or everyone', asyn
   poll = setVote(poll, gui.id, poll.options[2].id, 'yes');
   assert.deepEqual(goers(poll), ['Gui', 'Alice', 'Bob'], 'a tie says nothing about who comes');
 });
+
+test('an event with its day known: a settled poll with nothing to vote on', async () => {
+  const { createEvent, isEvent, goers } = await import('../src/polls.js');
+  const event = createEvent({ name: 'Anniversaire de Léa', names: ['Gui', '', 'Alice'], date: '2026-10-12', at: '19:30' });
+  assert.equal(event.kind, 'poll');
+  assert.ok(isEvent(event));
+  assert.ok(!isEvent(sample()));
+  assert.equal(event.date, '2026-10-12');
+  assert.equal(event.at, '19:30');
+  assert.equal(event.title, 'Anniversaire de Léa');
+  assert.ok(event.closedAt, 'no vote to take');
+  assert.deepEqual(event.options, []);
+  assert.deepEqual(goers(event), ['Gui', 'Alice']);
+  assert.ok(isValidPoll(event));
+  assert.equal(createEvent({ name: 'x', date: 'demain' }).date, null);
+});

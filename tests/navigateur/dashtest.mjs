@@ -233,7 +233,12 @@ await page.evaluate(() => {
 await page.reload();
 await page.waitForSelector('.app-bar');
 await openTab('lists');
-check('avec un seul groupe, aucune pastille à choisir', (await page.locator('.chip').count()) === 0);
+// What the dropped group held is now outside every group: « Autres » is the
+// only other thing to choose, so Tous · Mifa · Autres, and nothing more.
+check('avec un seul groupe, seulement Tous, lui, et Autres pour le reste',
+  (await page.locator('[data-group-filter]').count()) === 3
+    && (await page.locator('[data-group-filter="outside"]').count()) === 1,
+  String(await page.locator('[data-group-filter]').count()));
 const alone = await page.locator('.game-card__title').allTextContents();
 check('et tout est montré', alone.length === 3, alone.map((a) => a.trim()).join(' | '));
 

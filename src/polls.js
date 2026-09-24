@@ -66,6 +66,24 @@ export function setPollDate(poll, date, at = null) {
 }
 
 /**
+ * An event whose day is already known: nothing to vote on, so it is made as a
+ * poll that has already settled — its day kept, its answers closed, and no
+ * choices. Everything a settled poll already does (the group, the link, the
+ * group's calendar, the organiser) then works for it unchanged; `fixed` is
+ * only there so the screens can leave out the voting.
+ */
+export function createEvent({ name = '', names = [], date = null, at = null } = {}) {
+  const made = createPoll({ question: name, names });
+  const dated = setPollDate(made, date, at);
+  return { ...dated, fixed: true, title: made.question || null, closedAt: dated.createdAt };
+}
+
+/** A poll made as an event, with no vote to hold. */
+export function isEvent(poll) {
+  return Boolean(poll?.fixed);
+}
+
+/**
  * Name the event this poll became.
  *
  * Emptying the field does not leave a blank line in anyone's calendar: with no

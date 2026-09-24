@@ -19,7 +19,7 @@ import {
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
-  setEventName,
+  setEventName, createEvent, isEvent,
 } from './polls.js';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
@@ -80,6 +80,10 @@ let newSpendName = '';
 let newSpendPeople = ['', ''];
 
 // And the new-poll form's.
+let newEventName = '';
+let newEventDay = '';
+let newEventHour = '';
+let newEventPeople = ['', ''];
 let newPollQuestion = '';
 let newPollChoices = '';
 let newPollPeople = ['', ''];
@@ -238,7 +242,8 @@ function pollCardHtml(poll) {
 }
 
 function pollsView() {
-  const sorted = [...shownDocs(state.polls)].sort((a, b) => b.updatedAt - a.updatedAt);
+  // An event made without a vote is not a question: it lives in the agenda.
+  const sorted = [...shownDocs(state.polls).filter((poll) => !isEvent(poll))].sort((a, b) => b.updatedAt - a.updatedAt);
   const live = sorted.filter(isLive);
   const open = live.filter((poll) => !poll.closedAt);
   const closed = live.filter((poll) => poll.closedAt);
@@ -377,6 +382,9 @@ function pollView(poll, { solo = false } = {}) {
   const guest = solo || !isOrganiser(poll);
   const { rows, leaders, answered } = tally(poll);
   const closed = Boolean(poll.closedAt);
+  // An event whose day was known from the start: no choices, no votes, only
+  // the day, who comes, and what hangs off it.
+  const fixed = isEvent(poll);
 
   const cellHtml = (option, person) => {
     const yes = voteOf(poll, person.id, option.id) === 'yes';
@@ -402,8 +410,12 @@ function pollView(poll, { solo = false } = {}) {
       <div>
         <h1>${escapeHtml(pollTitle(poll))}</h1>
         <p class="muted small">
-          ${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
-          ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}
+          ${
+            fixed
+              ? escapeHtml(poll.people.map((person) => person.name).join(' · ') || t('events.nobody'))
+              : `${escapeHtml(t('polls.answered', { count: answered, total: poll.people.length }))}
+                 ${closed ? ` · ${escapeHtml(t('polls.closed'))}` : ''}`
+          }
           ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
         ${signedByHtml(poll)}
@@ -411,7 +423,7 @@ function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="#/polls">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${fixed ? '#/agenda' : '#/polls'}">
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -420,7 +432,7 @@ function pollView(poll, { solo = false } = {}) {
     ${guest ? '' : inGroupHtml(poll)}
 
     ${
-      poll.people.length
+      poll.people.length && !fixed
         ? `<div class="row">
              <span class="muted small">${escapeHtml(t('polls.iAm'))}</span>
              ${poll.people
@@ -439,7 +451,7 @@ function pollView(poll, { solo = false } = {}) {
         <h2>${escapeHtml(t('polls.date'))}</h2>
         ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
       </div>
-      <p class="muted small">${escapeHtml(t('polls.dateHint'))}</p>
+      <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
       <div class="row">
         <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
         <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
@@ -463,10 +475,12 @@ function pollView(poll, { solo = false } = {}) {
 
     ${solo ? '' : eventHtml(poll, { guest })}
 
-    ${gaugeHtml(poll)}
+    ${fixed ? '' : gaugeHtml(poll)}
 
     ${
-      poll.options.length && poll.people.length
+      fixed
+        ? ''
+        : poll.options.length && poll.people.length
         ? `<div class="table-wrap table-wrap--flush" data-keep-scroll="poll-${escapeHtml(poll.id)}">
              <table class="votes">
                <thead>
@@ -524,17 +538,21 @@ function pollView(poll, { solo = false } = {}) {
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
         ${
           state.remote
-            ? `<button type="button" class="button button--small" id="poll-share">${escapeHtml(t('polls.share'))}</button>`
+            ? `<button type="button" class="button button--small" id="poll-share">${escapeHtml(t(fixed ? 'events.share' : 'polls.share'))}</button>`
             : ''
         }
         <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
-        <button type="button" class="button button--small" id="poll-close">
-          ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
-        </button>
+        ${
+          fixed
+            ? ''
+            : `<button type="button" class="button button--small" id="poll-close">
+                 ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
+               </button>`
+        }
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t('polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
@@ -559,7 +577,7 @@ function eventHtml(poll, { guest }) {
       ${
         guest || (list && spend)
           ? ''
-          : `<p class="muted small">${escapeHtml(t('event.hint', { day }))}</p>
+          : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>
              <div class="row">
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
@@ -960,7 +978,7 @@ function bindPoll(poll) {
     const next = archivePoll(poll, !poll.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replacePoll(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate('#/polls');
+    if (next.archivedAt) navigate(isEvent(next) ? '#/agenda' : '#/polls');
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
@@ -973,7 +991,7 @@ function bindPoll(poll) {
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
     if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
-    navigate('#/polls');
+    navigate(isEvent(poll) ? '#/agenda' : '#/polls');
   });
 
   view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
@@ -1661,28 +1679,221 @@ function spendCardHtml(spend) {
     </button>`;
 }
 
-function spendsView() {
+/**
+ * The agenda: what is coming, day by day, each event with what hangs off it;
+ * then the accounts that belong to no event still coming — a flatshare, or the
+ * weekend just past whose money is not settled yet; then the past, folded.
+ *
+ * An event is a poll with a day: settled by a vote, or made with its day
+ * already known. Polls without a day stay in their own tab.
+ */
+function agendaView() {
+  const today = dayNow();
+  const byDay = (a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || ''));
+  const dated = shownDocs(state.polls).filter((poll) => isLive(poll) && poll.date);
+  const coming = dated.filter((poll) => poll.date >= today).sort(byDay);
+  const past = dated.filter((poll) => poll.date < today).sort(byDay).reverse();
+
   const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const live = sorted.filter(isLive);
+  const held = new Set(coming.map((poll) => eventParts(poll, state).spend?.id).filter(Boolean));
+  const loose = sorted.filter((spend) => isLive(spend) && !held.has(spend.id));
+  const archivedEvents = shownDocs(state.polls).filter((poll) => isEvent(poll) && poll.archivedAt);
 
   return `
     ${flashHtml()}
-    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
-      + ${escapeHtml(t('spends.new'))}
+    <button type="button" class="button button--primary button--block" data-goto="#/agenda/new">
+      + ${escapeHtml(t('events.new'))}
     </button>
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('spends.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('events.coming'))}</h2></div>
       ${
-        live.length
-          ? `<div class="game-list">${live.map(spendCardHtml).join('')}</div>`
+        coming.length
+          ? `<div class="game-list">${coming.map(eventCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('events.none'))}</p>`
+      }
+      ${hiddenByGroupHtml(state.polls.filter((poll) => poll.date))}
+    </section>
+
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('events.accounts'))}</h2>
+        <button type="button" class="button button--small" data-goto="#/spends/new">+ ${escapeHtml(t('spends.new'))}</button>
+      </div>
+      ${
+        loose.length
+          ? `<div class="game-list">${loose.map(spendCardHtml).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.spends)}
     </section>
 
-    ${archivedHtml(sorted, spendCardHtml)}`;
+    ${
+      past.length
+        ? `<details class="details">
+             <summary>${escapeHtml(t('events.past', { count: past.length }))}</summary>
+             <div class="game-list">${past.map(eventCardHtml).join('')}</div>
+           </details>`
+        : ''
+    }
+
+    ${archivedHtml([...sorted, ...archivedEvents], (document_) =>
+      document_.kind === 'spend' ? spendCardHtml(document_) : eventCardHtml(document_))}`;
+}
+
+/** An event in the agenda: its day, who comes, and where its list and account stand. */
+function eventCardHtml(poll) {
+  const { list, spend } = eventParts(poll, state);
+  const when = [formatDayLong(poll.date), poll.at].filter(Boolean).join(' · ');
+  const parts = [];
+  if (list) {
+    const { done, total } = progress(list);
+    parts.push(total ? `${t('event.list')} : ${t('lists.progress', { done, total })}` : `${t('event.list')} : ${t('lists.empty')}`);
+  }
+  if (spend) parts.push(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }));
+  const people = poll.people.map((person) => person.name).join(' · ');
+  return `
+    <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
+      <span class="game-card__title">
+        ${escapeHtml(eventName(poll) || pollTitle(poll))}
+        <span class="pill">${escapeHtml(when)}</span>
+      </span>
+      ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
+      ${parts.length ? `<span class="game-card__meta">${escapeHtml(parts.join(' · '))}</span>` : ''}
+    </button>`;
+}
+
+/** A new event whose day is known: a name, the day, perhaps an hour, and who comes. */
+function newEventView() {
+  const suggestions = [...new Set([
+    myName(), ...recentPeople(state.polls), ...recentPeople(state.lists), ...recentPeople(state.spends), ...recentNames(state.games),
+  ].filter(Boolean))].slice(0, 12);
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('events.new'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+
+    <form id="new-event" class="card stack">
+      <label>
+        ${escapeHtml(t('events.name'))}
+        <input type="text" id="event-name" placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}"
+               value="${escapeHtml(newEventName)}" required />
+      </label>
+
+      <div class="row">
+        <label>
+          ${escapeHtml(t('events.day'))}
+          <input type="date" id="event-day" value="${escapeHtml(newEventDay)}" required />
+        </label>
+        <label>
+          ${escapeHtml(t('polls.hour'))}
+          <input type="time" id="event-hour" value="${escapeHtml(newEventHour)}" />
+        </label>
+      </div>
+
+      <div class="stack stack--tight">
+        <span class="muted small">${escapeHtml(t('events.peopleHint'))}</span>
+        ${newEventPeople
+          .map(
+            (name, index) => `
+              <input type="text" data-person-index="${index}" value="${escapeHtml(name)}"
+                     placeholder="${escapeHtml(t('lists.person', { n: index + 1 }))}"
+                     aria-label="${escapeHtml(t('lists.person', { n: index + 1 }))}" />`,
+          )
+          .join('')}
+        <div class="row">
+          <button type="button" class="button button--small" id="add-person">+ ${escapeHtml(t('lists.addPerson'))}</button>
+          ${
+            newEventPeople.length > 1
+              ? `<button type="button" class="button button--small button--ghost" id="drop-person">− ${escapeHtml(t('lists.dropPerson'))}</button>`
+              : ''
+          }
+        </div>
+        ${
+          suggestions.length
+            ? `<div class="row">${suggestions
+                .map((name) => `<button type="button" class="chip" data-suggest="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
+      </div>
+
+      ${willBeInHtml()}
+
+      <button type="submit" class="button button--primary button--block">${escapeHtml(t('events.create'))}</button>
+    </form>`;
+}
+
+function bindNewEvent() {
+  const form = view.querySelector('#new-event');
+  if (!form) return;
+
+  const snapshot = () => {
+    newEventName = view.querySelector('#event-name').value;
+    newEventDay = view.querySelector('#event-day').value;
+    newEventHour = view.querySelector('#event-hour').value;
+    view.querySelectorAll('[data-person-index]').forEach((input) => {
+      newEventPeople[Number(input.dataset.personIndex)] = input.value;
+    });
+  };
+
+  view.querySelector('#add-person')?.addEventListener('click', () => {
+    snapshot();
+    newEventPeople = [...newEventPeople, ''];
+    render();
+    view.querySelector(`[data-person-index="${newEventPeople.length - 1}"]`)?.focus();
+  });
+
+  view.querySelector('#drop-person')?.addEventListener('click', () => {
+    snapshot();
+    newEventPeople = newEventPeople.slice(0, -1);
+    render();
+  });
+
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
+  view.querySelectorAll('[data-suggest]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      const { suggest } = chip.dataset;
+      if (newEventPeople.some((name) => sameName(name) === sameName(suggest))) return;
+      const empty = newEventPeople.findIndex((name) => !name.trim());
+      if (empty >= 0) newEventPeople[empty] = suggest;
+      else newEventPeople = [...newEventPeople, suggest];
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+    const poll = signed(organise(landing(createEvent({
+      name: newEventName,
+      names: newEventPeople,
+      date: newEventDay,
+      at: newEventHour,
+    }))));
+    state.polls = [...state.polls, poll];
+    persistPoll(poll);
+    resetGroupChoice();
+    newEventName = '';
+    newEventDay = '';
+    newEventHour = '';
+    newEventPeople = withMeFirst(['', ''], myName());
+    navigate(`#/poll/${poll.id}`);
+  });
 }
 
 function newSpendView() {
@@ -1694,7 +1905,7 @@ function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -1771,7 +1982,7 @@ function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -1979,7 +2190,7 @@ function bindSpend(spend) {
     const next = archiveSpend(spend, !spend.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replaceSpend(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate('#/spends');
+    if (next.archivedAt) navigate('#/agenda');
   });
 
   view.querySelector('#spend-rename')?.addEventListener('click', async () => {
@@ -1999,7 +2210,7 @@ function bindSpend(spend) {
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
     if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
-    navigate('#/spends');
+    navigate('#/agenda');
   });
 }
 
@@ -2213,7 +2424,10 @@ function route() {
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
   if (name === 'spends' && param === 'new') return { name: 'new-spend' };
-  if (name === 'spends') return { name: 'spends' };
+  // The accounts live in the agenda now; an old link to them still lands there.
+  if (name === 'spends') return { name: 'agenda' };
+  if (name === 'agenda' && param === 'new') return { name: 'new-event' };
+  if (name === 'agenda') return { name: 'agenda' };
   if (name === 'spend' && param) return { name: 'spend', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
@@ -2272,8 +2486,17 @@ function flashHtml() {
  */
 function groupChipsHtml() {
   const held = groupsByName();
-  if (held.length < 2) return '';
+  const everything = [...state.lists, ...state.polls, ...state.games, ...state.spends];
+  const outside = everything.some(outsideGroups);
+  // With one group and nothing outside it, there is nothing to choose between.
+  if (!held.length || (held.length < 2 && !outside)) return '';
   const active = groupFilter();
+  const counted = active === OUTSIDE_GROUPS
+    ? groupCounts({
+        lists: shownDocs(state.lists), polls: shownDocs(state.polls),
+        games: shownDocs(state.games), spends: shownDocs(state.spends),
+      })
+    : groupCounts(state, active);
   const chip = (id, label) => `
     <button type="button" class="chip ${active === id ? 'chip--on' : ''}"
             data-group-filter="${escapeHtml(id)}" aria-pressed="${active === id ? 'true' : 'false'}">
@@ -2283,8 +2506,9 @@ function groupChipsHtml() {
     <div class="row" role="group" aria-label="${escapeHtml(t('filter.by'))}">
       ${chip('', t('filter.all'))}
       ${held.map((group) => chip(group.id, group.name)).join('')}
+      ${outside || active === OUTSIDE_GROUPS ? chip(OUTSIDE_GROUPS, t('filter.others')) : ''}
     </div>
-    <p class="muted small">${escapeHtml(t('overview.counts', groupCounts(state, active)))}</p>`;
+    <p class="muted small">${escapeHtml(t('overview.counts', counted))}</p>`;
 }
 
 function gameCardHtml(game) {
@@ -2708,7 +2932,7 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
-        ${tile(counts.spends, t('tab.spends'), '#/spends')}
+        ${tile(counts.spends, t('tab.spends'), '#/agenda')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -5099,8 +5323,20 @@ function groupsByName() {
  * survive a tab change and a reload. A filter left on a group this device has
  * since left means nothing any more, and falls back to all of them.
  */
+/**
+ * The pastille for what is in none of this device's groups: kept to oneself,
+ * sent by link only, or from a group this device is not in. Under "Tous" it
+ * is mixed in with everything else; here it is on its own, said as such.
+ */
+const OUTSIDE_GROUPS = 'outside';
+
+function outsideGroups(document_) {
+  return !groups().some((group) => inGroup(document_, group.id));
+}
+
 function groupFilter() {
   const wanted = state.prefs.groupFilter || '';
+  if (wanted === OUTSIDE_GROUPS) return groups().length ? wanted : '';
   return groups().some((group) => group.id === wanted) ? wanted : '';
 }
 
@@ -5112,6 +5348,7 @@ function setGroupFilter(id) {
 /** The documents a tab shows, once the chosen group has had its say. */
 function shownDocs(documents) {
   const wanted = groupFilter();
+  if (wanted === OUTSIDE_GROUPS) return documents.filter(outsideGroups);
   return wanted ? documents.filter((document_) => inGroup(document_, wanted)) : documents;
 }
 
@@ -5586,6 +5823,7 @@ function setMyName(name) {
 function offerMeInForms() {
   newListPeople = withMeFirst(newListPeople, myName());
   newPollPeople = withMeFirst(newPollPeople, myName());
+  newEventPeople = withMeFirst(newEventPeople, myName());
   // Games are left to newGameView: only there is it known whether this preset
   // is played by people or by teams.
   newGameTouched = false;
@@ -7738,9 +7976,13 @@ function render() {
     watchList(list.id);
     view.innerHTML = listView(list);
     bindList(list);
-  } else if (current.name === 'spends') {
+  } else if (current.name === 'agenda') {
     stopWatching();
-    view.innerHTML = spendsView();
+    view.innerHTML = agendaView();
+  } else if (current.name === 'new-event') {
+    stopWatching();
+    view.innerHTML = newEventView();
+    bindNewEvent();
   } else if (current.name === 'new-spend') {
     stopWatching();
     view.innerHTML = newSpendView();
@@ -7759,12 +8001,12 @@ function render() {
             if (state.openingSpend !== asked) return;
             state.openingSpend = null;
             if (found) render();
-            else if (route().id === asked) navigate('#/spends');
+            else if (route().id === asked) navigate('#/agenda');
           });
         }
         return;
       }
-      navigate('#/spends');
+      navigate('#/agenda');
       return;
     }
     watchSpend(spend.id);
@@ -7951,12 +8193,12 @@ function markTab(current) {
   if (!bar) return;
   const here = ['lists', 'new-list', 'list'].includes(current.name)
     ? 'lists'
-    : ['polls', 'new-poll', 'poll'].includes(current.name)
+    : ['polls', 'new-poll'].includes(current.name) || (current.name === 'poll' && !isEvent(getPoll(current.id)))
       ? 'polls'
       : ['home', 'new', 'game', 'stats'].includes(current.name)
         ? 'games'
-        : ['spends', 'new-spend', 'spend'].includes(current.name)
-          ? 'spends'
+        : ['agenda', 'new-event', 'new-spend', 'spend', 'poll'].includes(current.name)
+          ? 'agenda'
           : 'overview';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
