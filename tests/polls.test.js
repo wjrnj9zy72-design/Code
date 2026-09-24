@@ -305,3 +305,17 @@ test('the ranking is a sort of its own, not the rows rearranged', () => {
   assert.deepEqual(ranked.map((row) => row.option.text), ['b', 'a']);
   assert.notEqual(rows, ranked, 'two arrays, not one sorted in place');
 });
+
+test('who is coming: those free on the one choice that leads, or everyone', async () => {
+  const { goers } = await import('../src/polls.js');
+  let poll = sample();
+  const [gui, alice, bob] = poll.people;
+  assert.deepEqual(goers(poll), ['Gui', 'Alice', 'Bob']);
+  poll = setVote(poll, gui.id, poll.options[1].id, 'yes');
+  poll = setVote(poll, bob.id, poll.options[1].id, 'yes');
+  poll = setVote(poll, alice.id, poll.options[0].id, 'yes');
+  assert.deepEqual(goers(poll), ['Gui', 'Bob']);
+  poll = setVote(poll, alice.id, poll.options[2].id, 'yes');
+  poll = setVote(poll, gui.id, poll.options[2].id, 'yes');
+  assert.deepEqual(goers(poll), ['Gui', 'Alice', 'Bob'], 'a tie says nothing about who comes');
+});

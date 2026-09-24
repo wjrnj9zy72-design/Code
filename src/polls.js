@@ -220,6 +220,20 @@ export function tally(poll) {
 }
 
 /**
+ * Who is coming, once the question has settled: the people available on the
+ * one choice that leads. With no clear winner — a tie, or nobody available —
+ * the grid does not say who comes, so everyone the poll names does, and the
+ * list of people stays one tap away from being trimmed.
+ */
+export function goers(poll) {
+  const { leaders } = tally(poll);
+  if (leaders.length !== 1) return poll.people.map((person) => person.name);
+  return poll.people
+    .filter((person) => voteOf(poll, person.id, leaders[0]) === 'yes')
+    .map((person) => person.name);
+}
+
+/**
  * Merge two copies of the same poll: choices by id with their tombstones,
  * answers cell by cell keeping whichever was given last, and the people from
  * whichever copy touched them last.

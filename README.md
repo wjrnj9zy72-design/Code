@@ -167,6 +167,16 @@ Les événements sont des **journées**, pas des instants, sauf si une heure a �
 donnée ; et une heure est écrite sans fuseau, donc vingt heures reste vingt
 heures où qu'on la lise.
 
+## Ce que ça fait — l'événement
+
+Un sondage qui a retenu sa date devient **l'événement** : sous la date, son
+organisateur ouvre d'une touche **la liste de ce qu'on apporte** et **le compte
+des dépenses**. Tous deux prennent le nom de l'événement, son groupe, et les
+personnes dispo sur le choix qui l'a emporté (tout le monde s'il y a égalité).
+Le sondage montre ensuite où en sont la liste et le compte ; la liste et le
+compte ramènent au sondage. Rien de nouveau n'est stocké : la liste et le
+compte disent pour quel sondage ils ont été faits.
+
 ## Ce que ça fait — onglet Sondages
 
 Une question, des choix, et une grille : **une réponse par personne et par
