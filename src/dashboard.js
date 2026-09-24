@@ -12,7 +12,7 @@
  */
 
 import { progress } from './lists.js';
-import { voteOf } from './polls.js';
+import { voteOf, goers } from './polls.js';
 import { balances } from './spends.js';
 import { standings, gameStatus } from './scoring.js';
 import { sameName } from './stats.js';
@@ -222,5 +222,37 @@ export function personFile({ lists = [], polls = [], games = [], spends = [] } =
       owes: accounts.reduce((sum, row) => sum + (row.balance < 0 ? -row.balance : 0), 0),
       owed: accounts.reduce((sum, row) => sum + (row.balance > 0 ? row.balance : 0), 0),
     },
+  };
+}
+
+/**
+ * A poll that has settled on a date is an event, and the list of what to bring
+ * and the account of what was spent hang off it. Nothing new is stored for the
+ * event itself: a list or an account says which poll it is for, set once when
+ * it is made, and the poll finds them by that.
+ *
+ * The most recently touched one wins when two devices each made their own.
+ */
+export function eventParts(poll, { lists = [], spends = [] } = {}) {
+  const latest = (documents) =>
+    documents
+      .filter((document_) => document_.event === poll.id)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+  return { list: latest(lists), spend: latest(spends) };
+}
+
+/**
+ * Make a fresh list or account part of a poll's event: tied to the poll, in
+ * the poll's group, and between the people who are coming. `make` is
+ * createList or createSpend.
+ */
+export function forEvent(poll, make, name) {
+  const made = make({ name, names: goers(poll) });
+  return {
+    ...made,
+    event: poll.id,
+    shared: Boolean(poll.shared),
+    groupId: poll.groupId || null,
+    ...(poll.linkOnly ? { linkOnly: true } : {}),
   };
 }

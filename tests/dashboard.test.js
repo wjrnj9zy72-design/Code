@@ -259,3 +259,34 @@ test('la page d’une personne dit ce qu’elle doit, et ce qu’on lui doit', a
   assert.equal(gui.counts.owes, 0);
   assert.equal(gui.accounts[0].paid, 10000);
 });
+
+test('a poll that settled is an event: its list and account are the ones made for it', async () => {
+  const { eventParts, forEvent } = await import('../src/dashboard.js');
+  const { createSpend, mergeSpends } = await import('../src/spends.js');
+  const { mergeLists } = await import('../src/lists.js');
+  let poll = addOptions(createPoll({ question: 'Quel week-end ?', names: ['Gui', 'Alice', 'Bob'], shared: true, groupId: 'g1' }), 'Le 12\nLe 19');
+  const [gui, alice, bob] = poll.people;
+  poll = setVote(poll, gui.id, poll.options[0].id, 'yes');
+  poll = setVote(poll, alice.id, poll.options[0].id, 'yes');
+  poll = setVote(poll, bob.id, poll.options[1].id, 'yes');
+
+  const list = forEvent(poll, createList, 'Annecy');
+  assert.equal(list.kind, 'list');
+  assert.equal(list.event, poll.id);
+  assert.equal(list.groupId, 'g1');
+  assert.equal(list.shared, true);
+  assert.deepEqual(list.people.map((person) => person.name), ['Gui', 'Alice']);
+
+  const spend = forEvent({ ...poll, linkOnly: true }, createSpend, 'Annecy');
+  assert.equal(spend.kind, 'spend');
+  assert.equal(spend.linkOnly, true);
+
+  const other = createList({ name: 'Autre' });
+  assert.deepEqual(eventParts(poll, { lists: [other, list], spends: [spend] }), { list, spend });
+  assert.deepEqual(eventParts(poll, { lists: [other] }), { list: null, spend: null });
+
+  // The tie to the event survives a merge with an older copy of the same list.
+  const touched = { ...list, name: 'Annecy !', updatedAt: list.updatedAt + 5 };
+  assert.equal(mergeLists(list, touched).event, poll.id);
+  assert.equal(mergeSpends({ ...spend, updatedAt: 1 }, spend).event, poll.id);
+});

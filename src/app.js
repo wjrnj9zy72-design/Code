@@ -27,7 +27,7 @@ import {
   balances, spendTotal, settle, mergeSpends, isValidSpend,
 } from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow } from './dashboard.js';
+import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
@@ -461,6 +461,8 @@ function pollView(poll, { solo = false } = {}) {
       }
     </section>`}
 
+    ${solo ? '' : eventHtml(poll, { guest })}
+
     ${gaugeHtml(poll)}
 
     ${
@@ -537,6 +539,47 @@ function pollView(poll, { solo = false } = {}) {
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
     </section>`}`;
+}
+
+/**
+ * Once a poll has settled on a day, it is an event: what to bring, and what
+ * it cost, hang off it and are one tap away. The organiser starts either; the
+ * others see what has been started and nothing to press.
+ */
+function eventHtml(poll, { guest }) {
+  if (!poll.date) return '';
+  const { list, spend } = eventParts(poll, state);
+  if (guest && !list && !spend) return '';
+  const day = formatDay(poll.date);
+  return `
+    <section class="section stack stack--tight">
+      <div class="section__head"><h2>${escapeHtml(t('event.title'))}</h2></div>
+      ${list ? `<span class="muted small">${escapeHtml(t('event.list'))}</span>${listCardHtml(list)}` : ''}
+      ${spend ? `<span class="muted small">${escapeHtml(t('tab.spends'))}</span>${spendCardHtml(spend)}` : ''}
+      ${
+        guest || (list && spend)
+          ? ''
+          : `<p class="muted small">${escapeHtml(t('event.hint', { day }))}</p>
+             <div class="row">
+               ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
+               ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
+             </div>`
+      }
+    </section>`;
+}
+
+/** On a list or an account made for an event: the way back to it. */
+function eventLinkHtml(document_) {
+  const poll = document_.event ? getPoll(document_.event) : null;
+  if (!poll) return '';
+  const name = eventName(poll) || pollTitle(poll);
+  const label = poll.date ? t('event.for', { name, day: formatDay(poll.date) }) : t('event.forUndated', { name });
+  return `
+    <div class="row row--tight">
+      <button type="button" class="button button--small button--ghost" data-goto="#/poll/${escapeHtml(poll.id)}">
+        ${escapeHtml(label)}
+      </button>
+    </div>`;
 }
 
 /**
@@ -890,6 +933,20 @@ function bindPoll(poll) {
     const next = setPollDate(named, day, hour);
     flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
     replacePoll(next);
+  });
+
+  view.querySelector('#event-list')?.addEventListener('click', () => {
+    const list = signed(forEvent(poll, createList, eventName(poll) || pollTitle(poll)));
+    state.lists = [...state.lists, list];
+    persistList(list);
+    navigate(`#/list/${list.id}`);
+  });
+
+  view.querySelector('#event-spend')?.addEventListener('click', () => {
+    const spend = forEvent(poll, createSpend, eventName(poll) || pollTitle(poll));
+    state.spends = [...state.spends, spend];
+    persistSpend(spend);
+    navigate(`#/spend/${spend.id}`);
   });
 
   view.querySelector('#poll-ics')?.addEventListener('click', () => {
@@ -1474,6 +1531,8 @@ function listView(list) {
       </button>
     </div>
 
+    ${eventLinkHtml(list)}
+
     ${inGroupHtml(list)}
 
     <form id="add-line" class="card stack stack--tight">
@@ -1716,6 +1775,8 @@ function spendView(spend) {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${eventLinkHtml(spend)}
 
     ${inGroupHtml(spend)}
 
@@ -5301,6 +5362,8 @@ async function copyToGroup(id) {
     // Copied into a group, it is the group's: a link-only original makes a
     // copy the group can see, which is the point of copying it there.
     linkOnly: false,
+    // The event it was made for stays in the other group, with the original.
+    event: null,
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,
