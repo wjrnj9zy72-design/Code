@@ -105,22 +105,6 @@ check('le groupe dont on tient la porte est signalé',
 check('l’autre se dit simplement membre',
   (await copainsBoard.textContent()).includes('membre'));
 
-/* ---- 2. qui fait quoi --------------------------------------------------- */
-
-const who = page.locator('.section', { hasText: 'Qui fait quoi' }).first();
-const rows = await who.locator('.game-card__title').allTextContents();
-check('tout le monde est listé une fois, moi d’abord',
-  rows.map((r) => r.trim()).join(' | ') === 'Gui (vous) | Alice | Karim',
-  rows.map((r) => r.trim()).join(' | '));
-
-const aliceRow = who.locator('.game-card', { hasText: 'Alice' }).first();
-const aliceLine = (await aliceRow.locator('.game-card__meta').textContent()).trim();
-check('ce qui attend Alice est résumé sur sa ligne',
-  /1 ligne\(s\) à faire/.test(aliceLine) && /1 vote\(s\) en attente/.test(aliceLine), aliceLine);
-
-const guiLine = (await who.locator('.game-card', { hasText: 'Gui' }).first().locator('.game-card__meta').textContent()).trim();
-check('et rien pour qui n’a rien en attente', guiLine === 'rien en attente', guiLine);
-
 /* ---- 3. une case de chiffre ouvre l'onglet, déjà filtré ----------------- */
 
 await mifaBoard.locator('.tile').first().click();
@@ -163,9 +147,7 @@ check('« Tous » remet tout', (await page.locator('.chip--on').textContent()).t
 
 /* ---- 5. la page d'une personne ------------------------------------------ */
 
-await page.evaluate(() => { location.hash = '#/'; });
-await page.waitForSelector('.game-card');
-await page.locator('.section', { hasText: 'Qui fait quoi' }).locator('.game-card', { hasText: 'Alice' }).first().click();
+await page.evaluate(() => { location.hash = '#/person/Alice'; });
 await page.waitForSelector('.who');
 
 check('l’adresse est celle d’une personne',

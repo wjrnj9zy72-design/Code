@@ -233,11 +233,13 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
   *et* ses parties. Avec un seul groupe, il n'y a rien à choisir : pas de
   pastilles.
-- **Qui fait quoi** liste les personnes que l'app connaît et ce qui les attend.
-  Derrière chaque nom, **sa page** : ses lignes à faire, ses votes donnés ou
-  manquants, ses dernières parties avec son rang. Les prénoms y sont rapprochés
-  sans accent ni majuscule, comme dans les statistiques — « alice » et « Alice »
-  sont la même personne, « Alex » et « Alexandre » restent deux.
+- **La page d'une personne** (`#/person/<nom>`) résume ce qui l'attend : ses
+  lignes à faire, ses votes donnés ou manquants, ses dernières parties avec son
+  rang. Les prénoms y sont rapprochés sans accent ni majuscule, comme dans les
+  statistiques — « alice » et « Alice » sont la même personne, « Alex » et
+  « Alexandre » restent deux. On y arrive depuis les statistiques (renommer) ou
+  par un lien gardé ; l'Aperçu ne liste plus les personnes une à une, pour
+  rester court.
 - **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
   personne dans les parties, les listes et les sondages à la fois : deux
   orthographes redeviennent une seule personne partout d'un coup.

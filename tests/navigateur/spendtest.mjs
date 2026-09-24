@@ -130,13 +130,13 @@ await page.waitForSelector('.tiles');
 const tiles = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
 check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1', tiles.join(','));
 
-const bobRow = page.locator('.section', { hasText: 'Qui fait quoi' }).locator('.game-card', { hasText: 'Bob' }).first();
-check('et la ligne de Bob dit ce qu’il doit',
-  /doit 136,50/.test(await bobRow.locator('.game-card__meta').textContent()),
-  (await bobRow.locator('.game-card__meta').textContent()).trim());
-
-await bobRow.click();
+await page.evaluate(() => { location.hash = '#/person/Bob'; });
 await page.waitForSelector('.who');
+const bobBanner = page.locator('.banner').first();
+check('et sa page dit ce qu’il doit',
+  /doit 136,50/.test(await bobBanner.textContent()),
+  (await bobBanner.textContent()).trim());
+
 check('sa page montre le compte',
   /Vacances/.test(await page.locator('.section', { hasText: 'Ses comptes' }).textContent()));
 

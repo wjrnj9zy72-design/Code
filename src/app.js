@@ -27,7 +27,7 @@ import {
   balances, spendTotal, settle, mergeSpends, isValidSpend,
 } from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
+import { inGroup, groupCounts, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
 import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
@@ -3057,9 +3057,6 @@ function openCreateMenu() {
   dialog.showModal();
 }
 
-/** How many names the overview lists before folding the rest away. */
-const PEOPLE_SHOWN = 12;
-
 /**
  * What is waiting on someone, in one line. Late first: a line whose day has
  * passed is the only part of this that is worse today than it was yesterday.
@@ -3075,50 +3072,6 @@ function waitingLine(counts) {
     .join(' · ');
 }
 
-/**
- * Who the app knows about, and what is still waiting on each of them.
- *
- * Every name from every list, poll and game, me first and then alphabetical —
- * an order that does not move under the finger, unlike one that follows who
- * owes what.
- */
-function whoHtml() {
-  const me = sameName(myName());
-  const names = [...peopleIn(state)].sort(
-    (a, b) => (me ? (sameName(a) === me ? 0 : 1) - (sameName(b) === me ? 0 : 1) : 0) || a.localeCompare(b),
-  );
-  if (!names.length) return '';
-
-  const row = (name) => {
-    const { counts } = personFile(state, name);
-    const waiting = waitingLine(counts);
-    return `
-      <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
-        <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
-        <span class="game-card__meta">${escapeHtml(waiting || t('dash.nothing'))}</span>
-      </button>`;
-  };
-
-  const shown = names.slice(0, PEOPLE_SHOWN);
-  const rest = names.slice(PEOPLE_SHOWN);
-  return `
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('dash.people'))}</h2>
-        <span class="muted small">${escapeHtml(t('dash.peopleCount', { count: names.length }))}</span>
-      </div>
-      <div class="game-list">${shown.map(row).join('')}</div>
-      ${
-        rest.length
-          ? `<details class="details">
-               <summary>${escapeHtml(t('dash.others', { count: rest.length }))}</summary>
-               <div class="game-list">${rest.map(row).join('')}</div>
-             </details>`
-          : ''
-      }
-    </section>`;
-}
-
 function overviewView() {
   const counts = {
     lists: state.lists.filter((list) => progress(list).left > 0).length,
@@ -3129,12 +3082,6 @@ function overviewView() {
   return `
     ${flashHtml()}
     <p class="lead">${escapeHtml(t('overview.what'))}</p>
-
-    <div class="row">
-      <button type="button" class="button button--small" data-goto="#/lists/new">+ ${escapeHtml(t('lists.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/polls/new">+ ${escapeHtml(t('polls.new'))}</button>
-      <button type="button" class="button button--small" data-goto="#/new">+ ${escapeHtml(t('action.newGame'))}</button>
-    </div>
 
     ${byGroupHtml()}
 
@@ -3152,8 +3099,6 @@ function overviewView() {
       </div>
       ${pendingHtml()}
     </section>
-
-    ${whoHtml()}
 
     ${meHtml()}
 

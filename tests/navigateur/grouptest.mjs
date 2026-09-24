@@ -33,7 +33,8 @@ check("l'app ouvre sur l'aperçu",
   (await page.locator('.tab[aria-current]').count()) === 0
   && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
 check("l'aperçu dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);
-check('et propose les trois créations', (await page.locator('[data-goto$="/new"]').count()) === 3);
+check('le « + » de la barre crée, l’aperçu n’a plus ses propres boutons',
+  (await page.locator('#tabs #create').isVisible()) && (await page.locator('[data-goto$="/new"]').count()) === 0);
 check('les groupes ont leur section',
   (await page.locator('#group-name').count()) === 1 && (await page.locator('#group-code').count()) === 1);
 check('sans groupe, il le dit', (await page.locator('#group-state').count()) === 1
