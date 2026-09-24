@@ -216,9 +216,16 @@ type de sondage à choisir avant de poser la question.
 
 Avec plusieurs groupes, l'app ne mélange plus tout.
 
+- Les onglets sont **en bas de l'écran**, à portée du pouce, et y restent quand
+  on fait défiler. Au milieu, un **« + »** crée une liste, un sondage, un
+  événement, une partie ou un compte, depuis n'importe quelle page ; il dit
+  dans quel groupe la chose ira (modifiable sur le formulaire).
 - L'**Aperçu** ouvre sur un bloc par groupe : combien de listes, de sondages et
   de parties y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
-  correspondant, déjà réglé sur ce groupe.
+  correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
+  (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
+  vient, les listes, les sondages, les parties, les comptes à solder — avec
+  « Tout voir » vers l'onglet, déjà réglé sur ce groupe.
 - Les trois onglets portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages

@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="1ad02b1d" />
+    <meta name="app-build" content="7c71ba64" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Compteur de points, listes et sondages partagés, pour la famille et les amis." />
@@ -869,53 +869,101 @@ body.solo .app-bar__brand { cursor: default; }
 
 /* ------------------------------------------------------------------ tabs --- */
 /*
- * The parts of the app, side by side across the full width: few enough that
- * the thumb never has to aim, and the columns divide themselves however many
- * there are.
+ * The parts of the app, along the bottom of the screen: within the thumb's
+ * reach, and still there halfway down a long list. An icon over each word, so
+ * the words can stay small on a narrow phone without the bar turning to
+ * guesswork. The "+" in the middle makes a new thing from wherever one is.
  */
 .tabs {
-  /* Not sticky: the bar above it is, and guessing that bar's height — which
-     changes with the tagline's wrapping — would put the two on top of each
-     other on exactly the narrow screens this is for. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
   display: grid;
-  grid-auto-flow: column;
-  /* minmax(0, 1fr) et non 1fr : sans cela, chaque piste ne peut pas descendre
-     sous la largeur de son mot, et cinq onglets poussent la barre — donc toute
-     la page — de cent pixels sur un écran de 320. */
-  grid-auto-columns: minmax(0, 1fr);
-  border-bottom: 1px solid var(--border);
+  /* Two tabs, the "+" at its own width, three tabs: every pixel the button
+     does not need goes to the words. minmax(0, 1fr) et non 1fr : sans cela,
+     chaque piste ne peut pas descendre sous la largeur de son mot, et les
+     onglets poussent la barre — donc toute la page — sur un écran de 320. */
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  border-top: 1px solid var(--border);
   background: var(--surface);
+  /* The iPhone's home bar: the tabs sit above it, the colour runs under it. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The bar covers the bottom of the page; the page makes room for it. */
+body:not(.solo) .view {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .tab {
-  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 6px;
   min-width: 0;
-  border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
+  margin-top: -1px;
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
   text-align: center;
   text-decoration: none;
 }
 
-.tab[aria-current="page"] {
-  border-bottom-color: var(--accent);
-  color: var(--text);
+.tab > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/*
- * Cinq onglets, et « Sondages » fait huit lettres : sur un écran étroit les
- * mots se resserrent plutôt que d'être coupés — un onglet à moitié lisible est
- * pire qu'un onglet petit. Placé après .tab : à spécificité égale, c'est la
- * dernière règle qui l'emporte.
- */
-@media (max-width: 400px) {
-  .tab { padding: 12px 3px; font-size: 0.8rem; }
+.tab__icon,
+.tabs__new svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+
+.tab[aria-current="page"] {
+  border-top-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabs__new {
+  align-self: center;
+  margin: 0 4px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.tabs__new svg { stroke-width: 2.4; }
 
 @media (max-width: 345px) {
-  .tab { padding: 12px 1px; font-size: 0.68rem; letter-spacing: -0.01em; }
+  .tab { font-size: 0.62rem; letter-spacing: -0.02em; }
+  .tabs__new { width: 42px; height: 42px; }
 }
+
+/* The "+" menu: what can be made, one big button each. */
+.create-menu { display: grid; gap: 8px; }
+.create-menu .button { justify-content: flex-start; text-align: left; }
 
 /* ---------------------------------------------------------------- dialog --- */
 .dialog {
@@ -1031,6 +1079,22 @@ body.solo .app-bar__brand { cursor: default; }
 }
 
 .qr svg { max-width: 100%; height: auto; }
+
+/* A group's name on the overview: the door to its own page. */
+.group-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.group-link span { white-space: nowrap; }
     </style>
   </head>
   <body>
@@ -1058,12 +1122,32 @@ body.solo .app-bar__brand { cursor: default; }
       </div>
     </header>
 
+    <!-- At the bottom, within the thumb's reach, and always there: a phone is
+         held from below. The "+" in the middle makes anything, from anywhere. -->
     <nav class="tabs" id="tabs" aria-label="Sections">
-      <a class="tab" href="#/" data-tab="overview" data-i18n="tab.overview">Aperçu</a>
-      <a class="tab" href="#/lists" data-tab="lists" data-i18n="tab.lists">Listes</a>
-      <a class="tab" href="#/polls" data-tab="polls" data-i18n="tab.polls">Sondages</a>
-      <a class="tab" href="#/games" data-tab="games" data-i18n="tab.games">Parties</a>
-      <a class="tab" href="#/agenda" data-tab="agenda" data-i18n="tab.agenda">Agenda</a>
+      <a class="tab" href="#/" data-tab="overview">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
+        <span data-i18n="tab.overview">Aperçu</span>
+      </a>
+      <a class="tab" href="#/lists" data-tab="lists">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg>
+        <span data-i18n="tab.lists">Listes</span>
+      </a>
+      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <a class="tab" href="#/polls" data-tab="polls">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h16M4 17h7"/></svg>
+        <span data-i18n="tab.polls">Sondages</span>
+      </a>
+      <a class="tab" href="#/games" data-tab="games">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>
+        <span data-i18n="tab.games">Parties</span>
+      </a>
+      <a class="tab" href="#/agenda" data-tab="agenda">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
+        <span data-i18n="tab.agenda">Agenda</span>
+      </a>
     </nav>
 
     <main id="view" class="view" aria-live="polite"></main>
@@ -1237,6 +1321,12 @@ const STRINGS = {
     'agenda.more': '+ {count} autre(s), dans les agendas abonnés',
     'tab.spends': 'Dépenses',
     'tab.agenda': 'Agenda',
+    'create.title': 'Créer',
+    'create.what': 'Que voulez-vous créer ?',
+    'create.into': 'Ira dans le groupe « {name} » — modifiable sur la page suivante.',
+    'group.open': 'Ouvrir',
+    'group.seeAll': 'Tout voir',
+    'group.nothing': 'Rien en cours dans ce groupe.',
     'spends.new': 'Nouveau compte',
     'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
@@ -1999,6 +2089,12 @@ const STRINGS = {
     'agenda.more': '+ {count} more, in subscribed calendars',
     'tab.spends': 'Spending',
     'tab.agenda': 'Agenda',
+    'create.title': 'Create',
+    'create.what': 'What would you like to create?',
+    'create.into': 'It will go into “{name}” — you can change that on the next page.',
+    'group.open': 'Open',
+    'group.seeAll': 'See all',
+    'group.nothing': 'Nothing going on in this group.',
     'spends.new': 'New account',
     'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
@@ -9346,6 +9442,8 @@ function route() {
   if ((name === 'person' || name === 'personne') && param) {
     return { name: 'person', who: personFrom(param) };
   }
+  // One group, everything in it: #/group/<id>, from the overview.
+  if (name === 'group' && param) return { name: 'group', id: decodeSegment(param) };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -9364,6 +9462,15 @@ function route() {
   // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
   if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
+}
+
+/** A segment of the address, decoded if it can be. */
+function decodeSegment(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 /** The name written in `#/person/<name>`, decoded if it can be. */
@@ -9849,7 +9956,10 @@ function groupBoardHtml(group) {
   return `
     <div class="card stack stack--tight">
       <div class="spread">
-        <strong>${escapeHtml(group.name)}</strong>
+        <button type="button" class="group-link" data-goto="#/group/${escapeHtml(encodeURIComponent(group.id))}">
+          <strong>${escapeHtml(group.name)}</strong>
+          <span class="muted small">${escapeHtml(t('group.open'))} ›</span>
+        </button>
         ${
           // The key that may let people in is the one worth naming: it is the
           // only one whose holder has anything to do when someone knocks.
@@ -9870,6 +9980,107 @@ function groupBoardHtml(group) {
         }${counts.late ? ` · <span class="late">${escapeHtml(t('lists.late', { count: counts.late }))}</span>` : ''}
       </p>
     </div>`;
+}
+
+/**
+ * One group, and everything going on in it, on one page.
+ *
+ * The tabs sort by kind — lists here, polls there — but the question people
+ * come with is about a group: "what is on with the Thursday lot?". So the
+ * answer is on one page: what is coming, what is left to tick, to vote, to
+ * play, to pay back. Only what is in progress; "see all" opens the tab,
+ * already set on this group, for the rest.
+ */
+function groupView(group) {
+  const ours = (documents) => documents.filter((document_) => isLive(document_) && inGroup(document_, group.id));
+  const today = dayNow();
+  const byDay = (a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || ''));
+  const recent = (a, b) => b.updatedAt - a.updatedAt;
+  const events = ours(state.polls).filter((poll) => poll.date && poll.date >= today).sort(byDay);
+  const polls = ours(state.polls)
+    .filter((poll) => !isEvent(poll) && !poll.closedAt && !events.includes(poll))
+    .sort(recent);
+  const lists = ours(state.lists).filter((list) => progress(list).left > 0).sort(recent);
+  const games = ours(state.games).filter((game) => !gameStatus(game).finished).sort(recent);
+  const spends = ours(state.spends)
+    .filter((spend) => balances(spend).some((row) => row.balance !== 0))
+    .sort(recent);
+  const counts = groupCounts(state, group.id);
+
+  const section = (title, documents, cardHtml, tab) =>
+    documents.length
+      ? `<section class="section">
+           <div class="section__head">
+             <h2>${escapeHtml(title)}</h2>
+             <button type="button" class="button button--small button--ghost"
+                     data-group-tile="${escapeHtml(group.id)}" data-tile-goto="${tab}">
+               ${escapeHtml(t('group.seeAll'))}
+             </button>
+           </div>
+           <div class="game-list">${documents.map(cardHtml).join('')}</div>
+         </section>`
+      : '';
+
+  const sections = [
+    section(t('events.coming'), events, eventCardHtml, '#/agenda'),
+    section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
+    section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
+    section(t('home.ongoing'), games, gameCardHtml, '#/games'),
+    section(t('events.accounts'), spends, spendCardHtml, '#/agenda'),
+  ].join('');
+
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(group.name)}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/">
+        ${escapeHtml(t('action.back'))}
+      </button>
+    </div>
+    <p class="muted small">
+      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(t('overview.counts', counts))}
+    </p>
+    <button type="button" class="button button--primary button--block" data-create-menu>
+      + ${escapeHtml(t('create.title'))}
+    </button>
+    ${sections || `<p class="muted small">${escapeHtml(t('group.nothing'))}</p>`}`;
+}
+
+/**
+ * The "+" in the tab bar: whatever can be made, from wherever one is.
+ *
+ * The group is not asked here: every form already has its chips for that,
+ * set on the group being looked at. The menu only says which one it will be,
+ * so nobody is surprised on the next page.
+ */
+function openCreateMenu() {
+  const dialog = makeDialog();
+  const into = groupForNew();
+  const choice = (goto, label) => `
+    <button type="button" class="button button--block" data-create="${goto}">+ ${escapeHtml(label)}</button>`;
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('create.what'))}</h2>
+      <div class="create-menu">
+        ${choice('#/lists/new', t('lists.new'))}
+        ${choice('#/polls/new', t('polls.new'))}
+        ${choice('#/agenda/new', t('events.new'))}
+        ${choice('#/new', t('action.newGame'))}
+        ${choice('#/spends/new', t('spends.new'))}
+      </div>
+      ${into ? `<p class="muted small">${escapeHtml(t('create.into', { name: into.name }))}</p>` : ''}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-create-close>${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelectorAll('[data-create]').forEach((node) => {
+    node.addEventListener('click', () => {
+      dialog.close();
+      navigate(node.dataset.create);
+    });
+  });
+  dialog.querySelector('[data-create-close]').addEventListener('click', () => dialog.close());
+  dialog.showModal();
 }
 
 /** How many names the overview lists before folding the rest away. */
@@ -14748,6 +14959,7 @@ function currentThemeIsDark() {
 }
 
 function bindChrome() {
+  document.getElementById('create')?.addEventListener('click', openCreateMenu);
   document.getElementById('theme-toggle').addEventListener('click', () => {
     state.prefs = { ...state.prefs, theme: currentThemeIsDark() ? 'light' : 'dark' };
     savePrefs(state.prefs);
@@ -15021,6 +15233,17 @@ function render() {
   } else if (current.name === 'person') {
     stopWatching();
     view.innerHTML = personView(current.who);
+  } else if (current.name === 'group') {
+    stopWatching();
+    const group = groups().find((held) => held.id === current.id);
+    if (!group) {
+      navigate('#/');
+      return;
+    }
+    // Looking at a group is looking at it everywhere: the tabs follow, and so
+    // does whatever the "+" makes from here.
+    if (groupFilter() !== group.id) setGroupFilter(group.id);
+    view.innerHTML = groupView(group);
   } else if (current.name === 'back') {
     stopWatching();
     view.innerHTML = backView(current.token);
@@ -15043,6 +15266,9 @@ function render() {
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
     node.addEventListener('click', () => navigate(node.dataset.goto));
+  });
+  view.querySelectorAll('[data-create-menu]').forEach((node) => {
+    node.addEventListener('click', openCreateMenu);
   });
 
   // The group pastilles, and the overview's numbers — which pick a group and
