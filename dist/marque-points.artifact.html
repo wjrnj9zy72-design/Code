@@ -1495,7 +1495,6 @@ const STRINGS = {
     'tab.agenda': 'Agenda',
     'create.title': 'Créer',
     'create.what': 'Que voulez-vous créer ?',
-    'create.into': 'Ira dans le groupe « {name} » — modifiable sur la page suivante.',
     'group.open': 'Ouvrir',
     'group.seeAll': 'Tout voir',
     'group.nothing': 'Rien en cours dans ce groupe.',
@@ -2297,7 +2296,6 @@ const STRINGS = {
     'tab.agenda': 'Agenda',
     'create.title': 'Create',
     'create.what': 'What would you like to create?',
-    'create.into': 'It will go into “{name}” — you can change that on the next page.',
     'group.open': 'Open',
     'group.seeAll': 'See all',
     'group.nothing': 'Nothing going on in this group.',
@@ -10662,20 +10660,47 @@ function groupView(group) {
 }
 
 /**
- * The "+" in the tab bar: whatever can be made, from wherever one is.
+ * The "+" in the tab bar: whatever can be made, from wherever one is — and
+ * where it will go, said and changeable right here.
  *
- * The group is not asked here: every form already has its chips for that,
- * set on the group being looked at. The menu only says which one it will be,
- * so nobody is surprised on the next page.
+ * The destination was once only stated ("it will go into Mifa"), and followed
+ * whatever filter happened to be set; people found everything landing in one
+ * group without having chosen it. So the menu shows the choice as chips, set
+ * on the obvious answer — the group whose page this is, the group picked at
+ * the top of Home, the only group there is — and one tap changes it. The form
+ * that opens carries it on, with the same chips.
  */
 function openCreateMenu() {
   const dialog = makeDialog();
-  const into = groupForNew();
+  const here = route();
+  resetGroupChoice();
+  const fromPage = here.name === 'group' ? groups().find((group) => group.id === here.id) : null;
+  const start = fromPage ? { group: fromPage, linkOnly: false } : destinationForNew();
+  let chosen = start.linkOnly ? LINK_ONLY : start.group?.id || '';
+  const asks = Boolean(state.remote && groups().length);
+
   const choice = (goto, label) => `
     <button type="button" class="button button--block" data-create="${goto}">+ ${escapeHtml(label)}</button>`;
+  const chip = (id, label) => `
+    <button type="button" class="chip ${chosen === id ? 'chip--on' : ''}"
+            data-create-into="${escapeHtml(id)}" aria-pressed="${chosen === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
   dialog.innerHTML = `
     <div class="stack">
       <h2>${escapeHtml(t('create.what'))}</h2>
+      ${
+        asks
+          ? `<div class="stack stack--tight">
+               <span class="muted small">${escapeHtml(t('groups.willGoIn'))}</span>
+               <div class="row" role="group" aria-label="${escapeHtml(t('groups.willGoIn'))}">
+                 ${groupsByName().map((group) => chip(group.id, group.name)).join('')}
+                 ${chip(LINK_ONLY, t('groups.linkOnly'))}
+                 ${chip('', t('groups.keepToMyself'))}
+               </div>
+             </div>`
+          : ''
+      }
       <div class="create-menu">
         ${choice('#/lists/new', t('lists.new'))}
         ${choice('#/polls/new', t('polls.new'))}
@@ -10683,13 +10708,24 @@ function openCreateMenu() {
         ${choice('#/new', t('action.newGame'))}
         ${choice('#/spends/new', t('spends.new'))}
       </div>
-      ${into ? `<p class="muted small">${escapeHtml(t('create.into', { name: into.name }))}</p>` : ''}
       <div class="row">
         <button type="button" class="button button--ghost" data-create-close>${escapeHtml(t('action.cancel'))}</button>
       </div>
     </div>`;
+  dialog.querySelectorAll('[data-create-into]').forEach((node) => {
+    node.addEventListener('click', () => {
+      chosen = node.dataset.createInto;
+      dialog.querySelectorAll('[data-create-into]').forEach((other) => {
+        const on = other.dataset.createInto === chosen;
+        other.classList.toggle('chip--on', on);
+        other.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+  });
   dialog.querySelectorAll('[data-create]').forEach((node) => {
     node.addEventListener('click', () => {
+      // Said in the menu is chosen: the form starts from it.
+      if (asks) newGroupChoice = { touched: true, id: chosen };
       dialog.close();
       navigate(node.dataset.create);
     });
@@ -15926,9 +15962,9 @@ function render() {
       navigate('#/groups');
       return;
     }
-    // Looking at a group is looking at it everywhere: the tabs follow, and so
-    // does whatever the "+" makes from here.
-    if (groupFilter() !== group.id) setGroupFilter(group.id);
+    // Looking at a group sets nothing for the rest of the app: it used to set
+    // the filter, which then quietly sent everything the "+" made afterwards,
+    // from anywhere, into this group. The "+" opened here proposes it instead.
     view.innerHTML = groupView(group);
   } else if (current.name === 'back') {
     stopWatching();

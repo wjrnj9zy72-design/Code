@@ -166,9 +166,28 @@ check('l’onglet Groupes reste allumé',
 
 await page.click('#create');
 await page.waitForSelector('dialog[open] [data-create]');
-check('le « + » dit où ira la création',
-  (await page.locator('dialog[open]').textContent()).includes('Mifa'));
+check('le « + » ouvert ici propose ce groupe',
+  (await page.locator('dialog[open] [data-create-into].chip--on').textContent()).trim() === 'Mifa');
 await page.click('dialog[open] [data-create-close]');
+
+// Regarder un groupe ne règle rien pour le reste de l'app : de l'Accueil, le
+// « + » ne l'impose pas, et le choix fait dans le menu suit jusqu'au bout.
+await page.click('[data-tab="home"]');
+await page.waitForSelector('.segmented--kinds');
+check('la page d’un groupe ne filtre pas l’Accueil', (await page.locator('.chip--on').count()) === 0
+  || (await page.locator('.chip--on').first().textContent()).trim() === 'Tous');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create-into]');
+check('de l’Accueil, le « + » ne choisit pas Mifa tout seul',
+  (await page.locator('dialog[open] [data-create-into].chip--on').textContent()).trim() !== 'Mifa');
+await page.locator('dialog[open] [data-create-into]', { hasText: 'Copains' }).click();
+await page.click('dialog[open] [data-create="#/lists/new"]');
+await page.waitForSelector('#new-list');
+const onForm = (await page.locator('[data-new-group].chip--on').allTextContents()).map((x) => x.trim());
+check('le formulaire reprend le groupe choisi dans le menu', onForm.length === 1 && onForm[0].startsWith('Copains'), onForm.join(' | '));
+await page.goBack();
+await page.goto(`http://localhost:8099/dist/marque-points.html#/group/grp_famille`);
+await page.waitForSelector('.details summary');
 
 // « Tout voir » ouvre l'onglet, réglé sur ce groupe.
 await page.locator('.section', { hasText: 'Courses Mifa' }).locator('[data-tile-goto]').click();
