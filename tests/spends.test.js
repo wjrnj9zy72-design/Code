@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
   addSpendPerson, removeSpendPerson, canRemovePerson, split, balances, spendTotal, settle, mergeSpends, isValidSpend,
+  addRepayment, isRepayment,
 } from '../src/spends.js';
 
 /** Un week-end à trois : Gui paie le gîte, Alice les courses. */
@@ -244,4 +245,55 @@ test('et le compte tombe juste, quel que soit le tirage', () => {
     assert.ok(moves.length <= count - 1, `${moves.length} virements pour ${count} personnes`);
     assert.ok(moves.every((move) => move.amount > 0));
   }
+});
+
+test('un remboursement noté remet les soldes à jour, sans rien coûter', () => {
+  const spend = weekend();
+  const moves = settle(spend);
+  let paid = spend;
+  for (const move of moves) paid = addRepayment(paid, { from: move.fromId, to: move.toId, amount: move.amount, day: '2026-09-25' });
+  assert.equal(paid.lines.filter(isRepayment).length, moves.length);
+  assert.ok(balances(paid).every((row) => row.balance === 0));
+  assert.equal(settle(paid).length, 0);
+  // Ni le total, ni ce que chacun a avancé ne bougent.
+  assert.equal(spendTotal(paid), spendTotal(spend));
+  assert.deepEqual(balances(paid).map((row) => row.paid), balances(spend).map((row) => row.paid));
+});
+
+test('un remboursement partiel laisse le reste à rendre', () => {
+  const spend = weekend();
+  const [move] = settle(spend);
+  const half = addRepayment(spend, { from: move.fromId, to: move.toId, amount: 5000 });
+  const [next] = settle(half);
+  assert.equal(next.fromId, move.fromId);
+  assert.equal(next.amount, move.amount - 5000);
+  assert.equal(balances(half).reduce((sum, row) => sum + row.balance, 0), 0);
+});
+
+test('un remboursement se corrige ou se retire, et reste un remboursement', () => {
+  const spend = weekend();
+  const [gui, alice, bob] = spend.people;
+  const noted = addRepayment(spend, { from: bob.id, to: gui.id, amount: 4000 });
+  const line = noted.lines.at(-1);
+  const fixed = editSpend(noted, line.id, { amount: 3000, by: bob.id, forWhom: [alice.id] });
+  assert.ok(isRepayment(fixed.lines.at(-1)));
+  assert.equal(balances(fixed).find((row) => row.id === alice.id).received, 3000);
+  assert.deepEqual(balances(removeSpend(fixed, line.id)), balances(spend));
+});
+
+test('un remboursement vers soi-même, vers un inconnu ou de zéro n’est pas noté', () => {
+  const spend = weekend();
+  const [gui] = spend.people;
+  assert.equal(addRepayment(spend, { from: gui.id, to: gui.id, amount: 100 }), spend);
+  assert.equal(addRepayment(spend, { from: gui.id, to: 'personne', amount: 100 }), spend);
+  assert.equal(addRepayment(spend, { from: gui.id, to: spend.people[1].id, amount: 0 }), spend);
+});
+
+test('un remboursement voyage entre deux téléphones comme une dépense', () => {
+  const spend = weekend();
+  const [gui, alice] = spend.people;
+  const mine = addRepayment(spend, { from: alice.id, to: gui.id, amount: 1000 });
+  const merged = mergeSpends(mine, { ...spend, updatedAt: spend.updatedAt - 1 });
+  assert.ok(isValidSpend(merged));
+  assert.ok(merged.lines.some(isRepayment));
 });

@@ -194,6 +194,58 @@ const seen = await page.waitForFunction(
 check('ce que l’autre note arrive ici, sans chasser le reste', seen);
 check('et les quatre dépenses tiennent ensemble', (await page.locator('.line').count()) === 4);
 
+/* ---- 9. le jour tient dans sa colonne, même sur un petit écran ------------ */
+
+await page.setViewportSize({ width: 340, height: 800 });
+await page.waitForTimeout(200);
+const spill = await page.evaluate(() => {
+  const day = document.querySelector('#spend-day').getBoundingClientRect();
+  const form = document.querySelector('#add-spend').getBoundingClientRect();
+  return Math.round(day.right - form.right);
+});
+check('le champ du jour ne dépasse pas du formulaire', spill <= 0, `${spill} px`);
+await page.setViewportSize({ width: 430, height: 950 });
+
+/* ---- 10. les remboursements --------------------------------------------- */
+
+const total = (await page.locator('.spread').first().textContent()).replace(/\s+/g, ' ');
+await page.click('[data-spend-tab="balances"]');
+await page.waitForSelector('[data-repay]');
+const before = await page.locator('[data-repay]').count();
+check('chaque virement a son « Marquer comme payé »',
+  before >= 1 && /Marquer comme payé/.test(await page.locator('[data-repay]').first().textContent()), String(before));
+
+await page.locator('[data-repay]').first().click();
+await page.waitForSelector('dialog[open] #repay-amount');
+check('le montant proposé est celui du virement', /,/.test(await page.inputValue('#repay-amount')));
+await page.click('#repay-save');
+await page.waitForFunction((n) => document.querySelectorAll('[data-repay]').length === n - 1, before);
+check('un virement payé disparaît de « Qui rembourse qui »', (await page.locator('[data-repay]').count()) === before - 1);
+check('et le total du compte n’a pas bougé',
+  (await page.locator('.spread').first().textContent()).replace(/\s+/g, ' ') === total);
+
+// Un remboursement partiel : le reste demeure.
+const left = (await page.locator('.move .entry__value').first().textContent()).trim();
+await page.locator('[data-repay]').first().click();
+await page.waitForSelector('dialog[open] #repay-amount');
+await page.fill('#repay-amount', '10');
+await page.click('#repay-save');
+await page.waitForFunction((was) => document.querySelector('.move .entry__value')?.textContent.trim() !== was, left);
+check('un remboursement partiel laisse le reste',
+  (await page.locator('[data-repay]').count()) === before - 1, (await page.locator('.move .entry__value').first().textContent()).trim());
+
+await page.click('[data-spend-tab="expenses"]');
+await page.waitForSelector('.line--repay');
+check('les remboursements se lisent dans la liste', (await page.locator('.line--repay').count()) === 2
+  && /a remboursé/.test(await page.locator('.line--repay').first().textContent()));
+
+// Et se retirent : ce qui était à rendre revient.
+await page.locator('.line--repay .line__text').first().click();
+await page.waitForSelector('dialog[open] #repay-delete');
+await page.click('#repay-delete');
+await page.waitForFunction(() => document.querySelectorAll('.line--repay').length === 1);
+check('un remboursement se retire', (await page.locator('.line--repay').count()) === 1);
+
 /* ---- fin ----------------------------------------------------------------- */
 
 check('aucune erreur de page', errors.length === 0, errors.join(' | '));
