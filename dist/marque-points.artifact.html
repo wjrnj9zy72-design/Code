@@ -203,6 +203,7 @@ label { display: grid; gap: 6px; font-size: 0.85rem; font-weight: 550; }
 
 input[type='text'],
 input[type='number'],
+input[type='date'],
 select,
 textarea {
   width: 100%;
@@ -216,6 +217,19 @@ textarea {
 }
 
 textarea { min-height: 66px; resize: vertical; }
+
+/* A date field asks for as much width as its own calendar button and text
+   take, whatever its box says: on an iPhone it then spills out of a narrow
+   column. Drawn plainly, it keeps to the width it is given. */
+input[type='date'] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='date']::-webkit-date-and-time-value { text-align: left; }
 
 .checkbox {
   display: flex;
@@ -464,6 +478,12 @@ button.tile:hover { background: var(--accent-soft); }
 }
 
 .entry:first-child { border-top: 0; }
+
+/* One transfer of "who pays whom", with the button that notes it as done. */
+.move { display: grid; gap: 4px; padding-bottom: 12px; border-top: 1px solid var(--border); }
+.move:first-child { border-top: 0; }
+.move .entry { border-top: 0; }
+.move .button { width: 100%; }
 .entry__what { min-width: 0; overflow-wrap: anywhere; }
 .entry__value { flex: none; color: var(--muted); font-size: 0.85rem; }
 .entry__value--good { color: var(--good); font-weight: 600; }
@@ -670,6 +690,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 /* The day a line is for, under the words it belongs to. */
 .line__due { display: block; color: var(--muted); font-size: 0.75rem; }
+.line--repay .line__text > span:first-child { color: var(--muted); font-style: italic; }
+.line--repay .line__amount { color: var(--muted); font-weight: 500; }
 .line__due--late { color: var(--bad); font-weight: 600; }
 .line--done .line__due { color: var(--muted); font-weight: 400; }
 
@@ -806,7 +828,8 @@ select.field-pill {
 
 .field-pill--submit { border-radius: 999px; }
 
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.field-row > label { min-width: 0; }
 
 /* Who a new expense is split between: a plain checklist, ticked by default —
    unticking someone is the exception, so it is the only thing to notice. */
@@ -1518,7 +1541,14 @@ const STRINGS = {
     'spends.iOwe': 'vous devez {amount}',
     'spends.settle': 'Qui rembourse qui',
     'spends.move': '{from} → {to}',
-    'spends.settleHint': 'Le moins de virements possible pour que tout le monde soit à jour.',
+    'spends.settleHint': 'Le moins de virements possible pour que tout le monde soit à jour. Un virement fait ? « Marquer comme payé » le note, et les soldes suivent.',
+    'spends.markPaid': 'Marquer comme payé',
+    'spends.repaid': '{from} a remboursé {to}',
+    'spends.repayment': 'Remboursement',
+    'spends.repayHint': 'Le montant se change si le remboursement n’est que partiel.',
+    'spends.repayFrom': 'De',
+    'spends.repayTo': 'À',
+    'spends.repaySame': 'Un remboursement va d’une personne à une autre.',
     'spends.share': 'Partager le compte',
     'spends.shared': 'Compte partagé dans {name}.',
     'spends.rename': 'Renommer le compte',
@@ -2310,7 +2340,14 @@ const STRINGS = {
     'spends.iOwe': 'you owe {amount}',
     'spends.settle': 'Who pays whom',
     'spends.move': '{from} → {to}',
-    'spends.settleHint': 'The fewest transfers that put everyone straight.',
+    'spends.settleHint': 'The fewest transfers that put everyone straight. Transfer done? “Mark as paid” notes it, and the balances follow.',
+    'spends.markPaid': 'Mark as paid',
+    'spends.repaid': '{from} paid back {to}',
+    'spends.repayment': 'Repayment',
+    'spends.repayHint': 'Change the amount if only part of it was paid back.',
+    'spends.repayFrom': 'From',
+    'spends.repayTo': 'To',
+    'spends.repaySame': 'A repayment goes from one person to another.',
     'spends.share': 'Share the account',
     'spends.shared': 'Account shared in {name}.',
     'spends.rename': 'Rename the account',
@@ -5172,6 +5209,28 @@ function addSpend(spend, { text = '', amount = 0, by = null, forWhom = [], day =
   return touch(spend, { lines: [...spend.lines, line] });
 }
 
+/**
+ * Noter un remboursement : `from` a rendu `amount` à `to`.
+ *
+ * C'est une ligne comme les autres — payée par `from`, pour `to` seul —, ce qui
+ * suffit à remettre les soldes d'aplomb : `from` a mis de l'argent, `to` en a
+ * reçu. Marquée `repay` pour qu'elle ne compte pas dans ce que le compte a
+ * coûté, ni dans ce que chacun a avancé.
+ */
+function addRepayment(spend, { from = null, to = null, amount = 0, day = null } = {}) {
+  const cents = Number.isInteger(amount) ? amount : readAmount(amount);
+  const known = new Set(spend.people.map((person) => person.id));
+  if (!cents || !known.has(from) || !known.has(to) || from === to) return spend;
+  const added = addSpend(spend, { amount: cents, by: from, forWhom: [to], day });
+  const line = added.lines.at(-1);
+  return { ...added, lines: [...added.lines.slice(0, -1), { ...line, repay: true }] };
+}
+
+/** Une ligne qui rend de l'argent plutôt qu'elle n'en dépense. */
+function isRepayment(line) {
+  return Boolean(line?.repay);
+}
+
 function patchLine(spend, lineId, patch) {
   let changed = false;
   const lines = spend.lines.map((line) => {
@@ -5263,16 +5322,29 @@ function split(amount, count) {
 }
 
 /**
- * Ce que chacun a payé, ce qu'il devait, et la différence.
+ * Ce que chacun a payé, ce qu'il devait, ce qu'il a rendu ou reçu, et la
+ * différence.
  *
  * Positif : on lui doit. Négatif : il doit. La somme des soldes fait zéro, au
- * centime — c'est ce qui rend le remboursement calculable.
+ * centime — c'est ce qui rend le remboursement calculable. Un remboursement
+ * ne change ni `paid` ni `owed` (ce n'est pas une dépense) : il passe par
+ * `sent` et `received`, et le solde en tient compte.
  */
 function balances(spend) {
   const paid = new Map(spend.people.map((person) => [person.id, 0]));
   const owed = new Map(spend.people.map((person) => [person.id, 0]));
+  const sent = new Map(spend.people.map((person) => [person.id, 0]));
+  const received = new Map(spend.people.map((person) => [person.id, 0]));
 
   for (const line of spend.lines) {
+    if (isRepayment(line)) {
+      const to = line.forWhom[0];
+      // Sans l'une des deux personnes, il n'y a rien à rendre à personne.
+      if (!sent.has(line.by) || !received.has(to) || line.by === to) continue;
+      sent.set(line.by, sent.get(line.by) + line.amount);
+      received.set(to, received.get(to) + line.amount);
+      continue;
+    }
     if (line.by && paid.has(line.by)) paid.set(line.by, paid.get(line.by) + line.amount);
     const concerned = line.forWhom.length
       ? line.forWhom.filter((id) => owed.has(id))
@@ -5287,13 +5359,16 @@ function balances(spend) {
     name: person.name,
     paid: paid.get(person.id) || 0,
     owed: owed.get(person.id) || 0,
-    balance: (paid.get(person.id) || 0) - (owed.get(person.id) || 0),
+    sent: sent.get(person.id) || 0,
+    received: received.get(person.id) || 0,
+    balance: (paid.get(person.id) || 0) - (owed.get(person.id) || 0)
+      + (sent.get(person.id) || 0) - (received.get(person.id) || 0),
   }));
 }
 
-/** Ce que le compte a coûté en tout. */
+/** Ce que le compte a coûté en tout — les remboursements n'y ajoutent rien. */
 function spendTotal(spend) {
-  return spend.lines.reduce((sum, line) => sum + line.amount, 0);
+  return spend.lines.reduce((sum, line) => sum + (isRepayment(line) ? 0 : line.amount), 0);
 }
 
 /**
@@ -9225,6 +9300,17 @@ function newSpendView() {
 /** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
 function spendLineHtml(spend, line) {
   const who = spend.people.find((person) => person.id === line.by)?.name || '';
+  if (isRepayment(line)) {
+    const to = spend.people.find((person) => person.id === line.forWhom[0])?.name || '';
+    return `
+      <li class="line line--repay">
+        <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
+          <span>${escapeHtml(t('spends.repaid', { from: who, to }))}</span>
+          <span class="line__due">${escapeHtml(t('spends.repayment'))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}</span>
+        </button>
+        <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+      </li>`;
+  }
   const forWhom = line.forWhom.length
     ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
     : t('spends.everyone');
@@ -9373,10 +9459,15 @@ function spendView(spend) {
              <div class="entries">
                ${moves
                  .map(
-                   (move) => `
-                     <div class="entry">
-                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
-                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                   (move, index) => `
+                     <div class="move">
+                       <div class="entry">
+                         <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                         <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                       </div>
+                       <button type="button" class="button button--small button--primary" data-repay="${index}">
+                         ${escapeHtml(t('spends.markPaid'))}
+                       </button>
                      </div>`,
                  )
                  .join('')}
@@ -9526,7 +9617,18 @@ function bindSpend(spend) {
   });
 
   view.querySelectorAll('[data-spend-line]').forEach((button) => {
-    button.addEventListener('click', () => openSpendLineDialog(spend, button.dataset.spendLine));
+    button.addEventListener('click', () => {
+      const line = spend.lines.find((entry) => entry.id === button.dataset.spendLine);
+      if (isRepayment(line)) openRepayDialog(spend, { line });
+      else openSpendLineDialog(spend, button.dataset.spendLine);
+    });
+  });
+
+  view.querySelectorAll('[data-repay]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const move = settle(spend)[Number(button.dataset.repay)];
+      if (move) openRepayDialog(spend, { move });
+    });
   });
 
   view.querySelector('#spend-people')?.addEventListener('click', () => openSpendPeopleDialog(spend));
@@ -9588,7 +9690,7 @@ function openSpendLineDialog(spend, lineId) {
       </label>
       <label>
         ${escapeHtml(t('spends.amount'))}
-        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml(String(line.amount / 100).replace('.', ','))}" />
+        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml((line.amount / 100).toFixed(2).replace('.', ','))}" />
       </label>
       <label>
         ${escapeHtml(t('spends.by'))}
@@ -9659,6 +9761,84 @@ function openSpendLineDialog(spend, lineId) {
   dialog.querySelector('#line-delete').addEventListener('click', () => {
     dialog.close();
     replaceSpend(removeSpend(spend, lineId));
+  });
+
+  dialog.showModal();
+}
+
+/**
+ * A repayment: who gave back how much to whom, and when. Opened from a line
+ * of "who pays whom", filled in with it — the amount stays editable, since a
+ * debt is often paid back in more than one go — or from a repayment already
+ * noted, to correct it or take it back.
+ */
+function openRepayDialog(spend, { move = null, line = null }) {
+  const from = line ? line.by : move.fromId;
+  const to = line ? line.forWhom[0] : move.toId;
+  const amount = line ? line.amount : move.amount;
+  const person = (id) => spend.people.find((one) => one.id === id)?.name || '';
+  const choose = (id, selected) => `
+    <select id="${id}">
+      ${spend.people
+        .map((one) => `<option value="${escapeHtml(one.id)}" ${one.id === selected ? 'selected' : ''}>${escapeHtml(one.name)}</option>`)
+        .join('')}
+    </select>`;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(line ? t('spends.repayment') : t('spends.repaid', { from: person(from), to: person(to) }))}</h2>
+      ${
+        line
+          ? `<div class="field-row">
+               <label>${escapeHtml(t('spends.repayFrom'))} ${choose('repay-from', from)}</label>
+               <label>${escapeHtml(t('spends.repayTo'))} ${choose('repay-to', to)}</label>
+             </div>`
+          : `<p class="muted small">${escapeHtml(t('spends.repayHint'))}</p>`
+      }
+      <label>
+        ${escapeHtml(t('spends.amount'))}
+        <input type="text" id="repay-amount" inputmode="decimal" value="${escapeHtml((amount / 100).toFixed(2).replace('.', ','))}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.when'))}
+        <input type="date" id="repay-day" value="${escapeHtml(line?.day || dayNow())}" />
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="repay-save">
+          ${escapeHtml(line ? t('action.save') : t('spends.markPaid'))}
+        </button>
+        <button type="button" class="button" id="repay-cancel">${escapeHtml(t('action.cancel'))}</button>
+        ${line ? `<button type="button" class="button button--danger" id="repay-delete">${escapeHtml(t('action.delete'))}</button>` : ''}
+      </div>
+    </form>`;
+
+  dialog.querySelector('#repay-save').addEventListener('click', () => {
+    const typed = dialog.querySelector('#repay-amount').value;
+    const cents = readAmount(typed);
+    const day = dialog.querySelector('#repay-day').value || dayNow();
+    const payer = dialog.querySelector('#repay-from')?.value || from;
+    const payee = dialog.querySelector('#repay-to')?.value || to;
+    dialog.close();
+    if (!cents) {
+      flash(t('spends.notAnAmount'), 'error');
+      render();
+      return;
+    }
+    if (payer === payee) {
+      flash(t('spends.repaySame'), 'error');
+      render();
+      return;
+    }
+    const current = getSpend(spend.id) || spend;
+    replaceSpend(line
+      ? editSpend(current, line.id, { amount: cents, by: payer, forWhom: [payee], day })
+      : addRepayment(current, { from: payer, to: payee, amount: cents, day }));
+  });
+  dialog.querySelector('#repay-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#repay-delete')?.addEventListener('click', () => {
+    dialog.close();
+    replaceSpend(removeSpend(getSpend(spend.id) || spend, line.id));
   });
 
   dialog.showModal();

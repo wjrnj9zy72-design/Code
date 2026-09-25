@@ -24,7 +24,7 @@ import {
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
   addSpendPerson, renameSpendPerson, removeSpendPerson, canRemovePerson,
-  balances, spendTotal, settle, mergeSpends, isValidSpend,
+  balances, spendTotal, settle, mergeSpends, isValidSpend, addRepayment, isRepayment,
 } from './spends.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
@@ -1993,6 +1993,17 @@ function newSpendView() {
 /** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
 function spendLineHtml(spend, line) {
   const who = spend.people.find((person) => person.id === line.by)?.name || '';
+  if (isRepayment(line)) {
+    const to = spend.people.find((person) => person.id === line.forWhom[0])?.name || '';
+    return `
+      <li class="line line--repay">
+        <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
+          <span>${escapeHtml(t('spends.repaid', { from: who, to }))}</span>
+          <span class="line__due">${escapeHtml(t('spends.repayment'))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}</span>
+        </button>
+        <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+      </li>`;
+  }
   const forWhom = line.forWhom.length
     ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
     : t('spends.everyone');
@@ -2141,10 +2152,15 @@ function spendView(spend) {
              <div class="entries">
                ${moves
                  .map(
-                   (move) => `
-                     <div class="entry">
-                       <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
-                       <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                   (move, index) => `
+                     <div class="move">
+                       <div class="entry">
+                         <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
+                         <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                       </div>
+                       <button type="button" class="button button--small button--primary" data-repay="${index}">
+                         ${escapeHtml(t('spends.markPaid'))}
+                       </button>
                      </div>`,
                  )
                  .join('')}
@@ -2294,7 +2310,18 @@ function bindSpend(spend) {
   });
 
   view.querySelectorAll('[data-spend-line]').forEach((button) => {
-    button.addEventListener('click', () => openSpendLineDialog(spend, button.dataset.spendLine));
+    button.addEventListener('click', () => {
+      const line = spend.lines.find((entry) => entry.id === button.dataset.spendLine);
+      if (isRepayment(line)) openRepayDialog(spend, { line });
+      else openSpendLineDialog(spend, button.dataset.spendLine);
+    });
+  });
+
+  view.querySelectorAll('[data-repay]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const move = settle(spend)[Number(button.dataset.repay)];
+      if (move) openRepayDialog(spend, { move });
+    });
   });
 
   view.querySelector('#spend-people')?.addEventListener('click', () => openSpendPeopleDialog(spend));
@@ -2356,7 +2383,7 @@ function openSpendLineDialog(spend, lineId) {
       </label>
       <label>
         ${escapeHtml(t('spends.amount'))}
-        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml(String(line.amount / 100).replace('.', ','))}" />
+        <input type="text" id="line-amount" inputmode="decimal" value="${escapeHtml((line.amount / 100).toFixed(2).replace('.', ','))}" />
       </label>
       <label>
         ${escapeHtml(t('spends.by'))}
@@ -2427,6 +2454,84 @@ function openSpendLineDialog(spend, lineId) {
   dialog.querySelector('#line-delete').addEventListener('click', () => {
     dialog.close();
     replaceSpend(removeSpend(spend, lineId));
+  });
+
+  dialog.showModal();
+}
+
+/**
+ * A repayment: who gave back how much to whom, and when. Opened from a line
+ * of "who pays whom", filled in with it — the amount stays editable, since a
+ * debt is often paid back in more than one go — or from a repayment already
+ * noted, to correct it or take it back.
+ */
+function openRepayDialog(spend, { move = null, line = null }) {
+  const from = line ? line.by : move.fromId;
+  const to = line ? line.forWhom[0] : move.toId;
+  const amount = line ? line.amount : move.amount;
+  const person = (id) => spend.people.find((one) => one.id === id)?.name || '';
+  const choose = (id, selected) => `
+    <select id="${id}">
+      ${spend.people
+        .map((one) => `<option value="${escapeHtml(one.id)}" ${one.id === selected ? 'selected' : ''}>${escapeHtml(one.name)}</option>`)
+        .join('')}
+    </select>`;
+
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <form method="dialog" class="stack">
+      <h2>${escapeHtml(line ? t('spends.repayment') : t('spends.repaid', { from: person(from), to: person(to) }))}</h2>
+      ${
+        line
+          ? `<div class="field-row">
+               <label>${escapeHtml(t('spends.repayFrom'))} ${choose('repay-from', from)}</label>
+               <label>${escapeHtml(t('spends.repayTo'))} ${choose('repay-to', to)}</label>
+             </div>`
+          : `<p class="muted small">${escapeHtml(t('spends.repayHint'))}</p>`
+      }
+      <label>
+        ${escapeHtml(t('spends.amount'))}
+        <input type="text" id="repay-amount" inputmode="decimal" value="${escapeHtml((amount / 100).toFixed(2).replace('.', ','))}" />
+      </label>
+      <label>
+        ${escapeHtml(t('spends.when'))}
+        <input type="date" id="repay-day" value="${escapeHtml(line?.day || dayNow())}" />
+      </label>
+      <div class="row">
+        <button type="button" class="button button--primary" id="repay-save">
+          ${escapeHtml(line ? t('action.save') : t('spends.markPaid'))}
+        </button>
+        <button type="button" class="button" id="repay-cancel">${escapeHtml(t('action.cancel'))}</button>
+        ${line ? `<button type="button" class="button button--danger" id="repay-delete">${escapeHtml(t('action.delete'))}</button>` : ''}
+      </div>
+    </form>`;
+
+  dialog.querySelector('#repay-save').addEventListener('click', () => {
+    const typed = dialog.querySelector('#repay-amount').value;
+    const cents = readAmount(typed);
+    const day = dialog.querySelector('#repay-day').value || dayNow();
+    const payer = dialog.querySelector('#repay-from')?.value || from;
+    const payee = dialog.querySelector('#repay-to')?.value || to;
+    dialog.close();
+    if (!cents) {
+      flash(t('spends.notAnAmount'), 'error');
+      render();
+      return;
+    }
+    if (payer === payee) {
+      flash(t('spends.repaySame'), 'error');
+      render();
+      return;
+    }
+    const current = getSpend(spend.id) || spend;
+    replaceSpend(line
+      ? editSpend(current, line.id, { amount: cents, by: payer, forWhom: [payee], day })
+      : addRepayment(current, { from: payer, to: payee, amount: cents, day }));
+  });
+  dialog.querySelector('#repay-cancel').addEventListener('click', () => dialog.close());
+  dialog.querySelector('#repay-delete')?.addEventListener('click', () => {
+    dialog.close();
+    replaceSpend(removeSpend(getSpend(spend.id) || spend, line.id));
   });
 
   dialog.showModal();

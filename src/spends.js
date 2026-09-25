@@ -90,6 +90,28 @@ export function addSpend(spend, { text = '', amount = 0, by = null, forWhom = []
   return touch(spend, { lines: [...spend.lines, line] });
 }
 
+/**
+ * Noter un remboursement : `from` a rendu `amount` à `to`.
+ *
+ * C'est une ligne comme les autres — payée par `from`, pour `to` seul —, ce qui
+ * suffit à remettre les soldes d'aplomb : `from` a mis de l'argent, `to` en a
+ * reçu. Marquée `repay` pour qu'elle ne compte pas dans ce que le compte a
+ * coûté, ni dans ce que chacun a avancé.
+ */
+export function addRepayment(spend, { from = null, to = null, amount = 0, day = null } = {}) {
+  const cents = Number.isInteger(amount) ? amount : readAmount(amount);
+  const known = new Set(spend.people.map((person) => person.id));
+  if (!cents || !known.has(from) || !known.has(to) || from === to) return spend;
+  const added = addSpend(spend, { amount: cents, by: from, forWhom: [to], day });
+  const line = added.lines.at(-1);
+  return { ...added, lines: [...added.lines.slice(0, -1), { ...line, repay: true }] };
+}
+
+/** Une ligne qui rend de l'argent plutôt qu'elle n'en dépense. */
+export function isRepayment(line) {
+  return Boolean(line?.repay);
+}
+
 function patchLine(spend, lineId, patch) {
   let changed = false;
   const lines = spend.lines.map((line) => {
@@ -181,16 +203,29 @@ export function split(amount, count) {
 }
 
 /**
- * Ce que chacun a payé, ce qu'il devait, et la différence.
+ * Ce que chacun a payé, ce qu'il devait, ce qu'il a rendu ou reçu, et la
+ * différence.
  *
  * Positif : on lui doit. Négatif : il doit. La somme des soldes fait zéro, au
- * centime — c'est ce qui rend le remboursement calculable.
+ * centime — c'est ce qui rend le remboursement calculable. Un remboursement
+ * ne change ni `paid` ni `owed` (ce n'est pas une dépense) : il passe par
+ * `sent` et `received`, et le solde en tient compte.
  */
 export function balances(spend) {
   const paid = new Map(spend.people.map((person) => [person.id, 0]));
   const owed = new Map(spend.people.map((person) => [person.id, 0]));
+  const sent = new Map(spend.people.map((person) => [person.id, 0]));
+  const received = new Map(spend.people.map((person) => [person.id, 0]));
 
   for (const line of spend.lines) {
+    if (isRepayment(line)) {
+      const to = line.forWhom[0];
+      // Sans l'une des deux personnes, il n'y a rien à rendre à personne.
+      if (!sent.has(line.by) || !received.has(to) || line.by === to) continue;
+      sent.set(line.by, sent.get(line.by) + line.amount);
+      received.set(to, received.get(to) + line.amount);
+      continue;
+    }
     if (line.by && paid.has(line.by)) paid.set(line.by, paid.get(line.by) + line.amount);
     const concerned = line.forWhom.length
       ? line.forWhom.filter((id) => owed.has(id))
@@ -205,13 +240,16 @@ export function balances(spend) {
     name: person.name,
     paid: paid.get(person.id) || 0,
     owed: owed.get(person.id) || 0,
-    balance: (paid.get(person.id) || 0) - (owed.get(person.id) || 0),
+    sent: sent.get(person.id) || 0,
+    received: received.get(person.id) || 0,
+    balance: (paid.get(person.id) || 0) - (owed.get(person.id) || 0)
+      + (sent.get(person.id) || 0) - (received.get(person.id) || 0),
   }));
 }
 
-/** Ce que le compte a coûté en tout. */
+/** Ce que le compte a coûté en tout — les remboursements n'y ajoutent rien. */
 export function spendTotal(spend) {
-  return spend.lines.reduce((sum, line) => sum + line.amount, 0);
+  return spend.lines.reduce((sum, line) => sum + (isRepayment(line) ? 0 : line.amount), 0);
 }
 
 /**

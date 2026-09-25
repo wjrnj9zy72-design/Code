@@ -273,6 +273,11 @@ Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.
 - **Qui rembourse qui**, en aussi peu de virements que possible : le plus gros
   débiteur paie le plus gros créancier, et on recommence. Au plus une
   personne de moins qu'il n'y en a.
+- **Un virement fait se note** : « Marquer comme payé », sous chaque virement,
+  ajoute un remboursement (montant modifiable, pour un remboursement partiel).
+  Il apparaît dans les dépenses, en gris, remet les soldes d'aplomb, et ne
+  compte ni dans le total du compte ni dans ce que chacun a avancé. Touché
+  dans la liste, il se corrige ou se retire.
 - **L'argent est compté en centimes, en entiers.** Dix euros entre trois font
   3,34 / 3,33 / 3,33, et le centime qui reste va toujours au même — sans quoi
   deux téléphones finiraient par ne pas être d'accord.

@@ -201,6 +201,7 @@ label { display: grid; gap: 6px; font-size: 0.85rem; font-weight: 550; }
 
 input[type='text'],
 input[type='number'],
+input[type='date'],
 select,
 textarea {
   width: 100%;
@@ -214,6 +215,19 @@ textarea {
 }
 
 textarea { min-height: 66px; resize: vertical; }
+
+/* A date field asks for as much width as its own calendar button and text
+   take, whatever its box says: on an iPhone it then spills out of a narrow
+   column. Drawn plainly, it keeps to the width it is given. */
+input[type='date'] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='date']::-webkit-date-and-time-value { text-align: left; }
 
 .checkbox {
   display: flex;
@@ -462,6 +476,12 @@ button.tile:hover { background: var(--accent-soft); }
 }
 
 .entry:first-child { border-top: 0; }
+
+/* One transfer of "who pays whom", with the button that notes it as done. */
+.move { display: grid; gap: 4px; padding-bottom: 12px; border-top: 1px solid var(--border); }
+.move:first-child { border-top: 0; }
+.move .entry { border-top: 0; }
+.move .button { width: 100%; }
 .entry__what { min-width: 0; overflow-wrap: anywhere; }
 .entry__value { flex: none; color: var(--muted); font-size: 0.85rem; }
 .entry__value--good { color: var(--good); font-weight: 600; }
@@ -668,6 +688,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 /* The day a line is for, under the words it belongs to. */
 .line__due { display: block; color: var(--muted); font-size: 0.75rem; }
+.line--repay .line__text > span:first-child { color: var(--muted); font-style: italic; }
+.line--repay .line__amount { color: var(--muted); font-weight: 500; }
 .line__due--late { color: var(--bad); font-weight: 600; }
 .line--done .line__due { color: var(--muted); font-weight: 400; }
 
@@ -804,7 +826,8 @@ select.field-pill {
 
 .field-pill--submit { border-radius: 999px; }
 
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.field-row > label { min-width: 0; }
 
 /* Who a new expense is split between: a plain checklist, ticked by default —
    unticking someone is the exception, so it is the only thing to notice. */
