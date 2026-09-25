@@ -73,14 +73,24 @@ function stampNow(at) {
  * which every calendar reads as the reader's own clock. A dinner at eight is
  * at eight; carrying a time zone would only be right until someone travels.
  */
-export function vevent({ uid, day, at = null, summary, description = '', stamp = Date.now() }) {
+export function vevent({ uid, day, at = null, until = null, summary, description = '', stamp = Date.now() }) {
   const lines = [
     'BEGIN:VEVENT',
     `UID:${icsEscape(uid)}`,
     `DTSTAMP:${stampNow(stamp)}`,
   ];
 
-  if (at) {
+  // Over several days: all of each day, from the first to the last —
+  // or, with an hour, from that hour on the first day to the end of the last.
+  const last = until && until > day ? until : null;
+  if (last && at) {
+    const [hour, minute] = String(at).split(':');
+    lines.push(`DTSTART:${stampDay(day)}T${hour}${minute}00`);
+    lines.push(`DTEND:${dayAfter(last)}T000000`);
+  } else if (last) {
+    lines.push(`DTSTART;VALUE=DATE:${stampDay(day)}`);
+    lines.push(`DTEND;VALUE=DATE:${dayAfter(last)}`);
+  } else if (at) {
     const [hour, minute] = String(at).split(':');
     const end = String(Number(hour) + 1).padStart(2, '0');
     lines.push(`DTSTART:${stampDay(day)}T${hour}${minute}00`);
@@ -187,6 +197,7 @@ export function pollEvent(poll, { stamp } = {}) {
     docId: poll.id,
     day: poll.date,
     at: poll.at || null,
+    until: poll.until && poll.until > poll.date ? poll.until : null,
     summary: eventName(poll) || 'Sondage',
     description: poll.people?.length ? poll.people.map((person) => person.name).join(', ') : '',
     stamp: stamp ?? poll.updatedAt ?? Date.now(),

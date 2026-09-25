@@ -186,6 +186,12 @@ l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il
 s'ouvre sur la même page, sans rien à voter (en coulisse : un sondage déjà
 tranché, sans choix).
 
+Un événement peut durer **plusieurs jours** (un week-end, des vacances) : le
+champ facultatif *Jusqu'au*, à la création ou sur sa page, fixe le dernier jour.
+Il s'affiche « du … au … », reste dans « À venir » tant que son dernier jour
+n'est pas passé, et part dans les agendas sur toute sa durée (avec une heure :
+de cette heure le premier jour jusqu'à la fin du dernier).
+
 L'onglet **Agenda** montre :
 
 - **À décider** : les sondages ouverts qui cherchent un jour. L'app les

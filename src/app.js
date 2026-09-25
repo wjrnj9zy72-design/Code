@@ -19,7 +19,7 @@ import {
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
-  setEventName, createEvent, isEvent, seeksDay,
+  setEventName, createEvent, isEvent, seeksDay, lastDay,
 } from './polls.js';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
@@ -88,6 +88,7 @@ let spendTab = 'expenses';
 let newEventName = '';
 let newEventDay = '';
 let newEventHour = '';
+let newEventUntil = '';
 let newEventPeople = ['', ''];
 let newPollQuestion = '';
 let newPollChoices = '';
@@ -149,6 +150,18 @@ function formatDay(day) {
   } catch {
     return String(day);
   }
+}
+
+/**
+ * When an event is: its day — or its first and last, when it runs over
+ * several — and its hour. `long` adds the weekday, as an agenda wants it.
+ */
+function whenText(poll, { long = false } = {}) {
+  const show = long ? formatDayLong : formatDay;
+  const days = poll.until && poll.until > poll.date
+    ? t('events.range', { from: show(poll.date), to: show(poll.until) })
+    : show(poll.date);
+  return [days, poll.at].filter(Boolean).join(' · ');
 }
 
 /**
@@ -240,7 +253,7 @@ function pollCardHtml(poll) {
       }
       <span class="game-card__meta">
         ${escapeHtml(formatDate(poll.updatedAt))}${
-          poll.date ? ` — ${escapeHtml(t('polls.settledOn', { day: formatDay(poll.date) }))}` : ''
+          poll.date ? ` — ${escapeHtml(t(poll.until ? 'polls.settledRange' : 'polls.settledOn', { day: whenText(poll) }))}` : ''
         }
       </span>
     </button>`;
@@ -455,7 +468,7 @@ function pollView(poll, { solo = false } = {}) {
     ${guest ? soloDateHtml(poll) : `<section class="card stack stack--tight">
       <div class="section__head">
         <h2>${escapeHtml(t('polls.date'))}</h2>
-        ${poll.date ? `<span class="pill">${escapeHtml(formatDay(poll.date))}${poll.at ? ` · ${escapeHtml(poll.at)}` : ''}</span>` : ''}
+        ${poll.date ? `<span class="pill">${escapeHtml(whenText(poll))}</span>` : ''}
       </div>
       <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
       <div class="row">
@@ -464,6 +477,10 @@ function pollView(poll, { solo = false } = {}) {
         <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
         <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
       </div>
+      <label class="small">
+        ${escapeHtml(t('events.until'))}
+        <input type="date" id="poll-until" value="${escapeHtml(poll.until || '')}" />
+      </label>
       <div class="row">
         <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
         <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
@@ -597,7 +614,7 @@ function eventLinkHtml(document_) {
   const poll = document_.event ? getPoll(document_.event) : null;
   if (!poll) return '';
   const name = eventName(poll) || pollTitle(poll);
-  const label = poll.date ? t('event.for', { name, day: formatDay(poll.date) }) : t('event.forUndated', { name });
+  const label = poll.date ? t('event.for', { name, day: whenText(poll) }) : t('event.forUndated', { name });
   return `
     <div class="row row--tight">
       <button type="button" class="button button--small button--ghost" data-goto="#/poll/${escapeHtml(poll.id)}">
@@ -624,7 +641,7 @@ function soloJoinHtml() {
 /** The day the poll settled on, to read — and to take away — but not to change. */
 function soloDateHtml(poll) {
   if (!poll.date) return '';
-  const when = [formatDayLong(poll.date), poll.at].filter(Boolean).join(' · ');
+  const when = whenText(poll, { long: true });
   return `
     <section class="card stack stack--tight">
       <p><strong>${escapeHtml(t('polls.soloSettled', { when }))}</strong></p>
@@ -951,11 +968,12 @@ function bindPoll(poll) {
   view.querySelector('#poll-date-save')?.addEventListener('click', () => {
     const day = view.querySelector('#poll-day').value;
     const hour = view.querySelector('#poll-hour').value;
+    const until = view.querySelector('#poll-until')?.value || null;
     const written = view.querySelector('#poll-title').value;
     // Le nom proposé n'est pas un nom choisi : ne le garder que s'il a bougé.
     const named = written.trim() === eventName(poll) ? poll : setEventName(poll, written);
-    const next = setPollDate(named, day, hour);
-    flash(next.date ? t('polls.dateKept', { day: formatDay(next.date) }) : t('polls.dateCleared'));
+    const next = setPollDate(named, day, hour, until);
+    flash(next.date ? t('polls.dateKept', { day: whenText(next) }) : t('polls.dateCleared'));
     replacePoll(next);
   });
 
@@ -1700,8 +1718,9 @@ function agendaView() {
   const today = dayNow();
   const byDay = (a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || ''));
   const dated = shownDocs(state.polls).filter((poll) => isLive(poll) && poll.date);
-  const coming = dated.filter((poll) => poll.date >= today).sort(byDay);
-  const past = dated.filter((poll) => poll.date < today).sort(byDay).reverse();
+  // Under way still counts as coming: a weekend is not past on its Saturday.
+  const coming = dated.filter((poll) => lastDay(poll) >= today).sort(byDay);
+  const past = dated.filter((poll) => lastDay(poll) < today).sort(byDay).reverse();
 
   const deciding = shownDocs(state.polls)
     .filter((poll) => isLive(poll) && !poll.date && !poll.closedAt && seeksDay(poll))
@@ -1787,7 +1806,7 @@ function spendsView() {
 /** An event in the agenda: its day, who comes, and where its list and account stand. */
 function eventCardHtml(poll) {
   const { list, spend } = eventParts(poll, state);
-  const when = [formatDayLong(poll.date), poll.at].filter(Boolean).join(' · ');
+  const when = whenText(poll, { long: true });
   const parts = [];
   if (list) {
     const { done, total } = progress(list);
@@ -1838,6 +1857,10 @@ function newEventView() {
           <input type="time" id="event-hour" value="${escapeHtml(newEventHour)}" />
         </label>
       </div>
+      <label>
+        ${escapeHtml(t('events.until'))}
+        <input type="date" id="event-until" value="${escapeHtml(newEventUntil)}" />
+      </label>
 
       <div class="stack stack--tight">
         <span class="muted small">${escapeHtml(t('events.peopleHint'))}</span>
@@ -1880,6 +1903,7 @@ function bindNewEvent() {
     newEventName = view.querySelector('#event-name').value;
     newEventDay = view.querySelector('#event-day').value;
     newEventHour = view.querySelector('#event-hour').value;
+    newEventUntil = view.querySelector('#event-until').value;
     view.querySelectorAll('[data-person-index]').forEach((input) => {
       newEventPeople[Number(input.dataset.personIndex)] = input.value;
     });
@@ -1926,6 +1950,7 @@ function bindNewEvent() {
       names: newEventPeople,
       date: newEventDay,
       at: newEventHour,
+      until: newEventUntil,
     }))));
     state.polls = [...state.polls, poll];
     persistPoll(poll);
@@ -1933,6 +1958,7 @@ function bindNewEvent() {
     newEventName = '';
     newEventDay = '';
     newEventHour = '';
+    newEventUntil = '';
     newEventPeople = withMeFirst(['', ''], myName());
     navigate(`#/poll/${poll.id}`);
   });
@@ -2809,8 +2835,10 @@ function gameCardHtml(game) {
 function comingHtml() {
   const today = dayNow();
   const events = agendaFor({ lists: shownDocs(state.lists), polls: shownDocs(state.polls) });
-  const late = events.filter((event) => event.day < today);
-  const coming = events.filter((event) => event.day >= today);
+  // An event over several days is late only once its last day has gone.
+  const ends = (event) => event.until || event.day;
+  const late = events.filter((event) => ends(event) < today);
+  const coming = events.filter((event) => ends(event) >= today);
 
   if (!events.length) {
     return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>
@@ -2821,8 +2849,8 @@ function comingHtml() {
   const hidden = events.length - shown.length;
 
   const row = (event) => {
-    const overdue = event.day < today;
-    const when = [formatDayLong(event.day), event.at].filter(Boolean).join(' · ');
+    const overdue = ends(event) < today;
+    const when = whenText({ date: event.day, until: event.until, at: event.at }, { long: true });
     return `
       <button type="button" class="game-card" data-goto="#/${event.kind === 'poll' ? 'poll' : 'list'}/${escapeHtml(event.docId)}">
         <span class="game-card__title">
@@ -3249,7 +3277,7 @@ function groupView(group) {
   const today = dayNow();
   const byDay = (a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || ''));
   const recent = (a, b) => b.updatedAt - a.updatedAt;
-  const events = ours(state.polls).filter((poll) => poll.date && poll.date >= today).sort(byDay);
+  const events = ours(state.polls).filter((poll) => poll.date && lastDay(poll) >= today).sort(byDay);
   const polls = ours(state.polls)
     .filter((poll) => !isEvent(poll) && !poll.closedAt && !events.includes(poll))
     .sort(recent);

@@ -53,16 +53,25 @@ export function createPoll({ question = '', names = [], shared = false, groupId 
 }
 
 /**
- * Keep the day the question settled on — and the hour, when there is one.
+ * Keep the day the question settled on — and the hour, when there is one,
+ * and the last day, when it runs over several (a weekend, a holiday).
  *
  * A day alone, like a line's, needs no time zone; an hour is written as the
- * reader's own clock. Either can be dropped by passing nothing.
+ * reader's own clock. Any of them can be dropped by passing nothing; a last
+ * day that is not after the first means a single day.
  */
-export function setPollDate(poll, date, at = null) {
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : null;
+export function setPollDate(poll, date, at = null, until = null) {
+  const isDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+  const day = isDay(date) ? String(date) : null;
   const hour = day && /^\d{2}:\d{2}$/.test(String(at || '')) ? String(at) : null;
-  if (day === (poll.date || null) && hour === (poll.at || null)) return poll;
-  return touch(poll, { date: day, at: hour });
+  const last = day && isDay(until) && String(until) > day ? String(until) : null;
+  if (day === (poll.date || null) && hour === (poll.at || null) && last === (poll.until || null)) return poll;
+  return touch(poll, { date: day, at: hour, until: last });
+}
+
+/** The last day an event takes up: its own, or the one it runs until. */
+export function lastDay(poll) {
+  return poll?.until || poll?.date || null;
 }
 
 /**
@@ -72,9 +81,9 @@ export function setPollDate(poll, date, at = null) {
  * group's calendar, the organiser) then works for it unchanged; `fixed` is
  * only there so the screens can leave out the voting.
  */
-export function createEvent({ name = '', names = [], date = null, at = null } = {}) {
+export function createEvent({ name = '', names = [], date = null, at = null, until = null } = {}) {
   const made = createPoll({ question: name, names });
-  const dated = setPollDate(made, date, at);
+  const dated = setPollDate(made, date, at, until);
   return { ...dated, fixed: true, title: made.question || null, closedAt: dated.createdAt };
 }
 
