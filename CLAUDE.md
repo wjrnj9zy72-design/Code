@@ -85,3 +85,9 @@ guide en français.
 - Safari peut effacer les données d'une app non ouverte depuis des semaines :
   d'où l'export (qui porte aussi les droits d'organisateur).
 - Le navigateur intégré de Messenger n'installe pas l'app : ouvrir dans Safari/Chrome.
+- Sans `viewport-fit=cover` dans la balise `viewport` (index.html), iOS ne
+  remplit jamais `env(safe-area-inset-*)` : la barre du bas colle à la zone de
+  la barre d'accueil au lieu de s'arrêter au-dessus (repéré sur iPhone 16 Pro Max).
+- Un push arrivé juste après que la PR de la branche a été fusionnée ne rentre
+  pas dans `main` (la PR est déjà fermée). Après un « c'est fusionné », vérifier
+  `git log origin/main` avant de dire qu'un changement est en ligne.
