@@ -20,7 +20,7 @@ let reloads = 0;
 page.on('load', () => { reloads += 1; });
 page.on('pageerror', (e) => errors.push(String(e.message)));
 
-await page.goto('http://localhost:8099/');
+await page.goto('http://localhost:8099/#/settings');
 await page.waitForSelector('.app-bar');
 await page.evaluate(() => navigator.serviceWorker.ready);
 await page.waitForTimeout(1500);
@@ -69,7 +69,7 @@ await home.addInitScript((config) => {
     ? { matches: true, media: query, addEventListener() {}, removeEventListener() {} }
     : real(query));
 }, JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' }));
-await home.goto('http://localhost:8099/');
+await home.goto('http://localhost:8099/#/groups');
 await home.waitForSelector('.app-bar');
 await home.waitForTimeout(500);
 const section = await home.locator('.section', { has: home.locator('#group-name') }).textContent();
@@ -99,7 +99,7 @@ await tab.addInitScript((c) => {
     me: 'Gui', groups: [{ id: 'grp_famille', name: 'Mifa', key: 'la-cle-famille', admits: true }],
   }));
 }, JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' }));
-await tab.goto('http://localhost:8099/');
+await tab.goto('http://localhost:8099/#/groups');
 await tab.waitForSelector('[data-show-key]');
 await tab.click('[data-show-key]');
 await tab.waitForSelector('dialog[open] .button--danger, dialog[open] button');
@@ -123,7 +123,7 @@ await fresh.addInitScript((c) => {
     ? { matches: true, media: query, addEventListener() {}, removeEventListener() {} }
     : real(query));
 }, JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' }));
-await fresh.goto('http://localhost:8099/');
+await fresh.goto('http://localhost:8099/#/groups');
 await fresh.waitForSelector('.app-bar');
 await fresh.click('.details summary');
 await fresh.fill('#group-key', 'la-cle-famille');

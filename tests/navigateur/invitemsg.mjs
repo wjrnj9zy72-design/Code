@@ -25,7 +25,7 @@ async function device(label, { key = null } = {}) {
       }));
     } catch {}
   }, [CONFIG, key]);
-  await page.goto('http://localhost:8099/dist/marque-points.html');
+  await page.goto('http://localhost:8099/dist/marque-points.html#/groups');
   await page.waitForSelector('.app-bar');
   return page;
 }

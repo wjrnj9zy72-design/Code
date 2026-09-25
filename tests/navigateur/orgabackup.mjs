@@ -28,7 +28,7 @@ const db = async (fn, body) => JSON.parse(await (await fetch(`http://127.0.0.1:8
 
 // --- Gui crée un sondage : il l'organise
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });
-await gui.click('.tab[data-tab="polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
+await gui.click('[data-tab="home"]'); await gui.click('.segmented--kinds [data-goto="#/polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
 await gui.fill('#poll-question', 'Quel soir pour la raclette ?');
 await gui.fill('#poll-choices', 'vendredi\nsamedi');
 await gui.fill('[data-person-index="0"]', 'Gui');
@@ -38,11 +38,11 @@ await gui.waitForSelector('#poll-close');
 const pollId = await gui.evaluate(() => location.hash.split('/')[2]);
 await gui.waitForTimeout(800);
 
-// --- l'aperçu le rappelle, et l'export le porte
-await gui.click('.app-bar__brand').catch(() => gui.goto(`${PAGE}#/`));
+// --- Réglages le rappelle, et l'export le porte
+await gui.click('[data-tab="settings"]').catch(() => gui.goto(`${PAGE}#/settings`));
 await gui.waitForSelector('#export');
 const hint = (await gui.locator('#organiser-backup').textContent().catch(() => '')).replace(/\s+/g, ' ');
-check('l’aperçu dit que le droit ne vit qu’ici, et comment le garder', /organisez 1 sondage/.test(hint) && /Exporter/.test(hint), hint);
+check('Réglages dit que le droit ne vit qu’ici, et comment le garder', /organisez 1 sondage/.test(hint) && /Exporter/.test(hint), hint);
 const [download] = await Promise.all([gui.waitForEvent('download'), gui.click('#export')]);
 const file = `${(await import('node:os')).tmpdir()}/orga-backup.json`;
 await download.saveAs(file);
@@ -59,7 +59,7 @@ await neuf.waitForSelector('.votes', { timeout: 15000 });
 check('sur le nouveau téléphone, sans sauvegarde, plus de clôture possible', (await neuf.locator('#poll-close').count()) === 0);
 
 // --- import de la sauvegarde
-await neuf.goto(`${PAGE}#/`); await neuf.waitForSelector('#import-file', { state: 'attached' });
+await neuf.goto(`${PAGE}#/settings`); await neuf.waitForSelector('#import-file', { state: 'attached' });
 await neuf.setInputFiles('#import-file', file);
 await neuf.waitForTimeout(800);
 const said = (await neuf.locator('#view').textContent()).replace(/\s+/g, ' ');
@@ -73,7 +73,7 @@ check('et la base accepte sa clôture : c’est bien le même organisateur', Boo
 
 // --- un fichier trafiqué n'écrase pas un secret déjà là
 const forged = { ...exported, organiser: { [pollId]: 'f'.repeat(32), autre: '<script>' } };
-await neuf.goto(`${PAGE}#/`); await neuf.waitForSelector('#import-file', { state: 'attached' });
+await neuf.goto(`${PAGE}#/settings`); await neuf.waitForSelector('#import-file', { state: 'attached' });
 await neuf.setInputFiles('#import-file', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(forged)) });
 await neuf.waitForTimeout(500);
 const after = await neuf.evaluate(() => JSON.parse(localStorage.getItem('marque-points:prefs:v1')).organiser);

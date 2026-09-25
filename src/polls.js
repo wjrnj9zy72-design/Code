@@ -84,6 +84,31 @@ export function isEvent(poll) {
 }
 
 /**
+ * Whether a question is looking for a day — "which evening for the raclette?"
+ * — rather than for anything else — "which present for Léa?". Such a poll
+ * belongs in the agenda while it is being decided, next to the days already
+ * settled, so it is guessed from what people naturally write: a question
+ * asking when, or choices that read as days (a weekday, a month, 12/10).
+ */
+const WHEN_ASKED = /\b(quand|quel(le)?s? (jour|soir|date|week-?end|midi|matin|après-midi|semaine)|when|which (day|evening|night|date|weekend)|what (day|date|evening))\b/i;
+const READS_AS_DAY = new RegExp([
+  '\\b(lun|mar|mer|jeu|ven|sam|dim)(\\.|di|redi|credi|udi|dredi|edi|anche)?\\b',
+  '\\b(mon|tue|wed|thu|fri|sat|sun)(day|s|\\.)?\\b',
+  '\\b(janv|févr|fevr|mars|avr|mai|juin|juil|août|aout|sept|oct|nov|déc|dec|jan|feb|apr|jun|jul|aug|sep)[a-zéû]*\\b',
+  '\\b\\d{1,2}[/.]\\d{1,2}\\b',
+  '\\b\\d{4}-\\d{2}-\\d{2}\\b',
+  '\\b(demain|ce soir|tomorrow|tonight|week-?end)\\b',
+].join('|'), 'i');
+
+export function seeksDay(poll) {
+  if (!poll || isEvent(poll)) return false;
+  if (WHEN_ASKED.test(poll.question || '')) return true;
+  const options = (poll.options || []).map((option) => option.text || '');
+  if (!options.length) return false;
+  return options.filter((text) => READS_AS_DAY.test(text)).length * 2 >= options.length;
+}
+
+/**
  * Name the event this poll became.
  *
  * Emptying the field does not leave a blank line in anyone's calendar: with no

@@ -19,7 +19,7 @@ async function device(label, { key = null, me = null } = {}) {
       if (Object.keys(prefs).length) localStorage.setItem('marque-points:prefs:v1', JSON.stringify(prefs));
     } catch {}
   }, [CONFIG, key, me]);
-  await page.goto('http://localhost:8099/dist/marque-points.html');
+  await page.goto('http://localhost:8099/dist/marque-points.html#/groups');
   await page.waitForSelector('.app-bar');
   return page;
 }
@@ -105,7 +105,7 @@ check('la même invitation ne resservira pas',
 
 /* --- et le nouvel appareil peut partager --------------------------------- */
 
-await other.click('.tab[data-tab="lists"]');
+await other.click('[data-tab="home"]'); await other.click('.segmented--kinds [data-goto="#/lists"]');
 await other.click('[data-goto="#/lists/new"]');
 await other.waitForSelector('#new-list');
 await other.fill('#list-name', 'Courses');

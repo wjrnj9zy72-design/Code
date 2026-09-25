@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue,
   addPollPerson as addPerson, renamePollPerson as renamePerson, removePollPerson as removePerson,
-  setClosed, tally, mergePolls, isValidPoll, VALUES,
+  setClosed, tally, mergePolls, isValidPoll, VALUES, seeksDay, createEvent,
 } from '../src/polls.js';
 
 const sample = () =>
@@ -334,4 +334,17 @@ test('an event with its day known: a settled poll with nothing to vote on', asyn
   assert.deepEqual(goers(event), ['Gui', 'Alice']);
   assert.ok(isValidPoll(event));
   assert.equal(createEvent({ name: 'x', date: 'demain' }).date, null);
+});
+
+test('a poll looking for a day is told apart from any other question', () => {
+  const asked = (question, choices = '') => addOptions(createPoll({ question }), choices);
+  assert.equal(seeksDay(asked('Quel soir pour la raclette ?')), true);
+  assert.equal(seeksDay(asked('Which evening?')), true);
+  assert.equal(seeksDay(asked('Resto ?', 'Samedi 12\nDimanche 13')), true);
+  assert.equal(seeksDay(asked('On se voit', '12/10\n19/10\nciné')), true);
+  assert.equal(seeksDay(asked('Quel cadeau pour Léa ?', 'Livre\nVélo')), false);
+  assert.equal(seeksDay(asked('Film ?', 'Dune\nMars Attacks\nSamsara')), false);
+  assert.equal(seeksDay(asked('Tarte ou gâteau ?')), false);
+  // An event already has its day: there is nothing left to decide.
+  assert.equal(seeksDay(createEvent({ name: 'Quel soir ?', date: '2026-10-12' })), false);
 });

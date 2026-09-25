@@ -118,7 +118,20 @@ export const STRINGS = {
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.stats': 'Statistiques',
     'tab.games': 'Parties',
-    'tab.overview': 'Aperçu',
+    'tab.home': 'Accueil',
+    'tab.groups': 'Groupes',
+    'tab.settings': 'Réglages',
+    'tab.all': 'Tout',
+    'home.kinds': 'Que montrer',
+    'forYou.title': 'Pour vous',
+    'forYou.nothing': 'Rien ne vous attend. Tranquille.',
+    'forYou.noName': 'Écrivez votre prénom dans Réglages : l’app vous montrera ici ce qui vous attend.',
+    'forYou.vote': 'votre réponse est attendue',
+    'forYou.lines': '{count} chose(s) pour vous',
+    'forYou.knocks': '{count} personne(s) demandent à entrer',
+    'forYou.knocksWhere': 'Groupes › {name}',
+    'groups.noDatabase': 'Cette copie de l’app n’a pas de base partagée : il n’y a pas de groupe ici. Tout reste sur cet appareil.',
+    'polls.toDecide': 'À décider',
     'overview.what':
       'Une app à plusieurs : des listes à cocher et à répartir, des sondages pour trancher une date, et de quoi compter les points d’une vingtaine de jeux.',
     'overview.pending': 'En cours',
@@ -162,7 +175,7 @@ export const STRINGS = {
       'Rien de daté pour l’instant. Une date retenue sur un sondage, ou un jour posé sur une ligne, apparaît ici — et part dans les agendas abonnés.',
     'agenda.late': 'en retard',
     'agenda.more': '+ {count} autre(s), dans les agendas abonnés',
-    'tab.spends': 'Dépenses',
+    'tab.spends': 'Comptes',
     'tab.agenda': 'Agenda',
     'create.title': 'Créer',
     'create.what': 'Que voulez-vous créer ?',
@@ -172,6 +185,7 @@ export const STRINGS = {
     'group.nothing': 'Rien en cours dans ce groupe.',
     'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
+    'spends.settled': 'Soldés',
     'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
     'spends.untitled': 'Compte sans nom',
@@ -256,7 +270,6 @@ export const STRINGS = {
     'filter.others': 'Autres',
     'filter.hidden':
       '{count} autre(s) sont masqué(s) par le groupe choisi — dont tout ce qui n’a été partagé dans aucun groupe.',
-    'dash.byGroup': 'Par groupe',
     'dash.groupCount': '{count} groupe(s)',
     'dash.gate': 'vous ouvrez la porte',
     'dash.member': 'membre',
@@ -308,6 +321,7 @@ export const STRINGS = {
     'browser.copyHint':
       'Collez-le dans Safari, puis entrez dans le groupe depuis là : c’est ce navigateur-là qui gardera votre place, et c’est de là qu’on ajoute l’app à l’écran d’accueil.',
     'groups.title': 'Mes groupes',
+    'groups.manage': 'Entrer, inviter, gérer',
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
     'groups.keepKey':
@@ -335,7 +349,7 @@ export const STRINGS = {
       + '1. Ouvre le lien : {url}\n'
       + '2. Installe l’app : iPhone (Safari) → Partager → « Sur l’écran d’accueil ». '
       + 'Android (Chrome) → ⋮ → « Installer l’application ».\n'
-      + '3. Dans l’app : Aperçu → Entrer dans un groupe → colle le nom et le code.\n\n'
+      + '3. Dans l’app : Groupes → Entrer dans un groupe → colle le nom et le code.\n\n'
       + 'Valable {days} jours.',
     'groups.inviteReady': 'Invitation à {name}',
     'groups.inviteWhy': 'Envoyez ce message tel quel : tout y est.',
@@ -388,7 +402,7 @@ export const STRINGS = {
     'groups.putIn': 'Mettre dans un groupe',
     'groups.putInDone': 'Mis dans {name}. Le groupe le voit maintenant.',
     'groups.willBeInNone':
-      'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut d’un onglet, ou mettez-le dans un groupe une fois créé.',
+      'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut de l’Accueil, ou mettez-le dans un groupe une fois créé.',
     'groups.which': 'Partager dans quel groupe ?',
     'groups.willGoIn': 'Dans quel groupe ?',
     'groups.keepToMyself': 'Garder pour moi',
@@ -403,7 +417,7 @@ export const STRINGS = {
     'groups.copiedTo':
       'Copie faite dans {name}. Les deux vivent leur vie chacune de leur côté — l’original n’a pas bougé.',
     'groups.needOne':
-      'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Aperçu.',
+      'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Groupes.',
     'me.title': 'Moi',
     'me.hint':
       'Votre prénom, sur cet appareil. Il sert à deux choses : les autres voient qui est entré dans le groupe, et vous êtes proposé en premier dans une nouvelle liste, un sondage ou une partie.',
@@ -493,11 +507,11 @@ export const STRINGS = {
     'join.toHomeScreenStep1': 'Posez l’app : sur iPhone, le bouton Partager, puis « Sur l’écran d’accueil ».',
     'join.toHomeScreenStep2': 'Ouvrez-la depuis l’écran d’accueil — elle sera vide, c’est normal.',
     'join.toHomeScreenStep3':
-      'Dans l’Aperçu, « Entrer dans un groupe » : recopiez le nom et les six chiffres ci-dessous, et écrivez votre prénom.',
+      'Dans l’onglet Groupes, « Entrer dans un groupe » : recopiez le nom et les six chiffres ci-dessous, et écrivez votre prénom.',
     'join.toHomeScreenWhat': 'À recopier dans l’app :',
     'join.toHomeScreenCopy': 'Copier le nom et le code',
     'join.toHomeScreenDone':
-      'Déjà entré ici, dans le navigateur ? Le code peut avoir servi. Dans ce cas, prenez plutôt votre clé : Aperçu → votre groupe → « Voir ma clé », et collez-la dans l’app, sous « Je n’ai pas de code, mais une clé ».',
+      'Déjà entré ici, dans le navigateur ? Le code peut avoir servi. Dans ce cas, prenez plutôt votre clé : Groupes → votre groupe → « Voir ma clé », et collez-la dans l’app, sous « Je n’ai pas de code, mais une clé ».',
     'join.noDatabase':
       'Cette copie de l’application n’a pas de base partagée : il n’y a pas de groupe à rejoindre.',
     'tab.polls': 'Sondages',
@@ -646,7 +660,7 @@ export const STRINGS = {
     'shareApp.needsSql':
       'La base n’a pas cette fonction : relancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
     'shareApp.needsUpdate':
-      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans l’Aperçu, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
+      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans Réglages, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
     'shareSet.codeLabel': 'Code à communiquer',
     'shareSet.codeApart':
       'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
@@ -896,7 +910,20 @@ export const STRINGS = {
     'share.sendFailed': 'The game could not be sent. Try again.',
     'action.stats': 'Statistics',
     'tab.games': 'Games',
-    'tab.overview': 'Overview',
+    'tab.home': 'Home',
+    'tab.groups': 'Groups',
+    'tab.settings': 'Settings',
+    'tab.all': 'All',
+    'home.kinds': 'What to show',
+    'forYou.title': 'For you',
+    'forYou.nothing': 'Nothing is waiting on you. All quiet.',
+    'forYou.noName': 'Write your first name in Settings: the app will show you here what is waiting on you.',
+    'forYou.vote': 'your answer is awaited',
+    'forYou.lines': '{count} thing(s) for you',
+    'forYou.knocks': '{count} person(s) asking to join',
+    'forYou.knocksWhere': 'Groups › {name}',
+    'groups.noDatabase': 'This copy of the app has no shared database: there are no groups here. Everything stays on this device.',
+    'polls.toDecide': 'To decide',
     'overview.what':
       'An app for several people: lists to tick and hand out, polls to settle a date, and a score keeper for a couple of dozen games.',
     'overview.pending': 'Going on',
@@ -940,7 +967,7 @@ export const STRINGS = {
       'Nothing on a day yet. A day a poll settled on, or a day put on a line, shows up here — and goes out to subscribed calendars.',
     'agenda.late': 'overdue',
     'agenda.more': '+ {count} more, in subscribed calendars',
-    'tab.spends': 'Spending',
+    'tab.spends': 'Accounts',
     'tab.agenda': 'Agenda',
     'create.title': 'Create',
     'create.what': 'What would you like to create?',
@@ -950,6 +977,7 @@ export const STRINGS = {
     'group.nothing': 'Nothing going on in this group.',
     'group.who': 'See who owes what',
     'spends.new': 'New account',
+    'spends.settled': 'Settled',
     'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
     'spends.untitled': 'Untitled account',
@@ -1034,7 +1062,6 @@ export const STRINGS = {
     'filter.others': 'Others',
     'filter.hidden':
       '{count} more are hidden by the chosen group — including everything shared in no group at all.',
-    'dash.byGroup': 'By group',
     'dash.groupCount': '{count} group(s)',
     'dash.gate': 'you let people in',
     'dash.member': 'member',
@@ -1086,6 +1113,7 @@ export const STRINGS = {
     'browser.copyHint':
       'Paste it into Safari and join the group from there: that browser is the one that will keep your place, and the one an app is added to the home screen from.',
     'groups.title': 'My groups',
+    'groups.manage': 'Join, invite, manage',
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
     'groups.keepKey':
@@ -1110,7 +1138,7 @@ export const STRINGS = {
       + '1. Open the link: {url}\n'
       + '2. Install the app: iPhone (Safari) → Share → "Add to Home Screen". '
       + 'Android (Chrome) → ⋮ → "Install app".\n'
-      + '3. In the app: Overview → Join a group → paste the name and the code.\n\n'
+      + '3. In the app: Groups → Join a group → paste the name and the code.\n\n'
       + 'Good for {days} days.',
     'groups.inviteReady': 'Invitation to {name}',
     'groups.inviteWhy': 'Send this message as it is: everything is in it.',
@@ -1161,7 +1189,7 @@ export const STRINGS = {
     'groups.putIn': 'Put in a group',
     'groups.putInDone': 'Put in {name}. The group can see it now.',
     'groups.willBeInNone':
-      'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of a tab, or put it in one once it is made.',
+      'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of Home, or put it in one once it is made.',
     'groups.which': 'Share in which group?',
     'groups.willGoIn': 'In which group?',
     'groups.keepToMyself': 'Keep it to myself',
@@ -1175,7 +1203,7 @@ export const STRINGS = {
     'groups.copyWhere': 'Copy to which group?',
     'groups.copiedTo':
       'Copied into {name}. The two go their own way from here — the original has not moved.',
-    'groups.needOne': 'Sharing takes a group: paste its key in the Overview tab.',
+    'groups.needOne': 'Sharing takes a group: paste its key in the Groups tab.',
     'me.title': 'Me',
     'me.hint':
       'Your first name, on this device. It does two things: the others see who has joined the group, and you are offered first in a new list, poll or game.',
@@ -1262,11 +1290,11 @@ export const STRINGS = {
     'join.toHomeScreenStep1': 'Put the app there: on an iPhone, the Share button, then “Add to Home Screen”.',
     'join.toHomeScreenStep2': 'Open it from the home screen — it will be empty, which is expected.',
     'join.toHomeScreenStep3':
-      'In the Overview, “Join a group”: copy in the name and the six digits below, and write your first name.',
+      'In the Groups tab, “Join a group”: copy in the name and the six digits below, and write your first name.',
     'join.toHomeScreenWhat': 'To copy into the app:',
     'join.toHomeScreenCopy': 'Copy the name and the code',
     'join.toHomeScreenDone':
-      'Already joined here, in the browser? The code may be spent. Take your key instead: Overview → your group → "Show my key", and paste it into the app, under "I have no code, but a key".',
+      'Already joined here, in the browser? The code may be spent. Take your key instead: Groups → your group → "Show my key", and paste it into the app, under "I have no code, but a key".',
     'join.noDatabase': 'This copy of the app has no shared database: there is no group to join.',
     'tab.polls': 'Polls',
     'polls.new': 'New poll',
@@ -1413,7 +1441,7 @@ export const STRINGS = {
     'shareApp.needsSql':
       'The database does not have that function: run the SQL block from step 2b of the deployment guide again.',
     'shareApp.needsUpdate':
-      'This app, or the database, is out of date. Tap “Look for an update” in the Overview, under Données; if that changes nothing, tell whoever set the database up.',
+      'This app, or the database, is out of date. Tap “Look for an update” in Settings, under Data; if that changes nothing, tell whoever set the database up.',
     'shareSet.codeLabel': 'Code to pass on',
     'shareSet.codeApart':
       'Do not send it in the same message as the link: say it out loud, or use another route.',

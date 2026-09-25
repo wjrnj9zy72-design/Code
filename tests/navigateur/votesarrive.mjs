@@ -32,14 +32,14 @@ const namesWithYes = (page, where) => page.evaluate(async ([w]) => {
 
 // L'organisateur, un sondage « lien seulement », partagé.
 const me = await device('Gui', { me: 'Gui', groups: [MIFA] });
-await me.click('.tab[data-tab="polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
 await me.click('[data-new-group="@lien"]'); await me.waitForTimeout(200);
 await me.fill('#poll-question', 'Quel soir ?'); await me.fill('#poll-choices', 'vendredi\nsamedi');
 await me.fill('[data-person-index="0"]', 'Gui');
 await me.click('#new-poll button[type=submit]'); await me.waitForSelector('#poll-share');
 await me.click('#poll-share'); await me.waitForSelector('#export-dialog[open]', { timeout: 15000 });
 const link = await me.inputValue('#export-text'); await me.click('#export-close');
-await me.click('.tab[data-tab="polls"]');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]');
 
 // Paul et Léa, par le lien.
 for (const [name, row] of [['Paul', 1], ['Léa', 0]]) {
@@ -63,7 +63,7 @@ const heads = (await me.locator('.votes thead th').allTextContents()).map((s) =>
 check('avec leurs colonnes', heads.includes('Paul') && heads.includes('Léa'), heads.join(' | '));
 
 // Un « lien seulement » se rattrape aussi hors de sa page.
-await me.click('.tab[data-tab="polls"]');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]');
 const late = await device('Karim', null);
 await late.goto(`http://localhost:8099/dist/marque-points.html${link.slice(link.indexOf('#'))}`);
 await late.waitForSelector('#solo-me');

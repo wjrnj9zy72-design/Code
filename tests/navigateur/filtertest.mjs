@@ -46,7 +46,7 @@ await page.goto('http://localhost:8099/dist/marque-points.html');
 await page.waitForSelector('.app-bar');
 
 /* --- l'onglet Sondages ---------------------------------------------------- */
-await page.click('.tab[data-tab="polls"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/polls"]');
 await page.waitForSelector('[data-goto="#/polls/new"]');
 check('le filtre vide bien l’onglet', (await page.locator('.game-card').count()) === 0);
 const pollsText = (await page.locator('#view').textContent()).replace(/\s+/g, ' ');
@@ -68,8 +68,8 @@ await page.evaluate(() => {
 });
 await page.reload();
 await page.waitForSelector('.app-bar');
-await page.click('.app-bar__brand');
-await page.waitForSelector('[data-calendar]');
+await page.click('[data-tab="home"]');
+await page.waitForSelector('.segmented--kinds [data-goto="#/"][aria-current="true"]');
 const coming = page.locator('.section').filter({ hasText: 'Ce qui vient' }).first();
 const comingText = (await coming.textContent()).replace(/\s+/g, ' ');
 check('« Ce qui vient » dit aussi ce qu’il cache', /autre\(s\) sont masqué\(s\)/.test(comingText), comingText.slice(0, 140));

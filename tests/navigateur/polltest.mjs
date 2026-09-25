@@ -17,15 +17,15 @@ async function device(label) {
 }
 
 const page = await device('moi');
-check('quatre onglets, l’agenda en dernier',
+check('quatre onglets : Accueil, Agenda, Groupes, Réglages',
   (await page.locator('.tab').allTextContents()).map((x) => x.trim()).join(' / ')
-    === 'Listes / Sondages / Parties / Agenda',
+    === 'Accueil / Agenda / Groupes / Réglages',
   (await page.locator('.tab').allTextContents()).join(' / '));
 
-await page.click('.tab[data-tab="polls"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/polls"]');
 await page.waitForSelector('[data-goto="#/polls/new"]');
 check("l'onglet Sondages s'ouvre",
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Sondages');
+  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Sondages');
 
 await page.click('[data-goto="#/polls/new"]');
 await page.waitForSelector('#new-poll');
@@ -151,12 +151,12 @@ const closedElsewhere = await other.waitForFunction(
 check('et se voit aussi de l’autre côté', closedElsewhere);
 
 // les deux autres onglets n'ont pas bougé
-await page.click('.tab[data-tab="lists"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.waitForSelector('[data-goto="#/lists/new"]');
-await page.click('.tab[data-tab="games"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/games"]');
 await page.waitForSelector('[data-goto="#/new"]');
 check('les onglets Parties et Listes fonctionnent toujours',
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Parties');
+  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Parties');
 
 const bad = results.filter((r) => !r.ok);
 console.log(results.length, 'vérifications |', results.length - bad.length, 'ok |', bad.length, 'échecs');

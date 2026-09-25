@@ -30,7 +30,7 @@ async function device(label, { userAgent, hash = '', key = null } = {}) {
 }
 
 // Une invitation, comme elle serait envoyée.
-const owner = await device('propriétaire', { userAgent: SAFARI, key: 'la-cle-famille' });
+const owner = await device('propriétaire', { userAgent: SAFARI, key: 'la-cle-famille', hash: '#/groups' });
 await owner.click('[data-invite]');
 await owner.waitForSelector('#invite-open');
 await owner.click('#invite-open');
@@ -65,16 +65,18 @@ await safari.waitForSelector('#join-form');
 check('dans un vrai navigateur, aucun avertissement',
   (await safari.locator('.banner--warn').count()) === 0);
 
-/* --- et sur l'aperçu d'un appareil sans groupe ---------------------------- */
+/* --- et dans l'onglet Groupes d'un appareil sans groupe ------------------- */
 
 const inAppHome = await device('messenger aperçu', { userAgent: MESSENGER });
+await inAppHome.click('[data-tab="groups"]');
 await inAppHome.waitForSelector('#group-name');
-check('l’aperçu d’un appareil sans groupe le dit aussi',
+check('l’onglet Groupes d’un appareil sans groupe le dit aussi',
   (await inAppHome.locator('.banner--warn').count()) === 1,
   await inAppHome.locator('.section', { has: inAppHome.locator('#group-name') }).textContent()
     .then((t) => t.replace(/\s+/g, ' ').slice(0, 80)));
 
 const withGroup = await device('messenger déjà dedans', { userAgent: MESSENGER, key: 'la-cle-famille' });
+await withGroup.click('[data-tab="groups"]');
 await withGroup.waitForSelector('[data-catch-up]');
 check('mais pas quand l’appareil est déjà dans un groupe : c’est trop tard pour ce conseil',
   (await withGroup.locator('.banner--warn').count()) === 0);

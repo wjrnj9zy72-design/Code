@@ -37,7 +37,12 @@ await page.goto('http://localhost:8099/dist/marque-points.html');
 await page.waitForSelector('.app-bar');
 
 const openTab = async (tab) => {
-  await page.click(`[data-tab="${tab}"]`);
+  // Lists, polls, games and accounts are kinds of the home page, not tabs.
+  if (tab === 'agenda') await page.click('[data-tab="agenda"]');
+  else {
+    await page.click('[data-tab="home"]');
+    await page.click(`.segmented--kinds [data-goto="#/${tab}"]`);
+  }
   await page.waitForSelector(`[data-goto="${MARKS[tab]}"]`);
 };
 
@@ -94,7 +99,7 @@ await page.waitForSelector('#poll-ics');
 
 /* ---- 4. l'adresse de l'agenda -------------------------------------------- */
 
-await page.click('.app-bar__brand');
+await page.click('[data-tab="groups"]');
 await page.waitForSelector('[data-calendar]');
 await page.click('[data-calendar]');
 await page.waitForSelector('dialog[open] #export-text', { timeout: 15000 });

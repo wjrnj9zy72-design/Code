@@ -60,7 +60,12 @@ await page.goto('http://localhost:8099/dist/marque-points.html');
 await page.waitForSelector('.app-bar');
 
 const openTab = async (tab) => {
-  await page.click(`[data-tab="${tab}"]`);
+  // Lists, polls, games and accounts are kinds of the home page, not tabs.
+  if (tab === 'agenda') await page.click('[data-tab="agenda"]');
+  else {
+    await page.click('[data-tab="home"]');
+    await page.click(`.segmented--kinds [data-goto="#/${tab}"]`);
+  }
   await page.waitForSelector(`[data-goto="${MARKS[tab]}"]`);
 };
 
@@ -108,7 +113,7 @@ check('la carte de la liste compte le retard',
   /1 en retard/.test(await page.locator('.game-card').first().textContent()),
   (await page.locator('.game-card').first().textContent()).replace(/\s+/g, ' ').trim());
 
-await page.click('.app-bar__brand');
+await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 check('le bloc du groupe aussi',
   /1 en retard/.test(await page.locator('.card', { has: page.locator('.tiles') }).first().textContent()));
@@ -170,7 +175,7 @@ check('et la liste attend dans l’archive',
   /1 archivé/.test(await page.locator('details.details').first().textContent()),
   (await page.locator('details.details').first().textContent()).replace(/\s+/g, ' ').trim().slice(0, 60));
 
-await page.click('.app-bar__brand');
+await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 const numbers = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
 check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,1,1,0', numbers.join(','));

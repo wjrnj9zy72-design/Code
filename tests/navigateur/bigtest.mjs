@@ -92,8 +92,8 @@ await page.waitForTimeout(200);
 check('la recherche filtre par joueur', (await page.locator('.game-card').count()) === 1, String(await page.locator('.game-card').count()));
 await page.fill('#search', '');
 
-// --- QR réellement scannable (le partage de l'app vit dans l'aperçu)
-await page.evaluate(() => { location.hash = '#/'; });
+// --- QR réellement scannable (le partage de l'app vit dans Réglages)
+await page.evaluate(() => { location.hash = '#/settings'; });
 await page.waitForSelector('#share-app');
 await page.click('#share-app');
 // Le bouton ouvre d'abord le choix : app seule, avec toutes les parties, ou une sélection.

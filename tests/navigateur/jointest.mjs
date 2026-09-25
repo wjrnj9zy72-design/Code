@@ -11,7 +11,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const errors = [];
 const PAGE = 'http://localhost:8099/dist/marque-points.html';
 
-async function device(label, { key = null, hash = '', me = null } = {}) {
+async function device(label, { key = null, hash = '#/groups', me = null } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 950 }, locale: 'fr-FR' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${label}: ${e.message}`));
@@ -91,11 +91,13 @@ await her.waitForSelector('.banner', { timeout: 15000 });
 check('elle l’apprend et entre',
   (await her.locator('.banner').textContent()).includes('Mifa'),
   await her.locator('.banner').textContent());
-check('et se retrouve sur l’aperçu', (await her.locator('[data-catch-up]').count()) === 1);
+check('et se retrouve dans l’onglet Groupes', (await her.locator('[data-catch-up]').count()) === 1);
 const after = await her.evaluate(() => JSON.parse(localStorage.getItem('marque-points:prefs:v1')));
 check('avec une clé à elle', typeof after.groups[0].key === 'string' && after.groups[0].key !== 'la-cle-famille');
 check('et plus de demande en attente', !(after.pendings || []).length);
-check('le champ Moi montre son prénom', (await her.inputValue('#me-name')) === 'Alice');
+await her.click('[data-tab="settings"]');
+await her.waitForSelector('#me-name');
+check('le champ Moi, dans Réglages, montre son prénom', (await her.inputValue('#me-name')) === 'Alice');
 
 /* --- ce prénom, le groupe le voit --------------------------------------- */
 
@@ -109,19 +111,19 @@ check('la clé de son appareil est étiquetée à son prénom',
 
 /* --- et il sert partout ensuite ----------------------------------------- */
 
-await her.click('.tab[data-tab="lists"]');
+await her.click('[data-tab="home"]'); await her.click('.segmented--kinds [data-goto="#/lists"]');
 await her.click('[data-goto="#/lists/new"]');
 await her.waitForSelector('#new-list');
 check('la première personne d’une nouvelle liste, c’est elle',
   (await her.inputValue('[data-person-index="0"]')) === 'Alice');
 
-await her.click('.tab[data-tab="polls"]');
+await her.click('[data-tab="home"]'); await her.click('.segmented--kinds [data-goto="#/polls"]');
 await her.click('[data-goto="#/polls/new"]');
 await her.waitForSelector('#new-poll');
 check('un nouveau sondage aussi',
   (await her.inputValue('[data-person-index="0"]')) === 'Alice');
 
-await her.click('.tab[data-tab="games"]');
+await her.click('[data-tab="home"]'); await her.click('.segmented--kinds [data-goto="#/games"]');
 await her.click('[data-goto="#/new"]');
 await her.waitForSelector('#new-game');
 check('et une nouvelle partie', (await her.inputValue('[data-name-index="0"]')) === 'Alice');
@@ -162,15 +164,18 @@ check('et récupère au lieu de dépenser l’invitation',
 
 /* --- le prénom se change à la main -------------------------------------- */
 
+await again.click('[data-tab="settings"]');
+await again.waitForSelector('#me-name');
 await again.fill('#me-name', 'Guillaume');
 await again.click('#me-save');
 await again.waitForSelector('.banner');
-check('le prénom se change depuis l’aperçu',
+check('le prénom se change depuis Réglages',
   (await again.evaluate(() => JSON.parse(localStorage.getItem('marque-points:prefs:v1')).me)) === 'Guillaume');
 
 /* --- un lien collé plutôt que touché ------------------------------------ */
 
 const pasted = await device('collé');
+await pasted.click('[data-tab="settings"]');
 await pasted.click('#open-link');
 await pasted.waitForSelector('dialog[open] #link-text');
 await pasted.fill('#link-text', `Coucou ${link} à tout de suite`);
@@ -195,7 +200,7 @@ check('et dit lequel manque', /nom du groupe/.test(await half.locator('#join-sta
 /* --- un prénom effacé reste effacé -------------------------------------- */
 
 const clears = await device('effacé', { me: 'Gui' });
-await clears.click('.tab[data-tab="lists"]');
+await clears.click('[data-tab="home"]'); await clears.click('.segmented--kinds [data-goto="#/lists"]');
 await clears.click('[data-goto="#/lists/new"]');
 await clears.waitForSelector('#new-list');
 check('le prénom est proposé', (await clears.inputValue('[data-person-index="0"]')) === 'Gui');
@@ -209,7 +214,7 @@ await clears.click('#drop-person');
 await clears.waitForTimeout(200);
 check('ni quand on en enlève une', (await clears.inputValue('[data-person-index="0"]')) === '');
 
-await clears.click('.tab[data-tab="games"]');
+await clears.click('[data-tab="home"]'); await clears.click('.segmented--kinds [data-goto="#/games"]');
 await clears.click('[data-goto="#/new"]');
 await clears.waitForSelector('#new-game');
 await clears.fill('[data-name-index="0"]', '');
@@ -261,6 +266,7 @@ check('un groupe retenu sans nom n’efface pas la page',
 /* --- un lien collé au bout d'une phrase -------------------------------- */
 
 const dotted = await device('point final');
+await dotted.click('[data-tab="settings"]');
 await dotted.click('#open-link');
 await dotted.waitForSelector('dialog[open] #link-text');
 await dotted.fill('#link-text', `Voici le lien : ${link}.`);

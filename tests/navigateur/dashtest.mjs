@@ -1,5 +1,5 @@
 /**
- * Le tableau de bord : le résumé par groupe sur l'Aperçu, les pastilles qui
+ * Le tableau de bord : le résumé par groupe dans l'onglet Groupes, les pastilles qui
  * filtrent les trois onglets, et la page d'une personne.
  */
 import { chromium } from 'playwright';
@@ -82,14 +82,21 @@ await page.goto('http://localhost:8099/dist/marque-points.html');
 await page.waitForSelector('.app-bar');
 
 const openTab = async (tab) => {
-  await page.click(`[data-tab="${tab}"]`);
+  // Lists, polls, games and accounts are kinds of the home page, not tabs.
+  if (tab === 'agenda') await page.click('[data-tab="agenda"]');
+  else {
+    await page.click('[data-tab="home"]');
+    await page.click(`.segmented--kinds [data-goto="#/${tab}"]`);
+  }
   await page.waitForSelector(`[data-goto="${MARKS[tab]}"]`);
 };
 
-/* ---- 1. l'Aperçu, groupe par groupe ------------------------------------ */
+/* ---- 1. l'onglet Groupes, groupe par groupe ----------------------------- */
 
+await page.click('[data-tab="groups"]');
+await page.waitForSelector('.tiles');
 const boards = page.locator('.card', { has: page.locator('.tiles') });
-check('un bloc par groupe sur l’Aperçu', (await boards.count()) === 2, `${await boards.count()}`);
+check('un bloc par groupe dans l’onglet Groupes', (await boards.count()) === 2, `${await boards.count()}`);
 
 const mifaBoard = page.locator('.card', { hasText: 'Mifa' }).filter({ has: page.locator('.tiles') }).first();
 const mifaNumbers = await mifaBoard.locator('.tile__value').allTextContents();

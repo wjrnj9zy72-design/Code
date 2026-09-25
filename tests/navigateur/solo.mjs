@@ -22,7 +22,7 @@ async function device(label, prefs) {
 
 // Moi : un sondage « lien seulement », une date retenue, et je le partage.
 const me = await device('moi', { me: 'Gui', groups: [MIFA] });
-await me.click('.tab[data-tab="polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
 await me.click('[data-new-group="@lien"]'); await me.waitForTimeout(200);
 await me.fill('#poll-question', 'Quel soir pour la fête des voisins ?');
 await me.fill('#poll-choices', 'vendredi\nsamedi');

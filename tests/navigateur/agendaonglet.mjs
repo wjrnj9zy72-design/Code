@@ -1,7 +1,8 @@
 /**
- * L'onglet Agenda : ce qui vient, jour par jour ; les comptes sans événement à
- * venir ; le passé, replié. Un événement se crée sans sondage quand le jour est
- * connu. Et la pastille « Autres » montre ce qui n'est dans aucun groupe.
+ * L'onglet Agenda : ce qui vient, jour par jour ; le passé, replié. Les comptes
+ * sont passés sur l'Accueil, sous « Comptes ». Un événement se crée sans
+ * sondage quand le jour est connu. Et la pastille « Autres » montre ce qui
+ * n'est dans aucun groupe.
  */
 import { chromium } from 'playwright';
 import { createPoll, addOptions, setPollDate } from '../../src/polls.js';
@@ -47,7 +48,7 @@ const text = async (selector) => ((await page.locator(selector).first().textCont
 
 /* ---- 1. l'onglet ---------------------------------------------------------- */
 
-check('quatre onglets, le dernier est l’Agenda', (await page.locator('.tab').count()) === 4
+check('quatre onglets, dont l’Agenda', (await page.locator('.tab').count()) === 4
   && (await text('[data-tab="agenda"]')) === 'Agenda');
 
 await page.click('[data-tab="agenda"]');
@@ -56,9 +57,15 @@ const coming = page.locator('.section', { hasText: 'À venir' });
 check('à venir : la raclette', /Raclette/.test(await coming.textContent()));
 check('mais pas le pique-nique passé', !/Pique-nique/.test(await coming.textContent()));
 check('le passé est replié à part', /Passés \(1\)/.test(await text('details')), await text('details'));
-check('le compte de la coloc est dans les comptes en cours',
+check('les comptes n’y sont plus', (await page.locator('.section', { hasText: 'Comptes en cours' }).count()) === 0);
+
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/spends"]');
+await page.waitForSelector('[data-goto="#/spends/new"]');
+check('le compte de la coloc est dans les comptes en cours, sur l’Accueil',
   /Coloc/.test(await page.locator('.section', { hasText: 'Comptes en cours' }).textContent()));
 check('on ouvre toujours un compte seul', (await page.locator('[data-goto="#/spends/new"]').count()) === 1);
+await page.click('[data-tab="agenda"]');
+await page.waitForSelector('[data-goto="#/agenda/new"]');
 
 /* ---- 2. un événement sans sondage ---------------------------------------- */
 
@@ -83,10 +90,8 @@ const cards = await page.locator('.section', { hasText: 'À venir' }).locator('.
 check('dans l’agenda, par date : l’anniversaire avant la raclette',
   cards.length === 2 && /Anniversaire/.test(cards[0]) && /Raclette/.test(cards[1]), cards.join(' | ').replace(/\s+/g, ' '));
 check('avec son compte dessus', /0,00/.test(cards[0]));
-check('et ce compte n’encombre pas les comptes en cours',
-  !/Anniversaire/.test(await page.locator('.section', { hasText: 'Comptes en cours' }).textContent()));
 
-await page.click('[data-tab="polls"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/polls"]');
 await page.waitForSelector('[data-goto="#/polls/new"]');
 check('l’événement n’est pas un sondage', !/Anniversaire/.test(await text('#view')));
 
