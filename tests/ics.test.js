@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { icsEscape, foldLine, vevent, icsFor, pollEvent, listEvents, agendaFor, eventName } from '../src/ics.js';
 import { createList, addItems, setItemDue, toggleItem, archiveList, makeTemplate } from '../src/lists.js';
-import { createPoll } from '../src/polls.js';
+import { createPoll, setPollDate, createEvent, lastDay } from '../src/polls.js';
 
 const STAMP = Date.UTC(2026, 8, 21, 11, 30, 0);
 
@@ -154,4 +154,40 @@ test('a calendar with nothing in it is still a calendar', () => {
   assert.ok(text.startsWith('BEGIN:VCALENDAR'));
   assert.ok(text.endsWith('END:VCALENDAR\r\n'));
   assert.ok(!text.includes('BEGIN:VEVENT'));
+});
+
+test('an event over several days covers each of them, last one included', () => {
+  const lines = vevent({ uid: 'x', day: '2026-10-10', until: '2026-10-12', summary: 'Week-end', stamp: 0 });
+  assert.ok(lines.includes('DTSTART;VALUE=DATE:20261010'));
+  assert.ok(lines.includes('DTEND;VALUE=DATE:20261013'));
+});
+
+test('with an hour, it starts at that hour and runs to the end of the last day', () => {
+  const lines = vevent({ uid: 'x', day: '2026-12-31', at: '18:30', until: '2027-01-01', summary: 'Réveillon', stamp: 0 });
+  assert.ok(lines.includes('DTSTART:20261231T183000'));
+  assert.ok(lines.includes('DTEND:20270102T000000'));
+});
+
+test('a poll carries its last day into the calendar', () => {
+  const poll = setPollDate(createPoll({ question: 'Quel week-end ?' }), '2026-10-10', null, '2026-10-11');
+  assert.equal(poll.until, '2026-10-11');
+  assert.equal(lastDay(poll), '2026-10-11');
+  assert.equal(pollEvent(poll).until, '2026-10-11');
+  assert.ok(icsFor([pollEvent(poll)]).includes('DTEND;VALUE=DATE:20261012'));
+});
+
+test('a last day that is not after the first means a single day', () => {
+  const same = setPollDate(createPoll({ question: 'Quand ?' }), '2026-10-10', null, '2026-10-10');
+  const before = setPollDate(createPoll({ question: 'Quand ?' }), '2026-10-10', null, '2026-10-01');
+  assert.equal(same.until, null);
+  assert.equal(before.until, null);
+  assert.equal(lastDay(same), '2026-10-10');
+  // And clearing the day clears the rest with it.
+  assert.equal(setPollDate(same, '', null, '2026-10-12').until, null);
+});
+
+test('an event is made with its last day', () => {
+  const event = createEvent({ name: 'Vacances', date: '2026-07-01', until: '2026-07-15' });
+  assert.equal(event.until, '2026-07-15');
+  assert.ok(icsFor([pollEvent(event)]).includes('DTEND;VALUE=DATE:20260716'));
 });

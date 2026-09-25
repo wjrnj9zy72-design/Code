@@ -82,6 +82,39 @@ await page.reload();
 await page.waitForSelector('#poll-day');
 check('après rechargement, toujours rattachés', (await page.locator('.section .game-card').count()) >= 2);
 
+/* ---- 3. un événement sur plusieurs jours ---------------------------------- */
+
+const pad = (n) => String(n).padStart(2, '0');
+const dayIn = (days) => {
+  const d = new Date(Date.now() + days * 86400000);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+await page.goto('http://localhost:8099/dist/marque-points.html#/agenda/new');
+await page.waitForSelector('#new-event');
+await page.fill('#event-name', 'Vacances');
+await page.fill('#event-day', dayIn(-2));
+await page.fill('#event-until', dayIn(3));
+await page.fill('[data-person-index="0"]', 'Gui');
+await page.click('#new-event [type="submit"]');
+await page.waitForSelector('#poll-until');
+check('le dernier jour est gardé', (await page.inputValue('#poll-until')) === dayIn(3));
+check('la page dit « du … au … »', /du .+ au /.test(await text('.card .pill')), await text('.card .pill'));
+
+await page.click('[data-tab="agenda"]');
+await page.waitForSelector('[data-goto="#/agenda/new"]');
+const coming = await text('.section:has-text("À venir")');
+check('commencé avant-hier, il est encore « à venir »', /Vacances/.test(coming), coming.slice(0, 120));
+check('avec ses deux jours', /Vacances.*du .+ au /.test(coming), coming.slice(0, 160));
+
+// Le dernier jour se retire : l'événement redevient d'un jour.
+await page.locator('.game-card', { hasText: 'Vacances' }).click();
+await page.waitForSelector('#poll-until');
+await page.fill('#poll-until', '');
+await page.click('#poll-date-save');
+await page.waitForTimeout(300);
+check('sans dernier jour, un seul jour', !/ au /.test(await text('.card .pill')), await text('.card .pill'));
+
 /* ---- fin ----------------------------------------------------------------- */
 
 check('aucune erreur de page', errors.length === 0, errors.join(' | '));
