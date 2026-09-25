@@ -15,7 +15,7 @@ const call = (fn, body) => fetch(`http://127.0.0.1:8123/rest/v1/rpc/${fn}`, {
   body: JSON.stringify(body),
 }).then((r) => r.json());
 
-async function device(label, { key = 'la-cle-famille', me = 'Gui', admits = true, hash = '' } = {}) {
+async function device(label, { key = 'la-cle-famille', me = 'Gui', admits = true, hash = '#/groups' } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 950 }, locale: 'fr-FR' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${label}: ${e.message}`));
@@ -59,27 +59,27 @@ await flaky.waitForSelector('.group');
 await flaky.waitForTimeout(800);
 check('au départ, le portier a ses blocs', (await flaky.locator('.details summary').count()) >= 1);
 await flaky.route('**/marque_points_requests', (r) => r.abort());
-await flaky.click('.tab[data-tab="games"]');
-await flaky.click('.app-bar__brand');
+await flaky.click('[data-tab="home"]'); await flaky.click('.segmented--kinds [data-goto="#/games"]');
+await flaky.click('[data-tab="groups"]');
 await flaky.waitForTimeout(1200);
 check('une panne réseau ne l’enregistre pas comme « ne fait pas entrer »',
   (await prefsOf(flaky)).groups[0].admits === true,
   JSON.stringify((await prefsOf(flaky)).groups[0]));
 await flaky.unroute('**/marque_points_requests');
-await flaky.click('.tab[data-tab="games"]');
-await flaky.click('.app-bar__brand');
+await flaky.click('[data-tab="home"]'); await flaky.click('.segmented--kinds [data-goto="#/games"]');
+await flaky.click('[data-tab="groups"]');
 await flaky.waitForTimeout(1500);
 check('et la porte revient d’elle-même quand le réseau revient',
   (await flaky.locator('.details summary').count()) >= 1);
 
 /* --- 3. un message lu ne suit pas sur l'écran suivant --------------------- */
 
-const banners = await device('bannière');
+const banners = await device('bannière', { hash: '#/settings' });
 await banners.fill('#me-name', 'Guillaume');
 await banners.click('#me-save');
 await banners.waitForSelector('.banner');
 check('le message s’affiche', /Guillaume/.test(await banners.locator('.banner').textContent()));
-await banners.click('.tab[data-tab="games"]');
+await banners.click('[data-tab="home"]'); await banners.click('.segmented--kinds [data-goto="#/games"]');
 await banners.waitForTimeout(300);
 check('et ne déborde pas sur l’écran des parties',
   (await banners.locator('.banner').count()) === 0);
@@ -121,7 +121,7 @@ check('le prénom donné, la demande part', (await noName.locator('[data-check]'
 /* --- 6. une équipe ne s'appelle pas Gui ---------------------------------- */
 
 const teams = await device('équipes', { key: null });
-await teams.click('.tab[data-tab="games"]');
+await teams.click('[data-tab="home"]'); await teams.click('.segmented--kinds [data-goto="#/games"]');
 await teams.click('[data-goto="#/new"]');
 await teams.waitForSelector('#new-game');
 check('une partie entre joueurs propose mon prénom',
@@ -138,7 +138,7 @@ check(`une partie par équipes ne met pas mon prénom dans « ${label} »`,
 /* --- 7. un prénom effacé reste effacé ------------------------------------ */
 
 const cleared = await device('effacé', { key: null });
-await cleared.click('.tab[data-tab="games"]');
+await cleared.click('[data-tab="home"]'); await cleared.click('.segmented--kinds [data-goto="#/games"]');
 await cleared.click('[data-goto="#/new"]');
 await cleared.waitForSelector('#new-game');
 await cleared.fill('[data-name-index="0"]', '');
@@ -157,7 +157,7 @@ await twoTabs.addInitScript((c) => {
   }));
 }, CONFIG);
 const tabA = await twoTabs.newPage();
-await tabA.goto(PAGE);
+await tabA.goto(`${PAGE}#/groups`);
 await tabA.waitForSelector('.app-bar');
 const tabB = await twoTabs.newPage();
 await tabB.goto(PAGE);

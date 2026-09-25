@@ -26,7 +26,7 @@ await page.evaluate(() => { location.hash = '#/games'; });
 await page.waitForSelector('.game-card');
 
 // une base pas à jour ne reconnaît aucun groupe
-await page.evaluate(() => { location.hash = '#/'; });
+await page.evaluate(() => { location.hash = '#/groups'; });
 await page.waitForSelector('#group-name');
 await page.fill('#group-name', 'Mifa');
 await page.fill('#group-code', '123456');
@@ -36,7 +36,7 @@ const state = await page.locator('#group-state').textContent();
 check('une base pas à jour ne fait entrer dans aucun groupe',
   !/Vous êtes dans|You are in/.test(state), state);
 
-await page.evaluate(() => { location.hash = '#/'; });
+await page.evaluate(() => { location.hash = '#/settings'; });
 await page.waitForSelector('#share-app');
 await page.click('#share-app');
 await page.waitForSelector('#share-make');
@@ -50,7 +50,7 @@ await page.click('#share-cancel');
 
 // inviter sur une base pas à jour : c'est le premier geste de quelqu'un qui a
 // mis l'app à jour sans avoir repassé le SQL.
-await page.evaluate(() => { location.hash = '#/'; });
+await page.evaluate(() => { location.hash = '#/groups'; });
 await page.waitForSelector('[data-invite]');
 await page.click('[data-invite]');
 await page.waitForSelector('#invite-open', { timeout: 15000 });
@@ -97,7 +97,7 @@ await member.selectOption('#preset', 'papayoo');
 for (const [i, n] of ['Alice', 'Bob', 'Claire'].entries()) await member.fill(`[data-name-index="${i}"]`, n);
 await member.click('#new-game button[type=submit]');
 await member.waitForSelector('#round-form');
-await member.evaluate(() => { location.hash = '#/'; });
+await member.evaluate(() => { location.hash = '#/settings'; });
 await member.waitForSelector('#share-app');
 await member.click('#share-app');
 await member.waitForSelector('#share-make');

@@ -31,7 +31,7 @@ const setSignature = async (page, button, name, remember = true) => {
 const me = await device('Gui', { me: 'Gui', groups: [MIFA] });
 
 // 1. un sondage, sans signature d'abord
-await me.click('.tab[data-tab="polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
 await me.fill('#poll-question', 'Quel soir pour la fête ?'); await me.fill('#poll-choices', 'vendredi\nsamedi');
 await me.fill('[data-person-index="0"]', 'Gui');
 await me.click('#new-poll button[type=submit]'); await me.waitForSelector('#poll-sign');
@@ -46,7 +46,7 @@ const pollLinkText = await (async () => {
 })();
 
 // 3. la suivante la reprend toute seule
-await me.click('.tab[data-tab="lists"]'); await me.click('[data-goto="#/lists/new"]'); await me.waitForSelector('#new-list');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/lists"]'); await me.click('[data-goto="#/lists/new"]'); await me.waitForSelector('#new-list');
 await me.fill('#list-name', 'Courses de la fête');
 await me.click('#new-list button[type=submit]'); await me.waitForSelector('#list-sign');
 check('une nouvelle liste est signée d’office', (await signedText(me)) === 'Proposé par Guigui', await signedText(me));

@@ -19,7 +19,7 @@ import {
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
-  setEventName, createEvent, isEvent,
+  setEventName, createEvent, isEvent, seeksDay,
 } from './polls.js';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
@@ -255,6 +255,7 @@ function pollsView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('polls')}
     <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
       + ${escapeHtml(t('polls.new'))}
     </button>
@@ -428,7 +429,7 @@ function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="${fixed ? '#/agenda' : '#/polls'}">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}">
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -983,7 +984,7 @@ function bindPoll(poll) {
     const next = archivePoll(poll, !poll.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replacePoll(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate(isEvent(next) ? '#/agenda' : '#/polls');
+    if (next.archivedAt) navigate(pollHome(next));
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
@@ -996,7 +997,7 @@ function bindPoll(poll) {
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
     if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
-    navigate(isEvent(poll) ? '#/agenda' : '#/polls');
+    navigate(pollHome(poll));
   });
 
   view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
@@ -1366,6 +1367,7 @@ function listsView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('lists')}
     <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
       + ${escapeHtml(t('lists.new'))}
     </button>
@@ -1690,7 +1692,9 @@ function spendCardHtml(spend) {
  * weekend just past whose money is not settled yet; then the past, folded.
  *
  * An event is a poll with a day: settled by a vote, or made with its day
- * already known. Polls without a day stay in their own tab.
+ * already known. A question still looking for its day comes first, under "to
+ * decide": when it settles it only moves down the same page. Questions about
+ * anything else stay on the home page, and the accounts have their own.
  */
 function agendaView() {
   const today = dayNow();
@@ -1699,9 +1703,9 @@ function agendaView() {
   const coming = dated.filter((poll) => poll.date >= today).sort(byDay);
   const past = dated.filter((poll) => poll.date < today).sort(byDay).reverse();
 
-  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const held = new Set(coming.map((poll) => eventParts(poll, state).spend?.id).filter(Boolean));
-  const loose = sorted.filter((spend) => isLive(spend) && !held.has(spend.id));
+  const deciding = shownDocs(state.polls)
+    .filter((poll) => isLive(poll) && !poll.date && !poll.closedAt && seeksDay(poll))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
   const archivedEvents = shownDocs(state.polls).filter((poll) => isEvent(poll) && poll.archivedAt);
 
   return `
@@ -1710,6 +1714,15 @@ function agendaView() {
       + ${escapeHtml(t('events.new'))}
     </button>
     ${groupChipsHtml()}
+
+    ${
+      deciding.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('polls.toDecide'))}</h2></div>
+             <div class="game-list">${deciding.map(pollCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('events.coming'))}</h2></div>
@@ -1721,19 +1734,6 @@ function agendaView() {
       ${hiddenByGroupHtml(state.polls.filter((poll) => poll.date))}
     </section>
 
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('events.accounts'))}</h2>
-        <button type="button" class="button button--small" data-goto="#/spends/new">+ ${escapeHtml(t('spends.new'))}</button>
-      </div>
-      ${
-        loose.length
-          ? `<div class="game-list">${loose.map(spendCardHtml).join('')}</div>`
-          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
-      }
-      ${hiddenByGroupHtml(state.spends)}
-    </section>
-
     ${
       past.length
         ? `<details class="details">
@@ -1743,8 +1743,45 @@ function agendaView() {
         : ''
     }
 
-    ${archivedHtml([...sorted, ...archivedEvents], (document_) =>
-      document_.kind === 'spend' ? spendCardHtml(document_) : eventCardHtml(document_))}`;
+    ${archivedHtml(archivedEvents, eventCardHtml)}`;
+}
+
+/** Every account, on the home page: the ones someone still owes on, then the settled. */
+function spendsView() {
+  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
+  const live = sorted.filter(isLive);
+  const settled = (spend) => spend.lines.length && balances(spend).every((row) => row.balance === 0);
+  const open = live.filter((spend) => !settled(spend));
+  const done = live.filter(settled);
+
+  return `
+    ${flashHtml()}
+    ${kindsHtml('spends')}
+    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
+      + ${escapeHtml(t('spends.new'))}
+    </button>
+    ${groupChipsHtml()}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(spendCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
+      }
+      ${hiddenByGroupHtml(state.spends)}
+    </section>
+
+    ${
+      done.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settled'))}</h2></div>
+             <div class="game-list">${done.map(spendCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
+
+    ${archivedHtml(sorted, spendCardHtml)}`;
 }
 
 /** An event in the agenda: its day, who comes, and where its list and account stand. */
@@ -1910,7 +1947,7 @@ function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -2134,7 +2171,7 @@ function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -2279,7 +2316,7 @@ function bindSpend(spend) {
     const next = archiveSpend(spend, !spend.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replaceSpend(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate('#/agenda');
+    if (next.archivedAt) navigate('#/spends');
   });
 
   view.querySelector('#spend-rename')?.addEventListener('click', async () => {
@@ -2299,7 +2336,7 @@ function bindSpend(spend) {
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
     if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
-    navigate('#/agenda');
+    navigate('#/spends');
   });
 }
 
@@ -2507,6 +2544,8 @@ function route() {
   }
   // One group, everything in it: #/group/<id>, from the overview.
   if (name === 'group' && param) return { name: 'group', id: decodeSegment(param) };
+  if (name === 'groups') return { name: 'groups' };
+  if (name === 'settings' || name === 'reglages') return { name: 'settings' };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -2515,8 +2554,7 @@ function route() {
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
   if (name === 'spends' && param === 'new') return { name: 'new-spend' };
-  // The accounts live in the agenda now; an old link to them still lands there.
-  if (name === 'spends') return { name: 'agenda' };
+  if (name === 'spends') return { name: 'spends' };
   if (name === 'agenda' && param === 'new') return { name: 'new-event' };
   if (name === 'agenda') return { name: 'agenda' };
   if (name === 'spend' && param) return { name: 'spend', id: param };
@@ -2525,6 +2563,14 @@ function route() {
   // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
   if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
+}
+
+/**
+ * Where a poll is listed, so its page goes back there: the agenda for a day
+ * that is settled or still being looked for, the home page's polls otherwise.
+ */
+function pollHome(poll) {
+  return isEvent(poll) || poll.date || (!poll.closedAt && seeksDay(poll)) ? '#/agenda' : '#/polls';
 }
 
 /** A segment of the address, decoded if it can be. */
@@ -2687,17 +2733,23 @@ function comingHtml() {
     ${hidden > 0 ? `<p class="muted small">${escapeHtml(t('agenda.more', { count: hidden }))}</p>` : ''}`;
 }
 
-function pendingHtml() {
+/**
+ * The rest of what is going on, a few of each kind — leaving out what "For
+ * you" already shows, which is given as the addresses it opens.
+ */
+function pendingHtml(shown = new Set()) {
   const lines = [];
+  const recent = (a, b) => b.updatedAt - a.updatedAt;
+  const notShown = (goto) => (document_) => !shown.has(`${goto}${document_.id}`);
 
-  const ongoing = state.games.filter((game) => !gameStatus(game).finished)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = state.lists.filter((list) => progress(list).left > 0)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const asked = state.polls.filter((poll) => !poll.closedAt)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const owing = state.spends.filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const ongoing = shownDocs(state.games).filter((game) => isLive(game) && !gameStatus(game).finished)
+    .filter(notShown('#/game/')).sort(recent);
+  const open = shownDocs(state.lists).filter((list) => isLive(list) && progress(list).left > 0)
+    .filter(notShown('#/list/')).sort(recent);
+  const asked = shownDocs(state.polls).filter((poll) => isLive(poll) && !poll.closedAt)
+    .filter(notShown('#/poll/')).sort(recent);
+  const owing = shownDocs(state.spends).filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
+    .filter(notShown('#/spend/')).sort(recent);
 
   for (const list of open.slice(0, 3)) {
     const { left } = progress(list);
@@ -2733,7 +2785,9 @@ function pendingHtml() {
     });
   }
 
-  if (!lines.length) return `<p class="muted small">${escapeHtml(t('overview.nothing'))}</p>`;
+  if (!lines.length) {
+    return shown.size ? '' : `<p class="muted small">${escapeHtml(t('overview.nothing'))}</p>`;
+  }
   return `<div class="game-list">${lines
     .map(
       (line) => `
@@ -2858,7 +2912,7 @@ function groupsHtml() {
   const held = groups();
   return `
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('groups.title'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('groups.manage'))}</h2></div>
       <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
       ${
         held.length
@@ -3001,7 +3055,7 @@ function byGroupHtml() {
   return `
     <section class="section">
       <div class="section__head">
-        <h2>${escapeHtml(t('dash.byGroup'))}</h2>
+        <h2>${escapeHtml(t('groups.title'))}</h2>
         <span class="muted small">${escapeHtml(t('dash.groupCount', { count: held.length }))}</span>
       </div>
       ${held.map(groupBoardHtml).join('')}
@@ -3035,7 +3089,7 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
-        ${tile(counts.spends, t('tab.spends'), '#/agenda')}
+        ${tile(counts.spends, t('tab.spends'), '#/spends')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -3120,14 +3174,14 @@ function groupView(group) {
     section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
     section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
     section(t('home.ongoing'), games, gameCardHtml, '#/games'),
-    section(t('events.accounts'), spends, spendCardHtml, '#/agenda'),
+    section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
   ].join('');
 
   return `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(group.name)}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/groups">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -3194,17 +3248,20 @@ function waitingLine(counts) {
 }
 
 function overviewView() {
-  const counts = {
-    lists: state.lists.filter((list) => progress(list).left > 0).length,
-    polls: state.polls.filter((poll) => !poll.closedAt).length,
-    games: state.games.filter((game) => !gameStatus(game).finished).length,
-  };
+  const forYou = forYouItems();
+  const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends].length;
+  const pending = pendingHtml(new Set(forYou.items.map((item) => item.goto)));
 
   return `
     ${flashHtml()}
-    <p class="lead">${escapeHtml(t('overview.what'))}</p>
+    ${kindsHtml('overview')}
+    ${groupChipsHtml()}
+    ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
-    ${byGroupHtml()}
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('forYou.title'))}</h2></div>
+      ${forYouHtml(forYou)}
+    </section>
 
     <section class="section">
       <div class="section__head">
@@ -3213,18 +3270,134 @@ function overviewView() {
       ${comingHtml()}
     </section>
 
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('overview.pending'))}</h2>
-        <span class="muted small">${escapeHtml(t('overview.counts', counts))}</span>
-      </div>
-      ${pendingHtml()}
-    </section>
+    ${
+      pending
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('overview.pending'))}</h2></div>
+             ${pending}
+           </section>`
+        : ''
+    }`;
+}
 
+/**
+ * Which kind of thing Home shows: everything at once, or one kind in full.
+ *
+ * The kinds used to be tabs of their own; they are one row of the home page
+ * now, so the tab bar can answer other questions — when, with whom — and each
+ * kind keeps its own address, so a link once sent still opens it.
+ */
+function kindsHtml(active) {
+  const kind = (id, goto, label) => `
+    <button type="button" class="segmented__option" data-goto="${goto}"
+            aria-current="${active === id ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `
+    <nav class="segmented segmented--kinds" aria-label="${escapeHtml(t('home.kinds'))}">
+      ${kind('overview', '#/', t('tab.all'))}
+      ${kind('lists', '#/lists', t('tab.lists'))}
+      ${kind('polls', '#/polls', t('tab.polls'))}
+      ${kind('games', '#/games', t('tab.games'))}
+      ${kind('spends', '#/spends', t('tab.spends'))}
+    </nav>`;
+}
+
+/**
+ * What is waiting on this device's person, and on nobody else: a poll they
+ * have not answered, lines they were given, money they owe — and, for whoever
+ * opens a group's door, the people knocking at it. It is what opening the app
+ * is for, so it comes first; the rest of what is going on comes after.
+ */
+function forYouItems() {
+  const items = [];
+  for (const group of groupsByName()) {
+    const rows = group.admits === false ? null : gate().requests[group.id];
+    if (!rows?.length) continue;
+    items.push({
+      goto: '#/groups',
+      title: t('forYou.knocks', { count: rows.length }),
+      meta: t('forYou.knocksWhere', { name: group.name }),
+    });
+  }
+  const me = myName();
+  if (!me) return { items, noName: true };
+
+  const file = personFile({
+    lists: shownDocs(state.lists), polls: shownDocs(state.polls), spends: shownDocs(state.spends),
+  }, me);
+  for (const row of file.votes.filter((one) => !one.closed && !one.answered)) {
+    items.push({ goto: `#/poll/${row.poll.id}`, title: pollTitle(row.poll), meta: t('forYou.vote') });
+  }
+  for (const row of file.lines.filter((one) => one.left > 0).sort((a, b) => b.late - a.late)) {
+    items.push({
+      goto: `#/list/${row.list.id}`,
+      title: listTitle(row.list),
+      meta: t('forYou.lines', { count: row.left }),
+      late: row.late ? t('lists.late', { count: row.late }) : '',
+    });
+  }
+  for (const row of file.accounts.filter((one) => one.balance < 0)) {
+    items.push({
+      goto: `#/spend/${row.spend.id}`,
+      title: spendTitle(row.spend),
+      meta: t('spends.iOwe', { amount: showAmount(-row.balance, getLanguage()) }),
+    });
+  }
+  return { items };
+}
+
+function forYouHtml({ items, noName }) {
+  const rows = items.map((item) => `
+    <button type="button" class="game-card" data-goto="${escapeHtml(item.goto)}">
+      <span class="game-card__title">
+        ${escapeHtml(item.title)}
+        ${item.late ? `<span class="pill pill--late">${escapeHtml(item.late)}</span>` : ''}
+      </span>
+      <span class="game-card__meta">${escapeHtml(item.meta)}</span>
+    </button>`).join('');
+  return `
+    ${rows ? `<div class="game-list" id="for-you">${rows}</div>` : ''}
+    ${
+      noName
+        ? `<p class="muted small">${escapeHtml(t('forYou.noName'))}
+             <button type="button" class="button button--small button--ghost" data-goto="#/settings">
+               ${escapeHtml(t('tab.settings'))} ›
+             </button>
+           </p>`
+        : rows ? '' : `<p class="muted small">${escapeHtml(t('forYou.nothing'))}</p>`
+    }`;
+}
+
+/**
+ * The groups tab: each group this device is in, as a board that opens the
+ * group's own page — then everything that lets people in or out of one.
+ */
+function groupsView() {
+  if (!state.remote) {
+    return `
+      ${flashHtml()}
+      <p class="muted small">${escapeHtml(t('groups.noDatabase'))}</p>`;
+  }
+  return `
+    ${flashHtml()}
+    ${
+      // Knocking at a group asks for a first name: better to meet the field
+      // here than to be sent to the settings by an error.
+      myName() ? '' : meHtml()
+    }
+    ${byGroupHtml()}
+    ${groupsHtml()}`;
+}
+
+/** The app's own settings: who this device is, and its data. */
+function settingsView() {
+  return `
+    ${flashHtml()}
     ${meHtml()}
+    ${dataHtml()}`;
+}
 
-    ${state.remote ? groupsHtml() : ''}
-
+function dataHtml() {
+  return `
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
       <div class="row">
@@ -3585,16 +3758,16 @@ function bindOverview() {
   });
 
   // What the gatekeeper's blocks need, asked once and then kept.
-  for (const group of groups()) {
+  for (const group of showsGate() ? groups() : []) {
     if (group.admits === undefined) {
       refreshGroup(group).then((learnt) => {
-        if (learnt && !isBusy() && route().name === 'overview') render();
+        if (learnt && !isBusy() && showsGate()) render();
       });
       continue;
     }
     if (group.admits === false) continue;
     loadGate(group).then((learnt) => {
-      if (learnt && !isBusy() && route().name === 'overview') render();
+      if (learnt && !isBusy() && showsGate()) render();
     });
   }
 
@@ -3760,8 +3933,9 @@ function bindBack(token) {
     flash(taken
       ? t('groups.joinedWith', { name: group.name, count: taken })
       : t('groups.joined', { name: group.name }));
-    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/`);
-    else navigate('#/');
+    // Onto the groups tab, where the group just joined now shows.
+    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/groups`);
+    else navigate('#/groups');
   });
 }
 
@@ -4007,10 +4181,10 @@ function leaveInvitation() {
   // from the hashchange the way it does everywhere else. Drawing here as well
   // would show the "you are in Mifa" line and then immediately wipe it.
   if (location.hash.startsWith('#/join/')) {
-    location.replace(`${location.pathname}${location.search}#/`);
+    location.replace(`${location.pathname}${location.search}#/groups`);
     return;
   }
-  navigate('#/');
+  navigate('#/groups');
 }
 
 /** True while a knock is on its way, so no second one leaves for the same form. */
@@ -4141,11 +4315,16 @@ function bindJoin() {
  * apart, and only redraw when the answer actually changed, so the screen does
  * not flicker and the database is not hammered.
  */
+/** The pages that show who is knocking: the groups tab, and "for you" at home. */
+function showsGate() {
+  return ['overview', 'groups'].includes(route().name);
+}
+
 function watchGate() {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy() || route().name !== 'overview') return;
+    if (isBusy() || !showsGate()) return;
     if (await refreshGate()) render();
   }, 15000);
 }
@@ -4288,6 +4467,7 @@ function homeView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('games')}
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
@@ -6334,7 +6514,7 @@ async function catchUpQuietly() {
   if (!state.remote || !groups().length) return;
   if (state.syncedAt && Date.now() - state.syncedAt < SYNC_EVERY) return;
   const taken = await catchUpAll();
-  const changed = route().name === 'overview' ? await refreshGate() : false;
+  const changed = showsGate() ? await refreshGate() : false;
   if ((taken || changed) && !isBusy()) render();
 }
 
@@ -8017,7 +8197,7 @@ function bindChrome() {
     let failed = false;
     try {
       taken = await catchUpAll();
-      if (route().name === 'overview') await refreshGate();
+      if (showsGate()) await refreshGate();
     } catch {
       failed = true;
     }
@@ -8183,12 +8363,12 @@ function render() {
             if (state.openingSpend !== asked) return;
             state.openingSpend = null;
             if (found) render();
-            else if (route().id === asked) navigate('#/agenda');
+            else if (route().id === asked) navigate('#/spends');
           });
         }
         return;
       }
-      navigate('#/agenda');
+      navigate('#/spends');
       return;
     }
     watchSpend(spend.id);
@@ -8277,7 +8457,7 @@ function render() {
     stopWatching();
     const group = groups().find((held) => held.id === current.id);
     if (!group) {
-      navigate('#/');
+      navigate('#/groups');
       return;
     }
     // Looking at a group is looking at it everywhere: the tabs follow, and so
@@ -8297,6 +8477,18 @@ function render() {
     stopWatching();
     view.innerHTML = homeView();
     bindHome();
+  } else if (current.name === 'spends') {
+    stopWatching();
+    view.innerHTML = spendsView();
+  } else if (current.name === 'settings') {
+    stopWatching();
+    view.innerHTML = settingsView();
+    bindOverview();
+  } else if (current.name === 'groups') {
+    view.innerHTML = groupsView();
+    bindOverview();
+    if (state.remote && groups().some((group) => group.admits !== false)) watchGate();
+    else stopWatching();
   } else {
     view.innerHTML = overviewView();
     bindOverview();
@@ -8383,28 +8575,23 @@ function adoptGame(stored) {
   return true;
 }
 
-/** Which half of the app we are in, so the tab bar says so. */
+/** Which part of the app we are in, so the tab bar says so. */
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
-  const here = ['lists', 'new-list', 'list'].includes(current.name)
-    ? 'lists'
-    : ['polls', 'new-poll'].includes(current.name) || (current.name === 'poll' && !isEvent(getPoll(current.id)))
-      ? 'polls'
-      : ['home', 'new', 'game', 'stats'].includes(current.name)
-        ? 'games'
-        : ['agenda', 'new-event', 'new-spend', 'spend', 'poll'].includes(current.name)
-          ? 'agenda'
-          : 'overview';
+  const poll = current.name === 'poll' ? getPoll(current.id) : null;
+  const inAgenda = ['agenda', 'new-event'].includes(current.name) || (poll && pollHome(poll) === '#/agenda');
+  const here = inAgenda
+    ? 'agenda'
+    : ['groups', 'group', 'person', 'join', 'back'].includes(current.name)
+      ? 'groups'
+      : current.name === 'settings'
+        ? 'settings'
+        : 'home';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
-  // The overview has no tab of its own: the name at the top leads there.
-  const brand = document.querySelector('.app-bar__brand');
-  if (!brand) return;
-  if (here === 'overview') brand.setAttribute('aria-current', 'page');
-  else brand.removeAttribute('aria-current');
 }
 
 /**

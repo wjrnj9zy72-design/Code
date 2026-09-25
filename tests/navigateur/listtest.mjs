@@ -18,17 +18,16 @@ async function device(label) {
 
 const page = await device('moi');
 check("l'app s'appelle Together", (await page.locator('.app-bar strong').textContent()) === 'Together');
-check('quatre onglets, l’agenda en dernier',
+check('quatre onglets : Accueil, Agenda, Groupes, Réglages',
   (await page.locator('.tab').allTextContents()).map((x) => x.trim()).join(' / ')
-    === 'Listes / Sondages / Parties / Agenda',
+    === 'Accueil / Agenda / Groupes / Réglages',
   (await page.locator('.tab').allTextContents()).join(' / '));
-check("l'app ouvre sur l'aperçu",
-  (await page.locator('.tab[aria-current]').count()) === 0
-  && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
+check("l'app ouvre sur l'Accueil",
+  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Accueil');
 
-await page.click('.tab[data-tab="lists"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.waitForSelector('[data-goto="#/lists/new"]');
-check("l'onglet Listes s'ouvre", (await page.locator('.tab[aria-current]').textContent()).trim() === 'Listes');
+check("l'onglet Listes s'ouvre", (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Listes');
 
 await page.click('[data-goto="#/lists/new"]');
 await page.waitForSelector('#new-list');
@@ -135,10 +134,10 @@ check('et les deux listes sont là', (await page.locator('.game-card').count()) 
   String(await page.locator('.game-card').count()));
 
 // les parties n'ont pas bougé
-await page.click('.tab[data-tab="games"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/games"]');
 await page.waitForSelector('[data-goto="#/new"]');
 check('l’onglet Parties fonctionne toujours',
-  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Parties');
+  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Parties');
 
 const bad = results.filter((r) => !r.ok);
 console.log(results.length, 'vérifications |', results.length - bad.length, 'ok |', bad.length, 'échecs');

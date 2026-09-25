@@ -1605,7 +1605,7 @@ déjà envoyés continuent de fonctionner, avant comme après.
 ### 3. Faire entrer les appareils
 
 **Le tout premier appareil** n'a personne pour l'inviter : il part de la clé que
-vous venez de copier. Dans l'app, onglet **Aperçu** → **Mes groupes** → dépliez
+vous venez de copier. Dans l'app, onglet **Groupes** → **Entrer, inviter, gérer** → dépliez
 *Je n'ai pas de code, mais une clé* → collez → **Entrer**.
 
 C'est cette clé — et elle seule — qui **fait entrer les autres**. Gardez-la sur
@@ -1629,7 +1629,7 @@ Code : 556237
 1. Ouvre le lien : https://votre-compte.github.io/Code/#/join/556237/Mifa
 2. Installe l'app : iPhone (Safari) → Partager → « Sur l'écran d'accueil ».
    Android (Chrome) → ⋮ → « Installer l'application ».
-3. Dans l'app : Aperçu → Entrer dans un groupe → colle le nom et le code.
+3. Dans l'app : Groupes → Entrer dans un groupe → colle le nom et le code.
 
 Valable 2 jours.
 ```
@@ -1644,7 +1644,7 @@ sélectionner — dans la case du nom *ou* dans celle du code : l'app y lit le n
 du groupe et les six chiffres, et remplit les deux. Elle ajoute son prénom,
 touche **Entrer**, et rien ne s'ouvre : la demande arrive chez vous.
 
-Dans votre **Aperçu**, sous *On frappe*, elle apparaît avec ce prénom :
+Dans votre onglet **Groupes** (et en tête de l'Accueil, sous *Pour vous*), sous *On frappe*, elle apparaît avec ce prénom :
 **Accepter** ou **Refuser**.
 
 Accepté, l'appareil d'en face s'en aperçoit tout seul (sa page regarde, et
@@ -1658,7 +1658,7 @@ l'apprend, et n'a jamais rien ouvert.
 
 Si le lien ne passe pas — un message qui l'abîme, quelqu'un au téléphone —
 **dites le nom du groupe et les six chiffres** affichés sous le lien : l'onglet
-**Aperçu** de l'autre appareil les accepte tels quels, et la page d'entrée aussi,
+**Groupes** de l'autre appareil les accepte tels quels, et la page d'entrée aussi,
 en dépliant *Nom du groupe et code*. La suite est la même : ça frappe, vous
 acceptez.
 
@@ -1692,7 +1692,7 @@ d'ici là elle attend sagement que l'app soit ouverte.
 
 ### 4. Couper un appareil, ou tout le monde
 
-**Depuis l'app, et c'est le cas courant** : Aperçu → le groupe → dépliez *Qui est
+**Depuis l'app, et c'est le cas courant** : Groupes → le groupe → dépliez *Qui est
 dans le groupe*. Une ligne par appareil, avec le prénom donné à l'entrée, d'où il
 vient et quand il est arrivé. **Couper** le met dehors : il ne verra plus rien de
 nouveau, ne pourra plus rien partager, et ce qu'il avait déjà récupéré reste chez
@@ -1713,7 +1713,7 @@ select id, label, admits, created_at from public.marque_points_group_key
 delete from public.marque_points_group_key where id = 'ID_DE_LA_LIGNE';
 ```
 
-**Pour désigner qui fait entrer, l'app suffit** : Aperçu → le groupe → *Qui est
+**Pour désigner qui fait entrer, l'app suffit** : Groupes → le groupe → *Qui est
 dans le groupe* → **Peut faire entrer** sur la ligne voulue, et **Ne plus faire
 entrer** pour le retirer. Il faut faire entrer soi-même pour l'accorder, et la
 dernière clé qui admet ne se retire pas.
@@ -1953,7 +1953,7 @@ Un cas mérite d'être connu, parce qu'il ressemble à une panne : si le SQL cha
 et qu'un appareil tourne encore sur une **vieille version de l'app**, cette
 version peut appeler une fonction qui n'existe plus. Elle le dit — « cette app ou
 la base n'est pas à jour » — et le remède est *Chercher une mise à jour*, dans
-l'Aperçu sous *Données*. Sa clé, elle, n'a jamais cessé d'être valable. Sur votre
+Réglages sous *Données*. Sa clé, elle, n'a jamais cessé d'être valable. Sur votre
 appareil, celui qui tient la clé qui fait entrer, le même message renvoie au bloc
 SQL, puisque c'est vous qui pouvez le lancer.
 
@@ -2006,7 +2006,7 @@ navigateurs.
 
 L'app le dit désormais elle-même : quand elle tourne dans le navigateur de
 Messenger, Instagram, Facebook, WhatsApp et quelques autres, la page d'entrée et
-l'Aperçu affichent un avertissement, avec un bouton **Copier ce lien** pour le
+l'onglet Groupes affichent un avertissement, avec un bouton **Copier ce lien** pour le
 coller dans Safari. Rien n'est bloqué — l'avertissement conseille, il n'empêche
 pas — parce que la détection se fait sur la signature du navigateur, ce qui est
 une heuristique et jamais une certitude.
@@ -2025,7 +2025,7 @@ groupe (sans groupe, il n'y a rien à aller chercher). L'app le dit elle-même, 
 
 Deux façons de la faire entrer :
 
-- **sur votre propre téléphone, le plus simple** : *Aperçu* → *Mes groupes* →
+- **sur votre propre téléphone, le plus simple** : *Groupes* → *Entrer, inviter, gérer* →
   dépliez *Je n'ai pas de code, mais une clé* → collez la clé de Mifa → **Entrer**.
   Vos deux installations tiennent alors la même clé, et toutes deux peuvent
   accepter les demandes ;
@@ -2049,7 +2049,7 @@ app vide et conclut, non sans raison, qu'elle n'y arrive pas.
 1. **poser l'app d'abord**, depuis le lien ouvert dans Safari : Partager →
    *Sur l'écran d'accueil* ;
 2. **l'ouvrir depuis l'écran d'accueil** ; elle est vide, c'est normal ;
-3. dedans, *Aperçu* → *Entrer dans un groupe* → recopier **le nom du groupe et
+3. dedans, *Groupes* → *Entrer dans un groupe* → recopier **le nom du groupe et
    les six chiffres** lus sur la page d'invitation, plus son prénom.
 
 Il n'y a alors **qu'une seule demande** à accepter, et c'est la bonne
@@ -2057,7 +2057,7 @@ installation qui entre.
 
 **Si la personne est déjà entrée depuis le navigateur**, le code peut être
 dépensé — une invitation pour une seule personne ne vaut qu'une demande. Elle
-passe alors par sa clé : dans le navigateur, *Aperçu* → son groupe → **Voir ma
+passe alors par sa clé : dans le navigateur, *Groupes* → son groupe → **Voir ma
 clé**, puis dans l'app posée, *Je n'ai pas de code, mais une clé* → coller →
 **Entrer**. Ses deux installations tiennent la même clé, ce qui est sans
 inconvénient : une clé désigne une personne, pas un appareil.
@@ -2168,7 +2168,7 @@ sans que rien ne le dise. Ce que l'app fait désormais d'elle-même :
   la copie gardée par le navigateur (GitHub Pages autorise dix minutes de
   conservation : c'était assez pour qu'une app tout juste ajoutée s'ouvre sur ce
   que Safari avait sous la main) ;
-- l'onglet **Aperçu** affiche la **version** en bas, sous *Données*, avec un
+- l'onglet **Réglages** affiche la **version** en bas, sous *Données*, avec un
   bouton **Chercher une mise à jour** qui dit ce qu'il a trouvé.
 
 La version se lit en deux morceaux, par exemple `v7 · ce24721c` : le premier
@@ -2181,7 +2181,7 @@ fichier du cache change avec elle.
 Si malgré cela une installation reste bloquée — c'est arrivé sur iOS avant ces
 garde-fous —, la sortie est mécanique :
 
-1. dans l'app, **Aperçu → Chercher une mise à jour**, et attendez le
+1. dans l'app, **Réglages → Chercher une mise à jour**, et attendez le
    rechargement ;
 2. sinon, ouvrez la page **dans Safari**, tirez vers le bas pour recharger, et
    vérifiez la version affichée ;
@@ -2282,7 +2282,7 @@ https://<votre-projet>.supabase.co/functions/v1/agenda
 
 ### 2. Récupérer l'adresse, dans l'app
 
-*Aperçu* → **Mes groupes** → **L'agenda du groupe**. L'adresse ressemble à :
+*Groupes* → **Entrer, inviter, gérer** → **L'agenda du groupe**. L'adresse ressemble à :
 
 ```
 https://<votre-projet>.supabase.co/functions/v1/agenda/<32 caractères>.ics
@@ -2404,7 +2404,7 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
 - **Le code est à dire, pas à écrire dans le même message.** Un lien et son code
   envoyés ensemble ne protègent plus rien : le bouton *Copier* ne copie que le
   lien, exprès.
-- **Révoquer un partage** se fait depuis *Mes partages*, dans l'onglet Aperçu :
+- **Révoquer un partage** se fait depuis *Mes partages*, dans l'onglet Réglages :
   le lien ne donne plus rien à personne, même avec le bon code.
 - **Une partie ouverte par un lot reste ouvrable par son propre lien** ensuite :
   le code protège le lot, pas chaque partie pour toujours.

@@ -25,7 +25,7 @@ const text = async (page, sel = '#view') => (await page.locator(sel).first().tex
 // --- moi : un sondage de famille, et un « lien seulement » pour les voisins
 const me = await device('moi', { me: 'Gui', groups: [MIFA] });
 const newPoll = async (question, chip) => {
-  await me.click('.tab[data-tab="polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
+  await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
   if (chip) { await me.click(`[data-new-group="${chip}"]`); await me.waitForTimeout(250); }
   await me.fill('#poll-question', question);
   await me.fill('#poll-choices', 'vendredi\nsamedi');
@@ -38,11 +38,11 @@ const newPoll = async (question, chip) => {
 };
 
 await newPoll('Quel soir pour la raclette ?');
-await me.click('.tab[data-tab="polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
 check('le formulaire propose « Lien seulement »', (await me.locator('[data-new-group="@lien"]').count()) === 1);
 await me.click('[data-new-group="@lien"]'); await me.waitForTimeout(250);
 check('et dit ce que ça veut dire', /Aucun groupe ne le voit/.test(await text(me, '#new-poll')));
-await me.click('.tab[data-tab="polls"]');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]');
 await newPoll('Quel soir pour la fête des voisins ?', '@lien');
 check('le sondage se dit « lien seulement »', /Lien seulement — seuls ceux qui ont reçu le lien/.test(await text(me)));
 check('et ne propose pas de le mettre dans un groupe', (await me.locator('[data-put-in-group]').count()) === 0);
@@ -55,11 +55,12 @@ await me.click('#export-close');
 // --- Claire, dans Mifa, qui synchronise
 const sister = await device('Claire', { me: 'Claire', groups: [{ ...MIFA, admits: false }] });
 await sister.click('#sync'); await sister.waitForTimeout(1500);
-await sister.click('.tab[data-tab="polls"]'); await sister.waitForTimeout(400);
+await sister.click('[data-tab="home"]'); await sister.click('.segmented--kinds [data-goto="#/polls"]'); await sister.waitForTimeout(400);
 const hers = (await sister.locator('.game-card__title').allTextContents()).map((s) => s.replace(/\s+/g, ' ').trim());
 check('Claire voit le sondage de famille', hers.some((h) => /raclette/.test(h)), hers.join(' | '));
 check('mais pas celui des voisins', !hers.some((h) => /voisins/.test(h)), hers.join(' | '));
-await sister.click('.app-bar__brand'); await sister.waitForSelector('#export');
+await sister.click('[data-tab="home"]');
+await sister.waitForSelector('.segmented--kinds [data-goto="#/"][aria-current="true"]');
 const coming = await text(sister, '.section:has-text("Ce qui vient")');
 check('ni dans « Ce qui vient »', /Raclette/.test(coming) && !/voisins/i.test(coming), coming.slice(0, 120));
 
@@ -74,7 +75,7 @@ const back = await me.waitForFunction(() => document.querySelectorAll('.vote--ye
 check('et son vote m’arrive', back);
 
 // --- ma pastille Mifa ne le compte pas
-await me.click('.tab[data-tab="polls"]');
+await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]');
 await me.waitForSelector('[data-goto="#/polls/new"]');
 const mine = (await me.locator('.game-card__title').allTextContents()).length;
 check('sous « Tous », je vois mes deux sondages', mine === 2, String(mine));

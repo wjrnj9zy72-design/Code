@@ -23,19 +23,20 @@ async function device(label, { key = null } = {}) {
   return page;
 }
 
-/* --- l'aperçu et l'ordre des onglets ------------------------------------- */
+/* --- l'accueil, l'ordre des onglets, l'onglet Groupes -------------------- */
 
 const page = await device('moi');
 const tabs = (await page.locator('.tab').allTextContents()).map((s) => s.trim());
-check('quatre onglets, l’agenda en dernier',
-  tabs.join(' / ') === 'Listes / Sondages / Parties / Agenda', tabs.join(' / '));
-check("l'app ouvre sur l'aperçu",
-  (await page.locator('.tab[aria-current]').count()) === 0
-  && (await page.locator('.app-bar__brand[aria-current]').count()) === 1);
-check("l'aperçu dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);
-check('le « + » de la barre crée, l’aperçu n’a plus ses propres boutons',
+check('quatre onglets : Accueil, Agenda, Groupes, Réglages',
+  tabs.join(' / ') === 'Accueil / Agenda / Groupes / Réglages', tabs.join(' / '));
+check("l'app ouvre sur l'Accueil",
+  (await page.locator('.tab[aria-current]').textContent()).trim() === 'Accueil');
+check("l'Accueil vide dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);
+check('le « + » de la barre crée, l’Accueil n’a pas ses propres boutons',
   (await page.locator('#tabs #create').isVisible()) && (await page.locator('[data-goto$="/new"]').count()) === 0);
-check('les groupes ont leur section',
+await page.click('[data-tab="groups"]');
+await page.waitForSelector('#group-name');
+check('les groupes ont leur onglet',
   (await page.locator('#group-name').count()) === 1 && (await page.locator('#group-code').count()) === 1);
 check('sans groupe, il le dit', (await page.locator('#group-state').count()) === 1
   && (await page.locator('.section', { has: page.locator('#group-name') }).textContent()).includes('aucun groupe'));
@@ -43,7 +44,7 @@ check('et le prénom de l’appareil a sa place', (await page.locator('#me-name'
 
 /* --- sans groupe, on ne partage rien ------------------------------------- */
 
-await page.click('.tab[data-tab="lists"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.click('[data-goto="#/lists/new"]');
 await page.waitForSelector('#new-list');
 await page.fill('#list-name', 'Courses');
@@ -61,7 +62,7 @@ check('et la liste reste locale', stored === false, String(stored));
 
 /* --- entrer dans un groupe ----------------------------------------------- */
 
-await page.click('.app-bar__brand');
+await page.click('[data-tab="groups"]');
 await page.waitForSelector('.details summary');
 await page.click('.details summary');
 await page.fill('#group-key', 'pas-une-cle');
@@ -81,8 +82,8 @@ check('et le groupe apparaît', (await page.locator('[data-catch-up]').count()) 
 
 /* --- partager, maintenant, marche ---------------------------------------- */
 
-await page.click('.tab[data-tab="lists"]');
-// L'Aperçu porte lui aussi des cartes (une par personne) : attendre l'onglet.
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
+// L'Accueil porte lui aussi des cartes : attendre la sorte « Listes ».
 await page.waitForSelector('[data-goto="#/lists/new"]');
 await page.click('.game-card');
 await page.waitForSelector('#list-share');
@@ -96,13 +97,13 @@ await page.click('#export-close');
 
 const other = await device('autre', { key: 'la-cle-famille' });
 // Ouvrir l'app suffit : elle va chercher ce que le groupe partage.
-await other.click('.tab[data-tab="lists"]');
+await other.click('[data-tab="home"]'); await other.click('.segmented--kinds [data-goto="#/lists"]');
 await other.waitForSelector('[data-goto="#/lists/new"]');
 await other.waitForSelector('.game-card', { timeout: 15000 });
 check('ouvrir l’app ramène ce que le groupe partage, sans rien toucher',
   (await other.locator('.game-card').textContent()).includes('Courses'),
   await other.locator('.game-card').textContent());
-await other.click('.app-bar__brand');
+await other.click('[data-tab="groups"]');
 await other.click('[data-catch-up]');
 await other.waitForSelector('.banner', { timeout: 15000 });
 check('« Tout récupérer » le confirme sans rien ramener deux fois',
@@ -110,7 +111,7 @@ check('« Tout récupérer » le confirme sans rien ramener deux fois',
   await other.locator('.banner').textContent());
 
 // une deuxième fois : rien de neuf
-await other.click('.app-bar__brand');
+await other.click('[data-tab="groups"]');
 await other.click('[data-catch-up]');
 await other.waitForSelector('.banner', { timeout: 15000 });
 check('rattraper deux fois ne ramène rien de neuf',

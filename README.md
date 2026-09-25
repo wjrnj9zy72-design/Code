@@ -1,12 +1,14 @@
 # 🃏 Together
 
-Cinq onglets, une seule app. **Aperçu** : ce qui est en cours groupe par
-groupe, qui attend quoi, vos groupes, vos données. **Listes** : à cocher et à
-répartir entre plusieurs personnes. **Sondages** : pour trancher une date ou un
-choix. **Parties** : un compteur de points pour Papayoo et une vingtaine
-d'autres jeux. **Agenda** : ce qui vient, jour par jour, avec pour chaque
-événement sa liste et son compte — et les comptes de dépenses : qui a payé
-quoi, et qui rembourse qui. Une page
+Quatre onglets et un « + », une seule app. **Accueil** : ce qui vous attend,
+ce qui vient, ce qui est en cours — et, d'une rangée *Tout · Listes · Sondages
+· Parties · Comptes*, chaque sorte en entier : des **listes** à cocher et à
+répartir, des **sondages** pour trancher une date ou un choix, un compteur de
+points pour Papayoo et une vingtaine d'autres **parties**, des **comptes** de
+dépenses (qui a payé quoi, qui rembourse qui). **Agenda** : les sondages qui
+cherchent un jour, puis ce qui vient, jour par jour, avec pour chaque
+événement sa liste et son compte. **Groupes** : vos groupes, leur page, entrer
+et inviter. **Réglages** : votre prénom, vos données, la version. Une page
 web, aucune dépendance, aucun build.
 
 <p>
@@ -14,7 +16,7 @@ web, aucune dépendance, aucun build.
   <img src="docs/screenshot-dark.png" alt="La même partie en thème sombre" width="45%" />
 </p>
 
-## Ce que ça fait — onglet Parties
+## Ce que ça fait — les parties
 
 - **Une partie = des manches** : on saisit le score de chaque joueur, l'appli
   tient les totaux, le classement (ex æquo compris) et l'écart avec le leader.
@@ -75,7 +77,7 @@ web, aucune dépendance, aucun build.
 - **Elle se met à jour toute seule, et le dit.** L'app demande à chaque retour au
   premier plan s'il existe une version plus récente et se recharge une fois quand
   c'est le cas ; chaque fichier est revalidé plutôt que pris dans le cache du
-  navigateur. La version est affichée dans l'Aperçu, sous *Données*, avec un
+  navigateur. La version est affichée dans Réglages, sous *Données*, avec un
   bouton pour chercher une mise à jour — parce qu'une app posée sur un écran
   d'accueil est reprise, jamais rechargée, et peut rester bloquée sans rien dire.
 - **Ce qui est poussé ailleurs arrive ici tout seul** : en ouvrant l'app et
@@ -95,7 +97,7 @@ web, aucune dépendance, aucun build.
   hasard — dix essais, puis il se bloque. Le lien et le code voyagent séparément,
   exprès : *Copier* ne copie que le lien. Ce que le lot désigne est chiffré avec
   ce code, donc la base elle-même ne le sait pas. *Mes partages*, dans l'onglet
-  Aperçu, rappelle chaque code et permet de **révoquer** un lien déjà envoyé.
+  Réglages, rappelle chaque code et permet de **révoquer** un lien déjà envoyé.
 - **Parties partagées, à la demande** : branchée sur une base (voir
   [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md)), l'appli donne un lien par partie.
   La personne qui le reçoit ouvre la même partie, avec ses scores, et peut y
@@ -114,7 +116,7 @@ web, aucune dépendance, aucun build.
   clair ou sombre. Les parties sont enregistrées dans le navigateur, et
   exportables en JSON pour sauvegarder ou changer d'appareil.
 
-## Ce que ça fait — onglet Listes
+## Ce que ça fait — les listes
 
 Une liste, c'est **un titre**, **des gens**, et **des lignes**. Rien à régler
 d'autre : le titre dit le contexte — *Courses de samedi*, *Valise Corse*,
@@ -186,17 +188,23 @@ tranché, sans choix).
 
 L'onglet **Agenda** montre :
 
+- **À décider** : les sondages ouverts qui cherchent un jour. L'app les
+  reconnaît à la question (« quel soir… », « quand… ») ou à des choix qui se
+  lisent comme des jours (« samedi 12 », « 12/10 »). Une fois le jour retenu,
+  le sondage descend simplement dans « À venir » ; les autres questions
+  (« quel cadeau ? ») restent sur l'Accueil ;
 - **À venir** : les événements par date, qu'ils viennent d'un sondage ou non,
   chacun avec où en sont sa liste et son compte ;
-- **Comptes en cours** : les comptes sans événement à venir — une coloc, ou le
-  week-end passé qui n'est pas encore soldé — et de quoi en ouvrir un seul ;
-- **Passés**, repliés en bas. Les anciens liens `#/spends` y mènent.
+- **Passés**, repliés en bas.
+
+Les comptes ont leur place sur l'Accueil, sous **Comptes** (`#/spends`) : en
+cours, puis soldés.
 
 Avec au moins un groupe, une pastille **Autres** rejoint *Tous* et les groupes
 dans chaque onglet : ce qui n'est dans aucun groupe — gardé pour soi, envoyé
 par lien seulement, ou venu d'un groupe dont l'appareil n'est pas.
 
-## Ce que ça fait — onglet Sondages
+## Ce que ça fait — les sondages
 
 Une question, des choix, et une grille : **une réponse par personne et par
 choix** — oui, peut-être, non. C'est la forme du « quel soir ? », et choisir une
@@ -217,19 +225,25 @@ type de sondage à choisir avant de poser la question.
 Avec plusieurs groupes, l'app ne mélange plus tout.
 
 - Les onglets sont **en bas de l'écran**, à portée du pouce, et y restent quand
-  on fait défiler : Listes et Sondages à gauche, Parties et Agenda à droite.
-  L'Aperçu, c'est le nom **Together** en haut — l'app s'ouvre dessus. Pile au
+  on fait défiler : Accueil et Agenda à gauche, Groupes et Réglages à droite.
+  Ils répondent à une question — quoi, quand, avec qui — plutôt que de ranger
+  par sorte ; les sortes sont la rangée du haut de l'Accueil, et leurs
+  adresses (`#/lists`, `#/polls`, `#/games`, `#/spends`) marchent toujours.
+- **Pour vous**, en tête de l'Accueil : les sondages où votre prénom n'a pas
+  répondu, les lignes qui vous sont confiées (en retard d'abord), l'argent que
+  vous devez, et les personnes qui frappent à la porte d'un groupe que vous
+  ouvrez. Sans prénom (Réglages), l'Accueil le dit. Pile au
   milieu, à cheval sur la barre, un **« + »** crée une liste, un sondage, un
   événement, une partie ou un compte, depuis n'importe quelle page ; il dit
   dans quel groupe la chose ira (modifiable sur le formulaire).
-- L'**Aperçu** ouvre sur un bloc par groupe : combien de listes, de sondages et
-  de parties y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
+- L'onglet **Groupes** ouvre sur un bloc par groupe : combien de listes, de
+  sondages, de parties et de comptes y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
   correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
   (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
   vient, les listes, les sondages, les parties, les comptes à solder — avec
   « Tout voir » vers l'onglet, déjà réglé sur ce groupe. Repliée en bas :
   « Voir qui doit quoi », les prénoms de ce groupe et ce qui les attend.
-- Les trois onglets portent alors les mêmes **pastilles** : *Tous*, puis un
+- L'Accueil et l'Agenda portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
   *et* ses parties. Avec un seul groupe, il n'y a rien à choisir : pas de
@@ -239,13 +253,12 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   rang. Les prénoms y sont rapprochés sans accent ni majuscule, comme dans les
   statistiques — « alice » et « Alice » sont la même personne, « Alex » et
   « Alexandre » restent deux. On y arrive depuis la page d'un groupe (« Voir
-  qui doit quoi ») ou les statistiques (renommer) ; l'Aperçu ne liste plus les
-  personnes une à une, pour rester court.
+  qui doit quoi ») ou les statistiques (renommer).
 - **Renommer partout**, depuis sa page ou depuis les statistiques, suit la
   personne dans les parties, les listes et les sondages à la fois : deux
   orthographes redeviennent une seule personne partout d'un coup.
 
-## Ce que ça fait — onglet Dépenses
+## Ce que ça fait — les comptes
 
 Un compte — vacances, coloc, week-end — tient des personnes et des lignes.
 Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.

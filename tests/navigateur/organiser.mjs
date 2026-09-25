@@ -23,7 +23,7 @@ const OWNER_ONLY = '#poll-day, #poll-date-save, #poll-close, #poll-delete, #poll
 
 // --- Gui crée le sondage dans Mifa : il en est l'organisateur
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });
-await gui.click('.tab[data-tab="polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
+await gui.click('[data-tab="home"]'); await gui.click('.segmented--kinds [data-goto="#/polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
 await gui.fill('#poll-question', 'Quel soir pour la raclette ?');
 await gui.fill('#poll-choices', 'vendredi\nsamedi');
 await gui.fill('[data-person-index="0"]', 'Gui');

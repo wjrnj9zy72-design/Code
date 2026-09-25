@@ -19,7 +19,7 @@ const ids = await a.locator('[data-score]').evaluateAll((e) => e.map((x) => x.da
 for (const [i, v] of ['40', '60', '150'].entries()) await a.fill(`[data-score="${ids[i]}"]`, v);
 await a.click('#round-form button[type=submit]');
 await a.waitForSelector('table.scores');
-await a.evaluate(() => { location.hash = '#/'; });
+await a.evaluate(() => { location.hash = '#/settings'; });
 await a.waitForSelector('#export');
 await a.click('#export');
 let exported = null;
@@ -39,7 +39,7 @@ await b.goto('http://localhost:8099/');
 await b.waitForSelector('.app-bar');
 check('B part de zéro', (await b.locator('.game-card').count()) === 0);
 
-await b.evaluate(() => { location.hash = '#/'; });
+await b.evaluate(() => { location.hash = '#/settings'; });
 await b.waitForSelector('#import-paste');
 await b.click('#import-paste');
 await b.waitForSelector('#paste-text');
@@ -57,13 +57,13 @@ check('et ses scores', /150/.test(await b.locator('table.scores tbody tr').textC
 
 // importer deux fois ne duplique pas
 await b.evaluate(() => { location.hash = '#/games'; });
-await b.evaluate(() => { location.hash = '#/'; });
+await b.evaluate(() => { location.hash = '#/settings'; });
 await b.waitForSelector('#import-paste');
 await b.click('#import-paste');
 await b.fill('#paste-text', exported);
 await b.click('#paste-import');
 await b.waitForTimeout(300);
-// L'Aperçu porte aussi une carte par personne : compter dans l'onglet Parties.
+// L'Accueil mêle toutes les sortes : compter dans « Parties ».
 const gamesOfB = async () => {
   await b.evaluate(() => { location.hash = '#/games'; });
   await b.waitForSelector('[data-goto="#/new"]');
@@ -72,7 +72,7 @@ const gamesOfB = async () => {
 check('importer deux fois ne duplique rien', (await gamesOfB()) === 1, String(await gamesOfB()));
 
 // un texte invalide est refusé proprement
-await b.evaluate(() => { location.hash = '#/'; });
+await b.evaluate(() => { location.hash = '#/settings'; });
 await b.waitForSelector('#import-paste');
 await b.click('#import-paste');
 await b.fill('#paste-text', 'ceci n’est pas du JSON');

@@ -740,6 +740,24 @@ table.scores .meta-cell { color: var(--muted); }
   cursor: pointer;
 }
 
+/* The home page's kinds: five words on a phone's width, so each takes only
+   the room its word needs, and the row may scroll rather than wrap. */
+.segmented--kinds {
+  grid-auto-columns: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented--kinds .segmented__option {
+  padding: 8px 5px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .segmented--kinds .segmented__option { padding: 8px 3px; font-size: 0.7rem; }
+}
+
 .segmented__option[aria-current="true"] {
   background: var(--surface);
   color: var(--text);
@@ -1239,28 +1257,28 @@ body:not(.solo) .view {
     </header>
 
     <!-- At the bottom, within the thumb's reach, and always there: a phone is
-         held from below. The "+" in the middle makes anything, from anywhere;
-         two tabs each side keep it in the middle. The overview is the name at
-         the top, where the app opens anyway. -->
+         held from below. The tabs answer questions rather than sort by kind:
+         what is on (home), when (agenda), with whom (groups), and the app's
+         own settings. The "+" in the middle makes anything, from anywhere. -->
     <nav class="tabs" id="tabs" aria-label="Sections">
-      <a class="tab" href="#/lists" data-tab="lists">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg>
-        <span data-i18n="tab.lists">Listes</span>
-      </a>
-      <a class="tab" href="#/polls" data-tab="polls">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h16M4 17h7"/></svg>
-        <span data-i18n="tab.polls">Sondages</span>
-      </a>
-      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <a class="tab" href="#/games" data-tab="games">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>
-        <span data-i18n="tab.games">Parties</span>
+      <a class="tab" href="#/" data-tab="home">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg>
+        <span data-i18n="tab.home">Accueil</span>
       </a>
       <a class="tab" href="#/agenda" data-tab="agenda">
         <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
         <span data-i18n="tab.agenda">Agenda</span>
+      </a>
+      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <a class="tab" href="#/groups" data-tab="groups">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5.2 6-5.2s5.4 1.9 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6M17.5 14.6c1.8.7 3 2.3 3.4 4.9"/></svg>
+        <span data-i18n="tab.groups">Groupes</span>
+      </a>
+      <a class="tab" href="#/settings" data-tab="settings">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg>
+        <span data-i18n="tab.settings">Réglages</span>
       </a>
     </nav>
 
@@ -1390,7 +1408,20 @@ const STRINGS = {
     'share.sendFailed': 'La partie n’a pas pu être envoyée. Réessayez.',
     'action.stats': 'Statistiques',
     'tab.games': 'Parties',
-    'tab.overview': 'Aperçu',
+    'tab.home': 'Accueil',
+    'tab.groups': 'Groupes',
+    'tab.settings': 'Réglages',
+    'tab.all': 'Tout',
+    'home.kinds': 'Que montrer',
+    'forYou.title': 'Pour vous',
+    'forYou.nothing': 'Rien ne vous attend. Tranquille.',
+    'forYou.noName': 'Écrivez votre prénom dans Réglages : l’app vous montrera ici ce qui vous attend.',
+    'forYou.vote': 'votre réponse est attendue',
+    'forYou.lines': '{count} chose(s) pour vous',
+    'forYou.knocks': '{count} personne(s) demandent à entrer',
+    'forYou.knocksWhere': 'Groupes › {name}',
+    'groups.noDatabase': 'Cette copie de l’app n’a pas de base partagée : il n’y a pas de groupe ici. Tout reste sur cet appareil.',
+    'polls.toDecide': 'À décider',
     'overview.what':
       'Une app à plusieurs : des listes à cocher et à répartir, des sondages pour trancher une date, et de quoi compter les points d’une vingtaine de jeux.',
     'overview.pending': 'En cours',
@@ -1434,7 +1465,7 @@ const STRINGS = {
       'Rien de daté pour l’instant. Une date retenue sur un sondage, ou un jour posé sur une ligne, apparaît ici — et part dans les agendas abonnés.',
     'agenda.late': 'en retard',
     'agenda.more': '+ {count} autre(s), dans les agendas abonnés',
-    'tab.spends': 'Dépenses',
+    'tab.spends': 'Comptes',
     'tab.agenda': 'Agenda',
     'create.title': 'Créer',
     'create.what': 'Que voulez-vous créer ?',
@@ -1444,6 +1475,7 @@ const STRINGS = {
     'group.nothing': 'Rien en cours dans ce groupe.',
     'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
+    'spends.settled': 'Soldés',
     'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
     'spends.untitled': 'Compte sans nom',
@@ -1528,7 +1560,6 @@ const STRINGS = {
     'filter.others': 'Autres',
     'filter.hidden':
       '{count} autre(s) sont masqué(s) par le groupe choisi — dont tout ce qui n’a été partagé dans aucun groupe.',
-    'dash.byGroup': 'Par groupe',
     'dash.groupCount': '{count} groupe(s)',
     'dash.gate': 'vous ouvrez la porte',
     'dash.member': 'membre',
@@ -1580,6 +1611,7 @@ const STRINGS = {
     'browser.copyHint':
       'Collez-le dans Safari, puis entrez dans le groupe depuis là : c’est ce navigateur-là qui gardera votre place, et c’est de là qu’on ajoute l’app à l’écran d’accueil.',
     'groups.title': 'Mes groupes',
+    'groups.manage': 'Entrer, inviter, gérer',
     'groups.hint':
       'Un groupe, c’est un cercle de personnes : la famille, les copains du mardi. On y voit tout ce qui est partagé — parties, listes et sondages — et on peut y partager à son tour. Vous envoyez un lien d’invitation ; la personne frappe, et c’est vous qui l’acceptez.',
     'groups.keepKey':
@@ -1607,7 +1639,7 @@ const STRINGS = {
       + '1. Ouvre le lien : {url}\n'
       + '2. Installe l’app : iPhone (Safari) → Partager → « Sur l’écran d’accueil ». '
       + 'Android (Chrome) → ⋮ → « Installer l’application ».\n'
-      + '3. Dans l’app : Aperçu → Entrer dans un groupe → colle le nom et le code.\n\n'
+      + '3. Dans l’app : Groupes → Entrer dans un groupe → colle le nom et le code.\n\n'
       + 'Valable {days} jours.',
     'groups.inviteReady': 'Invitation à {name}',
     'groups.inviteWhy': 'Envoyez ce message tel quel : tout y est.',
@@ -1660,7 +1692,7 @@ const STRINGS = {
     'groups.putIn': 'Mettre dans un groupe',
     'groups.putInDone': 'Mis dans {name}. Le groupe le voit maintenant.',
     'groups.willBeInNone':
-      'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut d’un onglet, ou mettez-le dans un groupe une fois créé.',
+      'N’ira dans aucun groupe : personne d’autre ne le verra, et les pastilles de groupe le masqueront. Choisissez un groupe en haut de l’Accueil, ou mettez-le dans un groupe une fois créé.',
     'groups.which': 'Partager dans quel groupe ?',
     'groups.willGoIn': 'Dans quel groupe ?',
     'groups.keepToMyself': 'Garder pour moi',
@@ -1675,7 +1707,7 @@ const STRINGS = {
     'groups.copiedTo':
       'Copie faite dans {name}. Les deux vivent leur vie chacune de leur côté — l’original n’a pas bougé.',
     'groups.needOne':
-      'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Aperçu.',
+      'Pour partager, il faut appartenir à un groupe : collez sa clé dans l’onglet Groupes.',
     'me.title': 'Moi',
     'me.hint':
       'Votre prénom, sur cet appareil. Il sert à deux choses : les autres voient qui est entré dans le groupe, et vous êtes proposé en premier dans une nouvelle liste, un sondage ou une partie.',
@@ -1765,11 +1797,11 @@ const STRINGS = {
     'join.toHomeScreenStep1': 'Posez l’app : sur iPhone, le bouton Partager, puis « Sur l’écran d’accueil ».',
     'join.toHomeScreenStep2': 'Ouvrez-la depuis l’écran d’accueil — elle sera vide, c’est normal.',
     'join.toHomeScreenStep3':
-      'Dans l’Aperçu, « Entrer dans un groupe » : recopiez le nom et les six chiffres ci-dessous, et écrivez votre prénom.',
+      'Dans l’onglet Groupes, « Entrer dans un groupe » : recopiez le nom et les six chiffres ci-dessous, et écrivez votre prénom.',
     'join.toHomeScreenWhat': 'À recopier dans l’app :',
     'join.toHomeScreenCopy': 'Copier le nom et le code',
     'join.toHomeScreenDone':
-      'Déjà entré ici, dans le navigateur ? Le code peut avoir servi. Dans ce cas, prenez plutôt votre clé : Aperçu → votre groupe → « Voir ma clé », et collez-la dans l’app, sous « Je n’ai pas de code, mais une clé ».',
+      'Déjà entré ici, dans le navigateur ? Le code peut avoir servi. Dans ce cas, prenez plutôt votre clé : Groupes → votre groupe → « Voir ma clé », et collez-la dans l’app, sous « Je n’ai pas de code, mais une clé ».',
     'join.noDatabase':
       'Cette copie de l’application n’a pas de base partagée : il n’y a pas de groupe à rejoindre.',
     'tab.polls': 'Sondages',
@@ -1918,7 +1950,7 @@ const STRINGS = {
     'shareApp.needsSql':
       'La base n’a pas cette fonction : relancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
     'shareApp.needsUpdate':
-      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans l’Aperçu, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
+      'Cette app ou la base n’est pas à jour. Touchez « Chercher une mise à jour » dans Réglages, sous Données ; si cela ne change rien, dites-le à la personne qui a monté la base.',
     'shareSet.codeLabel': 'Code à communiquer',
     'shareSet.codeApart':
       'Ne l’envoyez pas dans le même message que le lien : dites-le de vive voix, ou par un autre moyen.',
@@ -2168,7 +2200,20 @@ const STRINGS = {
     'share.sendFailed': 'The game could not be sent. Try again.',
     'action.stats': 'Statistics',
     'tab.games': 'Games',
-    'tab.overview': 'Overview',
+    'tab.home': 'Home',
+    'tab.groups': 'Groups',
+    'tab.settings': 'Settings',
+    'tab.all': 'All',
+    'home.kinds': 'What to show',
+    'forYou.title': 'For you',
+    'forYou.nothing': 'Nothing is waiting on you. All quiet.',
+    'forYou.noName': 'Write your first name in Settings: the app will show you here what is waiting on you.',
+    'forYou.vote': 'your answer is awaited',
+    'forYou.lines': '{count} thing(s) for you',
+    'forYou.knocks': '{count} person(s) asking to join',
+    'forYou.knocksWhere': 'Groups › {name}',
+    'groups.noDatabase': 'This copy of the app has no shared database: there are no groups here. Everything stays on this device.',
+    'polls.toDecide': 'To decide',
     'overview.what':
       'An app for several people: lists to tick and hand out, polls to settle a date, and a score keeper for a couple of dozen games.',
     'overview.pending': 'Going on',
@@ -2212,7 +2257,7 @@ const STRINGS = {
       'Nothing on a day yet. A day a poll settled on, or a day put on a line, shows up here — and goes out to subscribed calendars.',
     'agenda.late': 'overdue',
     'agenda.more': '+ {count} more, in subscribed calendars',
-    'tab.spends': 'Spending',
+    'tab.spends': 'Accounts',
     'tab.agenda': 'Agenda',
     'create.title': 'Create',
     'create.what': 'What would you like to create?',
@@ -2222,6 +2267,7 @@ const STRINGS = {
     'group.nothing': 'Nothing going on in this group.',
     'group.who': 'See who owes what',
     'spends.new': 'New account',
+    'spends.settled': 'Settled',
     'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
     'spends.untitled': 'Untitled account',
@@ -2306,7 +2352,6 @@ const STRINGS = {
     'filter.others': 'Others',
     'filter.hidden':
       '{count} more are hidden by the chosen group — including everything shared in no group at all.',
-    'dash.byGroup': 'By group',
     'dash.groupCount': '{count} group(s)',
     'dash.gate': 'you let people in',
     'dash.member': 'member',
@@ -2358,6 +2403,7 @@ const STRINGS = {
     'browser.copyHint':
       'Paste it into Safari and join the group from there: that browser is the one that will keep your place, and the one an app is added to the home screen from.',
     'groups.title': 'My groups',
+    'groups.manage': 'Join, invite, manage',
     'groups.hint':
       'A group is a circle of people: the family, the Tuesday card players. You see everything shared in it — games, lists and polls — and can share there too. You send an invitation link; the person knocks, and you are the one who lets them in.',
     'groups.keepKey':
@@ -2382,7 +2428,7 @@ const STRINGS = {
       + '1. Open the link: {url}\n'
       + '2. Install the app: iPhone (Safari) → Share → "Add to Home Screen". '
       + 'Android (Chrome) → ⋮ → "Install app".\n'
-      + '3. In the app: Overview → Join a group → paste the name and the code.\n\n'
+      + '3. In the app: Groups → Join a group → paste the name and the code.\n\n'
       + 'Good for {days} days.',
     'groups.inviteReady': 'Invitation to {name}',
     'groups.inviteWhy': 'Send this message as it is: everything is in it.',
@@ -2433,7 +2479,7 @@ const STRINGS = {
     'groups.putIn': 'Put in a group',
     'groups.putInDone': 'Put in {name}. The group can see it now.',
     'groups.willBeInNone':
-      'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of a tab, or put it in one once it is made.',
+      'Will go in no group: nobody else will see it, and the group pastilles will hide it. Choose a group at the top of Home, or put it in one once it is made.',
     'groups.which': 'Share in which group?',
     'groups.willGoIn': 'In which group?',
     'groups.keepToMyself': 'Keep it to myself',
@@ -2447,7 +2493,7 @@ const STRINGS = {
     'groups.copyWhere': 'Copy to which group?',
     'groups.copiedTo':
       'Copied into {name}. The two go their own way from here — the original has not moved.',
-    'groups.needOne': 'Sharing takes a group: paste its key in the Overview tab.',
+    'groups.needOne': 'Sharing takes a group: paste its key in the Groups tab.',
     'me.title': 'Me',
     'me.hint':
       'Your first name, on this device. It does two things: the others see who has joined the group, and you are offered first in a new list, poll or game.',
@@ -2534,11 +2580,11 @@ const STRINGS = {
     'join.toHomeScreenStep1': 'Put the app there: on an iPhone, the Share button, then “Add to Home Screen”.',
     'join.toHomeScreenStep2': 'Open it from the home screen — it will be empty, which is expected.',
     'join.toHomeScreenStep3':
-      'In the Overview, “Join a group”: copy in the name and the six digits below, and write your first name.',
+      'In the Groups tab, “Join a group”: copy in the name and the six digits below, and write your first name.',
     'join.toHomeScreenWhat': 'To copy into the app:',
     'join.toHomeScreenCopy': 'Copy the name and the code',
     'join.toHomeScreenDone':
-      'Already joined here, in the browser? The code may be spent. Take your key instead: Overview → your group → "Show my key", and paste it into the app, under "I have no code, but a key".',
+      'Already joined here, in the browser? The code may be spent. Take your key instead: Groups → your group → "Show my key", and paste it into the app, under "I have no code, but a key".',
     'join.noDatabase': 'This copy of the app has no shared database: there is no group to join.',
     'tab.polls': 'Polls',
     'polls.new': 'New poll',
@@ -2685,7 +2731,7 @@ const STRINGS = {
     'shareApp.needsSql':
       'The database does not have that function: run the SQL block from step 2b of the deployment guide again.',
     'shareApp.needsUpdate':
-      'This app, or the database, is out of date. Tap “Look for an update” in the Overview, under Données; if that changes nothing, tell whoever set the database up.',
+      'This app, or the database, is out of date. Tap “Look for an update” in Settings, under Data; if that changes nothing, tell whoever set the database up.',
     'shareSet.codeLabel': 'Code to pass on',
     'shareSet.codeApart':
       'Do not send it in the same message as the link: say it out loud, or use another route.',
@@ -4762,6 +4808,31 @@ function createEvent({ name = '', names = [], date = null, at = null } = {}) {
 /** A poll made as an event, with no vote to hold. */
 function isEvent(poll) {
   return Boolean(poll?.fixed);
+}
+
+/**
+ * Whether a question is looking for a day — "which evening for the raclette?"
+ * — rather than for anything else — "which present for Léa?". Such a poll
+ * belongs in the agenda while it is being decided, next to the days already
+ * settled, so it is guessed from what people naturally write: a question
+ * asking when, or choices that read as days (a weekday, a month, 12/10).
+ */
+const WHEN_ASKED = /\b(quand|quel(le)?s? (jour|soir|date|week-?end|midi|matin|après-midi|semaine)|when|which (day|evening|night|date|weekend)|what (day|date|evening))\b/i;
+const READS_AS_DAY = new RegExp([
+  '\\b(lun|mar|mer|jeu|ven|sam|dim)(\\.|di|redi|credi|udi|dredi|edi|anche)?\\b',
+  '\\b(mon|tue|wed|thu|fri|sat|sun)(day|s|\\.)?\\b',
+  '\\b(janv|févr|fevr|mars|avr|mai|juin|juil|août|aout|sept|oct|nov|déc|dec|jan|feb|apr|jun|jul|aug|sep)[a-zéû]*\\b',
+  '\\b\\d{1,2}[/.]\\d{1,2}\\b',
+  '\\b\\d{4}-\\d{2}-\\d{2}\\b',
+  '\\b(demain|ce soir|tomorrow|tonight|week-?end)\\b',
+].join('|'), 'i');
+
+function seeksDay(poll) {
+  if (!poll || isEvent(poll)) return false;
+  if (WHEN_ASKED.test(poll.question || '')) return true;
+  const options = (poll.options || []).map((option) => option.text || '');
+  if (!options.length) return false;
+  return options.filter((text) => READS_AS_DAY.test(text)).length * 2 >= options.length;
 }
 
 /**
@@ -7416,6 +7487,7 @@ function pollsView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('polls')}
     <button type="button" class="button button--primary button--block" data-goto="#/polls/new">
       + ${escapeHtml(t('polls.new'))}
     </button>
@@ -7589,7 +7661,7 @@ function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="${fixed ? '#/agenda' : '#/polls'}">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}">
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -8144,7 +8216,7 @@ function bindPoll(poll) {
     const next = archivePoll(poll, !poll.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replacePoll(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate(isEvent(next) ? '#/agenda' : '#/polls');
+    if (next.archivedAt) navigate(pollHome(next));
   });
 
   view.querySelector('#poll-rename')?.addEventListener('click', () => openPollNameDialog(poll));
@@ -8157,7 +8229,7 @@ function bindPoll(poll) {
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
     if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
-    navigate(isEvent(poll) ? '#/agenda' : '#/polls');
+    navigate(pollHome(poll));
   });
 
   view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
@@ -8527,6 +8599,7 @@ function listsView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('lists')}
     <button type="button" class="button button--primary button--block" data-goto="#/lists/new">
       + ${escapeHtml(t('lists.new'))}
     </button>
@@ -8851,7 +8924,9 @@ function spendCardHtml(spend) {
  * weekend just past whose money is not settled yet; then the past, folded.
  *
  * An event is a poll with a day: settled by a vote, or made with its day
- * already known. Polls without a day stay in their own tab.
+ * already known. A question still looking for its day comes first, under "to
+ * decide": when it settles it only moves down the same page. Questions about
+ * anything else stay on the home page, and the accounts have their own.
  */
 function agendaView() {
   const today = dayNow();
@@ -8860,9 +8935,9 @@ function agendaView() {
   const coming = dated.filter((poll) => poll.date >= today).sort(byDay);
   const past = dated.filter((poll) => poll.date < today).sort(byDay).reverse();
 
-  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
-  const held = new Set(coming.map((poll) => eventParts(poll, state).spend?.id).filter(Boolean));
-  const loose = sorted.filter((spend) => isLive(spend) && !held.has(spend.id));
+  const deciding = shownDocs(state.polls)
+    .filter((poll) => isLive(poll) && !poll.date && !poll.closedAt && seeksDay(poll))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
   const archivedEvents = shownDocs(state.polls).filter((poll) => isEvent(poll) && poll.archivedAt);
 
   return `
@@ -8871,6 +8946,15 @@ function agendaView() {
       + ${escapeHtml(t('events.new'))}
     </button>
     ${groupChipsHtml()}
+
+    ${
+      deciding.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('polls.toDecide'))}</h2></div>
+             <div class="game-list">${deciding.map(pollCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('events.coming'))}</h2></div>
@@ -8882,19 +8966,6 @@ function agendaView() {
       ${hiddenByGroupHtml(state.polls.filter((poll) => poll.date))}
     </section>
 
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('events.accounts'))}</h2>
-        <button type="button" class="button button--small" data-goto="#/spends/new">+ ${escapeHtml(t('spends.new'))}</button>
-      </div>
-      ${
-        loose.length
-          ? `<div class="game-list">${loose.map(spendCardHtml).join('')}</div>`
-          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
-      }
-      ${hiddenByGroupHtml(state.spends)}
-    </section>
-
     ${
       past.length
         ? `<details class="details">
@@ -8904,8 +8975,45 @@ function agendaView() {
         : ''
     }
 
-    ${archivedHtml([...sorted, ...archivedEvents], (document_) =>
-      document_.kind === 'spend' ? spendCardHtml(document_) : eventCardHtml(document_))}`;
+    ${archivedHtml(archivedEvents, eventCardHtml)}`;
+}
+
+/** Every account, on the home page: the ones someone still owes on, then the settled. */
+function spendsView() {
+  const sorted = [...shownDocs(state.spends)].sort((a, b) => b.updatedAt - a.updatedAt);
+  const live = sorted.filter(isLive);
+  const settled = (spend) => spend.lines.length && balances(spend).every((row) => row.balance === 0);
+  const open = live.filter((spend) => !settled(spend));
+  const done = live.filter(settled);
+
+  return `
+    ${flashHtml()}
+    ${kindsHtml('spends')}
+    <button type="button" class="button button--primary button--block" data-goto="#/spends/new">
+      + ${escapeHtml(t('spends.new'))}
+    </button>
+    ${groupChipsHtml()}
+
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      ${
+        open.length
+          ? `<div class="game-list">${open.map(spendCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
+      }
+      ${hiddenByGroupHtml(state.spends)}
+    </section>
+
+    ${
+      done.length
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('spends.settled'))}</h2></div>
+             <div class="game-list">${done.map(spendCardHtml).join('')}</div>
+           </section>`
+        : ''
+    }
+
+    ${archivedHtml(sorted, spendCardHtml)}`;
 }
 
 /** An event in the agenda: its day, who comes, and where its list and account stand. */
@@ -9071,7 +9179,7 @@ function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9295,7 +9403,7 @@ function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9440,7 +9548,7 @@ function bindSpend(spend) {
     const next = archiveSpend(spend, !spend.archivedAt);
     flash(t(next.archivedAt ? 'archive.done' : 'archive.undone'));
     replaceSpend(next, { redraw: !next.archivedAt });
-    if (next.archivedAt) navigate('#/agenda');
+    if (next.archivedAt) navigate('#/spends');
   });
 
   view.querySelector('#spend-rename')?.addEventListener('click', async () => {
@@ -9460,7 +9568,7 @@ function bindSpend(spend) {
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
     if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
-    navigate('#/agenda');
+    navigate('#/spends');
   });
 }
 
@@ -9668,6 +9776,8 @@ function route() {
   }
   // One group, everything in it: #/group/<id>, from the overview.
   if (name === 'group' && param) return { name: 'group', id: decodeSegment(param) };
+  if (name === 'groups') return { name: 'groups' };
+  if (name === 'settings' || name === 'reglages') return { name: 'settings' };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -9676,8 +9786,7 @@ function route() {
   if (name === 'lists') return { name: 'lists' };
   if (name === 'list' && param) return { name: 'list', id: param };
   if (name === 'spends' && param === 'new') return { name: 'new-spend' };
-  // The accounts live in the agenda now; an old link to them still lands there.
-  if (name === 'spends') return { name: 'agenda' };
+  if (name === 'spends') return { name: 'spends' };
   if (name === 'agenda' && param === 'new') return { name: 'new-event' };
   if (name === 'agenda') return { name: 'agenda' };
   if (name === 'spend' && param) return { name: 'spend', id: param };
@@ -9686,6 +9795,14 @@ function route() {
   // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
   if (name === 'poll' && param) return { name: 'poll', id: param, solo: hash.split('/')[2] === 'solo' };
   return { name: 'overview' };
+}
+
+/**
+ * Where a poll is listed, so its page goes back there: the agenda for a day
+ * that is settled or still being looked for, the home page's polls otherwise.
+ */
+function pollHome(poll) {
+  return isEvent(poll) || poll.date || (!poll.closedAt && seeksDay(poll)) ? '#/agenda' : '#/polls';
 }
 
 /** A segment of the address, decoded if it can be. */
@@ -9848,17 +9965,23 @@ function comingHtml() {
     ${hidden > 0 ? `<p class="muted small">${escapeHtml(t('agenda.more', { count: hidden }))}</p>` : ''}`;
 }
 
-function pendingHtml() {
+/**
+ * The rest of what is going on, a few of each kind — leaving out what "For
+ * you" already shows, which is given as the addresses it opens.
+ */
+function pendingHtml(shown = new Set()) {
   const lines = [];
+  const recent = (a, b) => b.updatedAt - a.updatedAt;
+  const notShown = (goto) => (document_) => !shown.has(`${goto}${document_.id}`);
 
-  const ongoing = state.games.filter((game) => !gameStatus(game).finished)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const open = state.lists.filter((list) => progress(list).left > 0)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const asked = state.polls.filter((poll) => !poll.closedAt)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const owing = state.spends.filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const ongoing = shownDocs(state.games).filter((game) => isLive(game) && !gameStatus(game).finished)
+    .filter(notShown('#/game/')).sort(recent);
+  const open = shownDocs(state.lists).filter((list) => isLive(list) && progress(list).left > 0)
+    .filter(notShown('#/list/')).sort(recent);
+  const asked = shownDocs(state.polls).filter((poll) => isLive(poll) && !poll.closedAt)
+    .filter(notShown('#/poll/')).sort(recent);
+  const owing = shownDocs(state.spends).filter((spend) => isLive(spend) && balances(spend).some((row) => row.balance !== 0))
+    .filter(notShown('#/spend/')).sort(recent);
 
   for (const list of open.slice(0, 3)) {
     const { left } = progress(list);
@@ -9894,7 +10017,9 @@ function pendingHtml() {
     });
   }
 
-  if (!lines.length) return `<p class="muted small">${escapeHtml(t('overview.nothing'))}</p>`;
+  if (!lines.length) {
+    return shown.size ? '' : `<p class="muted small">${escapeHtml(t('overview.nothing'))}</p>`;
+  }
   return `<div class="game-list">${lines
     .map(
       (line) => `
@@ -10019,7 +10144,7 @@ function groupsHtml() {
   const held = groups();
   return `
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('groups.title'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('groups.manage'))}</h2></div>
       <p class="muted small">${escapeHtml(t('groups.hint'))}</p>
       ${
         held.length
@@ -10162,7 +10287,7 @@ function byGroupHtml() {
   return `
     <section class="section">
       <div class="section__head">
-        <h2>${escapeHtml(t('dash.byGroup'))}</h2>
+        <h2>${escapeHtml(t('groups.title'))}</h2>
         <span class="muted small">${escapeHtml(t('dash.groupCount', { count: held.length }))}</span>
       </div>
       ${held.map(groupBoardHtml).join('')}
@@ -10196,7 +10321,7 @@ function groupBoardHtml(group) {
         ${tile(counts.lists, t('tab.lists'), '#/lists')}
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
-        ${tile(counts.spends, t('tab.spends'), '#/agenda')}
+        ${tile(counts.spends, t('tab.spends'), '#/spends')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -10281,14 +10406,14 @@ function groupView(group) {
     section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
     section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
     section(t('home.ongoing'), games, gameCardHtml, '#/games'),
-    section(t('events.accounts'), spends, spendCardHtml, '#/agenda'),
+    section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
   ].join('');
 
   return `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(group.name)}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/groups">
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10355,17 +10480,20 @@ function waitingLine(counts) {
 }
 
 function overviewView() {
-  const counts = {
-    lists: state.lists.filter((list) => progress(list).left > 0).length,
-    polls: state.polls.filter((poll) => !poll.closedAt).length,
-    games: state.games.filter((game) => !gameStatus(game).finished).length,
-  };
+  const forYou = forYouItems();
+  const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends].length;
+  const pending = pendingHtml(new Set(forYou.items.map((item) => item.goto)));
 
   return `
     ${flashHtml()}
-    <p class="lead">${escapeHtml(t('overview.what'))}</p>
+    ${kindsHtml('overview')}
+    ${groupChipsHtml()}
+    ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
-    ${byGroupHtml()}
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('forYou.title'))}</h2></div>
+      ${forYouHtml(forYou)}
+    </section>
 
     <section class="section">
       <div class="section__head">
@@ -10374,18 +10502,134 @@ function overviewView() {
       ${comingHtml()}
     </section>
 
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('overview.pending'))}</h2>
-        <span class="muted small">${escapeHtml(t('overview.counts', counts))}</span>
-      </div>
-      ${pendingHtml()}
-    </section>
+    ${
+      pending
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('overview.pending'))}</h2></div>
+             ${pending}
+           </section>`
+        : ''
+    }`;
+}
 
+/**
+ * Which kind of thing Home shows: everything at once, or one kind in full.
+ *
+ * The kinds used to be tabs of their own; they are one row of the home page
+ * now, so the tab bar can answer other questions — when, with whom — and each
+ * kind keeps its own address, so a link once sent still opens it.
+ */
+function kindsHtml(active) {
+  const kind = (id, goto, label) => `
+    <button type="button" class="segmented__option" data-goto="${goto}"
+            aria-current="${active === id ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `
+    <nav class="segmented segmented--kinds" aria-label="${escapeHtml(t('home.kinds'))}">
+      ${kind('overview', '#/', t('tab.all'))}
+      ${kind('lists', '#/lists', t('tab.lists'))}
+      ${kind('polls', '#/polls', t('tab.polls'))}
+      ${kind('games', '#/games', t('tab.games'))}
+      ${kind('spends', '#/spends', t('tab.spends'))}
+    </nav>`;
+}
+
+/**
+ * What is waiting on this device's person, and on nobody else: a poll they
+ * have not answered, lines they were given, money they owe — and, for whoever
+ * opens a group's door, the people knocking at it. It is what opening the app
+ * is for, so it comes first; the rest of what is going on comes after.
+ */
+function forYouItems() {
+  const items = [];
+  for (const group of groupsByName()) {
+    const rows = group.admits === false ? null : gate().requests[group.id];
+    if (!rows?.length) continue;
+    items.push({
+      goto: '#/groups',
+      title: t('forYou.knocks', { count: rows.length }),
+      meta: t('forYou.knocksWhere', { name: group.name }),
+    });
+  }
+  const me = myName();
+  if (!me) return { items, noName: true };
+
+  const file = personFile({
+    lists: shownDocs(state.lists), polls: shownDocs(state.polls), spends: shownDocs(state.spends),
+  }, me);
+  for (const row of file.votes.filter((one) => !one.closed && !one.answered)) {
+    items.push({ goto: `#/poll/${row.poll.id}`, title: pollTitle(row.poll), meta: t('forYou.vote') });
+  }
+  for (const row of file.lines.filter((one) => one.left > 0).sort((a, b) => b.late - a.late)) {
+    items.push({
+      goto: `#/list/${row.list.id}`,
+      title: listTitle(row.list),
+      meta: t('forYou.lines', { count: row.left }),
+      late: row.late ? t('lists.late', { count: row.late }) : '',
+    });
+  }
+  for (const row of file.accounts.filter((one) => one.balance < 0)) {
+    items.push({
+      goto: `#/spend/${row.spend.id}`,
+      title: spendTitle(row.spend),
+      meta: t('spends.iOwe', { amount: showAmount(-row.balance, getLanguage()) }),
+    });
+  }
+  return { items };
+}
+
+function forYouHtml({ items, noName }) {
+  const rows = items.map((item) => `
+    <button type="button" class="game-card" data-goto="${escapeHtml(item.goto)}">
+      <span class="game-card__title">
+        ${escapeHtml(item.title)}
+        ${item.late ? `<span class="pill pill--late">${escapeHtml(item.late)}</span>` : ''}
+      </span>
+      <span class="game-card__meta">${escapeHtml(item.meta)}</span>
+    </button>`).join('');
+  return `
+    ${rows ? `<div class="game-list" id="for-you">${rows}</div>` : ''}
+    ${
+      noName
+        ? `<p class="muted small">${escapeHtml(t('forYou.noName'))}
+             <button type="button" class="button button--small button--ghost" data-goto="#/settings">
+               ${escapeHtml(t('tab.settings'))} ›
+             </button>
+           </p>`
+        : rows ? '' : `<p class="muted small">${escapeHtml(t('forYou.nothing'))}</p>`
+    }`;
+}
+
+/**
+ * The groups tab: each group this device is in, as a board that opens the
+ * group's own page — then everything that lets people in or out of one.
+ */
+function groupsView() {
+  if (!state.remote) {
+    return `
+      ${flashHtml()}
+      <p class="muted small">${escapeHtml(t('groups.noDatabase'))}</p>`;
+  }
+  return `
+    ${flashHtml()}
+    ${
+      // Knocking at a group asks for a first name: better to meet the field
+      // here than to be sent to the settings by an error.
+      myName() ? '' : meHtml()
+    }
+    ${byGroupHtml()}
+    ${groupsHtml()}`;
+}
+
+/** The app's own settings: who this device is, and its data. */
+function settingsView() {
+  return `
+    ${flashHtml()}
     ${meHtml()}
+    ${dataHtml()}`;
+}
 
-    ${state.remote ? groupsHtml() : ''}
-
+function dataHtml() {
+  return `
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
       <div class="row">
@@ -10746,16 +10990,16 @@ function bindOverview() {
   });
 
   // What the gatekeeper's blocks need, asked once and then kept.
-  for (const group of groups()) {
+  for (const group of showsGate() ? groups() : []) {
     if (group.admits === undefined) {
       refreshGroup(group).then((learnt) => {
-        if (learnt && !isBusy() && route().name === 'overview') render();
+        if (learnt && !isBusy() && showsGate()) render();
       });
       continue;
     }
     if (group.admits === false) continue;
     loadGate(group).then((learnt) => {
-      if (learnt && !isBusy() && route().name === 'overview') render();
+      if (learnt && !isBusy() && showsGate()) render();
     });
   }
 
@@ -10921,8 +11165,9 @@ function bindBack(token) {
     flash(taken
       ? t('groups.joinedWith', { name: group.name, count: taken })
       : t('groups.joined', { name: group.name }));
-    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/`);
-    else navigate('#/');
+    // Onto the groups tab, where the group just joined now shows.
+    if (location.hash.startsWith('#/back/')) location.replace(`${location.pathname}${location.search}#/groups`);
+    else navigate('#/groups');
   });
 }
 
@@ -11168,10 +11413,10 @@ function leaveInvitation() {
   // from the hashchange the way it does everywhere else. Drawing here as well
   // would show the "you are in Mifa" line and then immediately wipe it.
   if (location.hash.startsWith('#/join/')) {
-    location.replace(`${location.pathname}${location.search}#/`);
+    location.replace(`${location.pathname}${location.search}#/groups`);
     return;
   }
-  navigate('#/');
+  navigate('#/groups');
 }
 
 /** True while a knock is on its way, so no second one leaves for the same form. */
@@ -11302,11 +11547,16 @@ function bindJoin() {
  * apart, and only redraw when the answer actually changed, so the screen does
  * not flicker and the database is not hammered.
  */
+/** The pages that show who is knocking: the groups tab, and "for you" at home. */
+function showsGate() {
+  return ['overview', 'groups'].includes(route().name);
+}
+
 function watchGate() {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy() || route().name !== 'overview') return;
+    if (isBusy() || !showsGate()) return;
     if (await refreshGate()) render();
   }, 15000);
 }
@@ -11449,6 +11699,7 @@ function homeView() {
 
   return `
     ${flashHtml()}
+    ${kindsHtml('games')}
     <button type="button" class="button button--primary button--block" data-goto="#/new">
       + ${escapeHtml(t('action.newGame'))}
     </button>
@@ -13495,7 +13746,7 @@ async function catchUpQuietly() {
   if (!state.remote || !groups().length) return;
   if (state.syncedAt && Date.now() - state.syncedAt < SYNC_EVERY) return;
   const taken = await catchUpAll();
-  const changed = route().name === 'overview' ? await refreshGate() : false;
+  const changed = showsGate() ? await refreshGate() : false;
   if ((taken || changed) && !isBusy()) render();
 }
 
@@ -15178,7 +15429,7 @@ function bindChrome() {
     let failed = false;
     try {
       taken = await catchUpAll();
-      if (route().name === 'overview') await refreshGate();
+      if (showsGate()) await refreshGate();
     } catch {
       failed = true;
     }
@@ -15344,12 +15595,12 @@ function render() {
             if (state.openingSpend !== asked) return;
             state.openingSpend = null;
             if (found) render();
-            else if (route().id === asked) navigate('#/agenda');
+            else if (route().id === asked) navigate('#/spends');
           });
         }
         return;
       }
-      navigate('#/agenda');
+      navigate('#/spends');
       return;
     }
     watchSpend(spend.id);
@@ -15438,7 +15689,7 @@ function render() {
     stopWatching();
     const group = groups().find((held) => held.id === current.id);
     if (!group) {
-      navigate('#/');
+      navigate('#/groups');
       return;
     }
     // Looking at a group is looking at it everywhere: the tabs follow, and so
@@ -15458,6 +15709,18 @@ function render() {
     stopWatching();
     view.innerHTML = homeView();
     bindHome();
+  } else if (current.name === 'spends') {
+    stopWatching();
+    view.innerHTML = spendsView();
+  } else if (current.name === 'settings') {
+    stopWatching();
+    view.innerHTML = settingsView();
+    bindOverview();
+  } else if (current.name === 'groups') {
+    view.innerHTML = groupsView();
+    bindOverview();
+    if (state.remote && groups().some((group) => group.admits !== false)) watchGate();
+    else stopWatching();
   } else {
     view.innerHTML = overviewView();
     bindOverview();
@@ -15544,28 +15807,23 @@ function adoptGame(stored) {
   return true;
 }
 
-/** Which half of the app we are in, so the tab bar says so. */
+/** Which part of the app we are in, so the tab bar says so. */
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
-  const here = ['lists', 'new-list', 'list'].includes(current.name)
-    ? 'lists'
-    : ['polls', 'new-poll'].includes(current.name) || (current.name === 'poll' && !isEvent(getPoll(current.id)))
-      ? 'polls'
-      : ['home', 'new', 'game', 'stats'].includes(current.name)
-        ? 'games'
-        : ['agenda', 'new-event', 'new-spend', 'spend', 'poll'].includes(current.name)
-          ? 'agenda'
-          : 'overview';
+  const poll = current.name === 'poll' ? getPoll(current.id) : null;
+  const inAgenda = ['agenda', 'new-event'].includes(current.name) || (poll && pollHome(poll) === '#/agenda');
+  const here = inAgenda
+    ? 'agenda'
+    : ['groups', 'group', 'person', 'join', 'back'].includes(current.name)
+      ? 'groups'
+      : current.name === 'settings'
+        ? 'settings'
+        : 'home';
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
-  // The overview has no tab of its own: the name at the top leads there.
-  const brand = document.querySelector('.app-bar__brand');
-  if (!brand) return;
-  if (here === 'overview') brand.setAttribute('aria-current', 'page');
-  else brand.removeAttribute('aria-current');
 }
 
 /**

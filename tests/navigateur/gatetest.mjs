@@ -11,7 +11,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const errors = [];
 const PAGE = 'http://localhost:8099/dist/marque-points.html';
 
-async function device(label, { key = null, hash = '', me = null, admits = true } = {}) {
+async function device(label, { key = null, hash = '#/groups', me = null, admits = true } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 950 }, locale: 'fr-FR' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${label}: ${e.message}`));

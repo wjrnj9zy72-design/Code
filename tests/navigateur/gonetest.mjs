@@ -32,7 +32,7 @@ const db = async (fn, body) => (await fetch(`http://127.0.0.1:8123/rest/v1/rpc/$
 
 // --- Gui crée un sondage dans Mifa et l'envoie
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });
-await gui.click('.tab[data-tab="polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
+await gui.click('[data-tab="home"]'); await gui.click('.segmented--kinds [data-goto="#/polls"]'); await gui.click('[data-goto="#/polls/new"]'); await gui.waitForSelector('#new-poll');
 await gui.fill('#poll-question', 'Secret de famille ?');
 await gui.fill('#poll-choices', 'vendredi\nsamedi');
 await gui.fill('[data-person-index="0"]', 'Gui');
@@ -73,7 +73,7 @@ check('sa copie est retirée de l’appareil',
 
 // --- Hors réseau : le visiteur n'entend pas « n'existe plus »
 const gui2 = gui;
-await gui2.click('[data-goto="#/polls/new"]'); await gui2.waitForSelector('#new-poll');
+await gui2.click('[data-tab="home"]'); await gui2.click('.segmented--kinds [data-goto="#/polls"]'); await gui2.click('[data-goto="#/polls/new"]'); await gui2.waitForSelector('#new-poll');
 await gui2.fill('#poll-question', 'Quel soir ?');
 await gui2.fill('#poll-choices', 'lundi\nmardi');
 await gui2.fill('[data-person-index="0"]', 'Gui');
@@ -97,6 +97,7 @@ check('et « Réessayer » ouvre le sondage une fois le réseau revenu', back);
 
 // --- L'invitation : le lien n'est donné qu'une fois
 const inv = await device('Invite', { me: 'Gui', groups: [MIFA] }, { shares: true });
+await inv.click('[data-tab="groups"]');
 await inv.waitForSelector('[data-invite]');
 await inv.click('[data-invite]');
 await inv.waitForSelector('#invite-open', { timeout: 15000 });

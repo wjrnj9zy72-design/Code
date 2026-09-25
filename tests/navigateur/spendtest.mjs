@@ -8,7 +8,7 @@ const results = [];
 const check = (n, ok, d = '') => results.push({ n, ok, d });
 const CONFIG = JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' });
 const PAGE = 'http://localhost:8099/dist/marque-points.html';
-const MARKS = { lists: '#/lists/new', polls: '#/polls/new', games: '#/new', agenda: '#/spends/new' };
+const MARKS = { lists: '#/lists/new', polls: '#/polls/new', games: '#/new', spends: '#/spends/new' };
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const errors = [];
@@ -27,7 +27,12 @@ async function device(label, { key = null, me = null } = {}) {
   await page.goto(PAGE);
   await page.waitForSelector('.app-bar');
   page.openTab = async (tab) => {
-    await page.click(`[data-tab="${tab}"]`);
+    // Lists, polls, games and accounts are kinds of the home page, not tabs.
+    if (tab === 'agenda') await page.click('[data-tab="agenda"]');
+    else {
+      await page.click('[data-tab="home"]');
+      await page.click(`.segmented--kinds [data-goto="#/${tab}"]`);
+    }
     await page.waitForSelector(`[data-goto="${MARKS[tab]}"]`);
   };
   return page;
@@ -43,7 +48,7 @@ check('quatre onglets, les comptes dans l’Agenda, et ils tiennent sur l’écr
 
 /* ---- 2. créer un compte -------------------------------------------------- */
 
-await page.openTab('agenda');
+await page.openTab('spends');
 check('sans compte, l’onglet dit quoi en faire',
   /Vacances, coloc/.test(await page.locator('#view').textContent()));
 
@@ -136,7 +141,7 @@ check('et rien n’a été ajouté', (await page.locator('.line').count()) === 3
 
 /* ---- 7. le compte remonte partout ---------------------------------------- */
 
-await page.click('.app-bar__brand');
+await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 const tiles = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
 check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1', tiles.join(','));
@@ -153,8 +158,7 @@ check('sa page montre le compte',
 
 /* ---- 8. partagé, et repris par un autre appareil ------------------------- */
 
-await page.click('[data-tab="agenda"]');
-await page.waitForSelector('[data-goto="#/spends/new"]');
+await page.openTab('spends');
 await page.click('.game-card');
 await page.waitForSelector('#spend-share');
 await page.click('#spend-share');
@@ -164,7 +168,7 @@ check('le compte se partage dans le groupe',
   (await page.locator('.banner').first().textContent()).trim());
 
 const other = await device('autre', { key: 'la-cle-famille', me: 'Bob' });
-await other.openTab('agenda');
+await other.openTab('spends');
 await other.waitForSelector('.game-card', { timeout: 15000 });
 check('un autre appareil du groupe le récupère',
   /Vacances/.test(await other.locator('.game-card').first().textContent()));

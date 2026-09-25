@@ -41,9 +41,9 @@ const app = await device('app installée');
 await app.waitForTimeout(1200);
 
 // On lui donne le lien
-await app.evaluate(() => { location.hash = '#/'; });
+await app.evaluate(() => { location.hash = '#/settings'; });
 await app.waitForSelector('#open-link');
-await app.evaluate(() => { location.hash = '#/'; });
+await app.evaluate(() => { location.hash = '#/settings'; });
 await app.waitForSelector('#open-link');
 await app.click('#open-link');
 await app.waitForSelector('#link-text');
@@ -72,7 +72,7 @@ check('une manche ajoutée dans l’app remonte jusqu’à Safari', picked);
 
 // un lien invalide est refusé proprement
 await app.evaluate(() => { location.hash = '#/games'; });
-await app.evaluate(() => { location.hash = '#/'; });
+await app.evaluate(() => { location.hash = '#/settings'; });
 await app.waitForSelector('#open-link');
 await app.click('#open-link');
 await app.fill('#link-text', 'bonjour');

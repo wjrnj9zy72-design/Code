@@ -14,7 +14,7 @@ await p1.addInitScript(() => {
   navigator.share = async (data) => { window.__shared = data; };
 });
 await p1.goto(APP);
-await p1.evaluate(() => { location.hash = '#/'; });
+await p1.evaluate(() => { location.hash = '#/settings'; });
 await p1.waitForSelector('#share-app');
 await p1.click('#share-app');
 await p1.waitForTimeout(200);
@@ -44,7 +44,7 @@ const ctx2 = await browser.newContext();
 const p2 = await ctx2.newPage();
 p2.on('pageerror', (e) => errors.push(String(e)));
 await p2.addInitScript(() => { try { delete Navigator.prototype.share; } catch {} });
-await p2.goto('http://localhost:8099/dist/marque-points.html');
+await p2.goto('http://localhost:8099/dist/marque-points.html#/settings');
 await p2.waitForSelector('#share-app');
 await p2.click('#share-app');
 await p2.waitForSelector('#export-dialog[open]');

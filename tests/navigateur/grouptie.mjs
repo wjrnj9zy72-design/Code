@@ -32,7 +32,7 @@ await page.goto('http://localhost:8099/dist/marque-points.html');
 await page.waitForSelector('.app-bar');
 
 const newPoll = async (question) => {
-  await page.click('.tab[data-tab="polls"]');
+  await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/polls"]');
   await page.waitForSelector('[data-goto="#/polls/new"]');
   await page.click('[data-goto="#/polls/new"]');
   await page.waitForSelector('#new-poll');
@@ -71,7 +71,7 @@ check('en stockage aussi', await page.evaluate(() => {
 }));
 
 /* --- 3. un groupe choisi : le suivant y va tout seul ---------------------- */
-await page.click('.tab[data-tab="polls"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/polls"]');
 await page.waitForSelector('[data-group-filter="grp_famille"]');
 await page.click('[data-group-filter="grp_famille"]');
 await page.waitForTimeout(300);
@@ -91,7 +91,7 @@ check('et il n’est donc plus masqué par la pastille', await page.evaluate(() 
 }));
 
 /* --- 4. listes et parties aussi ------------------------------------------- */
-await page.click('.tab[data-tab="lists"]');
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.waitForSelector('[data-goto="#/lists/new"]');
 await page.click('[data-goto="#/lists/new"]');
 await page.waitForSelector('#new-list');

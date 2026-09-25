@@ -41,7 +41,7 @@ async function makeGame(page, name, scores) {
 
 const guest = await device('sans clé');
 await makeGame(guest, 'Sa partie', ['40', '60', '150']);
-await guest.evaluate(() => { location.hash = '#/'; });
+await guest.evaluate(() => { location.hash = '#/settings'; });
 await guest.waitForSelector('#share-app');
 await guest.click('#share-app');
 await guest.waitForSelector('#share-make');
@@ -65,7 +65,7 @@ await makeGame(mine, 'Mercredi', ['10', '20', '220']);
 await makeGame(mine, 'Jeudi', ['0', '30', '220']);
 check('trois parties', (await mine.locator('.game-card').count()) === 3);
 
-await mine.evaluate(() => { location.hash = '#/'; });
+await mine.evaluate(() => { location.hash = '#/settings'; });
 await mine.waitForSelector('#share-app');
 await mine.click('#share-app');
 await mine.waitForSelector('#share-make');
@@ -113,7 +113,7 @@ await other.fill('#lot-code', code);
 await other.click('#lot-open');
 await other.waitForSelector('.game-card', { timeout: 20000 });
 check('et on revient à la liste', (await other.evaluate(() => location.hash)) === '#/');
-// L'Aperçu porte aussi une carte par personne : les parties se comptent dans leur onglet.
+// L'Accueil mêle toutes les sortes : les parties se comptent sous « Parties ».
 const gamesOf = async (device) => {
   await device.evaluate(() => { location.hash = '#/games'; });
   await device.waitForSelector('[data-goto="#/new"]');
@@ -125,7 +125,7 @@ await other.waitForSelector('.app-bar');
 check('elles restent après rechargement', (await gamesOf(other)) === 3);
 
 // Le code se tape aussi avec des espaces, comme il se dit à voix haute.
-await mine.evaluate(() => { location.hash = '#/'; });
+await mine.evaluate(() => { location.hash = '#/settings'; });
 await mine.waitForSelector('#share-app');
 await mine.click('#share-app');
 await mine.waitForSelector('#share-make');
@@ -141,7 +141,7 @@ check('une sélection a son propre lot et son propre code',
 await mine.click('#export-close');
 
 const third = await device('app installée');
-await third.evaluate(() => { location.hash = '#/'; });
+await third.evaluate(() => { location.hash = '#/settings'; });
 await third.waitForSelector('#open-link');
 await third.click('#open-link');
 await third.fill('#link-text', `Tiens : ${someLink}`);
@@ -184,11 +184,11 @@ check('le bon code non plus, une fois bloqué',
 
 /* -------------------------------------------------------------- révocation --- */
 
-await mine.evaluate(() => { location.hash = '#/'; });
+await mine.evaluate(() => { location.hash = '#/settings'; });
 await mine.waitForSelector('#my-shares');
 check('mes partages sont mémorisés', (await mine.locator('#my-shares').textContent()).includes('2'),
   await mine.locator('#my-shares').textContent());
-await mine.evaluate(() => { location.hash = '#/'; });
+await mine.evaluate(() => { location.hash = '#/settings'; });
 await mine.waitForSelector('#my-shares');
 await mine.click('#my-shares');
 await mine.waitForSelector('.lot');

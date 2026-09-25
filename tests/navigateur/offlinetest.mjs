@@ -20,7 +20,7 @@ await page.evaluate(() => navigator.serviceWorker.ready);
 await page.waitForTimeout(1200);
 
 // --- ce qui permet de savoir, et de forcer, la mouture qu'on a
-await page.evaluate(() => { location.hash = '#/'; });
+await page.evaluate(() => { location.hash = '#/settings'; });
 await page.waitForSelector('#look-update');
 const shown = await page.locator('.section', { has: page.locator('#look-update') }).textContent();
 check('la version de l’app est affichée', /v\d+/.test(shown), shown.replace(/\s+/g, ' ').slice(-80));
@@ -55,7 +55,7 @@ await ctx.setOffline(true);
 await page.goto('http://localhost:8099/').catch(() => null);
 const opened = await page.locator('.app-bar').count().catch(() => 0);
 check('l’app s’ouvre sans réseau', opened === 1);
-// L'Aperçu porte aussi une carte par personne : compter dans l'onglet Parties.
+// L'Accueil mêle toutes les sortes : compter dans « Parties ».
 await page.evaluate(() => { location.hash = '#/games'; });
 await page.waitForSelector('[data-goto="#/new"]');
 check('les parties sont toujours là', (await page.locator('.game-card').count()) === 1);

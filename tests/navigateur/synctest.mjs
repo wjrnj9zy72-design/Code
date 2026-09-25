@@ -41,7 +41,7 @@ check('et il est étiqueté', (await home.locator('#sync').getAttribute('aria-la
 
 /* --- Safari partage une liste, l'autre ne la voit pas encore -------------- */
 
-await safari.click('.tab[data-tab="lists"]');
+await safari.click('[data-tab="home"]'); await safari.click('.segmented--kinds [data-goto="#/lists"]');
 await safari.click('[data-goto="#/lists/new"]');
 await safari.waitForSelector('#new-list');
 await safari.fill('#list-name', 'Courses de Safari');
@@ -52,7 +52,7 @@ await safari.click('#list-share');
 await safari.waitForSelector('#export-dialog[open]', { timeout: 15000 });
 await safari.click('#export-close');
 
-await home.click('.tab[data-tab="lists"]');
+await home.click('[data-tab="home"]'); await home.click('.segmented--kinds [data-goto="#/lists"]');
 await home.waitForTimeout(500);
 // Plus de « pas encore » garanti : l'app, restée ouverte, va chercher d'elle-même
 // toutes les vingt secondes. Le bouton reste là pour ne pas attendre.
@@ -81,7 +81,7 @@ check('une deuxième fois, il dit qu’il n’y a rien de neuf',
 
 /* --- et tout seul, au retour au premier plan ------------------------------ */
 
-await safari.click('.tab[data-tab="polls"]');
+await safari.click('[data-tab="home"]'); await safari.click('.segmented--kinds [data-goto="#/polls"]');
 await safari.click('[data-goto="#/polls/new"]');
 await safari.waitForSelector('#new-poll');
 await safari.fill('#poll-question', 'Quel soir chez Safari ?');
@@ -94,7 +94,7 @@ await safari.click('#export-close');
 
 // le délai minimum entre deux récupérations automatiques
 await home.evaluate(() => { window.__t = Date.now(); });
-await home.click('.tab[data-tab="polls"]');
+await home.click('[data-tab="home"]'); await home.click('.segmented--kinds [data-goto="#/polls"]');
 await home.waitForTimeout(400);
 check('le sondage n’est pas encore là',
   !(await home.locator('body').textContent()).includes('chez Safari'));

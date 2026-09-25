@@ -5,7 +5,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="0e20f507" />
+    <meta name="app-build" content="0012995d" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -45,28 +45,28 @@
     </header>
 
     <!-- At the bottom, within the thumb's reach, and always there: a phone is
-         held from below. The "+" in the middle makes anything, from anywhere;
-         two tabs each side keep it in the middle. The overview is the name at
-         the top, where the app opens anyway. -->
+         held from below. The tabs answer questions rather than sort by kind:
+         what is on (home), when (agenda), with whom (groups), and the app's
+         own settings. The "+" in the middle makes anything, from anywhere. -->
     <nav class="tabs" id="tabs" aria-label="Sections">
-      <a class="tab" href="#/lists" data-tab="lists">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/></svg>
-        <span data-i18n="tab.lists">Listes</span>
-      </a>
-      <a class="tab" href="#/polls" data-tab="polls">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h16M4 17h7"/></svg>
-        <span data-i18n="tab.polls">Sondages</span>
-      </a>
-      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <a class="tab" href="#/games" data-tab="games">
-        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>
-        <span data-i18n="tab.games">Parties</span>
+      <a class="tab" href="#/" data-tab="home">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 9.5V20h4.5v-5.5h3V20H18V9.5"/></svg>
+        <span data-i18n="tab.home">Accueil</span>
       </a>
       <a class="tab" href="#/agenda" data-tab="agenda">
         <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>
         <span data-i18n="tab.agenda">Agenda</span>
+      </a>
+      <button type="button" class="tabs__new" id="create" data-i18n-title="create.title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <a class="tab" href="#/groups" data-tab="groups">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5.2 6-5.2s5.4 1.9 6 5.2"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6M17.5 14.6c1.8.7 3 2.3 3.4 4.9"/></svg>
+        <span data-i18n="tab.groups">Groupes</span>
+      </a>
+      <a class="tab" href="#/settings" data-tab="settings">
+        <svg class="tab__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg>
+        <span data-i18n="tab.settings">Réglages</span>
       </a>
     </nav>
 

@@ -738,6 +738,24 @@ table.scores .meta-cell { color: var(--muted); }
   cursor: pointer;
 }
 
+/* The home page's kinds: five words on a phone's width, so each takes only
+   the room its word needs, and the row may scroll rather than wrap. */
+.segmented--kinds {
+  grid-auto-columns: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.segmented--kinds .segmented__option {
+  padding: 8px 5px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .segmented--kinds .segmented__option { padding: 8px 3px; font-size: 0.7rem; }
+}
+
 .segmented__option[aria-current="true"] {
   background: var(--surface);
   color: var(--text);
