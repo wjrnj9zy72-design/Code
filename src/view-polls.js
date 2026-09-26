@@ -14,6 +14,7 @@ import {
 } from './app.js';
 import { archivedHtml, getGame, getList, listCardHtml, listTitle, persistList } from './view-lists.js';
 import { spendCardHtml, spendTitle } from './view-spends.js';
+import { boardTitle, getBoard } from './view-ideas.js';
 import { ask, download, fileName, makeDialog, showCopyDialog } from './view-games.js';
 import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
@@ -31,7 +32,7 @@ import {
 import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
 import { isLive, eventParts, forEvent } from './dashboard.js';
-import { saveGames, saveLists, savePolls, saveSpends, savePrefs } from './storage.js';
+import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
 import { t, getLanguage } from './i18n.js';
 
@@ -565,7 +566,7 @@ function soloDateHtml(poll) {
  * to answer when someone says their polls are gone.
  */
 export function heldCounts() {
-  const all = [...state.lists, ...state.polls, ...state.games, ...state.spends];
+  const all = [...state.lists, ...state.polls, ...state.games, ...state.spends, ...state.boards];
   return {
     lists: state.lists.length,
     polls: state.polls.length,
@@ -598,6 +599,7 @@ export function dropDeleted(id) {
   const poll = getPoll(id);
   const list = getList(id);
   const spend = getSpend(id);
+  const board = getBoard(id);
   const game = getGame(id);
   if (poll) {
     state.polls = state.polls.filter((item) => item.id !== id);
@@ -608,6 +610,9 @@ export function dropDeleted(id) {
   } else if (spend) {
     state.spends = state.spends.filter((item) => item.id !== id);
     saveSpends(state.spends);
+  } else if (board) {
+    state.boards = state.boards.filter((item) => item.id !== id);
+    saveBoards(state.boards);
   } else if (game) {
     state.games = state.games.filter((item) => item.id !== id);
     saveGames(state.games);
@@ -615,7 +620,7 @@ export function dropDeleted(id) {
     return;
   }
   if (state.store) void state.store.remove(id);
-  const name = poll ? pollTitle(poll) : list ? listTitle(list) : spend ? spendTitle(spend) : gameTitle(game);
+  const name = poll ? pollTitle(poll) : list ? listTitle(list) : spend ? spendTitle(spend) : board ? boardTitle(board) : gameTitle(game);
   flash(t('share.deleted', { name }));
   // On its page, the page finds it gone and says so as any missing thing does.
   if (route().id === id) render();

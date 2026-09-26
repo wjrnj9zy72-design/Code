@@ -763,7 +763,7 @@ table.scores .meta-cell { color: var(--muted); }
   cursor: pointer;
 }
 
-/* The home page's kinds: five words on a phone's width, so each takes only
+/* The home page's kinds: six words on a phone's width, so each takes only
    the room its word needs, and the row may scroll rather than wrap. */
 .segmented--kinds {
   grid-auto-columns: auto;
@@ -772,13 +772,13 @@ table.scores .meta-cell { color: var(--muted); }
 }
 
 .segmented--kinds .segmented__option {
-  padding: 8px 5px;
-  font-size: 0.78rem;
+  padding: 8px 2px;
+  font-size: 0.74rem;
   white-space: nowrap;
 }
 
 @media (max-width: 340px) {
-  .segmented--kinds .segmented__option { padding: 8px 3px; font-size: 0.7rem; }
+  .segmented--kinds .segmented__option { padding: 8px 1px; font-size: 0.64rem; }
 }
 
 .segmented__option[aria-current="true"] {
@@ -1268,3 +1268,120 @@ body:not(.solo) .view {
 /* The first opening: what the app is for, a name, and where to begin. */
 .welcome h2 { margin: 0; }
 .welcome .lead { margin: 0; }
+
+/* ----------------------------------------------------------------- ideas --- */
+:root {
+  --ink-red: #c0392b;
+  --ink-blue: #2463b8;
+  --ink-green: #2f7d4f;
+  --ink-orange: #d9790f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink-red: #ef7b6c;
+    --ink-blue: #7fb0f2;
+    --ink-green: #6cc58e;
+    --ink-orange: #f0a64b;
+  }
+}
+
+:root[data-theme='dark'] {
+  --ink-red: #ef7b6c;
+  --ink-blue: #7fb0f2;
+  --ink-green: #6cc58e;
+  --ink-orange: #f0a64b;
+}
+
+.idea-add { margin: 4px 0 14px; }
+.idea-add .button { flex: 1; }
+
+.idea-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.idea-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 96px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.idea-card:hover { border-color: var(--accent); }
+
+.idea-card__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+}
+
+.idea-card--sketch { padding: 6px; }
+.idea-card__caption { padding: 0 6px 4px; font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+
+.sketch { display: block; width: 100%; height: auto; }
+.sketch path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.ink-ink { stroke: var(--text); background: var(--text); }
+.ink-red { stroke: var(--ink-red); background: var(--ink-red); }
+.ink-blue { stroke: var(--ink-blue); background: var(--ink-blue); }
+.ink-green { stroke: var(--ink-green); background: var(--ink-green); }
+.ink-orange { stroke: var(--ink-orange); background: var(--ink-orange); }
+
+.dialog--note textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.dialog--sketch { width: min(760px, calc(100vw - 16px)); padding: 14px; }
+
+.sketch-pad {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.sketch-pad .sketch {
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sketch-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sketch-tools + .sketch-tools { margin-top: 6px; }
+.sketch-tools__gap { width: 8px; }
+
+.swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch--pen { background: var(--surface); }
+.swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
+.swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }

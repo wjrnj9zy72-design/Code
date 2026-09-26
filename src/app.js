@@ -26,9 +26,13 @@ import {
   addSpendPerson, renameSpendPerson, removeSpendPerson, canRemovePerson,
   balances, spendTotal, settle, mergeSpends, isValidSpend, addRepayment, isRepayment,
 } from './spends.js';
+import { isValidBoard } from './ideas.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent } from './dashboard.js';
-import { loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadPrefs, savePrefs } from './storage.js';
+import {
+  loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadBoards, loadPrefs,
+  savePrefs,
+} from './storage.js';
 import { connectStore } from './cloud.js';
 import { createRemote, pickNewer, shareLink, gameIdFrom, listLink, listIdFrom, pollLink, pollIdFrom, setLink, setIdFrom, joinLink, joinFrom, backLink, backTokenFrom, wasDeleted } from './remote.js';
 import { canSeal, newCode, readCode, readInvite, seal, unseal } from './lock.js';
@@ -49,6 +53,10 @@ import {
   newSpendView, spendCardHtml, spendTitle, spendView, spendsView,
 } from './view-spends.js';
 import {
+  adoptBoard, bindBoard, bindNewBoard, boardCardHtml, boardTitle, boardView, getBoard, ideasView,
+  newBoardView, pullBoard, watchBoard,
+} from './view-ideas.js';
+import {
   ask, bindGame, bindNewGame, gameView, makeDialog, newGameView, shareMessage, showCopyDialog,
 } from './view-games.js';
 import {
@@ -67,6 +75,7 @@ export const state = {
   lists: loadLists(),
   polls: loadPolls(),
   spends: loadSpends(),
+  boards: loadBoards(),
   prefs: loadPrefs(),
   flash: null, // { message, kind: 'info' | 'error' }
   editingRoundId: null,
@@ -89,6 +98,8 @@ export const state = {
   openingPoll: null,
   // And for a shared account of expenses.
   openingSpend: null,
+  // And for a board of ideas.
+  openingBoard: null,
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
@@ -97,6 +108,8 @@ export const state = {
   newListName: '',
   newListPeople: ['', ''],
   newListLines: '',
+  // And the new board's.
+  newBoardName: '',
   // And the new account's.
   newSpendName: '',
   newSpendCurrency: 'EUR',
@@ -179,6 +192,7 @@ export function gameTitle(game) {
 export function documentTitle(document_) {
   if (isValidList(document_)) return listTitle(document_);
   if (isValidPoll(document_)) return pollTitle(document_);
+  if (isValidBoard(document_)) return boardTitle(document_);
   return gameTitle(document_);
 }
 
@@ -303,6 +317,9 @@ export function route() {
   if (name === 'agenda' && param === 'new') return { name: 'new-event' };
   if (name === 'agenda') return { name: 'agenda' };
   if (name === 'spend' && param) return { name: 'spend', id: param };
+  if (name === 'ideas' && param === 'new') return { name: 'new-board' };
+  if (name === 'ideas') return { name: 'ideas' };
+  if (name === 'idea' && param) return { name: 'board', id: param };
   if (name === 'polls' && param === 'new') return { name: 'new-poll' };
   if (name === 'polls') return { name: 'polls' };
   // A shared link opens the poll alone: `#/poll/<id>/solo`. See pollView().
@@ -377,7 +394,7 @@ export function flashHtml() {
  */
 export function groupChipsHtml() {
   const held = groupsByName();
-  const everything = [...state.lists, ...state.polls, ...state.games, ...state.spends];
+  const everything = [...state.lists, ...state.polls, ...state.games, ...state.spends, ...state.boards];
   const outside = everything.some(outsideGroups);
   // With one group and nothing outside it, there is nothing to choose between.
   if (!held.length || (held.length < 2 && !outside)) return '';
@@ -682,7 +699,7 @@ function groupsHtml() {
                     <div>
                       <strong>${escapeHtml(group.name)}</strong>
                       <span class="muted small">${escapeHtml(t('groups.shared', {
-                        count: [...state.games, ...state.lists, ...state.polls, ...state.spends]
+                        count: [...state.games, ...state.lists, ...state.polls, ...state.spends, ...state.boards]
                           .filter((document_) => document_.groupId === group.id).length,
                       }))}</span>
                     </div>
@@ -899,6 +916,7 @@ function groupView(group) {
   const spends = ours(state.spends)
     .filter((spend) => balances(spend).some((row) => row.balance !== 0))
     .sort(recent);
+  const boards = ours(state.boards).sort(recent);
   const counts = groupCounts(state, group.id);
 
   const section = (title, documents, cardHtml, tab) =>
@@ -921,6 +939,7 @@ function groupView(group) {
     section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
     section(t('home.ongoing'), games, gameCardHtml, '#/games'),
     section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
+    section(t('ideas.boards'), boards, boardCardHtml, '#/ideas'),
   ].join('');
 
   return `
@@ -989,6 +1008,7 @@ function openCreateMenu() {
         ${choice('#/agenda/new', t('events.new'))}
         ${choice('#/new', t('action.newGame'))}
         ${choice('#/spends/new', t('spends.new'))}
+        ${choice('#/ideas/new', t('ideas.new'))}
       </div>
       <div class="row">
         <button type="button" class="button button--ghost" data-create-close>${escapeHtml(t('action.cancel'))}</button>
@@ -1080,7 +1100,7 @@ function welcomeHtml() {
 
 function overviewView() {
   const forYou = forYouItems();
-  const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends].length;
+  const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends, ...state.boards].length;
   const pending = pendingHtml(new Set(forYou.items.map((item) => item.goto)));
   // The first opening: the welcome says it all, and empty sections under it
   // would only say « nothing yet » three more times.
@@ -1137,6 +1157,7 @@ export function kindsHtml(active) {
       ${kind('polls', '#/polls', t('tab.polls'))}
       ${kind('games', '#/games', t('tab.games'))}
       ${kind('spends', '#/spends', t('tab.spends'))}
+      ${kind('ideas', '#/ideas', t('tab.ideas'))}
     </nav>`;
 }
 
@@ -2794,6 +2815,38 @@ export function render() {
     watchSpend(spend.id);
     view.innerHTML = spendView(spend);
     bindSpend(spend);
+  } else if (current.name === 'ideas') {
+    stopWatching();
+    view.innerHTML = ideasView();
+  } else if (current.name === 'new-board') {
+    stopWatching();
+    view.innerHTML = newBoardView();
+    bindNewBoard();
+  } else if (current.name === 'board') {
+    const board = getBoard(current.id);
+    if (!board) {
+      stopWatching();
+      // Perhaps a board someone shares: ask before giving up.
+      if (state.remote) {
+        view.innerHTML = `<p class="muted small">${escapeHtml(t('ideas.loading'))}</p>`;
+        if (state.openingBoard !== current.id) {
+          const asked = current.id;
+          state.openingBoard = asked;
+          pullBoard(asked).then((found) => {
+            if (state.openingBoard !== asked) return;
+            state.openingBoard = null;
+            if (found) render();
+            else if (route().id === asked) navigate('#/ideas');
+          });
+        }
+        return;
+      }
+      navigate('#/ideas');
+      return;
+    }
+    watchBoard(board.id);
+    view.innerHTML = boardView(board);
+    bindBoard(board);
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
@@ -3032,6 +3085,7 @@ export async function pullAny(id) {
   if (isValidList(stored)) return adoptList(stored);
   if (isValidPoll(stored)) return adoptPoll(stored);
   if (isValidSpend(stored)) return adoptSpend(stored);
+  if (isValidBoard(stored)) return adoptBoard(stored);
   return false;
 }
 
@@ -3155,6 +3209,7 @@ window.addEventListener('storage', (event) => {
   state.lists = loadLists();
   state.polls = loadPolls();
   state.spends = loadSpends();
+  state.boards = loadBoards();
   if (!isBusy()) render();
 });
 /**

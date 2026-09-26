@@ -14,6 +14,7 @@ import {
   getPoll, getSpend, persistPoll, persistSpend, pullPoll, pushFailed, replacePoll, replaceSpend,
 } from './view-polls.js';
 import { getGame, getList, persist, persistList, replaceGame, replaceList } from './view-lists.js';
+import { getBoard, persistBoard, replaceBoard } from './view-ideas.js';
 import {
   ask, exportGames, importGames, makeDialog, newGameView, openLinkDialog, openPasteDialog,
   shareUrl, showCopyDialog,
@@ -271,7 +272,8 @@ export async function putInGroup(id) {
   const list = getList(id);
   const game = getGame(id);
   const spend = getSpend(id);
-  const document_ = poll || list || game || spend;
+  const board = getBoard(id);
+  const document_ = poll || list || game || spend || board;
   if (!document_ || !state.remote) return;
 
   const group = await askGroup();
@@ -293,6 +295,7 @@ export async function putInGroup(id) {
   if (poll) replacePoll(next);
   else if (list) replaceList(next);
   else if (spend) replaceSpend(next);
+  else if (board) replaceBoard(next);
   else replaceGame(next);
 }
 
@@ -312,7 +315,8 @@ export async function copyToGroup(id) {
   const list = getList(id);
   const game = getGame(id);
   const spend = getSpend(id);
-  const document_ = poll || list || game || spend;
+  const board = getBoard(id);
+  const document_ = poll || list || game || spend || board;
   if (!document_ || !state.remote) return;
 
   const group = await askGroup({ title: t('groups.copyWhere'), except: document_.groupId, always: true });
@@ -362,6 +366,10 @@ export async function copyToGroup(id) {
     state.spends = [...state.spends, copy];
     persistSpend(copy);
     navigate(`#/spend/${copy.id}`);
+  } else if (board) {
+    state.boards = [...state.boards, copy];
+    persistBoard(copy);
+    navigate(`#/idea/${copy.id}`);
   } else {
     state.games = [...state.games, copy];
     persist(copy);
@@ -967,7 +975,7 @@ export function remoteReason(error) {
 function openShareAppDialog() {
   // Games and lists travel together: they are documents of the same kind to
   // the database, and "everything I have" is what the link is asked for.
-  const games = [...state.games, ...state.lists, ...state.polls, ...state.spends].sort((a, b) => b.updatedAt - a.updatedAt);
+  const games = [...state.games, ...state.lists, ...state.polls, ...state.spends, ...state.boards].sort((a, b) => b.updatedAt - a.updatedAt);
   const held = groups();
   // Without a shared database there is nothing to attach: the app alone, then.
   if (!state.remote || !games.length) {
