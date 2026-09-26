@@ -31,8 +31,9 @@ import { qrSvg, qrMatrix } from './qr.js';
 import { isValidList } from './lists.js';
 import { isValidPoll } from './polls.js';
 import { settle, isValidSpend } from './spends.js';
+import { isValidBoard } from './ideas.js';
 import { withMeFirst, withoutMe } from './people.js';
-import { saveGames, saveLists, savePolls, saveSpends } from './storage.js';
+import { saveGames, saveLists, savePolls, saveSpends, saveBoards } from './storage.js';
 import { shareLink, gameIdFrom, listIdFrom, pollIdFrom, setIdFrom, joinFrom, wasDeleted } from './remote.js';
 import { t } from './i18n.js';
 
@@ -521,6 +522,7 @@ export function exportGames() {
       lists: state.lists,
       polls: state.polls,
       spends: state.spends,
+      boards: state.boards,
       // The organiser's secrets, for the polls in this file: they live on this
       // device alone, and a phone replaced, or Safari clearing the app after
       // a few weeks unopened, would leave those polls with no one to set
@@ -674,12 +676,16 @@ export function importGames(source) {
 
   const all = Array.isArray(parsed)
     ? parsed
-    : [...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || []), ...(parsed?.spends || [])];
+    : [
+        ...(parsed?.games || []), ...(parsed?.lists || []), ...(parsed?.polls || []), ...(parsed?.spends || []),
+        ...(parsed?.boards || []),
+      ];
   const games = all.filter(isValidGame);
   const lists = all.filter(isValidList);
   const polls = all.filter(isValidPoll);
   const spends = all.filter(isValidSpend);
-  if (!games.length && !lists.length && !polls.length && !spends.length) {
+  const boards = all.filter(isValidBoard);
+  if (!games.length && !lists.length && !polls.length && !spends.length && !boards.length) {
     flash(t('home.importFailed'), 'error');
     return false;
   }
@@ -709,7 +715,12 @@ export function importGames(source) {
   state.spends = [...state.spends, ...freshSpends];
   saveSpends(state.spends);
 
-  for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends]) {
+  const knownBoards = new Set(state.boards.map((board) => board.id));
+  const freshBoards = boards.filter((board) => !knownBoards.has(board.id));
+  state.boards = [...state.boards, ...freshBoards];
+  saveBoards(state.boards);
+
+  for (const document_ of [...freshGames, ...freshLists, ...freshPolls, ...freshSpends, ...freshBoards]) {
     if (state.store) void state.store.save(document_);
     if (state.remote && document_.shared) {
       // A backup older than a deletion must not bring the thing back for everyone.
@@ -717,7 +728,7 @@ export function importGames(source) {
         .catch((error) => wasDeleted(error) && dropDeleted(document_.id));
     }
   }
-  const count = freshGames.length + freshLists.length + freshPolls.length + freshSpends.length;
+  const count = freshGames.length + freshLists.length + freshPolls.length + freshSpends.length + freshBoards.length;
   flash(organising
     ? t('home.importOrganiser', { count, polls: organising })
     : t('home.importDone', { count }));

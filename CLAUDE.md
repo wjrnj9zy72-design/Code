@@ -31,10 +31,10 @@ facultative : Supabase (supabase.com), appelée uniquement par des fonctions
 RPC `security definer` ; la table n'est jamais exposée.
 
 - `src/app.js` : routeur, accueil, agenda, personnes ; `src/view-*.js` : un
-  écran chacun (sondages, listes, comptes, parties, groupes), qui rappellent
+  écran chacun (sondages, listes, comptes, idées, parties, groupes), qui rappellent
   `app.js` depuis leurs fonctions seulement ; `src/i18n.js` : tous les textes
   (FR et EN, ajouter les deux ; pluriel : `{count|ligne|lignes}`) ; `src/remote.js` : appels à la base ; `polls.js`,
-  `lists.js`, `spends.js`, `model.js` (parties) : la logique pure, testée.
+  `lists.js`, `spends.js`, `ideas.js`, `model.js` (parties) : la logique pure, testée.
 - `tools/bundle.js` construit `dist/*.html` et `supabase/functions/agenda/index.ts`,
   et tamponne `sw.js`/`index.html`. Liste explicite `MODULES` : un nouveau module
   s'y ajoute, et dans `SHELL` de `sw.js`. Pas d'import renommé (`as`), pas deux

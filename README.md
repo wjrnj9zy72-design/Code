@@ -2,10 +2,11 @@
 
 Quatre onglets et un « + », une seule app. **Accueil** : ce qui vous attend,
 ce qui vient, ce qui est en cours — et, d'une rangée *Tout · Listes · Sondages
-· Parties · Comptes*, chaque sorte en entier : des **listes** à cocher et à
-répartir, des **sondages** pour trancher une date ou un choix, un compteur de
-points pour Papayoo et une vingtaine d'autres **parties**, des **comptes** de
-dépenses (qui a payé quoi, qui rembourse qui). **Agenda** : les sondages qui
+· Parties · Comptes · Idées*, chaque sorte en entier : des **listes** à cocher
+et à répartir, des **sondages** pour trancher une date ou un choix, un compteur
+de points pour Papayoo et une vingtaine d'autres **parties**, des **comptes** de
+dépenses (qui a payé quoi, qui rembourse qui), des tableaux d'**idées** (notes
+et croquis au doigt). **Agenda** : les sondages qui
 cherchent un jour, puis ce qui vient, jour par jour, avec pour chaque
 événement sa liste et son compte. **Groupes** : vos groupes, leur page, entrer
 et inviter. **Réglages** : votre prénom, vos données, la version. Une page
@@ -292,6 +293,28 @@ Chaque ligne dit ce qui a été payé, combien, par qui, et pour qui.
 - Partagé comme le reste : chacun note de son côté, et les lignes se réunissent
   sans qu'aucune n'en chasse une autre.
 
+## Ce que ça fait — les idées
+
+Un tableau d'idées — un voyage, un cadeau, un projet — tient ce qui vient avant
+de décider : des **notes** et des **croquis**, chacun sur sa carte.
+
+- **Des cartes, pas une grande page** : deux personnes qui écrivent en même
+  temps ne s'écrasent pas, chacune ajoute les siennes. La plus récente vient en
+  premier.
+- **Une note**, c'est du texte libre : une idée, une adresse, un lien. Ce qui
+  est tapé est gardé à la fermeture, quelle qu'elle soit ; une note laissée
+  vide n'est pas créée.
+- **Un croquis** se dessine au doigt ou à la souris : cinq couleurs (l'encre
+  suit le thème, foncée en clair, claire en sombre), trois épaisseurs, une
+  gomme qui efface le trait qu'elle touche, *Annuler*, et une légende.
+- **Gardé en traits, pas en image** : chaque trait est une suite de points
+  (allégée des points inutiles) dans un cadre fixe de 1000 × 750. C'est léger
+  pour la base, net sur tous les écrans, et deux personnes qui dessinent sur
+  le même croquis gardent chacune leurs traits. Un tableau trop lourd pour la
+  base le dit avant d'écrire.
+- Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
+  schémas (boîtes et flèches) ni de photos.
+
 ## Jeux fournis
 
 ### Jeux de cartes
@@ -437,6 +460,7 @@ src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
 src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
 src/spends.js     les comptes de dépenses : parts, soldes, remboursements
+src/ideas.js      les tableaux d'idées : notes, croquis en traits, fusion
 src/ics.js        l'écriture des fichiers .ics (iCalendar, à la main)
 supabase/functions/agenda/  la fonction qui sert l'agenda d'un groupe
 src/recap.js      le récapitulatif texte d'une partie
@@ -455,7 +479,7 @@ tools/check-remote.js  vérifie que la base est correctement configurée
 docs/DEPLOIEMENT.md    mise en ligne pas à pas
 src/i18n.js       traductions fr / en
 src/app.js        routeur, accueil, agenda, pages des personnes
-src/view-*.js     un écran chacun : sondages, listes, comptes, parties, groupes
+src/view-*.js     un écran chacun : sondages, listes, comptes, idées, parties, groupes
 tools/serve.js    serveur statique de développement
 tools/bundle.js   construction du fichier unique autonome
 dist/             le fichier unique, livré dans le dépôt

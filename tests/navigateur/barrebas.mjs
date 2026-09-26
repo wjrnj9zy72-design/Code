@@ -69,7 +69,7 @@ check('l’app s’ouvre sur l’Accueil, allumé',
 
 const kinds = (await page.locator('.segmented--kinds .segmented__option').allTextContents()).map((s) => s.trim());
 check('une rangée de sortes en haut de l’Accueil',
-  kinds.join(' / ') === 'Tout / Listes / Sondages / Parties / Comptes', kinds.join(' / '));
+  kinds.join(' / ') === 'Tout / Listes / Sondages / Parties / Comptes / Idées', kinds.join(' / '));
 check('« Tout » y est choisi',
   (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Tout');
 const forYou = await page.locator('#for-you').textContent();
@@ -128,7 +128,7 @@ check('le bas de la page passe au-dessus de la barre', last <= after.y + 1, `${l
 
 await page.click('#create');
 await page.waitForSelector('dialog[open] [data-create]');
-check('le « + » propose cinq créations', (await page.locator('dialog[open] [data-create]').count()) === 5);
+check('le « + » propose six créations', (await page.locator('dialog[open] [data-create]').count()) === 6);
 check('sans groupe choisi, il n’en annonce aucun', (await page.locator('dialog[open] p.muted').count()) === 0);
 await page.click('dialog[open] [data-create="#/polls/new"]');
 await page.waitForSelector('#new-poll');
@@ -213,7 +213,7 @@ check('aucun nom d’onglet n’est coupé', cut.length === 0, cut.join(', '));
 
 const phone = await open(360, 740);
 const row = await phone.locator('.segmented--kinds').evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
-check('les cinq sortes tiennent sur 360 px', row);
+check('les six sortes tiennent sur 360 px', row);
 
 /* --- un lien de sondage : pas de barre ------------------------------------ */
 

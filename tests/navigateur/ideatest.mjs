@@ -1,0 +1,179 @@
+/**
+ * Les idées : un tableau, des notes, des croquis dessinés au doigt — et deux
+ * appareils qui dessinent sur le même croquis sans s'écraser.
+ */
+import { chromium } from 'playwright';
+
+const results = [];
+const check = (n, ok, d = '') => results.push({ n, ok, d });
+const CONFIG = JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' });
+const PAGE = 'http://localhost:8099/dist/marque-points.html';
+
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const errors = [];
+
+async function device(label, { key = null, me = null, dark = false } = {}) {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 }, locale: 'fr-FR', hasTouch: true,
+    colorScheme: dark ? 'dark' : 'light',
+  });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`${label}: ${e.message}`));
+  await page.addInitScript(([c, k, name]) => {
+    localStorage.setItem('marque-points:remote:v1', c);
+    const prefs = {};
+    if (name) prefs.me = name;
+    if (k) prefs.groups = [{ id: 'grp_famille', name: 'Mifa', key: k, admits: true }];
+    if (Object.keys(prefs).length) localStorage.setItem('marque-points:prefs:v1', JSON.stringify(prefs));
+  }, [CONFIG, key, me]);
+  await page.goto(PAGE);
+  await page.waitForSelector('.app-bar');
+  return page;
+}
+
+/** Un trait tiré à la souris, d'un point à l'autre de la zone (en fractions). */
+async function draw(page, from, to, steps = 12) {
+  const box = await page.locator('#sketch-pad').boundingBox();
+  const at = ([x, y]) => [box.x + box.width * x, box.y + box.height * y];
+  const [x0, y0] = at(from);
+  const [x1, y1] = at(to);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  for (let i = 1; i <= steps; i += 1) {
+    await page.mouse.move(x0 + ((x1 - x0) * i) / steps, y0 + ((y1 - y0) * i) / steps);
+  }
+  await page.mouse.up();
+}
+
+const strokes = (page) => page.locator('#sketch-pad path').count();
+
+const page = await device('moi', { key: 'la-cle-famille', me: 'Gui' });
+
+/* ---- 1. un tableau ------------------------------------------------------- */
+
+await page.click('[data-tab="home"]');
+await page.click('.segmented--kinds [data-goto="#/ideas"]');
+await page.waitForSelector('[data-goto="#/ideas/new"]');
+check('l’onglet Idées dit quoi en faire', /Un voyage, un cadeau/.test(await page.locator('#view').textContent()));
+
+await page.click('[data-goto="#/ideas/new"]');
+await page.waitForSelector('#new-board');
+await page.fill('#board-name', 'Corse');
+await page.click('#new-board button[type=submit]');
+// Un seul groupe : l'app peut demander lequel, ou pas.
+await page.waitForFunction(() => location.hash.startsWith('#/idea/') || document.querySelector('dialog[open]'), null, { timeout: 15000 });
+if (await page.locator('dialog[open] [data-group]').count()) await page.locator('dialog[open] [data-group]').first().click();
+await page.waitForSelector('#board-add-note', { timeout: 15000 });
+check('un tableau se crée', (await page.locator('h1').textContent()).trim() === 'Corse');
+
+/* ---- 2. une note --------------------------------------------------------- */
+
+await page.click('#board-add-note');
+await page.waitForSelector('dialog[open] #note-text');
+await page.fill('#note-text', 'Bateau à Bonifacio\nPlage de Palombaggia');
+await page.click('#note-done');
+await page.waitForSelector('.idea-card');
+check('la note apparaît en carte', /Bonifacio/.test(await page.locator('.idea-card').first().textContent()));
+
+await page.click('#board-add-note');
+await page.waitForSelector('dialog[open] #note-text');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+check('une note vide n’est pas gardée', (await page.locator('.idea-card').count()) === 1);
+
+await page.locator('.idea-card').first().click();
+await page.waitForSelector('dialog[open] #note-text');
+await page.fill('#note-text', 'Bateau à Bonifacio — réserver');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => /réserver/.test(document.querySelector('.idea-card')?.textContent || ''));
+check('Échap garde ce qui a été tapé', true);
+
+/* ---- 3. un croquis ------------------------------------------------------- */
+
+await page.click('#board-add-sketch');
+await page.waitForSelector('dialog[open] #sketch-pad');
+await draw(page, [0.1, 0.1], [0.9, 0.2]);
+await page.click('dialog[open] [data-ink="red"]');
+await draw(page, [0.1, 0.8], [0.9, 0.5]);
+check('deux traits dessinés', (await strokes(page)) === 2);
+check('le second est rouge', (await page.locator('#sketch-pad path.ink-red').count()) === 1);
+
+const points = await page.locator('#sketch-pad path').first().getAttribute('d');
+check('un trait droit est allégé à ses deux bouts', (points.match(/L/g) || []).length <= 2, points);
+
+await page.click('dialog[open] [data-tool="undo"]');
+check('Annuler retire le dernier trait', (await strokes(page)) === 1);
+
+await draw(page, [0.5, 0.9], [0.5, 0.95], 3);
+await page.click('dialog[open] [data-tool="eraser"]');
+await draw(page, [0.45, 0.92], [0.55, 0.92], 4);
+check('la gomme efface ce qu’elle touche, et seulement ça', (await strokes(page)) === 1);
+
+await page.fill('#sketch-caption', 'Le trajet');
+await page.click('dialog[open] button[type=submit]');
+await page.waitForSelector('.idea-card--sketch');
+check('le croquis apparaît en carte, avec sa légende',
+  (await page.locator('.idea-card--sketch path').count()) === 1
+  && /Le trajet/.test(await page.locator('.idea-card--sketch').textContent()));
+check('le plus récent vient en premier', await page.locator('.idea-card').first().evaluate((n) => n.classList.contains('idea-card--sketch')));
+
+/* ---- 4. partagé : l'autre appareil le voit, et dessine aussi ------------- */
+
+const other = await device('autre', { key: 'la-cle-famille', me: 'Alice', dark: true });
+await other.click('[data-tab="home"]');
+await other.click('.segmented--kinds [data-goto="#/ideas"]');
+await other.waitForSelector('.game-card', { timeout: 20000 });
+check('un autre appareil du groupe reçoit le tableau', /Corse/.test(await other.locator('.game-card').first().textContent()));
+await other.click('.game-card');
+await other.waitForSelector('.idea-card--sketch', { timeout: 15000 });
+
+await other.locator('.idea-card--sketch').click();
+await other.waitForSelector('dialog[open] #sketch-pad');
+check('le croquis s’ouvre avec son trait', (await strokes(other)) === 1);
+await draw(other, [0.2, 0.4], [0.8, 0.4]);
+
+// Pendant ce temps, ici, un trait de plus sur le même croquis.
+await page.locator('.idea-card--sketch').click();
+await page.waitForSelector('dialog[open] #sketch-pad');
+await draw(page, [0.3, 0.6], [0.7, 0.7]);
+await page.click('dialog[open] button[type=submit]');
+await other.click('dialog[open] button[type=submit]');
+
+await other.waitForFunction(() => document.querySelectorAll('.idea-card--sketch path').length === 3, null, { timeout: 20000 })
+  .catch(() => {});
+check('les deux dessins tiennent ensemble là-bas', (await other.locator('.idea-card--sketch path').count()) === 3,
+  String(await other.locator('.idea-card--sketch path').count()));
+const here = await page.waitForFunction(() => document.querySelectorAll('.idea-card--sketch path').length === 3, null, { timeout: 20000 })
+  .then(() => true).catch(() => false);
+check('et ici', here, String(await page.locator('.idea-card--sketch path').count()));
+
+const ink = await other.locator('.idea-card--sketch path.ink-ink').first().evaluate((n) => getComputedStyle(n).stroke);
+check('en mode sombre, l’encre est claire', /rgb\((2[0-9]{2}), (2[0-9]{2})/.test(ink), ink);
+
+/* ---- 5. supprimer une carte ---------------------------------------------- */
+
+await page.locator('.idea-card:not(.idea-card--sketch)').click();
+await page.waitForSelector('dialog[open] [data-card-delete]');
+await page.click('dialog[open] [data-card-delete]');
+await page.waitForSelector('.dialog--ask');
+await page.click('.dialog--ask [data-answer="yes"]');
+await page.waitForFunction(() => document.querySelectorAll('.idea-card').length === 1);
+check('une carte se supprime', (await page.locator('.idea-card').count()) === 1);
+const gone = await other.waitForFunction(() => document.querySelectorAll('.idea-card').length === 1, null, { timeout: 20000 })
+  .then(() => true).catch(() => false);
+check('et disparaît chez l’autre', gone);
+
+/* ---- 6. l'écran tient sur un téléphone ----------------------------------- */
+
+const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+check('pas de défilement horizontal', overflow <= 0, String(overflow));
+
+/* ---- fin ----------------------------------------------------------------- */
+
+check('aucune erreur de page', errors.length === 0, errors.join(' | '));
+
+await browser.close();
+const bad = results.filter((r) => !r.ok);
+for (const r of bad) console.log(`ÉCHEC: ${r.n} → ${r.d}`);
+console.log(results.length, 'vérifications |', results.length - bad.length, 'ok |', bad.length, 'échecs');
+process.exit(bad.length ? 1 : 0);
