@@ -31,8 +31,10 @@ const newPoll = async (question, chip) => {
   await me.fill('#poll-choices', 'vendredi\nsamedi');
   await me.fill('[data-person-index="0"]', 'Gui');
   await me.click('#new-poll button[type=submit]');
-  await me.waitForSelector('#poll-day');
+  await me.waitForSelector('#poll-day', { state: 'attached' });
+  await me.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
   await me.fill('#poll-day', '2026-10-09');
+  await me.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
   await me.click('#poll-date-save');
   await me.waitForTimeout(700);
 };

@@ -1844,6 +1844,11 @@ const STRINGS = {
     'polls.question': 'La question',
     'polls.questionPlaceholder': 'Quel soir pour la raclette ?',
     'polls.choices': 'Les choix (un par ligne)',
+    'polls.addDay': 'Ajouter un jour',
+    'polls.dateByHand': 'Fixer la date à la main',
+    'polls.retainHint': 'Le plus de monde : « {choice} » ({yes} sur {total}). Retenir ce jour le met dans les agendas et clôt le sondage.',
+    'polls.retainTie': 'Égalité en tête : choisissez le jour à retenir. Il ira dans les agendas et le sondage sera clos.',
+    'polls.retain': 'Retenir {day}',
     'polls.choicesPlaceholder': 'Vendredi 12\nSamedi 13\nDimanche 14',
     'polls.peopleHint': 'Les personnes à qui on demande. On peut en ajouter plus tard.',
     'polls.create': 'Créer le sondage',
@@ -2635,6 +2640,11 @@ const STRINGS = {
     'polls.question': 'The question',
     'polls.questionPlaceholder': 'Which evening for the raclette?',
     'polls.choices': 'The choices (one per line)',
+    'polls.addDay': 'Add a day',
+    'polls.dateByHand': 'Set the day by hand',
+    'polls.retainHint': 'Most people: “{choice}” ({yes} of {total}). Keeping this day puts it in the agendas and closes the poll.',
+    'polls.retainTie': 'A tie at the top: pick the day to keep. It goes in the agendas and the poll closes.',
+    'polls.retain': 'Keep {day}',
     'polls.choicesPlaceholder': 'Friday 12\nSaturday 13\nSunday 14',
     'polls.peopleHint': 'The people being asked. More can be added later.',
     'polls.create': 'Create the poll',
@@ -5144,6 +5154,122 @@ function isValidPoll(value) {
       value.votes &&
       typeof value.votes === 'object',
   );
+}
+
+/* ------------------------------------------------ the day a choice names --- */
+
+const CHOICE_MONTHS = [
+  ['janv', 'jan'], ['févr', 'fevr', 'fév', 'fev', 'feb'], ['mars', 'march'], ['avr', 'apr'], ['mai', 'may'],
+  ['juin', 'june', 'jun'], ['juil', 'july', 'jul'], ['août', 'aout', 'aug'], ['sept', 'sep'], ['oct'], ['nov'], ['déc', 'dec'],
+];
+// Weekdays are whole words (« mar. », « mardi », "Tue"), so that « mars »
+// stays a month.
+const CHOICE_WEEKDAYS = [
+  ['dim', 'dimanche', 'sun', 'sunday'], ['lun', 'lundi', 'mon', 'monday'], ['mar', 'mardi', 'tue', 'tues', 'tuesday'],
+  ['mer', 'mercredi', 'wed', 'wednesday'], ['jeu', 'jeudi', 'thu', 'thur', 'thurs', 'thursday'],
+  ['ven', 'vendredi', 'fri', 'friday'], ['sam', 'samedi', 'sat', 'saturday'],
+];
+
+const monthOfWord = (word) => CHOICE_MONTHS.findIndex((names) => names.some((name) => word.startsWith(name)));
+const weekdayOfWord = (word) => CHOICE_WEEKDAYS.findIndex((names) => names.includes(word));
+const isoDay = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const realDay = (year, month, day) => {
+  const date = new Date(year, month, day);
+  return date.getMonth() === month && date.getDate() === day ? date : null;
+};
+
+/**
+ * The day a choice names, if it names one: « Vendredi 12 », « sam. 13 oct. »,
+ * « 13/10 », « 2026-10-13 », "Saturday, October 13", with an hour when one is
+ * written (« 20h », « 20:30 »). Returns { date, at } or null.
+ *
+ * The year is rarely written: the day is the first one that fits on or after
+ * `from` — the day the poll was asked, not the day it is read, so a poll
+ * settled a month later still means the evening everyone voted for. A weekday
+ * with a number and no month (« Vendredi 12 ») is the next month in which the
+ * 12th is a Friday, within three months. A bare number means nothing: « 2 pizzas » is not a day.
+ */
+function dayOfChoice(text, from = new Date()) {
+  const source = String(text || '').toLowerCase();
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const fits = (date) => date && date >= start;
+
+  let at = null;
+  const hour = source.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/);
+  if (hour && Number(hour[1]) < 24 && Number(hour[2] || 0) < 60) {
+    at = `${hour[1].padStart(2, '0')}:${hour[2] || '00'}`;
+  }
+  const rest = hour ? source.replace(hour[0], ' ') : source;
+
+  const iso = rest.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const date = realDay(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return date ? { date: isoDay(date), at } : null;
+  }
+
+  // A year written in full is taken as it is; otherwise this year, or the next.
+  const pick = (month, day, year) => {
+    if (year) {
+      const date = realDay(year, month, day);
+      return date ? { date: isoDay(date), at } : null;
+    }
+    for (const candidate of [start.getFullYear(), start.getFullYear() + 1]) {
+      const date = realDay(candidate, month, day);
+      if (fits(date)) return { date: isoDay(date), at };
+    }
+    return null;
+  };
+
+  const slashed = rest.match(/\b(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2}|\d{4}))?\b/);
+  if (slashed) {
+    let [day, month] = [Number(slashed[1]), Number(slashed[2])];
+    if (month > 12 && day <= 12) [day, month] = [month, day];
+    const year = slashed[3] ? Number(slashed[3].length === 2 ? `20${slashed[3]}` : slashed[3]) : null;
+    return pick(month - 1, day, year);
+  }
+
+  const words = rest.split(/[^\p{L}\d]+/u).filter(Boolean);
+  const year = Number(words.find((word) => /^\d{4}$/.test(word))) || null;
+  const weekday = words.map(weekdayOfWord).find((index) => index >= 0) ?? -1;
+  for (let i = 0; i < words.length; i += 1) {
+    // « 1er novembre », "October 1st".
+    const number = words[i].match(/^(\d{1,2})(?:er|st|nd|rd|th)?$/);
+    if (!number) continue;
+    const day = Number(number[1]);
+    if (day < 1 || day > 31) continue;
+    // « 13 octobre » in French, "October 13" in English. A word that is also
+    // a weekday (« mar. 12 ») is a weekday, not March.
+    const after = words[i + 1] ? monthOfWord(words[i + 1]) : -1;
+    const beforeWord = words[i - 1] || '';
+    const before = beforeWord && weekdayOfWord(beforeWord) < 0 ? monthOfWord(beforeWord) : -1;
+    const month = after >= 0 ? after : before;
+    if (month >= 0) return pick(month, day, year);
+    if (weekday >= 0) {
+      // Near enough to be meant: three months ahead at most.
+      for (let ahead = 0; ahead < 4; ahead += 1) {
+        const first = new Date(start.getFullYear(), start.getMonth() + ahead, 1);
+        const date = realDay(first.getFullYear(), first.getMonth(), day);
+        if (fits(date) && date.getDay() === weekday) return { date: isoDay(date), at };
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * The line a picked day becomes among the choices: « Samedi 13 octobre » —
+ * with the year only when it is not this one — so that anyone reads it, and
+ * dayOfChoice() reads it back.
+ */
+function choiceOfDay(day, language = 'fr', now = new Date()) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return '';
+  const options = { weekday: 'long', day: 'numeric', month: 'long' };
+  if (year !== now.getFullYear()) options.year = 'numeric';
+  const text = new Date(year, month - 1, date).toLocaleDateString(language, options);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
   // ---- src/spends.js ---------------------------------------------------
@@ -7665,6 +7791,10 @@ function newPollView() {
         ${escapeHtml(t('polls.choices'))}
         <textarea id="poll-choices" rows="5" placeholder="${escapeHtml(t('polls.choicesPlaceholder'))}">${escapeHtml(newPollChoices)}</textarea>
       </label>
+      <label class="small add-day">
+        ${escapeHtml(t('polls.addDay'))}
+        <input type="date" id="poll-add-day" />
+      </label>
 
       <div class="stack stack--tight">
         <span class="muted small">${escapeHtml(t('polls.peopleHint'))}</span>
@@ -7812,40 +7942,13 @@ function pollView(poll, { solo = false } = {}) {
 
     ${guest && !closed ? soloJoinHtml() : ''}
 
-    ${guest ? soloDateHtml(poll) : `<section class="card stack stack--tight">
-      <div class="section__head">
-        <h2>${escapeHtml(t('polls.date'))}</h2>
-        ${poll.date ? `<span class="pill">${escapeHtml(whenText(poll))}</span>` : ''}
-      </div>
-      <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
-      <div class="row">
-        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
-        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
-        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
-        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
-      </div>
-      <label class="small">
-        ${escapeHtml(t('events.until'))}
-        <input type="date" id="poll-until" value="${escapeHtml(poll.until || '')}" />
-      </label>
-      <div class="row">
-        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
-        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
-               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
-        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
-      </div>
-      ${
-        poll.date
-          ? `<div class="row">
-               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
-             </div>`
-          : ''
-      }
-    </section>`}
+    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
 
     ${solo ? '' : eventHtml(poll, { guest })}
 
     ${fixed ? '' : gaugeHtml(poll)}
+
+    ${guest || poll.date || fixed ? '' : retainHtml(poll)}
 
     ${
       fixed
@@ -7899,8 +8002,17 @@ function pollView(poll, { solo = false } = {}) {
                <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
                <button type="submit" class="button button--primary">+</button>
              </div>
+             <label class="small add-day">
+               ${escapeHtml(t('polls.addDay'))}
+               <input type="date" id="new-choice-day" />
+             </label>
            </form>`
     }
+
+    ${guest || poll.date || fixed ? '' : `<details class="details" id="poll-date-by-hand">
+      <summary>${escapeHtml(t('polls.dateByHand'))}</summary>
+      ${dateCardHtml(poll, fixed)}
+    </details>`}
 
     ${guest ? '' : `<section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
@@ -7927,6 +8039,75 @@ function pollView(poll, { solo = false } = {}) {
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
     </section>`}`;
+}
+
+/** The day an event is on, as its organiser sets it by hand. */
+function dateCardHtml(poll, fixed) {
+  return `<section class="card stack stack--tight">
+      <div class="section__head">
+        <h2>${escapeHtml(t('polls.date'))}</h2>
+        ${poll.date ? `<span class="pill">${escapeHtml(whenText(poll))}</span>` : ''}
+      </div>
+      <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
+      <div class="row">
+        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
+        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
+        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
+        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+      </div>
+      <label class="small">
+        ${escapeHtml(t('events.until'))}
+        <input type="date" id="poll-until" value="${escapeHtml(poll.until || '')}" />
+      </label>
+      <div class="row">
+        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
+        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
+               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
+        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+      ${
+        poll.date
+          ? `<div class="row">
+               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
+             </div>`
+          : ''
+      }
+    </section>`;
+}
+
+/** The day a choice names, read from the day it was written. */
+function dayOfOption(poll, option) {
+  return dayOfChoice(option.text, new Date(option.createdAt || poll.createdAt || Date.now()));
+}
+
+/**
+ * The poll has a favourite, and its text names a day: its organiser keeps it
+ * in one tap — the day goes in the agendas and the poll closes — instead of
+ * writing again a date that is already on screen.
+ */
+function retainHtml(poll) {
+  const { rows, leaders } = tally(poll);
+  const kept = rows
+    .filter((row) => leaders.includes(row.option.id))
+    .map((row) => ({ row, day: dayOfOption(poll, row.option) }))
+    .filter(({ day }) => day);
+  if (!kept.length) return '';
+  const total = poll.people.length;
+  return `
+    <section class="card stack stack--tight retain">
+      <p class="small">${escapeHtml(
+        kept.length > 1 ? t('polls.retainTie') : t('polls.retainHint', { choice: kept[0].row.option.text, yes: kept[0].row.yes, total }),
+      )}</p>
+      <div class="row">
+        ${kept
+          .map(
+            ({ row, day }) => `<button type="button" class="button button--primary" data-retain="${escapeHtml(row.option.id)}">
+                ${escapeHtml(t('polls.retain', { day: formatDayLong(day.date) }))}
+              </button>`,
+          )
+          .join('')}
+      </div>
+    </section>`;
 }
 
 /**
@@ -8184,6 +8365,18 @@ function bindNewPoll() {
     });
   });
 
+  // Picking a day writes it as a choice, in words anyone reads and the app
+  // reads back when the poll is settled.
+  view.querySelector('#poll-add-day')?.addEventListener('change', (event) => {
+    const line = choiceOfDay(event.target.value, getLanguage());
+    if (!line) return;
+    const box = view.querySelector('#poll-choices');
+    const lines = box.value.split('\n').filter((one) => one.trim());
+    if (!lines.includes(line)) box.value = [...lines, line].join('\n');
+    event.target.value = '';
+    newPollChoices = box.value;
+  });
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
@@ -8298,6 +8491,12 @@ function bindPoll(poll) {
     view.querySelector('#new-choice')?.focus();
   });
 
+  view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {
+    const line = choiceOfDay(event.target.value, getLanguage());
+    if (!line || poll.options.some((option) => option.text === line)) return;
+    replacePoll(addOptions(poll, line));
+  });
+
   view.querySelectorAll('[data-option]').forEach((button) => {
     button.addEventListener('click', () => openChoiceDialog(poll, button.dataset.option));
   });
@@ -8310,6 +8509,17 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelectorAll('[data-retain]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const option = poll.options.find((one) => one.id === button.dataset.retain);
+      const day = option && dayOfOption(poll, option);
+      if (!day) return;
+      const next = setClosed(setPollDate(poll, day.date, day.at), true);
+      flash(t('polls.dateKept', { day: whenText(next) }));
+      replacePoll(next);
+    });
   });
 
   view.querySelector('#poll-date-save')?.addEventListener('click', () => {

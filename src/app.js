@@ -19,7 +19,7 @@ import {
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll, setPollDate,
-  setEventName, createEvent, isEvent, seeksDay, lastDay,
+  setEventName, createEvent, isEvent, seeksDay, lastDay, dayOfChoice, choiceOfDay,
 } from './polls.js';
 import {
   createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
@@ -318,6 +318,10 @@ function newPollView() {
         ${escapeHtml(t('polls.choices'))}
         <textarea id="poll-choices" rows="5" placeholder="${escapeHtml(t('polls.choicesPlaceholder'))}">${escapeHtml(newPollChoices)}</textarea>
       </label>
+      <label class="small add-day">
+        ${escapeHtml(t('polls.addDay'))}
+        <input type="date" id="poll-add-day" />
+      </label>
 
       <div class="stack stack--tight">
         <span class="muted small">${escapeHtml(t('polls.peopleHint'))}</span>
@@ -465,40 +469,13 @@ function pollView(poll, { solo = false } = {}) {
 
     ${guest && !closed ? soloJoinHtml() : ''}
 
-    ${guest ? soloDateHtml(poll) : `<section class="card stack stack--tight">
-      <div class="section__head">
-        <h2>${escapeHtml(t('polls.date'))}</h2>
-        ${poll.date ? `<span class="pill">${escapeHtml(whenText(poll))}</span>` : ''}
-      </div>
-      <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
-      <div class="row">
-        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
-        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
-        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
-        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
-      </div>
-      <label class="small">
-        ${escapeHtml(t('events.until'))}
-        <input type="date" id="poll-until" value="${escapeHtml(poll.until || '')}" />
-      </label>
-      <div class="row">
-        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
-        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
-               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
-        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
-      </div>
-      ${
-        poll.date
-          ? `<div class="row">
-               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
-             </div>`
-          : ''
-      }
-    </section>`}
+    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
 
     ${solo ? '' : eventHtml(poll, { guest })}
 
     ${fixed ? '' : gaugeHtml(poll)}
+
+    ${guest || poll.date || fixed ? '' : retainHtml(poll)}
 
     ${
       fixed
@@ -552,8 +529,17 @@ function pollView(poll, { solo = false } = {}) {
                <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
                <button type="submit" class="button button--primary">+</button>
              </div>
+             <label class="small add-day">
+               ${escapeHtml(t('polls.addDay'))}
+               <input type="date" id="new-choice-day" />
+             </label>
            </form>`
     }
+
+    ${guest || poll.date || fixed ? '' : `<details class="details" id="poll-date-by-hand">
+      <summary>${escapeHtml(t('polls.dateByHand'))}</summary>
+      ${dateCardHtml(poll, fixed)}
+    </details>`}
 
     ${guest ? '' : `<section class="section">
       <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
@@ -580,6 +566,75 @@ function pollView(poll, { solo = false } = {}) {
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
       </div>
     </section>`}`;
+}
+
+/** The day an event is on, as its organiser sets it by hand. */
+function dateCardHtml(poll, fixed) {
+  return `<section class="card stack stack--tight">
+      <div class="section__head">
+        <h2>${escapeHtml(t('polls.date'))}</h2>
+        ${poll.date ? `<span class="pill">${escapeHtml(whenText(poll))}</span>` : ''}
+      </div>
+      <p class="muted small">${escapeHtml(t(fixed ? 'events.dateHint' : 'polls.dateHint'))}</p>
+      <div class="row">
+        <label class="visually-hidden" for="poll-day">${escapeHtml(t('polls.date'))}</label>
+        <input type="date" id="poll-day" value="${escapeHtml(poll.date || '')}" />
+        <label class="visually-hidden" for="poll-hour">${escapeHtml(t('polls.hour'))}</label>
+        <input type="time" id="poll-hour" value="${escapeHtml(poll.at || '')}" />
+      </div>
+      <label class="small">
+        ${escapeHtml(t('events.until'))}
+        <input type="date" id="poll-until" value="${escapeHtml(poll.until || '')}" />
+      </label>
+      <div class="row">
+        <label class="visually-hidden" for="poll-title">${escapeHtml(t('polls.eventName'))}</label>
+        <input type="text" id="poll-title" value="${escapeHtml(eventName(poll))}"
+               placeholder="${escapeHtml(t('polls.eventNamePlaceholder'))}" />
+        <button type="button" class="button" id="poll-date-save">${escapeHtml(t('action.save'))}</button>
+      </div>
+      ${
+        poll.date
+          ? `<div class="row">
+               <button type="button" class="button button--small" id="poll-ics">${escapeHtml(t('agenda.add'))}</button>
+             </div>`
+          : ''
+      }
+    </section>`;
+}
+
+/** The day a choice names, read from the day it was written. */
+function dayOfOption(poll, option) {
+  return dayOfChoice(option.text, new Date(option.createdAt || poll.createdAt || Date.now()));
+}
+
+/**
+ * The poll has a favourite, and its text names a day: its organiser keeps it
+ * in one tap — the day goes in the agendas and the poll closes — instead of
+ * writing again a date that is already on screen.
+ */
+function retainHtml(poll) {
+  const { rows, leaders } = tally(poll);
+  const kept = rows
+    .filter((row) => leaders.includes(row.option.id))
+    .map((row) => ({ row, day: dayOfOption(poll, row.option) }))
+    .filter(({ day }) => day);
+  if (!kept.length) return '';
+  const total = poll.people.length;
+  return `
+    <section class="card stack stack--tight retain">
+      <p class="small">${escapeHtml(
+        kept.length > 1 ? t('polls.retainTie') : t('polls.retainHint', { choice: kept[0].row.option.text, yes: kept[0].row.yes, total }),
+      )}</p>
+      <div class="row">
+        ${kept
+          .map(
+            ({ row, day }) => `<button type="button" class="button button--primary" data-retain="${escapeHtml(row.option.id)}">
+                ${escapeHtml(t('polls.retain', { day: formatDayLong(day.date) }))}
+              </button>`,
+          )
+          .join('')}
+      </div>
+    </section>`;
 }
 
 /**
@@ -837,6 +892,18 @@ function bindNewPoll() {
     });
   });
 
+  // Picking a day writes it as a choice, in words anyone reads and the app
+  // reads back when the poll is settled.
+  view.querySelector('#poll-add-day')?.addEventListener('change', (event) => {
+    const line = choiceOfDay(event.target.value, getLanguage());
+    if (!line) return;
+    const box = view.querySelector('#poll-choices');
+    const lines = box.value.split('\n').filter((one) => one.trim());
+    if (!lines.includes(line)) box.value = [...lines, line].join('\n');
+    event.target.value = '';
+    newPollChoices = box.value;
+  });
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
@@ -951,6 +1018,12 @@ function bindPoll(poll) {
     view.querySelector('#new-choice')?.focus();
   });
 
+  view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {
+    const line = choiceOfDay(event.target.value, getLanguage());
+    if (!line || poll.options.some((option) => option.text === line)) return;
+    replacePoll(addOptions(poll, line));
+  });
+
   view.querySelectorAll('[data-option]').forEach((button) => {
     button.addEventListener('click', () => openChoiceDialog(poll, button.dataset.option));
   });
@@ -963,6 +1036,17 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
     replacePoll(setClosed(poll, !poll.closedAt));
+  });
+
+  view.querySelectorAll('[data-retain]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const option = poll.options.find((one) => one.id === button.dataset.retain);
+      const day = option && dayOfOption(poll, option);
+      if (!day) return;
+      const next = setClosed(setPollDate(poll, day.date, day.at), true);
+      flash(t('polls.dateKept', { day: whenText(next) }));
+      replacePoll(next);
+    });
   });
 
   view.querySelector('#poll-date-save')?.addEventListener('click', () => {

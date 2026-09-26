@@ -43,7 +43,7 @@ const text = async (selector) => (await page.locator(selector).first().textConte
 /* ---- 1. sans date, pas d'événement ---------------------------------------- */
 
 await page.goto(`http://localhost:8099/dist/marque-points.html#/poll/${undated.id}`);
-await page.waitForSelector('#poll-day');
+await page.waitForSelector('#poll-day', { state: 'attached' });
 check('un sondage sans date ne propose rien', (await page.locator('#event-list, #event-spend').count()) === 0);
 
 /* ---- 2. la date retenue : on prépare ------------------------------------- */
@@ -70,7 +70,7 @@ await page.waitForSelector('#add-spend');
 check('le compte aussi ramène à l’événement', (await page.locator(`[data-goto="#/poll/${poll.id}"]`).count()) === 1);
 
 await page.click(`[data-goto="#/poll/${poll.id}"]`);
-await page.waitForSelector('#poll-day');
+await page.waitForSelector('#poll-day', { state: 'attached' });
 check('l’événement montre la liste et le compte',
   (await page.locator('.section .game-card[data-goto^="#/list/"]').count()) === 1 &&
     (await page.locator('.section .game-card[data-goto^="#/spend/"]').count()) === 1);
@@ -79,7 +79,7 @@ check('et plus rien à préparer', (await page.locator('#event-list, #event-spen
 /* ---- 3. ça tient au rechargement ---------------------------------------- */
 
 await page.reload();
-await page.waitForSelector('#poll-day');
+await page.waitForSelector('#poll-day', { state: 'attached' });
 check('après rechargement, toujours rattachés', (await page.locator('.section .game-card').count()) >= 2);
 
 /* ---- 3. un événement sur plusieurs jours ---------------------------------- */
@@ -97,7 +97,7 @@ await page.fill('#event-day', dayIn(-2));
 await page.fill('#event-until', dayIn(3));
 await page.fill('[data-person-index="0"]', 'Gui');
 await page.click('#new-event [type="submit"]');
-await page.waitForSelector('#poll-until');
+await page.waitForSelector('#poll-until', { state: 'attached' });
 check('le dernier jour est gardé', (await page.inputValue('#poll-until')) === dayIn(3));
 check('la page dit « du … au … »', /du .+ au /.test(await text('.card .pill')), await text('.card .pill'));
 
@@ -109,8 +109,10 @@ check('avec ses deux jours', /Vacances.*du .+ au /.test(coming), coming.slice(0,
 
 // Le dernier jour se retire : l'événement redevient d'un jour.
 await page.locator('.game-card', { hasText: 'Vacances' }).click();
-await page.waitForSelector('#poll-until');
+await page.waitForSelector('#poll-until', { state: 'attached' });
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.fill('#poll-until', '');
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.click('#poll-date-save');
 await page.waitForTimeout(300);
 check('sans dernier jour, un seul jour', !/ au /.test(await text('.card .pill')), await text('.card .pill'));

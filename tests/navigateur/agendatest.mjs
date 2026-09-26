@@ -50,11 +50,14 @@ const openTab = async (tab) => {
 
 await openTab('polls');
 await page.click('.game-card');
-await page.waitForSelector('#poll-day');
+await page.waitForSelector('#poll-day', { state: 'attached' });
 check('le sondage propose de retenir une date', (await page.locator('#poll-day').count()) === 1);
 
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.fill('#poll-day', '2026-09-24');
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.fill('#poll-hour', '20:00');
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.click('#poll-date-save');
 await page.waitForSelector('.pill');
 
@@ -87,13 +90,17 @@ check('sans fuseau collé dessus', !ics.includes('T200000Z'));
 
 /* ---- 3. la date s'enlève ------------------------------------------------- */
 
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.fill('#poll-day', '');
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.click('#poll-date-save');
 await page.waitForFunction(() => !document.querySelector('#poll-ics'));
 check('vider le jour enlève la date et le bouton', (await page.locator('#poll-ics').count()) === 0);
 
 // et on la remet, pour la suite
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.fill('#poll-day', '2026-09-24');
+await page.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await page.click('#poll-date-save');
 await page.waitForSelector('#poll-ics');
 

@@ -50,7 +50,9 @@ check('mais elle vote', (await claire.locator('td.votes__mine .vote--yes').count
 // --- Gui voit le vote, fixe la date, clôt
 const got = await gui.waitForFunction(() => document.querySelectorAll('.vote--yes').length === 1, null, { timeout: 15000 }).then(() => true).catch(() => false);
 check('son vote arrive chez l’organisateur', got);
+await gui.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await gui.fill('#poll-day', '2026-10-10'); await gui.fill('#poll-hour', '19:00');
+await gui.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
 await gui.click('#poll-date-save'); await gui.waitForTimeout(600);
 await gui.click('#poll-close'); await gui.waitForTimeout(600);
 
@@ -84,7 +86,7 @@ await claire.evaluate(() => {
 });
 await claire.reload(); await claire.waitForSelector('.app-bar');
 await claire.evaluate(() => { location.hash = '#/poll/v_ancien_sans_orga'; });
-await claire.waitForSelector('#poll-day', { timeout: 15000 });
+await claire.waitForSelector('#poll-day', { state: 'attached', timeout: 15000 });
 check('un sondage d’avant reste réglable par tous, comme avant', (await claire.locator('#poll-close').count()) === 1);
 
 check('aucune erreur de page', errors.length === 0, errors.join(' | '));

@@ -150,6 +150,30 @@ const closedElsewhere = await other.waitForFunction(
 ).then(() => true).catch(() => false);
 check('et se voit aussi de l’autre côté', closedElsewhere);
 
+// un sondage de dates : les jours se choisissent au calendrier, et le jour
+// qui l'emporte se retient d'une touche
+const soon = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+await page.goto('http://localhost:8099/dist/marque-points.html#/polls/new');
+await page.waitForSelector('#new-poll');
+await page.fill('#poll-question', 'Quel soir pour le ciné ?');
+await page.fill('#poll-add-day', soon(10));
+await page.fill('#poll-add-day', soon(11));
+const picked = (await page.inputValue('#poll-choices')).split('\n');
+check('choisir un jour l’écrit comme un choix', picked.length === 2 && /^[A-Z]/.test(picked[0]), picked.join(' / '));
+await page.fill('[data-person-index="0"]', 'Gui');
+await page.fill('[data-person-index="1"]', 'Alice');
+await page.click('#new-poll button[type=submit]');
+await page.waitForSelector('.votes');
+check('pas de réglage de date en tête tant que rien n’est tranché',
+  !(await page.locator('#poll-day').isVisible()) && (await page.locator('#poll-date-by-hand').count()) === 1);
+check('rien à retenir avant le premier vote', (await page.locator('[data-retain]').count()) === 0);
+await page.locator('.votes tbody tr').nth(1).locator('.vote').first().click();
+await page.waitForSelector('[data-retain]');
+await page.click('[data-retain]');
+await page.waitForTimeout(400);
+check('retenir le jour le fixe', (await page.inputValue('#poll-day')) === soon(11), await page.inputValue('#poll-day'));
+check('et clôt le sondage', await page.locator('.vote').first().isDisabled());
+
 // les deux autres onglets n'ont pas bougé
 await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.waitForSelector('[data-goto="#/lists/new"]');
