@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
+  createSpend, readAmount, showAmount, spendCurrency, addSpend, editSpend, removeSpend, archiveSpend,
   addSpendPerson, removeSpendPerson, canRemovePerson, split, balances, spendTotal, settle, mergeSpends, isValidSpend,
   addRepayment, isRepayment,
 } from '../src/spends.js';
@@ -296,4 +296,16 @@ test('un remboursement voyage entre deux téléphones comme une dépense', () =>
   const merged = mergeSpends(mine, { ...spend, updatedAt: spend.updatedAt - 1 });
   assert.ok(isValidSpend(merged));
   assert.ok(merged.lines.some(isRepayment));
+});
+
+test('an account keeps its own currency, euros by default', () => {
+  assert.equal(spendCurrency(createSpend({ name: 'Annecy' })), 'EUR');
+  assert.equal(spendCurrency({ kind: 'spend' }), 'EUR', 'an account from before currencies is in euros');
+  assert.equal(spendCurrency(createSpend({ name: 'Londres', currency: 'GBP' })), 'GBP');
+  assert.equal(spendCurrency(createSpend({ name: '?', currency: 'XYZ' })), 'EUR');
+  assert.match(showAmount(1250, 'fr', 'CHF'), /12,50\s?CHF/);
+  assert.match(showAmount(1250, 'en', 'GBP'), /£12\.50/);
+  assert.equal(readAmount('£12.50'), 1250);
+  assert.equal(readAmount('12,50 CHF'), 1250);
+  assert.equal(readAmount('$3'), 300);
 });

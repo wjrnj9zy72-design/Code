@@ -22,7 +22,7 @@ import {
   setEventName, createEvent, isEvent, seeksDay, lastDay, dayOfChoice, choiceOfDay,
 } from './polls.js';
 import {
-  createSpend, readAmount, showAmount, addSpend, editSpend, removeSpend, archiveSpend,
+  createSpend, readAmount, showAmount, spendCurrency, CURRENCIES, addSpend, editSpend, removeSpend, archiveSpend,
   addSpendPerson, renameSpendPerson, removeSpendPerson, canRemovePerson,
   balances, spendTotal, settle, mergeSpends, isValidSpend, addRepayment, isRepayment,
 } from './spends.js';
@@ -77,6 +77,10 @@ let newListLines = '';
 
 // And the new account's.
 let newSpendName = '';
+let newSpendCurrency = 'EUR';
+// The account whose « add an expense » form is unfolded. Once an account has
+// lines, the form folds behind one button, so the lines are what is in sight.
+let spendFormOpen = null;
 let newSpendPeople = ['', ''];
 
 // Which half of an account's page is showing — reset when a different
@@ -1813,13 +1817,13 @@ function myBalance(spend) {
 function spendCardHtml(spend) {
   const mine = myBalance(spend);
   const line = mine && mine.balance !== 0
-    ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
+    ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: money(Math.abs(mine.balance), spend) })
     : t('spends.even');
   return `
     <button type="button" class="game-card" data-goto="#/spend/${escapeHtml(spend.id)}">
       <span class="game-card__title">
         ${escapeHtml(spendTitle(spend))}
-        <span class="pill">${escapeHtml(showAmount(spendTotal(spend), getLanguage()))}</span>
+        <span class="pill">${escapeHtml(money(spendTotal(spend), spend))}</span>
       </span>
       <span class="game-card__meta">${escapeHtml(spend.people.map((person) => person.name).join(' · '))}</span>
       <span class="game-card__meta">
@@ -1936,7 +1940,7 @@ function eventCardHtml(poll) {
     const { done, total } = progress(list);
     parts.push(total ? `${t('event.list')} : ${t('lists.progress', { done, total })}` : `${t('event.list')} : ${t('lists.empty')}`);
   }
-  if (spend) parts.push(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }));
+  if (spend) parts.push(t('spends.total', { amount: money(spendTotal(spend), spend) }));
   const people = poll.people.map((person) => person.name).join(' · ');
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
@@ -2109,6 +2113,13 @@ function newSpendView() {
                value="${escapeHtml(newSpendName)}" required />
       </label>
 
+      <label>
+        ${escapeHtml(t('spends.currency'))}
+        <select id="spend-currency">
+          ${CURRENCIES.map((code) => `<option value="${code}" ${code === newSpendCurrency ? 'selected' : ''}>${escapeHtml(currencyName(code))}</option>`).join('')}
+        </select>
+      </label>
+
       <div class="stack stack--tight">
         <span class="muted small">${escapeHtml(t('spends.peopleHint'))}</span>
         ${newSpendPeople
@@ -2140,6 +2151,32 @@ function newSpendView() {
     </form>`;
 }
 
+/** An amount of an account, in that account's currency. */
+function money(cents, spend) {
+  return showAmount(cents, getLanguage(), spendCurrency(spend));
+}
+
+/** « € », « CHF », « £ »: what follows an amount being typed. */
+function currencySymbol(code) {
+  try {
+    return new Intl.NumberFormat(getLanguage(), { style: 'currency', currency: code })
+      .formatToParts(0).find((part) => part.type === 'currency')?.value || code;
+  } catch {
+    return code;
+  }
+}
+
+/** « € — euro », as the currency list of a new account shows it. */
+function currencyName(code) {
+  try {
+    const symbol = currencySymbol(code);
+    const name = new Intl.DisplayNames([getLanguage()], { type: 'currency' }).of(code) || code;
+    return `${symbol} — ${name}`;
+  } catch {
+    return code;
+  }
+}
+
 /** Une dépense, telle qu'elle se lit dans la liste : qui, combien, pour qui. */
 function spendLineHtml(spend, line) {
   const who = spend.people.find((person) => person.id === line.by)?.name || '';
@@ -2151,7 +2188,7 @@ function spendLineHtml(spend, line) {
           <span>${escapeHtml(t('spends.repaid', { from: who, to }))}</span>
           <span class="line__due">${escapeHtml(t('spends.repayment'))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}</span>
         </button>
-        <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+        <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
       </li>`;
   }
   const forWhom = line.forWhom.length
@@ -2166,7 +2203,7 @@ function spendLineHtml(spend, line) {
           · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
         </span>
       </button>
-      <span class="line__amount">${escapeHtml(showAmount(line.amount, getLanguage()))}</span>
+      <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
     </li>`;
 }
 
@@ -2193,9 +2230,12 @@ function spendView(spend) {
       </button>
     </div>`;
 
+  const formShut = spend.lines.length > 0 && spendFormOpen !== spend.id;
   const expensesTab = `
     ${
-      spend.people.length
+      spend.people.length && formShut
+        ? `<button type="button" class="button button--block" id="spend-add-open">+ ${escapeHtml(t('spends.addOpen'))}</button>`
+        : spend.people.length
         ? `<form id="add-spend" class="card stack">
              <label>
                ${escapeHtml(t('spends.what'))}
@@ -2207,7 +2247,7 @@ function spendView(spend) {
                ${escapeHtml(t('spends.amount'))}
                <span class="field-pill field-pill--amount">
                  <input type="text" id="spend-amount" inputmode="decimal" placeholder="0,00" />
-                 <span class="field-pill__suffix">€</span>
+                 <span class="field-pill__suffix">${escapeHtml(currencySymbol(spendCurrency(spend)))}</span>
                </span>
              </label>
 
@@ -2278,14 +2318,14 @@ function spendView(spend) {
               <div class="entry">
                 <span class="entry__what">
                   ${escapeHtml(row.name)}
-                  <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) }))}</span>
+                  <span class="muted small">${escapeHtml(t('spends.paidTotal', { amount: money(row.paid, spend) }))}</span>
                 </span>
                 <span class="entry__value ${row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : ''}">
                   ${escapeHtml(
                     row.balance === 0
                       ? t('spends.even')
                       : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
-                          amount: showAmount(Math.abs(row.balance), getLanguage()),
+                          amount: money(Math.abs(row.balance), spend),
                         }),
                   )}
                 </span>
@@ -2306,7 +2346,7 @@ function spendView(spend) {
                      <div class="move">
                        <div class="entry">
                          <span class="entry__what">${escapeHtml(t('spends.move', { from: move.from, to: move.to }))}</span>
-                         <span class="entry__value">${escapeHtml(showAmount(move.amount, getLanguage()))}</span>
+                         <span class="entry__value">${escapeHtml(money(move.amount, spend))}</span>
                        </div>
                        <button type="button" class="button button--small button--primary" data-repay="${index}">
                          ${escapeHtml(t('spends.markPaid'))}
@@ -2333,7 +2373,7 @@ function spendView(spend) {
       <div>
         <h1>${escapeHtml(spendTitle(spend))}</h1>
         <p class="muted small">
-          ${escapeHtml(t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }))}
+          ${escapeHtml(t('spends.total', { amount: money(spendTotal(spend), spend) }))}
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
@@ -2367,6 +2407,7 @@ function bindNewSpend() {
 
   const snapshot = () => {
     newSpendName = view.querySelector('#spend-name').value;
+    newSpendCurrency = view.querySelector('#spend-currency')?.value || 'EUR';
     view.querySelectorAll('[data-person-index]').forEach((input) => {
       newSpendPeople[Number(input.dataset.personIndex)] = input.value;
     });
@@ -2405,10 +2446,12 @@ function bindNewSpend() {
       names: newSpendPeople,
       shared: Boolean(group),
       groupId: group?.id || null,
+      currency: newSpendCurrency,
     });
     state.spends = [...state.spends, spend];
     persistSpend(spend);
     newSpendName = '';
+    newSpendCurrency = 'EUR';
     newSpendPeople = ['', ''];
     navigate(`#/spend/${spend.id}`);
   });
@@ -2422,6 +2465,12 @@ function bindSpend(spend) {
       spendTab = button.dataset.spendTab;
       render();
     });
+  });
+
+  view.querySelector('#spend-add-open')?.addEventListener('click', () => {
+    spendFormOpen = spend.id;
+    render();
+    view.querySelector('#spend-text')?.focus();
   });
 
   view.querySelector('#add-spend')?.addEventListener('submit', (event) => {
@@ -2443,6 +2492,7 @@ function bindSpend(spend) {
     }
     // Tous cochés (ou une seule personne, sans case) : « tout le monde » au
     // sens large, qui inclut qui rejoint le compte plus tard. Voir addSpend().
+    spendFormOpen = null;
     replaceSpend(addSpend(spend, {
       text: text.value,
       amount: cents,
@@ -3023,8 +3073,8 @@ function pendingHtml(shown = new Set()) {
       goto: `#/spend/${spend.id}`,
       title: spendTitle(spend),
       meta: mine && mine.balance !== 0
-        ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: showAmount(Math.abs(mine.balance), getLanguage()) })
-        : t('spends.total', { amount: showAmount(spendTotal(spend), getLanguage()) }),
+        ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: money(Math.abs(mine.balance), spend) })
+        : t('spends.total', { amount: money(spendTotal(spend), spend) }),
     });
   }
   for (const game of ongoing.slice(0, 3)) {
@@ -3364,8 +3414,7 @@ function groupPeopleHtml(group) {
   if (!names.length) return '';
 
   const row = (name) => {
-    const { counts } = personFile(state, name);
-    const waiting = waitingLine(counts);
+    const waiting = waitingLine(personFile(state, name));
     return `
       <button type="button" class="game-card" data-goto="#/person/${escapeHtml(encodeURIComponent(name))}">
         <span class="game-card__title">${escapeHtml(me && sameName(name) === me ? t('dash.you', { name }) : name)}</span>
@@ -3521,24 +3570,79 @@ function openCreateMenu() {
 }
 
 /**
+ * What someone owes across accounts: added up per currency, since euros and
+ * pounds do not add — « 12,00 € + 8,00 £ ».
+ */
+function owedText(accounts) {
+  const byCurrency = new Map();
+  for (const row of accounts) {
+    if (row.balance >= 0) continue;
+    const code = spendCurrency(row.spend);
+    byCurrency.set(code, (byCurrency.get(code) || 0) - row.balance);
+  }
+  return [...byCurrency].map(([code, cents]) => showAmount(cents, getLanguage(), code)).join(' + ');
+}
+
+/**
  * What is waiting on someone, in one line. Late first: a line whose day has
  * passed is the only part of this that is worse today than it was yesterday.
  */
-function waitingLine(counts) {
+function waitingLine({ counts, accounts = [] }) {
   return [
     counts.late ? t('lists.late', { count: counts.late }) : '',
     counts.left ? t('lists.leftToDo', { count: counts.left }) : '',
     counts.votes ? t('dash.votes', { count: counts.votes }) : '',
-    counts.owes ? t('spends.owes', { amount: showAmount(counts.owes, getLanguage()) }) : '',
+    counts.owes ? t('spends.owes', { amount: owedText(accounts) }) : '',
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+/**
+ * The first time the app opens, empty and in no group: what it is for, the
+ * first name it goes by, and three ways to begin — rather than three empty
+ * sections, each saying there is nothing yet.
+ */
+function welcomeHtml() {
+  const start = (goto, label, primary = false) =>
+    `<button type="button" class="button ${primary ? 'button--primary' : ''}" data-goto="${goto}">${escapeHtml(label)}</button>`;
+  return `
+    <section class="card stack welcome">
+      <h2>${escapeHtml(t('welcome.title'))}</h2>
+      <p class="lead">${escapeHtml(t('overview.what'))}</p>
+      ${
+        myName()
+          ? `<p>${escapeHtml(t('welcome.hello', { name: myName() }))}</p>`
+          : `<label for="me-name">${escapeHtml(t('welcome.name'))}</label>
+             <div class="row row--tight">
+               <input type="text" id="me-name" autocomplete="given-name" maxlength="${NAME_KEPT}"
+                      placeholder="${escapeHtml(t('me.placeholder'))}" />
+               <button type="button" class="button" id="me-save">${escapeHtml(t('welcome.itsMe'))}</button>
+             </div>
+             <p class="muted small">${escapeHtml(t(state.remote ? 'me.hint' : 'me.hintAlone'))}</p>`
+      }
+      <span class="muted small">${escapeHtml(t('welcome.then'))}</span>
+      <div class="row">
+        ${state.remote ? start('#/groups', t('welcome.join'), true) : ''}
+        ${start('#/polls/new', t('welcome.poll'))}
+        ${start('#/lists/new', t('welcome.list'))}
+        ${start('#/spends/new', t('welcome.spend'))}
+      </div>
+    </section>`;
 }
 
 function overviewView() {
   const forYou = forYouItems();
   const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends].length;
   const pending = pendingHtml(new Set(forYou.items.map((item) => item.goto)));
+  // The first opening: the welcome says it all, and empty sections under it
+  // would only say « nothing yet » three more times.
+  if (nothingYet && !groups().length) {
+    return `
+      ${flashHtml()}
+      ${kindsHtml('overview')}
+      ${welcomeHtml()}`;
+  }
 
   return `
     ${flashHtml()}
@@ -3627,7 +3731,7 @@ function forYouItems() {
     items.push({
       goto: `#/spend/${row.spend.id}`,
       title: spendTitle(row.spend),
-      meta: t('spends.iOwe', { amount: showAmount(-row.balance, getLanguage()) }),
+      meta: t('spends.iOwe', { amount: money(-row.balance, row.spend) }),
     });
   }
   return { items };
@@ -3646,11 +3750,12 @@ function forYouHtml({ items, noName }) {
     ${rows ? `<div class="game-list" id="for-you">${rows}</div>` : ''}
     ${
       noName
-        ? `<p class="muted small">${escapeHtml(t('forYou.noName'))}
-             <button type="button" class="button button--small button--ghost" data-goto="#/settings">
-               ${escapeHtml(t('tab.settings'))} ›
-             </button>
-           </p>`
+        ? `<p class="muted small">${escapeHtml(t('forYou.noName'))}</p>
+           <div class="row row--tight">
+             <input type="text" id="me-name" autocomplete="given-name" maxlength="${NAME_KEPT}"
+                    placeholder="${escapeHtml(t('me.placeholder'))}" aria-label="${escapeHtml(t('me.title'))}" />
+             <button type="button" class="button" id="me-save">${escapeHtml(t('welcome.itsMe'))}</button>
+           </div>`
         : rows ? '' : `<p class="muted small">${escapeHtml(t('forYou.nothing'))}</p>`
     }`;
 }
@@ -4833,7 +4938,7 @@ function personView(who) {
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
 
-  const waiting = waitingLine(file.counts);
+  const waiting = waitingLine(file);
 
   const tile = (value, label) => `
     <div class="tile">
@@ -4911,12 +5016,12 @@ function personView(who) {
         entry(
           `#/spend/${escapeHtml(row.spend.id)}`,
           escapeHtml(spendTitle(row.spend)),
-          escapeHtml(t('spends.paidTotal', { amount: showAmount(row.paid, getLanguage()) })),
+          escapeHtml(t('spends.paidTotal', { amount: money(row.paid, row.spend) })),
           escapeHtml(
             row.balance === 0
               ? t('spends.even')
               : t(row.balance > 0 ? 'spends.isOwed' : 'spends.owes', {
-                  amount: showAmount(Math.abs(row.balance), getLanguage()),
+                  amount: money(Math.abs(row.balance), row.spend),
                 }),
           ),
           row.balance > 0 ? 'entry__value--good' : row.balance < 0 ? 'entry__value--bad' : '',
