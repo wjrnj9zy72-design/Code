@@ -298,6 +298,9 @@ export const STRINGS = {
     'ideas.renameHint': 'Le sujet du tableau, tel qu’il apparaît dans la liste.',
     'ideas.confirmDelete': 'Supprimer ce tableau et toutes ses cartes ? C’est définitif.',
     'ideas.loading': 'On va chercher ce tableau…',
+    'ideas.swipeHint': 'Glissez une carte vers la gauche pour la supprimer.',
+    'ideas.cardDeleted': 'Carte supprimée.',
+    'ideas.deleted': '« {name} » supprimé.',
     'spends.cannotDropPaid':
       'Cette personne a avancé de l’argent : ses dépenses sont à corriger ou à retirer d’abord, sinon le compte ne tomberait plus juste.',
     'spends.cannotDropAlone':
@@ -1161,6 +1164,9 @@ export const STRINGS = {
     'ideas.renameHint': 'The board’s topic, as it appears in the list.',
     'ideas.confirmDelete': 'Delete this board and all its cards? This cannot be undone.',
     'ideas.loading': 'Fetching that board…',
+    'ideas.swipeHint': 'Swipe a card to the left to delete it.',
+    'ideas.cardDeleted': 'Card deleted.',
+    'ideas.deleted': '“{name}” deleted.',
     'spends.cannotDropPaid':
       'This person put money in: their expenses have to be corrected or removed first, or the account would stop adding up.',
     'spends.cannotDropAlone':

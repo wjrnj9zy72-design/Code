@@ -312,6 +312,12 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
   pour la base, net sur tous les écrans, et deux personnes qui dessinent sur
   le même croquis gardent chacune leurs traits. Un tableau trop lourd pour la
   base le dit avant d'écrire.
+- **Supprimer d'un glissement** : une carte glissée vers la gauche découvre un
+  bouton rouge *Supprimer* ; il faut le toucher, un glissement seul n'efface
+  rien. Un tableau entier se glisse de même dans la liste des tableaux, et
+  l'app demande avant.
+- Où va un tableau se dit sur le formulaire, comme pour une liste : un groupe,
+  *Lien seulement*, ou *Garder pour moi*.
 - Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
   schémas (boîtes et flèches) ni de photos.
 

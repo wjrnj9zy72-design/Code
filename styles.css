@@ -1385,3 +1385,38 @@ body:not(.solo) .view {
 .swatch--pen { background: var(--surface); }
 .swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
 .swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* A card that slides left to uncover « Supprimer ». */
+.swipe {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.swipe__body {
+  display: grid;
+  position: relative;
+  touch-action: pan-y;
+  background: var(--bg);
+}
+
+.swipe__body > .game-card,
+.swipe__body > .idea-card { box-shadow: none; }
+
+.swipe__delete {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 96px;
+  border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--bad);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.idea-hint { margin: -6px 0 16px; }
