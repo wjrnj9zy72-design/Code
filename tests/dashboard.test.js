@@ -292,11 +292,36 @@ test('a poll that settled is an event: its list and account are the ones made fo
   assert.equal(spend.linkOnly, true);
 
   const other = createList({ name: 'Autre' });
-  assert.deepEqual(eventParts(poll, { lists: [other, list], spends: [spend] }), { list, spend });
-  assert.deepEqual(eventParts(poll, { lists: [other] }), { list: null, spend: null });
+  const parts = eventParts(poll, { lists: [other, list], spends: [spend] });
+  assert.equal(parts.list, list);
+  assert.equal(parts.spend, spend);
+  assert.deepEqual(parts.lists, [list], 'la liste d’un autre événement n’en est pas');
+  const none = eventParts(poll, { lists: [other] });
+  assert.equal(none.list, null);
+  assert.equal(none.spend, null);
 
   // The tie to the event survives a merge with an older copy of the same list.
   const touched = { ...list, name: 'Annecy !', updatedAt: list.updatedAt + 5 };
   assert.equal(mergeLists(list, touched).event, poll.id);
   assert.equal(mergeSpends({ ...spend, updatedAt: 1 }, spend).event, poll.id);
+});
+
+test('un événement rassemble tout ce qui est fait pour lui, de toutes les sortes', async () => {
+  const { eventParts, partsCount, upcomingEvents } = await import('../src/dashboard.js');
+  const { createEvent, createPoll } = await import('../src/polls.js');
+  const { createBoard } = await import('../src/ideas.js');
+  const raclette = createEvent({ name: 'Raclette', names: ['Gui'], date: '2026-10-10' });
+  const vin = { ...createPoll({ question: 'Quel vin ?' }), event: raclette.id };
+  const deco = { ...createBoard({ name: 'Déco' }), event: raclette.id };
+  const ailleurs = createBoard({ name: 'Autre chose' });
+  const parts = eventParts(raclette, { polls: [raclette, vin], boards: [deco, ailleurs] });
+  assert.deepEqual(parts.polls, [vin], 'un sondage fait pour l’événement, pas l’événement lui-même');
+  assert.deepEqual(parts.boards, [deco]);
+  assert.equal(partsCount(parts), 2);
+
+  const passe = createEvent({ name: 'Pique-nique', date: '2026-09-01' });
+  const weekend = createEvent({ name: 'Week-end', date: '2026-09-25', until: '2026-09-27' });
+  const bientot = createEvent({ name: 'Bientôt', date: '2026-09-30' });
+  assert.deepEqual(upcomingEvents([bientot, passe, raclette, weekend, vin], '2026-09-26').map((p) => p.id),
+    [weekend.id, bientot.id, raclette.id], 'en cours et à venir, du plus proche au plus lointain');
 });

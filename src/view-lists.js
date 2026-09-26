@@ -10,7 +10,7 @@ import {
   state, view,
 } from './app.js';
 import {
-  actionsHtml, eventLinkHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
+  actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
   signedByHtml,
 } from './view-polls.js';
 import { ask, makeDialog, showCopyDialog } from './view-games.js';
@@ -65,6 +65,7 @@ export function listCardHtml(list) {
           late ? ` — <span class="late">${escapeHtml(t('lists.late', { count: late }))}</span>` : ''
         }
       </span>
+      ${eventTagHtml(list)}
     </button>`;
 }
 
