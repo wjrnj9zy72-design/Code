@@ -8,9 +8,10 @@
  */
 
 import {
-  escapeHtml, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
+  chainLabel, chainOf, documentHref, escapeHtml, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
   isBusy, isHidden, kindsHtml, navigate, openEventMenu, pollHome, render, route, signature, state, stopWatching,
   view, whenText,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import { archivedHtml, getGame, getList, listCardHtml, listTitle, openPeopleEditor, persistList } from './view-lists.js';
 import { spendCardHtml, spendTitle } from './view-spends.js';
@@ -375,6 +376,8 @@ export function pollView(poll, { solo = false } = {}) {
       ${dateCardHtml(poll, fixed)}
     </details>`}
 
+    ${poll.date ? '' : attachedHtml(poll)}
+
     ${guest ? '' : actionsHtml(`
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
         <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
@@ -388,6 +391,7 @@ export function pollView(poll, { solo = false } = {}) {
 `, `
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
+        ${chainButtonsHtml(poll)}
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -520,36 +524,41 @@ function eventHtml(poll, { guest }) {
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
                <button type="button" class="button button--small" id="event-add">${escapeHtml(t('event.addMore'))}</button>
+               <button type="button" class="button button--small" data-gather-doc="${escapeHtml(poll.id)}">${escapeHtml(t('chain.gather'))}</button>
              </div>`
       }
     </section>`;
 }
 
 /**
- * On a card, the event a document was made for — left out on the event's own
- * page, where the card already sits under it.
+ * On a card, what a document hangs from — « Pour Raclette · 1 oct. › Courses ».
+ * On the page of something in that chain, only what lies below it is said:
+ * the card already sits under the rest.
  */
 export function eventTagHtml(document_) {
-  const poll = document_?.event ? getPoll(document_.event) : null;
-  if (!poll || route().id === poll.id) return '';
-  const name = eventName(poll) || pollTitle(poll);
+  let chain = chainOf(document_);
+  const here = chain.findIndex((one) => one.id === route().id);
+  if (here >= 0) chain = chain.slice(here + 1);
+  if (!chain.length) return '';
   return `<span class="game-card__meta game-card__event">${escapeHtml(
-    poll.date ? t('event.tag', { name, day: formatDay(poll.date) }) : t('event.tagUndated', { name }),
+    t('event.tagUndated', { name: chain.map(chainLabel).join(' › ') }),
   )}</span>`;
 }
 
-/** On a document made for an event: the way back to it. */
+/**
+ * On a document's page, the chain it hangs from, each link a way back up:
+ * « ↩ Raclette · 1 oct. › Courses ».
+ */
 export function eventLinkHtml(document_) {
-  const poll = document_.event ? getPoll(document_.event) : null;
-  if (!poll) return '';
-  const name = eventName(poll) || pollTitle(poll);
-  const label = poll.date ? t('event.for', { name, day: whenText(poll) }) : t('event.forUndated', { name });
+  const chain = chainOf(document_);
+  if (!chain.length) return '';
   return `
-    <div class="row row--tight">
-      <button type="button" class="button button--small button--ghost" data-goto="#/poll/${escapeHtml(poll.id)}">
-        ${escapeHtml(label)}
-      </button>
-    </div>`;
+    <nav class="chain row row--tight" aria-label="${escapeHtml(t('chain.label'))}">
+      <span aria-hidden="true">↩</span>
+      ${chain
+        .map((one) => `<button type="button" class="button button--small button--ghost" data-goto="${escapeHtml(documentHref(one))}">${escapeHtml(chainLabel(one))}</button>`)
+        .join('<span class="muted" aria-hidden="true">›</span>')}
+    </nav>`;
 }
 
 /**

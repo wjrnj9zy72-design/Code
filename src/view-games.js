@@ -9,6 +9,7 @@
 import {
   escapeHtml, flash, flashHtml, formatDate, gameTitle, navigate, parseIntOrNull, parseScore,
   presetLabel, pullGame, render, route, state, view,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import { actionsHtml, dropDeleted, eventLinkHtml, getPoll, pullPoll, shareBarHtml } from './view-polls.js';
 import { forget, getGame, getList, persist, pullList, replaceGame } from './view-lists.js';
@@ -349,6 +350,8 @@ export function gameView(game) {
 
     ${roundFormHtml(game)}
 
+    ${attachedHtml(game)}
+
     ${actionsHtml(`
         ${
           game.rounds.length
@@ -367,6 +370,7 @@ export function gameView(game) {
           ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
         </button>`, `
         <button type="button" class="button button--small button--ghost" id="rename">${escapeHtml(t('action.rename'))}</button>
+        ${chainButtonsHtml(game)}
         <button type="button" class="button button--small button--ghost" id="game-archive">
           ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>

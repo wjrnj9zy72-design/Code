@@ -150,6 +150,8 @@ for (const lang of ['fr', 'en']) {
             };
           })(),
           more: [...document.querySelectorAll('#view .actions__more button')].map((b) => b.textContent.trim().replace(/\s+/g, ' ')),
+          attach: Boolean(document.querySelector('#view .actions__more [data-attach-doc]')),
+          gather: Boolean(document.querySelector('#view [data-gather-doc]')),
           share: Boolean(document.querySelector('#view .share-bar .button--primary, #view [id$="-share"], #view #share')),
           inGroup: /Dans le groupe|In the group|in Mifa|dans Mifa/i.test(document.querySelector('#view')?.innerText || ''),
           newButton: (document.querySelector('#view [data-goto$="/new"], #view [data-goto="#/new"]')?.textContent || '').trim(),
@@ -182,6 +184,11 @@ for (const lang of ['fr', 'en']) {
           if (!/^(Supprimer|Delete)/.test(facts.more.at(-1))) note('« Plus d’actions » ne finit pas par Supprimer', `${where} : ${facts.more.join(' | ')}`);
         }
         if (!facts.share) note('pas de bouton pour partager', where);
+        // La chaîne : tout se rattache, sauf l'événement, qui rassemble.
+        const isEventPage = hash === `#/poll/${shared.event.id}`;
+        if (isEventPage && facts.attach) note('un événement propose de se rattacher', where);
+        if (isEventPage && !facts.gather) note('un événement sans « Rattacher un élément existant »', where);
+        if (!isEventPage && !facts.attach) note('pas de « Rattacher… » dans « Plus d’actions »', where);
         if (!facts.inGroup) note('ne dit pas dans quel groupe il est', where);
       }
       if (isKindTab && width === 390) {

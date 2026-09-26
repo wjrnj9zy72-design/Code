@@ -29,7 +29,10 @@ import {
 } from './spends.js';
 import { isValidBoard } from './ideas.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
-import { inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent, upcomingEvents } from './dashboard.js';
+import {
+  inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent, upcomingEvents,
+  allDocuments, ancestorsOf, childrenOf, isEventDoc, kindOf,
+} from './dashboard.js';
 import {
   loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadBoards, loadPrefs,
   savePrefs,
@@ -68,6 +71,7 @@ import {
   myName, offerMeInForms, onHomeScreen, openSet, outsideGroups, pendingFor, pendings, putInGroup,
   refreshGate, refreshGroup, rememberGroup, rememberPending, remoteReason, resetGroupChoice,
   setGroupFilter, setMyName, shownDocs, verifyGroups, bindDocSwipes, bindEventChips, chooseEvent,
+  openAttachDialog, openGatherDialog,
 } from './view-groups.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
@@ -203,6 +207,28 @@ export function documentTitle(document_) {
   if (isValidBoard(document_)) return boardTitle(document_);
   if (isValidSpend(document_)) return spendTitle(document_);
   return gameTitle(document_);
+}
+
+/** Where a document's page is, whatever its kind. */
+export function documentHref(document_) {
+  const page = { list: 'list', poll: 'poll', spend: 'spend', board: 'idea', game: 'game' }[kindOf(document_)] || 'game';
+  return `#/${page}/${document_.id}`;
+}
+
+/** Every document this device holds, of every kind. */
+export function everything() {
+  return allDocuments(state);
+}
+
+/** What a document hangs from, up to its event: the farthest first. */
+export function chainOf(document_) {
+  return ancestorsOf(document_, everything());
+}
+
+/** A link in the chain, as it reads: an event says its day. */
+export function chainLabel(document_) {
+  const title = isEventDoc(document_) ? eventName(document_) || pollTitle(document_) : documentTitle(document_);
+  return isEventDoc(document_) && document_.date ? t('event.named', { name: title, day: formatDay(document_.date) }) : title;
 }
 
 /**
@@ -594,10 +620,47 @@ function eventsHtml() {
     </section>`;
 }
 
-/** « · Pour Raclette » after a line about something made for an event. */
+/** « · Pour Raclette › Courses » after a line about something attached. */
 function forEventText(document_) {
-  const poll = document_?.event ? getPoll(document_.event) : null;
-  return poll ? ` · ${t('event.tagUndated', { name: eventName(poll) || pollTitle(poll) })}` : '';
+  const chain = document_ ? chainOf(document_) : [];
+  return chain.length ? ` · ${t('event.tagUndated', { name: chain.map(chainLabelShort).join(' › ') })}` : '';
+}
+
+/** A document's card, whatever its kind. */
+export function documentCardHtml(document_) {
+  const kind = kindOf(document_);
+  if (kind === 'list') return listCardHtml(document_);
+  if (kind === 'poll') return isEventDoc(document_) ? eventCardHtml(document_) : pollCardHtml(document_);
+  if (kind === 'spend') return spendCardHtml(document_);
+  if (kind === 'board') return boardCardHtml(document_);
+  return gameCardHtml(document_);
+}
+
+/**
+ * On a document's page, what is attached to it — a poll under a list, a board
+ * under that poll — and the way to bring more. An event has its own section,
+ * which holds its whole chain.
+ */
+export function attachedHtml(document_) {
+  const children = childrenOf(document_, everything()).filter(isLive);
+  if (!children.length) return '';
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('chain.here'))}</h2></div>
+      <div class="game-list">${children.map(documentCardHtml).join('')}</div>
+    </section>`;
+}
+
+/** The buttons of « Plus d'actions » for the chain: attach, detach, gather. */
+export function chainButtonsHtml(document_) {
+  return isEventDoc(document_)
+    ? ''
+    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t('chain.attach'))}</button>`;
+}
+
+/** A link in the chain, in a line of text: its title alone. */
+export function chainLabelShort(document_) {
+  return isEventDoc(document_) ? eventName(document_) || pollTitle(document_) : documentTitle(document_);
 }
 
 /**
@@ -3150,6 +3213,18 @@ export function render() {
     node.addEventListener('click', openCreateMenu);
   });
   bindEventChips(view);
+  view.querySelectorAll('[data-attach-doc]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
+      if (document_) openAttachDialog(document_);
+    });
+  });
+  view.querySelectorAll('[data-gather-doc]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const document_ = everything().find((one) => one.id === node.dataset.gatherDoc);
+      if (document_) openGatherDialog(document_);
+    });
+  });
 
   // The group pastilles, and the overview's numbers — which pick a group and
   // open its tab in one tap, so the filter is set before the page changes.

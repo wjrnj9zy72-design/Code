@@ -228,21 +228,114 @@ export function personFile({ lists = [], polls = [], games = [], spends = [] } =
   };
 }
 
+/* ------------------------------------------------------------- the chain --- */
+
 /**
- * A poll that has settled on a date is an event, and everything made for it
- * hangs off it: lists, accounts, polls, idea boards, games. Nothing new is
- * stored for the event itself: each document says which poll it is for, set
- * once when it is made, and the event finds them by that.
+ * Anything can be attached to anything else — a list to an event, a poll to
+ * that list — and the chain goes up to an event, the one thing that sits above
+ * all others and is never attached itself. A document says what it hangs from,
+ * and nothing else is stored: the parent finds its children by that.
  *
- * Newest first in each kind. `list` and `spend` are the first of each — the
- * list of what to bring and the account of what was spent, when there is one.
+ * `parent` is the id of what it hangs from, null once detached. Documents made
+ * before the chain say `event` instead, which reads the same until they are
+ * attached or detached again.
  */
-export function eventParts(poll, { lists = [], spends = [], polls = [], boards = [], games = [] } = {}) {
-  const of = (documents) =>
-    documents
-      .filter((document_) => document_.event === poll.id && document_.id !== poll.id)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  const parts = { lists: of(lists), spends: of(spends), polls: of(polls), boards: of(boards), games: of(games) };
+export function parentId(document_) {
+  if (!document_) return null;
+  return Object.prototype.hasOwnProperty.call(document_, 'parent') ? document_.parent || null : document_.event || null;
+}
+
+/** An event: a poll that has settled on its day, or made with its day known. */
+export function isEventDoc(document_) {
+  return document_?.kind === 'poll' && Boolean(document_.date || document_.fixed);
+}
+
+/** The kind of a document, games included, which predate the field. */
+export function kindOf(document_) {
+  if (document_?.kind) return document_.kind;
+  return document_?.presetId ? 'game' : null;
+}
+
+/** Everything held, of every kind, in one array. */
+export function allDocuments({ lists = [], polls = [], games = [], spends = [], boards = [] } = {}) {
+  return [...lists, ...polls, ...games, ...spends, ...boards];
+}
+
+/** What a document hangs from, up to the top: the farthest first. */
+export function ancestorsOf(document_, all) {
+  const byId = new Map(all.map((one) => [one.id, one]));
+  const chain = [];
+  const seen = new Set([document_.id]);
+  let above = byId.get(parentId(document_));
+  while (above && !seen.has(above.id)) {
+    chain.unshift(above);
+    seen.add(above.id);
+    above = byId.get(parentId(above));
+  }
+  return chain;
+}
+
+/** The event a document is for, however far up the chain: the nearest one. */
+export function eventOf(document_, all) {
+  return [...ancestorsOf(document_, all)].reverse().find(isEventDoc) || null;
+}
+
+/** What hangs directly from a document. */
+export function childrenOf(document_, all) {
+  return all.filter((one) => one.id !== document_.id && parentId(one) === document_.id);
+}
+
+/** Everything below a document, however deep, each once. */
+export function descendantsOf(document_, all) {
+  const found = [];
+  const seen = new Set([document_.id]);
+  const queue = [document_];
+  while (queue.length) {
+    const current = queue.shift();
+    for (const child of childrenOf(current, all)) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      found.push(child);
+      queue.push(child);
+    }
+  }
+  return found;
+}
+
+/**
+ * What a document may be attached to: anything live in the same group — or
+ * kept to oneself like it — except itself and what already hangs below it,
+ * which would close the chain on itself. An event is never attached: it stays
+ * on top.
+ */
+export function attachTargets(document_, all) {
+  if (isEventDoc(document_)) return [];
+  const below = new Set(descendantsOf(document_, all).map((one) => one.id));
+  const group = document_.groupId || null;
+  return all.filter(
+    (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group,
+  );
+}
+
+/**
+ * Attach a document to another, or detach it with null. Last write wins, as
+ * for a title: the stamp makes this copy the newer one.
+ */
+export function attach(document_, targetId) {
+  const { event: _legacy, ...rest } = document_;
+  return { ...rest, parent: targetId || null, updatedAt: Math.max(Date.now(), (document_.updatedAt || 0) + 1) };
+}
+
+/**
+ * Everything made for an event, however deep in its chain, by kind, newest
+ * first in each. `list` and `spend` are the first of each — the list of what
+ * to bring and the account of what was spent, when there is one.
+ */
+export function eventParts(poll, state = {}) {
+  const below = descendantsOf(poll, allDocuments(state));
+  const recent = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
+  const of = (kind) => below.filter((one) => kindOf(one) === kind).sort(recent);
+  const parts = { lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game') };
   return { ...parts, list: parts.lists[0] || null, spend: parts.spends[0] || null };
 }
 
@@ -270,7 +363,7 @@ export function forEvent(poll, make, name) {
   const made = make({ name, names: goers(poll) });
   return {
     ...made,
-    event: poll.id,
+    parent: poll.id,
     shared: Boolean(poll.shared),
     groupId: poll.groupId || null,
     ...(poll.linkOnly ? { linkOnly: true } : {}),

@@ -7,8 +7,8 @@
  */
 
 import {
-  appLink, documentTitle, escapeHtml, flash, formatDate, formatDay, isBusy, knocking, lookForUpdate, navigate,
-  pullAny, render, showsGate, state, view,
+  appLink, chainLabel, chainOf, documentTitle, escapeHtml, everything, flash, formatDate, formatDay, isBusy,
+  knocking, lookForUpdate, navigate, pullAny, render, showsGate, state, view,
 } from './app.js';
 import {
   getPoll, getSpend, persistPoll, persistSpend, pullPoll, pushFailed, replacePoll, replaceSpend,
@@ -23,13 +23,122 @@ import { uid } from './model.js';
 import { inAppBrowser } from './helpers.js';
 import { progress } from './lists.js';
 import { withMeFirst } from './people.js';
-import { inGroup, upcomingEvents } from './dashboard.js';
+import { inGroup, upcomingEvents, attach, attachTargets, isEventDoc, kindOf, parentId } from './dashboard.js';
 import { eventName } from './ics.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { bindSwipes } from './swipe.js';
 import { setLink } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { t } from './i18n.js';
+
+/* ------------------------------------------------------------- the chain --- */
+
+/** Write a document back, whatever its kind. */
+export function replaceAny(next) {
+  const kind = kindOf(next);
+  if (kind === 'list') replaceList(next);
+  else if (kind === 'poll') replacePoll(next);
+  else if (kind === 'spend') replaceSpend(next);
+  else if (kind === 'board') replaceBoard(next);
+  else replaceGame(next);
+}
+
+/** What a document is, in a word: « Liste », « Sondage »… — an event says so. */
+function kindLabel(document_) {
+  if (isEventDoc(document_)) return t('chain.kind.event');
+  return t(`chain.kind.${kindOf(document_) || 'game'}`);
+}
+
+/** The choices of an attach dialog: events first, soonest first; then the rest, newest first. */
+function candidatesHtml(documents, { on = null, attr }) {
+  const events = documents.filter(isEventDoc).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const others = documents.filter((one) => !isEventDoc(one)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const row = (one) => `
+    <button type="button" class="game-card ${one.id === on ? 'game-card--on' : ''}" ${attr}="${escapeHtml(one.id)}"
+            ${one.id === on ? 'aria-current="true"' : ''}>
+      <span class="game-card__title">${escapeHtml(chainLabel(one))}</span>
+      <span class="game-card__meta">${escapeHtml([kindLabel(one), ...chainOf(one).map(chainLabel)].join(' · '))}</span>
+    </button>`;
+  const block = (title, rows) => (rows.length
+    ? `<span class="muted small">${escapeHtml(title)}</span><div class="game-list">${rows.map(row).join('')}</div>`
+    : '');
+  return `${block(t('events.title'), events)}${block(t('chain.others'), others)}`;
+}
+
+/**
+ * Attach a document to another — an event, or anything in its chain — or
+ * detach it, to attach it elsewhere later. Only what lives in the same group
+ * is offered, and nothing below it: the chain never closes on itself.
+ */
+export function openAttachDialog(document_) {
+  const targets = attachTargets(document_, everything());
+  const chain = chainOf(document_);
+  const current = parentId(document_) && chain.length ? chain[chain.length - 1] : null;
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('chain.attachTitle', { name: documentTitle(document_) }))}</h2>
+      ${
+        current
+          ? `<p class="small">${escapeHtml(t('chain.now', { chain: chain.map(chainLabel).join(' › ') }))}</p>
+             <div class="row"><button type="button" class="button" data-detach>${escapeHtml(t('chain.detach'))}</button></div>`
+          : `<p class="muted small">${escapeHtml(t('chain.attachHint'))}</p>`
+      }
+      ${targets.length ? candidatesHtml(targets, { on: current?.id, attr: 'data-attach-to' }) : `<p class="muted small">${escapeHtml(t('chain.nothing'))}</p>`}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-attach-cancel>${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelector('[data-attach-cancel]').addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-detach]')?.addEventListener('click', () => {
+    dialog.close();
+    replaceAny(attach(document_, null));
+    flash(t('chain.detached', { name: chainLabel(current) }));
+  });
+  dialog.querySelectorAll('[data-attach-to]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const target = targets.find((one) => one.id === node.dataset.attachTo);
+      dialog.close();
+      if (!target || target.id === current?.id) return;
+      replaceAny(attach(document_, target.id));
+      flash(t('chain.attached', { name: chainLabel(target) }));
+    });
+  });
+  dialog.showModal();
+}
+
+/**
+ * The other way round: bring existing things under this one — on an event,
+ * the list made last week, the poll started before the date was known. Offers
+ * what may go there and is not there yet.
+ */
+export function openGatherDialog(target) {
+  const all = everything();
+  const offered = all.filter(
+    (one) => parentId(one) !== target.id && attachTargets(one, all).some((candidate) => candidate.id === target.id),
+  );
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('chain.gatherTitle', { name: chainLabel(target) }))}</h2>
+      <p class="muted small">${escapeHtml(t('chain.gatherHint'))}</p>
+      ${offered.length ? candidatesHtml(offered, { attr: 'data-gather' }) : `<p class="muted small">${escapeHtml(t('chain.nothingToGather'))}</p>`}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-gather-close>${escapeHtml(t('action.close'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelector('[data-gather-close]').addEventListener('click', () => dialog.close());
+  dialog.querySelectorAll('[data-gather]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const one = offered.find((candidate) => candidate.id === node.dataset.gather);
+      dialog.close();
+      if (!one) return;
+      replaceAny(attach(one, target.id));
+      flash(t('chain.gathered', { name: documentTitle(one), target: chainLabel(target) }));
+    });
+  });
+  dialog.showModal();
+}
 
 /* ----------------------------------------------------------------- groups --- */
 
@@ -222,7 +331,7 @@ export function landing(document_, { forEvent = true } = {}) {
     shared: Boolean(group),
     groupId: group?.id || null,
     ...(linkOnly ? { linkOnly: true } : {}),
-    ...(event ? { event: event.id } : {}),
+    ...(event ? { parent: event.id } : {}),
   };
 }
 
@@ -472,8 +581,9 @@ export async function copyToGroup(id) {
     // Copied into a group, it is the group's: a link-only original makes a
     // copy the group can see, which is the point of copying it there.
     linkOnly: false,
-    // The event it was made for stays in the other group, with the original.
+    // What it hung from stays in the other group, with the original.
     event: null,
+    parent: null,
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,

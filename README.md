@@ -199,8 +199,33 @@ tout ce qu'on prépare pour lui.
 - **Partout, le fil** : une carte faite pour un événement le dit (« Pour
   Raclette · 1 oct. »), sur l'Accueil aussi, et sa page ramène à l'événement.
 
-Rien de nouveau n'est stocké pour l'événement lui-même : chaque document dit
-pour quel sondage il a été fait (`event`), fixé à sa création.
+### La chaîne : tout se rattache
+
+Au-delà de l'événement, **tout élément se rattache à un autre**, comme une
+chaîne : une liste à l'événement, un sondage à cette liste (« quel vin ? »
+sous « Courses »), un tableau d'idées à ce sondage. L'événement reste
+au-dessus : il ne se rattache à rien.
+
+- **Plus d'actions → Rattacher…** sur n'importe quelle liste, sondage, compte,
+  partie ou tableau d'idées : les événements d'abord, puis les autres éléments,
+  seulement ceux du même groupe (ou gardés pour soi, comme lui). Jamais sous ce
+  qui est déjà en dessous de lui : la chaîne ne se referme pas.
+- **Détacher**, dans la même fenêtre, le libère — pour le rattacher ailleurs
+  plus tard. Ce qui lui était rattaché le reste.
+- **Rattacher un élément existant**, sur la page d'un événement : ce qui existe
+  déjà dans son groupe vient s'y ranger d'une touche.
+- **La chaîne se voit** : en tête de la page d'un élément (« ↩ Raclette · 1 oct.
+  › Courses », chaque maillon ramène à sa page) ; sur les cartes et les lignes
+  de l'Accueil (« Pour Raclette › Courses ») ; sous **Rattaché ici**, sur la page
+  de ce qui en porte d'autres. La page d'un événement montre toute sa chaîne,
+  même loin, rangée par sorte.
+- Pour un sondage, seul son organisateur le rattache ou le détache, comme il
+  est seul à en changer la question.
+
+Rien de nouveau n'est stocké pour l'événement ni pour la chaîne : chaque
+document dit ce à quoi il est rattaché (`parent`, l'identifiant de l'autre
+élément), et le plus récent l'emporte à la fusion, comme pour un titre. Les
+documents d'avant la chaîne disaient `event`, qui se lit de la même façon.
 
 Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
 l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il

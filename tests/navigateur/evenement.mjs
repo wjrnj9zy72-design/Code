@@ -76,7 +76,7 @@ await page.fill('#poll-choices', 'Rouge\nBlanc');
 await page.click('#view form button[type=submit]');
 await page.waitForFunction(() => /Quel vin/.test(document.querySelector('h1')?.textContent || ''));
 const vin = (await polls()).find((p) => p.question === 'Quel vin ?');
-check('le sondage est fait pour l’événement', vin?.event === raclette.id && vin?.groupId === 'grp_famille');
+check('le sondage est fait pour l’événement', vin?.parent === raclette.id && vin?.groupId === 'grp_famille');
 check('sa page ramène à l’événement', /Raclette/.test(await text('#view [data-goto^="#/poll/"]')));
 await page.click(`#view [data-goto="#/poll/${raclette.id}"]`);
 await page.waitForSelector('#event-parts');
@@ -107,7 +107,7 @@ await page.fill('#board-name', 'Cadeau');
 await page.click('#new-board button[type=submit]');
 await page.waitForSelector('#board-add-note');
 const board = await page.evaluate(() => JSON.parse(localStorage.getItem('marque-points:boards:v1')).find((b) => b.name === 'Cadeau'));
-check('le tableau est fait pour cet événement, et gardé pour moi', board?.event === plus.id && !board?.groupId, JSON.stringify({ e: board?.event, g: board?.groupId }));
+check('le tableau est fait pour cet événement, et gardé pour moi', board?.parent === plus.id && !board?.groupId, JSON.stringify({ e: board?.parent, g: board?.groupId }));
 
 await page.goto(`${B}#/lists/new`);
 await page.waitForSelector('#new-list');

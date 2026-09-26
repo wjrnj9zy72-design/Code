@@ -9,6 +9,7 @@
 import {
   askForText, escapeHtml, flash, flashHtml, formatDate, groupChipsHtml, isBusy, isHidden, kindsHtml,
   navigate, render, state, stopWatching, view,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import { actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
 import { archivedHtml } from './view-lists.js';
@@ -206,8 +207,11 @@ export function boardView(board) {
         : `<p class="muted small">${escapeHtml(t('ideas.empty'))}</p>`
     }
 
+    ${attachedHtml(board)}
+
     ${actionsHtml('', `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
+        ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>

@@ -8,6 +8,7 @@
 import {
   askForText, escapeHtml, flash, flashHtml, formatDate, formatDay, groupChipsHtml, kindsHtml,
   navigate, render, state, view, whenText,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import {
   actionsHtml, eventLinkHtml, eventTagHtml, getSpend, persistPoll, persistSpend, pollCardHtml, pollTitle,
@@ -634,9 +635,12 @@ export function spendView(spend) {
 
     ${state.spendTab === 'balances' ? balancesTab : expensesTab}
 
+    ${attachedHtml(spend)}
+
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
+        ${chainButtonsHtml(spend)}
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>

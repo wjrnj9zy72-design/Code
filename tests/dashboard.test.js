@@ -282,7 +282,7 @@ test('a poll that settled is an event: its list and account are the ones made fo
 
   const list = forEvent(poll, createList, 'Annecy');
   assert.equal(list.kind, 'list');
-  assert.equal(list.event, poll.id);
+  assert.equal(list.parent, poll.id);
   assert.equal(list.groupId, 'g1');
   assert.equal(list.shared, true);
   assert.deepEqual(list.people.map((person) => person.name), ['Gui', 'Alice']);
@@ -302,8 +302,8 @@ test('a poll that settled is an event: its list and account are the ones made fo
 
   // The tie to the event survives a merge with an older copy of the same list.
   const touched = { ...list, name: 'Annecy !', updatedAt: list.updatedAt + 5 };
-  assert.equal(mergeLists(list, touched).event, poll.id);
-  assert.equal(mergeSpends({ ...spend, updatedAt: 1 }, spend).event, poll.id);
+  assert.equal(mergeLists(list, touched).parent, poll.id);
+  assert.equal(mergeSpends({ ...spend, updatedAt: 1 }, spend).parent, poll.id);
 });
 
 test('un événement rassemble tout ce qui est fait pour lui, de toutes les sortes', async () => {
@@ -324,4 +324,44 @@ test('un événement rassemble tout ce qui est fait pour lui, de toutes les sort
   const bientot = createEvent({ name: 'Bientôt', date: '2026-09-30' });
   assert.deepEqual(upcomingEvents([bientot, passe, raclette, weekend, vin], '2026-09-26').map((p) => p.id),
     [weekend.id, bientot.id, raclette.id], 'en cours et à venir, du plus proche au plus lointain');
+});
+
+test('la chaîne : tout se rattache à tout, l’événement reste au-dessus', async () => {
+  const { attach, parentId, ancestorsOf, eventOf, descendantsOf, attachTargets, eventParts, allDocuments } = await import('../src/dashboard.js');
+  const { createEvent, createPoll } = await import('../src/polls.js');
+  const { createBoard, mergeBoards } = await import('../src/ideas.js');
+  const g = { groupId: 'mifa', shared: true };
+  const raclette = { ...createEvent({ name: 'Raclette', date: '2026-10-10' }), ...g };
+  const courses = { ...createList({ name: 'Courses' }), ...g, event: raclette.id }; // à l'ancienne
+  let vin = { ...createPoll({ question: 'Quel vin ?' }), ...g };
+  let deco = { ...createBoard({ name: 'Déco' }), ...g };
+  const copains = { ...createBoard({ name: 'Ailleurs' }), groupId: 'copains', shared: true };
+
+  assert.equal(parentId(courses), raclette.id, 'l’ancien champ se lit encore');
+  vin = attach(vin, courses.id);
+  deco = attach(deco, vin.id);
+  const all = () => allDocuments({ lists: [courses], polls: [raclette, vin], boards: [deco, copains] });
+
+  assert.deepEqual(ancestorsOf(deco, all()).map((d) => d.id), [raclette.id, courses.id, vin.id], 'du plus haut au plus proche');
+  assert.equal(eventOf(deco, all()).id, raclette.id, 'l’événement se trouve au bout de la chaîne');
+  assert.deepEqual(descendantsOf(raclette, all()).map((d) => d.id).sort(), [courses.id, vin.id, deco.id].sort());
+  assert.equal(eventParts(raclette, { lists: [courses], polls: [raclette, vin], boards: [deco] }).boards[0].id, deco.id,
+    'l’événement voit tout ce qui est en dessous, même loin');
+
+  const targets = attachTargets(courses, all()).map((d) => d.id);
+  assert.ok(targets.includes(raclette.id));
+  assert.ok(!targets.includes(vin.id) && !targets.includes(deco.id), 'pas sous ce qui est déjà en dessous : la chaîne ne se referme pas');
+  assert.ok(!targets.includes(courses.id), 'ni sous soi-même');
+  assert.ok(!targets.includes(copains.id), 'ni dans un autre groupe');
+  assert.deepEqual(attachTargets(raclette, all()), [], 'un événement ne se rattache à rien');
+
+  const detached = attach(courses, null);
+  assert.equal(parentId(detached), null, 'détaché, l’ancien champ ne revient pas');
+  assert.ok(!('event' in detached));
+  assert.ok(detached.updatedAt > courses.updatedAt, 'le plus récent l’emporte, comme pour un titre');
+
+  // Deux appareils : celui qui rattache en dernier l’emporte à la fusion.
+  const moved = attach(deco, raclette.id);
+  assert.equal(parentId(mergeBoards(deco, moved)), raclette.id);
+  assert.equal(parentId(mergeBoards(moved, deco)), raclette.id);
 });
