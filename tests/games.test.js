@@ -69,9 +69,13 @@ test('every preset has notes in every language', () => {
 
 test('translations interpolate, and fall back to the key when unknown', () => {
   setLanguage('fr');
-  assert.match(t('home.rounds', { count: 2 }), /2/);
+  assert.equal(t('home.rounds', { count: 2 }), '2 manches');
+  assert.equal(t('home.rounds', { count: 0 }), '0 manche', 'French: zero takes the singular');
+  assert.equal(t('forYou.knocks', { count: 1 }), '1 personne demande à entrer');
   setLanguage('en');
-  assert.equal(t('home.rounds', { count: 2 }), '2 round(s)');
+  assert.equal(t('home.rounds', { count: 2 }), '2 rounds');
+  assert.equal(t('home.rounds', { count: 1 }), '1 round');
+  assert.equal(t('home.rounds', { count: 0 }), '0 rounds', 'English: zero takes the plural');
   assert.equal(t('does.not.exist'), 'does.not.exist');
   assert.equal(t('home.leader'), 'Leading: {name}', 'a missing placeholder is left alone');
   setLanguage('fr');

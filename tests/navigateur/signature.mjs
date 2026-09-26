@@ -19,6 +19,7 @@ async function device(label, prefs) {
 }
 const signedText = async (page) => ((await page.locator('#view .signed').first().textContent().catch(() => '')) || '').trim();
 const setSignature = async (page, button, name, remember = true) => {
+  await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
   await page.click(button);
   await page.waitForSelector('dialog[open] #sign-name');
   await page.fill('#sign-name', name);
@@ -34,7 +35,7 @@ const me = await device('Gui', { me: 'Gui', groups: [MIFA] });
 await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/polls"]'); await me.click('[data-goto="#/polls/new"]'); await me.waitForSelector('#new-poll');
 await me.fill('#poll-question', 'Quel soir pour la fête ?'); await me.fill('#poll-choices', 'vendredi\nsamedi');
 await me.fill('[data-person-index="0"]', 'Gui');
-await me.click('#new-poll button[type=submit]'); await me.waitForSelector('#poll-sign');
+await me.click('#new-poll button[type=submit]'); await me.waitForSelector('#poll-sign', { state: 'attached' });
 check('sans surnom retenu, rien ne s’affiche', (await signedText(me)) === '');
 
 // 2. on l'ajoute en cours de route
@@ -48,7 +49,7 @@ const pollLinkText = await (async () => {
 // 3. la suivante la reprend toute seule
 await me.click('[data-tab="home"]'); await me.click('.segmented--kinds [data-goto="#/lists"]'); await me.click('[data-goto="#/lists/new"]'); await me.waitForSelector('#new-list');
 await me.fill('#list-name', 'Courses de la fête');
-await me.click('#new-list button[type=submit]'); await me.waitForSelector('#list-sign');
+await me.click('#new-list button[type=submit]'); await me.waitForSelector('#list-sign', { state: 'attached' });
 check('une nouvelle liste est signée d’office', (await signedText(me)) === 'Proposé par Guigui', await signedText(me));
 
 // 4. une autre signature pour celle-ci seulement

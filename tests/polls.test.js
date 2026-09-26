@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue,
   addPollPerson as addPerson, renamePollPerson as renamePerson, removePollPerson as removePerson,
-  setClosed, tally, mergePolls, isValidPoll, VALUES, seeksDay, createEvent,
+  setClosed, tally, mergePolls, isValidPoll, VALUES, seeksDay, createEvent, dayOfChoice, choiceOfDay,
 } from '../src/polls.js';
 
 const sample = () =>
@@ -347,4 +347,36 @@ test('a poll looking for a day is told apart from any other question', () => {
   assert.equal(seeksDay(asked('Tarte ou gâteau ?')), false);
   // An event already has its day: there is nothing left to decide.
   assert.equal(seeksDay(createEvent({ name: 'Quel soir ?', date: '2026-10-12' })), false);
+});
+
+test('a choice that names a day is read back as that day', () => {
+  const from = new Date(2026, 8, 26); // Saturday 26 September 2026
+  const day = (text) => dayOfChoice(text, from)?.date ?? null;
+  assert.equal(day('13/10'), '2026-10-13');
+  assert.equal(day('13/10/2027'), '2027-10-13');
+  assert.equal(day('2026-10-13'), '2026-10-13');
+  assert.equal(day('sam. 13 oct.'), '2026-10-13');
+  assert.equal(day('Samedi 13 octobre 2027'), '2027-10-13');
+  assert.equal(day('Saturday, October 3'), '2026-10-03');
+  assert.equal(day('1er novembre'), '2026-11-01');
+  assert.equal(day('12 septembre'), '2027-09-12', 'a day already gone this year is next year’s');
+  assert.equal(day('mars 12'), '2027-03-12', '« mars » is a month, not « mar. »');
+  assert.equal(day('Samedi 12'), '2026-12-12', 'a weekday and a number: the next month where they meet');
+  assert.equal(day('Vendredi 12'), null, 'not within three months: not guessed');
+  assert.equal(day('2 pizzas'), null);
+  assert.equal(day('Pizza'), null);
+  assert.deepEqual(dayOfChoice('Mardi 13 oct à 20h', from), { date: '2026-10-13', at: '20:00' });
+  assert.deepEqual(dayOfChoice('ven 2 oct 19:30', from), { date: '2026-10-02', at: '19:30' });
+});
+
+test('a picked day is written as words the poll reads back', () => {
+  const now = new Date(2026, 8, 26);
+  assert.equal(choiceOfDay('2026-10-13', 'fr', now), 'Mardi 13 octobre');
+  assert.equal(choiceOfDay('2027-01-02', 'fr', now), 'Samedi 2 janvier 2027');
+  for (const language of ['fr', 'en']) {
+    for (const day of ['2026-10-13', '2027-01-02', '2026-12-31']) {
+      assert.equal(dayOfChoice(choiceOfDay(day, language, now), now)?.date, day, `${language} ${day}`);
+    }
+  }
+  assert.equal(choiceOfDay('', 'fr', now), '');
 });

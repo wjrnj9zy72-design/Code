@@ -22,12 +22,15 @@ import { later, touch, prune } from './stamp.js';
 import { addPerson, renamePerson, removePerson } from './people.js';
 
 /** Un compte neuf. `names` sont les personnes qu'il concerne. */
-export function createSpend({ name = '', names = [], shared = false, groupId = null } = {}) {
+export function createSpend({ name = '', names = [], shared = false, groupId = null, currency = 'EUR' } = {}) {
   const now = Date.now();
   return {
     id: uid('d'),
     kind: 'spend',
     name: String(name).trim(),
+    // One currency per account: a holiday abroad is counted in the money
+    // spent there. Accounts from before it have none, and are in euros.
+    currency: CURRENCIES.includes(currency) ? currency : 'EUR',
     createdAt: now,
     updatedAt: now,
     peopleAt: now,
@@ -43,13 +46,21 @@ export function createSpend({ name = '', names = [], shared = false, groupId = n
   };
 }
 
+/** The currencies an account can be kept in. */
+export const CURRENCIES = ['EUR', 'CHF', 'GBP', 'USD', 'CAD'];
+
+/** The currency an account is kept in: euros, unless it says otherwise. */
+export function spendCurrency(spend) {
+  return CURRENCIES.includes(spend?.currency) ? spend.currency : 'EUR';
+}
+
 /**
  * Lire un montant tel qu'il se tape : « 12,50 », « 12.5 », « 12 », « 3 € ».
  * Rend des centimes, ou null quand ce n'est pas un montant.
  */
 export function readAmount(raw) {
   const clean = String(raw ?? '')
-    .replace(/[\s €]/g, '')
+    .replace(/[\s €$£]|chf/gi, '')
     .replace(',', '.');
   if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
   const value = Math.round(Number(clean) * 100);
@@ -57,12 +68,12 @@ export function readAmount(raw) {
 }
 
 /** Des centimes, écrits comme le lecteur écrit l'argent. */
-export function showAmount(cents, language = 'fr') {
+export function showAmount(cents, language = 'fr', currency = 'EUR') {
   const value = (Number(cents) || 0) / 100;
   try {
-    return new Intl.NumberFormat(language, { style: 'currency', currency: 'EUR' }).format(value);
+    return new Intl.NumberFormat(language, { style: 'currency', currency }).format(value);
   } catch {
-    return `${value.toFixed(2)} €`;
+    return `${value.toFixed(2)} ${currency === 'EUR' ? '€' : currency}`;
   }
 }
 

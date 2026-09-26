@@ -33,7 +33,7 @@ check("l'app ouvre sur l'Accueil",
   (await page.locator('.tab[aria-current]').textContent()).trim() === 'Accueil');
 check("l'Accueil vide dit ce qu'est l'app", (await page.locator('.lead').textContent()).length > 40);
 check('le « + » de la barre crée, l’Accueil n’a pas ses propres boutons',
-  (await page.locator('#tabs #create').isVisible()) && (await page.locator('[data-goto$="/new"]').count()) === 0);
+  (await page.locator('#tabs #create').isVisible()) && (await page.locator('#view [data-goto$="/new"]:not(.welcome *)').count()) === 0);
 await page.click('[data-tab="groups"]');
 await page.waitForSelector('#group-name');
 check('les groupes ont leur onglet',

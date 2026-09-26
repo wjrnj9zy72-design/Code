@@ -70,8 +70,8 @@ await page.click('#share-out');
 await page.waitForTimeout(300);
 const owners = await page.locator('.line__who').evaluateAll((e) => e.map((x) => x.textContent.trim()));
 check('« Répartir » donne le reste à quelqu’un',
-  owners.filter((o) => o === 'Personne').length === 1, owners.join(' / '));
-check('et la ligne déjà faite reste sans personne', owners[0] === 'Personne', owners[0]);
+  owners.filter((o) => o === 'À prendre').length === 1, owners.join(' / '));
+check('et la ligne déjà faite reste sans personne', owners[0] === 'À prendre', owners[0]);
 
 // filtrer par personne
 await page.locator('[data-filter]').nth(1).click();

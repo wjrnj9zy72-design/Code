@@ -361,3 +361,119 @@ export function isValidPoll(value) {
       typeof value.votes === 'object',
   );
 }
+
+/* ------------------------------------------------ the day a choice names --- */
+
+const CHOICE_MONTHS = [
+  ['janv', 'jan'], ['févr', 'fevr', 'fév', 'fev', 'feb'], ['mars', 'march'], ['avr', 'apr'], ['mai', 'may'],
+  ['juin', 'june', 'jun'], ['juil', 'july', 'jul'], ['août', 'aout', 'aug'], ['sept', 'sep'], ['oct'], ['nov'], ['déc', 'dec'],
+];
+// Weekdays are whole words (« mar. », « mardi », "Tue"), so that « mars »
+// stays a month.
+const CHOICE_WEEKDAYS = [
+  ['dim', 'dimanche', 'sun', 'sunday'], ['lun', 'lundi', 'mon', 'monday'], ['mar', 'mardi', 'tue', 'tues', 'tuesday'],
+  ['mer', 'mercredi', 'wed', 'wednesday'], ['jeu', 'jeudi', 'thu', 'thur', 'thurs', 'thursday'],
+  ['ven', 'vendredi', 'fri', 'friday'], ['sam', 'samedi', 'sat', 'saturday'],
+];
+
+const monthOfWord = (word) => CHOICE_MONTHS.findIndex((names) => names.some((name) => word.startsWith(name)));
+const weekdayOfWord = (word) => CHOICE_WEEKDAYS.findIndex((names) => names.includes(word));
+const isoDay = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const realDay = (year, month, day) => {
+  const date = new Date(year, month, day);
+  return date.getMonth() === month && date.getDate() === day ? date : null;
+};
+
+/**
+ * The day a choice names, if it names one: « Vendredi 12 », « sam. 13 oct. »,
+ * « 13/10 », « 2026-10-13 », "Saturday, October 13", with an hour when one is
+ * written (« 20h », « 20:30 »). Returns { date, at } or null.
+ *
+ * The year is rarely written: the day is the first one that fits on or after
+ * `from` — the day the poll was asked, not the day it is read, so a poll
+ * settled a month later still means the evening everyone voted for. A weekday
+ * with a number and no month (« Vendredi 12 ») is the next month in which the
+ * 12th is a Friday, within three months. A bare number means nothing: « 2 pizzas » is not a day.
+ */
+export function dayOfChoice(text, from = new Date()) {
+  const source = String(text || '').toLowerCase();
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const fits = (date) => date && date >= start;
+
+  let at = null;
+  const hour = source.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/);
+  if (hour && Number(hour[1]) < 24 && Number(hour[2] || 0) < 60) {
+    at = `${hour[1].padStart(2, '0')}:${hour[2] || '00'}`;
+  }
+  const rest = hour ? source.replace(hour[0], ' ') : source;
+
+  const iso = rest.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const date = realDay(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return date ? { date: isoDay(date), at } : null;
+  }
+
+  // A year written in full is taken as it is; otherwise this year, or the next.
+  const pick = (month, day, year) => {
+    if (year) {
+      const date = realDay(year, month, day);
+      return date ? { date: isoDay(date), at } : null;
+    }
+    for (const candidate of [start.getFullYear(), start.getFullYear() + 1]) {
+      const date = realDay(candidate, month, day);
+      if (fits(date)) return { date: isoDay(date), at };
+    }
+    return null;
+  };
+
+  const slashed = rest.match(/\b(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2}|\d{4}))?\b/);
+  if (slashed) {
+    let [day, month] = [Number(slashed[1]), Number(slashed[2])];
+    if (month > 12 && day <= 12) [day, month] = [month, day];
+    const year = slashed[3] ? Number(slashed[3].length === 2 ? `20${slashed[3]}` : slashed[3]) : null;
+    return pick(month - 1, day, year);
+  }
+
+  const words = rest.split(/[^\p{L}\d]+/u).filter(Boolean);
+  const year = Number(words.find((word) => /^\d{4}$/.test(word))) || null;
+  const weekday = words.map(weekdayOfWord).find((index) => index >= 0) ?? -1;
+  for (let i = 0; i < words.length; i += 1) {
+    // « 1er novembre », "October 1st".
+    const number = words[i].match(/^(\d{1,2})(?:er|st|nd|rd|th)?$/);
+    if (!number) continue;
+    const day = Number(number[1]);
+    if (day < 1 || day > 31) continue;
+    // « 13 octobre » in French, "October 13" in English. A word that is also
+    // a weekday (« mar. 12 ») is a weekday, not March.
+    const after = words[i + 1] ? monthOfWord(words[i + 1]) : -1;
+    const beforeWord = words[i - 1] || '';
+    const before = beforeWord && weekdayOfWord(beforeWord) < 0 ? monthOfWord(beforeWord) : -1;
+    const month = after >= 0 ? after : before;
+    if (month >= 0) return pick(month, day, year);
+    if (weekday >= 0) {
+      // Near enough to be meant: three months ahead at most.
+      for (let ahead = 0; ahead < 4; ahead += 1) {
+        const first = new Date(start.getFullYear(), start.getMonth() + ahead, 1);
+        const date = realDay(first.getFullYear(), first.getMonth(), day);
+        if (fits(date) && date.getDay() === weekday) return { date: isoDay(date), at };
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * The line a picked day becomes among the choices: « Samedi 13 octobre » —
+ * with the year only when it is not this one — so that anyone reads it, and
+ * dayOfChoice() reads it back.
+ */
+export function choiceOfDay(day, language = 'fr', now = new Date()) {
+  const [year, month, date] = String(day || '').split('-').map(Number);
+  if (!year || !month || !date) return '';
+  const options = { weekday: 'long', day: 'numeric', month: 'long' };
+  if (year !== now.getFullYear()) options.year = 'numeric';
+  const text = new Date(year, month - 1, date).toLocaleDateString(language, options);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

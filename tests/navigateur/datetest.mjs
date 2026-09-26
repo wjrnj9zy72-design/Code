@@ -121,7 +121,7 @@ check('le bloc du groupe aussi',
 await page.evaluate(() => { location.hash = '#/person/Alice'; });
 await page.waitForSelector('.who');
 check('et sa page met le retard en premier',
-  /^1 en retard · 2 ligne\(s\) à faire/.test((await page.locator('.banner').first().textContent()).trim()),
+  /^1 en retard · 2 lignes à faire/.test((await page.locator('.banner').first().textContent()).trim()),
   (await page.locator('.banner').first().textContent()).trim());
 const tiles = await page.locator('.tile__value').allTextContents();
 check('sa page compte le retard à part', tiles.join(',') === '1,0,2,1', tiles.join(','));
@@ -141,7 +141,7 @@ check('la page suit la personne renommée',
   (await page.evaluate(() => location.hash)) === '#/person/Alix',
   await page.evaluate(() => location.hash));
 check('et le message compte les trois documents',
-  /3 document\(s\)/.test(await page.locator('.banner').first().textContent()),
+  /3 documents/.test(await page.locator('.banner').first().textContent()),
   (await page.locator('.banner').first().textContent()).trim());
 
 await openTab('lists');
@@ -160,7 +160,8 @@ check('le sondage aussi', /Alix/.test(await page.locator('#view').textContent())
 
 await openTab('lists');
 await page.click('.game-card');
-await page.waitForSelector('#list-archive');
+await page.waitForSelector('#list-archive', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-archive');
 await page.waitForFunction(() => location.hash === '#/lists');
 // Attendre l'onglet redessiné, pas seulement l'adresse changée : compter avant,
@@ -183,7 +184,8 @@ check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,
 await openTab('lists');
 await page.click('details.details summary');
 await page.click('details.details .game-card');
-await page.waitForSelector('#list-archive');
+await page.waitForSelector('#list-archive', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-archive');
 await page.waitForFunction(() => location.hash === '#/list/' || location.hash.startsWith('#/list/'));
 await openTab('lists');
@@ -194,7 +196,8 @@ check('et elle ressort entière',
 /* ---- 5. les modèles ------------------------------------------------------ */
 
 await page.click('.game-card');
-await page.waitForSelector('#list-template');
+await page.waitForSelector('#list-template', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-template');
 await page.waitForSelector('.banner');
 check('une liste se garde comme modèle',

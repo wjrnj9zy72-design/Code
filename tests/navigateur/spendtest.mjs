@@ -61,7 +61,7 @@ await page.click('#add-person');
 await page.waitForSelector('[data-person-index="2"]');
 await page.fill('[data-person-index="2"]', 'Bob');
 await page.click('#new-spend button[type=submit]');
-await page.waitForSelector('#add-spend', { timeout: 15000 });
+await page.waitForSelector('#add-spend, #spend-add-open', { timeout: 15000 });
 check('un compte se crée avec ses personnes',
   (await page.evaluate(() => location.hash)).startsWith('#/spend/')
   && (await page.locator('#spend-by option').count()) === 3);
@@ -70,7 +70,8 @@ check('un compte se crée avec ses personnes',
 
 const spend = async (what, amount, by) => {
   await page.click('[data-spend-tab="expenses"]');
-  await page.waitForSelector('#add-spend');
+  await page.waitForSelector('#add-spend, #spend-add-open');
+  if (await page.locator('#spend-add-open').count()) await page.click('#spend-add-open');
   await page.fill('#spend-text', what);
   await page.fill('#spend-amount', amount);
   await page.selectOption('#spend-by', { label: by });
@@ -129,7 +130,8 @@ check('et personne n’a été retiré', (await page.locator('.entry', { hasText
 /* ---- 6. un montant qui n’en est pas un ----------------------------------- */
 
 await page.click('[data-spend-tab="expenses"]');
-await page.waitForSelector('#add-spend');
+await page.waitForSelector('#add-spend, #spend-add-open');
+if (await page.locator('#spend-add-open').count()) await page.click('#spend-add-open');
 await page.fill('#spend-text', 'Rien');
 await page.fill('#spend-amount', 'douze euros');
 await page.click('#add-spend button[type=submit]');
@@ -178,7 +180,8 @@ check('et y lit ce que lui doit',
 
 // et ce qu'il note arrive chez moi
 await other.click('.game-card');
-await other.waitForSelector('#add-spend');
+await other.waitForSelector('#add-spend, #spend-add-open');
+if (await other.locator('#spend-add-open').count()) await other.click('#spend-add-open');
 await other.fill('#spend-text', 'Essence');
 await other.fill('#spend-amount', '60');
 await other.selectOption('#spend-by', { label: 'Bob' });
@@ -186,7 +189,7 @@ await other.click('#add-spend button[type=submit]');
 await other.waitForFunction(() => [...document.querySelectorAll('.line__text')].some((n) => n.textContent.includes('Essence')));
 
 await page.reload();
-await page.waitForSelector('#add-spend', { timeout: 15000 });
+await page.waitForSelector('#add-spend, #spend-add-open', { timeout: 15000 });
 const seen = await page.waitForFunction(
   () => [...document.querySelectorAll('.line__text')].some((n) => n.textContent.includes('Essence')),
   null, { timeout: 20000 },
@@ -196,6 +199,7 @@ check('et les quatre dépenses tiennent ensemble', (await page.locator('.line').
 
 /* ---- 9. le jour tient dans sa colonne, même sur un petit écran ------------ */
 
+if (await page.locator('#spend-add-open').count()) await page.click('#spend-add-open');
 await page.setViewportSize({ width: 340, height: 800 });
 await page.waitForTimeout(200);
 const spill = await page.evaluate(() => {

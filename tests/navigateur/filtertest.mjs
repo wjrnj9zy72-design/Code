@@ -50,7 +50,7 @@ await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data
 await page.waitForSelector('[data-goto="#/polls/new"]');
 check('le filtre vide bien l’onglet', (await page.locator('.game-card').count()) === 0);
 const pollsText = (await page.locator('#view').textContent()).replace(/\s+/g, ' ');
-check('mais l’onglet ne prétend plus qu’il n’y a rien', /1 autre\(s\) sont masqué\(s\)/.test(pollsText),
+check('mais l’onglet ne prétend plus qu’il n’y a rien', /1 autre est masqué/.test(pollsText),
   (pollsText.match(/[^.]*masqué[^.]*\./) || ['rien'])[0]);
 check('et dit que c’est le partage qui manque', /partagé dans aucun groupe/.test(pollsText));
 
@@ -72,7 +72,7 @@ await page.click('[data-tab="home"]');
 await page.waitForSelector('.segmented--kinds [data-goto="#/"][aria-current="true"]');
 const coming = page.locator('.section').filter({ hasText: 'Ce qui vient' }).first();
 const comingText = (await coming.textContent()).replace(/\s+/g, ' ');
-check('« Ce qui vient » dit aussi ce qu’il cache', /autre\(s\) sont masqué\(s\)/.test(comingText), comingText.slice(0, 140));
+check('« Ce qui vient » dit aussi ce qu’il cache', /autres? (est|sont) masqués?/.test(comingText), comingText.slice(0, 140));
 
 await coming.locator('[data-group-filter=""]').first().click();
 await page.waitForTimeout(400);
