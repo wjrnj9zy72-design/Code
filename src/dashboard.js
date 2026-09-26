@@ -306,7 +306,8 @@ export function descendantsOf(document_, all) {
  * The whole chain a document belongs to, as a tree: from the top of its chain
  * — its event, most of the time — down to everything attached below, each
  * node `{ document, children }`. What is put away is left out, except the
- * document itself. Children come in the order of the tabs, then by title.
+ * document itself. Children come in the order their links set — what must be
+ * done first, first (see stepOf) — then in the order of the tabs, by title.
  */
 export function chainTree(document_, all) {
   const top = ancestorsOf(document_, all)[0] || document_;
@@ -318,7 +319,7 @@ export function chainTree(document_, all) {
     seen.add(node.id);
     const children = childrenOf(node, all)
       .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
-      .sort((a, b) => rank(a) - rank(b) || title(a).localeCompare(title(b)));
+      .sort((a, b) => stepOf(a, all) - stepOf(b, all) || rank(a) - rank(b) || title(a).localeCompare(title(b)));
     return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
   };
   return grow(top);
@@ -395,4 +396,143 @@ export function forEvent(poll, make, name) {
     groupId: poll.groupId || null,
     ...(poll.linkOnly ? { linkOnly: true } : {}),
   };
+}
+
+/* ------------------------------------------------------------- the links --- */
+
+/**
+ * The chain says what belongs to what; it is a tree, one parent each. Links
+ * say the rest, across it: this list goes with that account, this poll must
+ * be closed before the list can be drawn up, that game comes after the
+ * raclette. Any two things of a group may be linked, in one of three ways:
+ *
+ * - `with`: they go together, nothing more;
+ * - `after`: this one waits for the other — it comes after it;
+ * - `before`: this one comes first — the other waits for it.
+ *
+ * One side holds the link, in `links` (`{ id, kind }`), and the other finds it
+ * by that, as a parent finds its children: one document written, never two.
+ * Last write wins, as for a title.
+ */
+export const LINK_KINDS = ['with', 'after', 'before'];
+
+/** The links a document holds itself, cleaned up. */
+export function linksOf(document_) {
+  const seen = new Set();
+  return (Array.isArray(document_?.links) ? document_.links : [])
+    .filter((one) => one && typeof one.id === 'string' && LINK_KINDS.includes(one.kind))
+    .filter((one) => (seen.has(one.id) ? false : seen.add(one.id)));
+}
+
+/**
+ * Every link that touches a document, whichever side holds it, as it reads
+ * from here: `with`, `waits` (for the other) or `unblocks` (the other).
+ * `holder` is the id of the document that holds it — the one to write to
+ * undo it. What is put away or gone is left out.
+ */
+export function relationsOf(document_, all) {
+  const byId = new Map(all.map((one) => [one.id, one]));
+  const found = new Map();
+  const note = (other, kind, holder) => {
+    if (!other || other.id === document_.id || found.has(other.id) || !isLive(other)) return;
+    found.set(other.id, { document: other, kind, holder });
+  };
+  for (const link of linksOf(document_)) {
+    note(byId.get(link.id), { with: 'with', after: 'waits', before: 'unblocks' }[link.kind], document_.id);
+  }
+  for (const other of all) {
+    const link = linksOf(other).find((one) => one.id === document_.id);
+    if (link) note(other, { with: 'with', after: 'unblocks', before: 'waits' }[link.kind], other.id);
+  }
+  const order = { waits: 0, unblocks: 1, with: 2 };
+  return [...found.values()].sort((a, b) => order[a.kind] - order[b.kind]);
+}
+
+/**
+ * Whether what a document is for is done: a poll closed or settled on its
+ * day, an event past, a list all ticked, an account settled, a game over.
+ * A board has nothing to finish: null.
+ */
+export function isDone(document_, today = dayNow()) {
+  const kind = kindOf(document_);
+  if (kind === 'poll') return isEventDoc(document_) && document_.date ? lastDay(document_) < today : Boolean(document_.closedAt);
+  if (kind === 'list') {
+    const { total, left } = progress(document_);
+    return total > 0 && left === 0;
+  }
+  if (kind === 'spend') return (document_.lines || []).length > 0 && balances(document_).every((row) => row.balance === 0);
+  if (kind === 'game') return gameStatus(document_).finished;
+  return null;
+}
+
+/** What a document still waits for: the things it comes after, not done yet. */
+export function waitingOn(document_, all, today = dayNow()) {
+  return relationsOf(document_, all)
+    .filter((one) => one.kind === 'waits' && isDone(one.document, today) === false)
+    .map((one) => one.document);
+}
+
+/** Whether `from` must come before `to`, however many steps between them. */
+function comesBefore(fromId, toId, all) {
+  const next = new Map();
+  const edge = (a, b) => next.set(a, [...(next.get(a) || []), b]);
+  for (const one of all) {
+    for (const link of linksOf(one)) {
+      if (link.kind === 'after') edge(link.id, one.id);
+      if (link.kind === 'before') edge(one.id, link.id);
+    }
+  }
+  const seen = new Set([fromId]);
+  const queue = [fromId];
+  while (queue.length) {
+    for (const id of next.get(queue.shift()) || []) {
+      if (id === toId) return true;
+      if (!seen.has(id)) {
+        seen.add(id);
+        queue.push(id);
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * What a document may be linked to, in a given way: anything live in its
+ * group, except itself and what it is linked to already. An order never goes
+ * round in a circle: nothing waits, however indirectly, for what waits for it.
+ */
+export function linkTargets(document_, all, kind = 'with') {
+  const linked = new Set(relationsOf(document_, all).map((one) => one.document.id));
+  const group = document_.groupId || null;
+  return all.filter((one) => {
+    if (one.id === document_.id || linked.has(one.id) || !isLive(one) || (one.groupId || null) !== group) return false;
+    if (kind === 'after') return !comesBefore(document_.id, one.id, all);
+    if (kind === 'before') return !comesBefore(one.id, document_.id, all);
+    return true;
+  });
+}
+
+/** Link a document to another, in one of the three ways. */
+export function linkTo(document_, targetId, kind = 'with') {
+  const links = [...linksOf(document_).filter((one) => one.id !== targetId), { id: targetId, kind }];
+  return { ...document_, links, updatedAt: Math.max(Date.now(), (document_.updatedAt || 0) + 1) };
+}
+
+/** Undo a link this document holds. */
+export function unlinkFrom(document_, targetId) {
+  const links = linksOf(document_).filter((one) => one.id !== targetId);
+  return { ...document_, links, updatedAt: Math.max(Date.now(), (document_.updatedAt || 0) + 1) };
+}
+
+/**
+ * How far down its order a document stands: 0 when it waits for nothing,
+ * else one more than the farthest of what it waits for. Siblings in a tree
+ * are drawn in this order, so the chain reads from what comes first.
+ */
+export function stepOf(document_, all, seen = new Set()) {
+  if (seen.has(document_.id)) return 0;
+  const before = relationsOf(document_, all).filter((one) => one.kind === 'waits');
+  if (!before.length) return 0;
+  const path = new Set([...seen, document_.id]);
+  return 1 + Math.max(...before.map((one) => stepOf(one.document, all, path)));
 }

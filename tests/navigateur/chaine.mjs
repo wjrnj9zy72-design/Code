@@ -1,7 +1,8 @@
 /**
  * La chaîne : tout élément se rattache à un autre, jusqu'à l'événement qui
  * reste au-dessus ; il se détache, pour se rattacher ailleurs. Depuis
- * l'événement, on rassemble ce qui existe déjà.
+ * l'événement, on rassemble ce qui existe déjà. Et, au-delà de la chaîne,
+ * des liens : ce qui va avec, ce qui attend quoi.
  */
 import { chromium } from 'playwright';
 import { createEvent, createPoll, addOptions } from '../../src/polls.js';
@@ -98,6 +99,35 @@ check('son sondage lui reste rattaché', (await stored('polls', vin.id)).parent 
 await page.goto(`${B}#/poll/${raclette.id}`);
 await page.waitForSelector('#event-parts');
 check('et l’événement ne les montre plus', !/Courses|Quel vin/.test(await text('#event-parts')));
+
+/* --- 5. les liens : au-delà de la chaîne -------------------------------- */
+
+await page.goto(`${B}#/list/${courses.id}`);
+await page.waitForSelector('.lines');
+await more();
+await page.click('#view [data-relate-doc]');
+await page.waitForSelector('dialog[open] [data-relate-kind]');
+await page.click('dialog[open] [data-relate-kind="after"]');
+await page.waitForSelector('dialog[open] [data-relate-kind="after"][aria-pressed="true"]');
+const liables = await page.locator('dialog[open] [data-relate-to]').allTextContents();
+check('on peut lier la liste à ce qui est hors de sa chaîne, même l’événement',
+  liables.some((s) => /Raclette/.test(s)) && !liables.some((s) => /copains/.test(s)), liables.join(' | '));
+await page.locator('dialog[open] [data-relate-to]', { hasText: 'Raclette' }).click();
+await page.waitForFunction(() => /Liens/.test(document.querySelector('#view .chain-map')?.textContent || ''));
+check('le lien est gardé sur la liste', JSON.stringify((await stored('lists', courses.id)).links) === JSON.stringify([{ id: raclette.id, kind: 'after' }]));
+check('le plan dit ce qu’elle attend', /Attend.*Raclette/.test(await text('#view .chain-map__links')), await text('#view .chain-map__links'));
+check('et, dans l’arbre, la liste porte ⏳', (await page.locator('#view .chain-map__tree [aria-current="page"] .chain-map__wait').count()) === 1);
+check('et que ce n’est pas encore fait', /pas encore fait/.test(await text('#view .chain-map__links')));
+await page.goto(`${B}#/poll/${raclette.id}`);
+await page.waitForSelector('#event-parts');
+check('l’événement voit ce qu’il débloque', /Débloque.*Courses/.test(await text('#view .chain-map__links')), await text('#view .chain-map'));
+await more();
+check('un événement se lie aussi', (await page.locator('#view [data-relate-doc]').count()) === 1);
+await page.click('#view [data-relate-doc]');
+await page.waitForSelector('dialog[open] [data-unrelate]');
+await page.click('dialog[open] [data-unrelate]');
+await page.waitForFunction(() => !document.querySelector('dialog[open] [data-unrelate]'));
+check('défait depuis l’autre côté, le lien part de la liste', (await stored('lists', courses.id)).links.length === 0);
 
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();

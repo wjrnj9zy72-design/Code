@@ -230,6 +230,37 @@ document dit ce à quoi il est rattaché (`parent`, l'identifiant de l'autre
 élément), et le plus récent l'emporte à la fusion, comme pour un titre. Les
 documents d'avant la chaîne disaient `event`, qui se lit de la même façon.
 
+### Les liens : au-delà de la chaîne
+
+La chaîne est un arbre : chaque élément n'a qu'un seul « parent ». Mais les
+choses ne se suivent pas qu'en ligne droite : la liste de courses attend que le
+sondage « quel vin ? » soit clos, le compte va avec la liste, la soirée jeux
+vient après la raclette. **Plus d'actions → Lier à…**, sur tout élément (les
+événements compris), dit l'une de trois choses :
+
+- **Va avec** : ils vont ensemble, sans ordre ;
+- **Vient après** : cet élément attend l'autre ;
+- **Vient avant** : l'autre attend celui-ci.
+
+Seulement dans le même groupe ; l'ordre ne tourne jamais en rond (rien
+n'attend, même de loin, ce qui l'attend). La même fenêtre montre les liens
+déjà faits, chacun avec **Défaire**.
+
+- **Dans l'arbre**, les liens rangent : sous un même élément, ce qui doit être
+  fait avant vient d'abord (le sondage, puis la liste qui l'attend, puis le
+  compte qui attend la liste). Un élément qui attend quelque chose de pas
+  encore fait porte ⏳.
+- **Sous l'arbre**, la partie **Liens** dit, pour la page où l'on est : ce qui
+  va avec, ce qu'elle **attend** (fait ou pas encore fait) et ce qu'elle
+  **débloque** — chacun ouvre sa page. Sur les cartes : « ⏳ Attend « … » ».
+- **Fait**, c'est : un sondage clos ou tranché, un événement passé, une liste
+  toute cochée, un compte soldé, une partie finie. Un tableau d'idées n'a rien
+  à finir.
+
+Un seul côté garde le lien (`links` : `{ id, kind }`, `kind` valant `with`,
+`after` ou `before`) ; l'autre le retrouve, comme un parent retrouve ses
+enfants. Le plus récent l'emporte à la fusion. Rien ne change dans la base.
+
 Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
 l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il
 s'ouvre sur la même page, sans rien à voter (en coulisse : un sondage déjà

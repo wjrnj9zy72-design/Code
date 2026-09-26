@@ -386,3 +386,76 @@ test('le plan de la chaîne : tout l’arbre, depuis l’événement, où que l�
   assert.equal(treeSize(chainTree(seul, all)), 1, 'seul, il n’a pas de chaîne');
   assert.equal(chainTree(range, all).children.length, 3, 'rangé, il se voit encore depuis sa propre page');
 });
+
+test('les liens : au-delà de la chaîne, ce qui va avec, ce qui attend quoi', async () => {
+  const { linkTo, unlinkFrom, relationsOf, linkTargets, waitingOn, isDone, attach } = await import('../src/dashboard.js');
+  const { createEvent, createPoll, setClosed } = await import('../src/polls.js');
+  const { createSpend } = await import('../src/spends.js');
+  const { createBoard, mergeBoards } = await import('../src/ideas.js');
+  const g = { groupId: 'mifa', shared: true };
+  const raclette = { ...createEvent({ name: 'Raclette', date: '2026-10-10' }), ...g };
+  let vin = { ...createPoll({ question: 'Quel vin ?' }), ...g };
+  let courses = attach({ ...addItems(createList({ name: 'Courses' }), 'Fromage'), ...g }, raclette.id);
+  let compte = { ...createSpend({ name: 'Compte', names: ['Gui'] }), ...g };
+  const deco = { ...createBoard({ name: 'Déco' }), ...g };
+  const copains = { ...createBoard({ name: 'Ailleurs' }), groupId: 'copains', shared: true };
+  const all = () => [raclette, vin, courses, compte, deco, copains];
+
+  // La liste attend le sondage : on saura quel vin acheter.
+  courses = linkTo(courses, vin.id, 'after');
+  // Le compte va avec la liste, dit depuis le compte.
+  compte = linkTo(compte, courses.id, 'with');
+
+  assert.deepEqual(relationsOf(courses, all()).map((r) => [r.document.id, r.kind]),
+    [[vin.id, 'waits'], [compte.id, 'with']], 'un lien se voit des deux côtés, qui que ce soit qui le tienne');
+  assert.deepEqual(relationsOf(vin, all()).map((r) => [r.document.id, r.kind]), [[courses.id, 'unblocks']]);
+  assert.equal(relationsOf(compte, all())[0].holder, compte.id, 'on sait où écrire pour le défaire');
+
+  assert.equal(isDone(vin), false);
+  assert.deepEqual(waitingOn(courses, all()).map((d) => d.id), [vin.id], 'la liste attend le vin');
+  vin = setClosed(vin, true);
+  assert.equal(isDone(vin), true, 'un sondage clos est fait');
+  assert.deepEqual(waitingOn(courses, all()), [], 'le sondage clos, plus rien n’attend');
+  assert.equal(isDone(deco), null, 'un tableau d’idées n’a rien à finir');
+
+  const avant = linkTargets(vin, all(), 'after').map((d) => d.id);
+  assert.ok(!avant.includes(courses.id), 'déjà lié : pas deux fois');
+  assert.ok(!avant.includes(vin.id) && !avant.includes(copains.id), 'ni soi-même, ni un autre groupe');
+  assert.ok(avant.includes(raclette.id), 'même un événement se lie');
+  // Le compte vient après la liste, qui vient après le vin : le vin ne peut venir après le compte.
+  let compte2 = { ...createSpend({ name: 'Remboursements', names: ['Gui'] }), ...g };
+  compte2 = linkTo(compte2, courses.id, 'after');
+  const all2 = () => [...all(), compte2];
+  assert.ok(!linkTargets(vin, all2(), 'after').some((d) => d.id === compte2.id), 'l’ordre ne tourne jamais en rond');
+  assert.ok(linkTargets(vin, all2(), 'before').some((d) => d.id === compte2.id), 'mais il peut venir avant');
+  assert.ok(linkTargets(vin, all2(), 'with').some((d) => d.id === compte2.id), 'ou aller avec');
+
+  const defait = unlinkFrom(compte, courses.id);
+  assert.deepEqual(defait.links, []);
+  assert.ok(defait.updatedAt > compte.updatedAt, 'le plus récent l’emporte, comme pour un titre');
+  assert.deepEqual(relationsOf(courses, [raclette, vin, courses, defait]).map((r) => r.document.id), [vin.id]);
+
+  // Un lien vers ce qui a disparu ne se montre pas.
+  assert.deepEqual(relationsOf(courses, [courses]), []);
+  // Deux appareils : le dernier qui lie l’emporte à la fusion.
+  const lie = linkTo(deco, raclette.id, 'with');
+  assert.deepEqual(mergeBoards(deco, lie).links, [{ id: raclette.id, kind: 'with' }]);
+});
+
+test('dans l’arbre, les liens rangent : ce qui doit être fait avant vient d’abord', async () => {
+  const { attach, linkTo, chainTree, stepOf } = await import('../src/dashboard.js');
+  const { createEvent, createPoll } = await import('../src/polls.js');
+  const { createSpend } = await import('../src/spends.js');
+  const raclette = createEvent({ name: 'Raclette', date: '2026-10-10' });
+  const vin = attach(createPoll({ question: 'Quel vin ?' }), raclette.id);
+  // Sans lien, la liste passerait avant le sondage (ordre des onglets : sondage, liste…) ;
+  // le compte attend la liste, qui attend le sondage.
+  const courses = linkTo(attach(createList({ name: 'Courses' }), raclette.id), vin.id, 'after');
+  const compte = linkTo(attach(createSpend({ name: 'Compte', names: ['Gui'] }), raclette.id), courses.id, 'after');
+  const all = [compte, courses, raclette, vin];
+  assert.deepEqual([vin, courses, compte].map((d) => stepOf(d, all)), [0, 1, 2]);
+  assert.deepEqual(chainTree(vin, all).children.map((c) => c.document.id), [vin.id, courses.id, compte.id]);
+  // « Vient avant », dit depuis l’autre côté, range pareil.
+  const avant = linkTo(attach(createPoll({ question: 'Qui vient ?' }), raclette.id), vin.id, 'before');
+  assert.equal(stepOf(vin, [...all, avant]), 1);
+});

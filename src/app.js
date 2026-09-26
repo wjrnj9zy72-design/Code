@@ -71,7 +71,7 @@ import {
   myName, offerMeInForms, onHomeScreen, openSet, outsideGroups, pendingFor, pendings, putInGroup,
   refreshGate, refreshGroup, rememberGroup, rememberPending, remoteReason, resetGroupChoice,
   setGroupFilter, setMyName, shownDocs, verifyGroups, bindDocSwipes, bindEventChips, chooseEvent,
-  openAttachDialog, openGatherDialog,
+  openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
@@ -651,11 +651,12 @@ export function attachedHtml(document_) {
     </section>`;
 }
 
-/** The buttons of « Plus d'actions » for the chain: attach, detach, gather. */
+/** The buttons of « Plus d'actions » for the chain and the links: attach, detach, link. */
 export function chainButtonsHtml(document_) {
-  return isEventDoc(document_)
+  const attach = isEventDoc(document_)
     ? ''
     : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t('chain.attach'))}</button>`;
+  return `${attach}<button type="button" class="button button--small button--ghost" data-relate-doc="${escapeHtml(document_.id)}">${escapeHtml(t('relate.button'))}</button>`;
 }
 
 /** A link in the chain, in a line of text: its title alone. */
@@ -3217,6 +3218,12 @@ export function render() {
     node.addEventListener('click', () => {
       const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
       if (document_) openAttachDialog(document_);
+    });
+  });
+  view.querySelectorAll('[data-relate-doc]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const document_ = everything().find((one) => one.id === node.dataset.relateDoc);
+      if (document_) openRelateDialog(document_);
     });
   });
   view.querySelectorAll('[data-gather-doc]').forEach((node) => {

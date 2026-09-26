@@ -32,7 +32,9 @@ import {
 } from './polls.js';
 import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
-import { isLive, eventParts, forEvent, partsCount, chainTree, treeSize, isEventDoc, kindOf } from './dashboard.js';
+import {
+  isLive, eventParts, forEvent, partsCount, chainTree, treeSize, isEventDoc, kindOf, relationsOf, isDone, waitingOn,
+} from './dashboard.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
 import { swipeable } from './swipe.js';
@@ -533,31 +535,42 @@ function eventHtml(poll, { guest }) {
 /**
  * On a card, what a document hangs from — « Pour Raclette · 1 oct. › Courses ».
  * On the page of something in that chain, only what lies below it is said:
- * the card already sits under the rest.
+ * the card already sits under the rest. And what it still waits for, when a
+ * link says it comes after something not done yet.
  */
 export function eventTagHtml(document_) {
   let chain = chainOf(document_);
   const here = chain.findIndex((one) => one.id === route().id);
   if (here >= 0) chain = chain.slice(here + 1);
-  if (!chain.length) return '';
+  const waits = waitingOn(document_, everything());
+  const waiting = waits.length
+    ? `<span class="game-card__meta">${escapeHtml(t('relate.waiting', { name: waits.map(chainLabel).join(', ') }))}</span>`
+    : '';
+  if (!chain.length) return waiting;
   return `<span class="game-card__meta game-card__event">${escapeHtml(
     t('event.tagUndated', { name: chain.map(chainLabel).join(' › ') }),
-  )}</span>`;
+  )}</span>${waiting}`;
 }
 
 /**
  * At the top of a document's page, the whole chain it belongs to, drawn as a
  * tree: its event on top, everything attached below, this page marked. Every
- * other node opens its page. Nothing is shown for a document on its own.
+ * other node opens its page. Under it, the links across the chain: what goes
+ * with this page, what it waits for — done or not — and what it unblocks.
+ * Nothing is shown for a document on its own.
  */
 export function eventLinkHtml(document_) {
-  const tree = chainTree(document_, everything());
-  if (treeSize(tree) < 2) return '';
+  const all = everything();
+  const tree = chainTree(document_, all);
+  const relations = relationsOf(document_, all);
+  if (treeSize(tree) < 2 && !relations.length) return '';
   const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
   const node = ({ document: one, children }) => {
     const here = one.id === document_.id;
+    const waits = waitingOn(one, all);
     const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
-      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>`;
+      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>
+      ${waits.length ? `<span class="chain-map__wait" title="${escapeHtml(t('relate.waiting', { name: waits.map(chainLabel).join(', ') }))}">⏳</span>` : ''}`;
     return `
       <li>
         ${
@@ -570,10 +583,36 @@ export function eventLinkHtml(document_) {
         ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
       </li>`;
   };
+  const relation = ({ document: one, kind }) => {
+    const done = kind === 'waits' ? isDone(one) : null;
+    const status = done === null ? '' : `<span class="pill ${done ? 'pill--done' : 'pill--late'}">${escapeHtml(t(done ? 'relate.isDone' : 'relate.notDone'))}</span>`;
+    return `
+      <li>
+        <span class="pill">${escapeHtml(t(`relate.${kind}`))}</span>
+        <button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
+                title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">
+          <span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+          <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>
+        </button>
+        ${status}
+      </li>`;
+  };
+  const waits = waitingOn(document_, all);
   return `
     <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
-      <span class="muted small">${escapeHtml(t('chain.map'))}</span>
-      <ul class="chain-map__tree">${node(tree)}</ul>
+      ${
+        treeSize(tree) > 1
+          ? `<span class="muted small">${escapeHtml(t('chain.map'))}</span>
+             <ul class="chain-map__tree">${node(tree)}</ul>`
+          : ''
+      }
+      ${
+        relations.length
+          ? `<span class="muted small">${escapeHtml(t('relate.map'))}</span>
+             ${waits.length ? `<span class="chain-map__waiting small">${escapeHtml(t('relate.waiting', { name: waits.map(chainLabel).join(', ') }))}</span>` : ''}
+             <ul class="chain-map__links">${relations.map(relation).join('')}</ul>`
+          : ''
+      }
     </nav>`;
 }
 
