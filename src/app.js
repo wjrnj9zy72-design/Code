@@ -53,7 +53,7 @@ import {
   newSpendView, spendCardHtml, spendTitle, spendView, spendsView,
 } from './view-spends.js';
 import {
-  adoptBoard, bindBoard, bindNewBoard, boardCardHtml, boardTitle, boardView, getBoard, ideasView,
+  adoptBoard, bindBoard, bindIdeas, bindNewBoard, boardCardHtml, boardTitle, boardView, getBoard, ideasView,
   newBoardView, pullBoard, watchBoard,
 } from './view-ideas.js';
 import {
@@ -2818,6 +2818,7 @@ export function render() {
   } else if (current.name === 'ideas') {
     stopWatching();
     view.innerHTML = ideasView();
+    bindIdeas();
   } else if (current.name === 'new-board') {
     stopWatching();
     view.innerHTML = newBoardView();

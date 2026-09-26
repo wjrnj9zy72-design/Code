@@ -14,7 +14,8 @@ import { actionsHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-pol
 import { archivedHtml } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
-  askGroup, bindData, hiddenByGroupHtml, inGroupHtml, keyFor, organiserSecret, shownDocs,
+  askGroup, bindData, hiddenByGroupHtml, inGroupHtml, keyFor, landing, organiserSecret, resetGroupChoice,
+  shownDocs, willBeInHtml,
 } from './view-groups.js';
 import {
   createBoard, addCard, editCardText, addStrokes, eraseStrokes, removeCard, archiveBoard, cleanStroke, simplifyPoints,
@@ -48,6 +49,110 @@ export function boardCardHtml(board) {
     </button>`;
 }
 
+/**
+ * A card that slides left to show a red « Supprimer » behind it — the gesture
+ * a phone's own lists taught everyone. Sliding only uncovers the button; it
+ * takes a tap on it to delete, so a swipe meant as a scroll deletes nothing.
+ */
+function swipeHtml(id, inner) {
+  return `
+    <div class="swipe" data-swipe="${escapeHtml(id)}">
+      <button type="button" class="swipe__delete" data-swipe-delete tabindex="-1" aria-hidden="true">
+        ${escapeHtml(t('action.delete'))}
+      </button>
+      <div class="swipe__body">${inner}</div>
+    </div>`;
+}
+
+/** How far a card slides to uncover its button, in pixels. */
+const SWIPE_OPEN = 96;
+
+function bindSwipes(onDelete) {
+  view.querySelectorAll('[data-swipe]').forEach((row) => {
+    const body = row.querySelector('.swipe__body');
+    const button = row.querySelector('[data-swipe-delete]');
+    let start = null;
+    let offset = 0;
+    let moved = false;
+    let open = false;
+
+    const place = (x, animate) => {
+      offset = x;
+      body.style.transition = animate ? 'transform 0.18s ease' : 'none';
+      body.style.transform = x ? `translateX(${x}px)` : '';
+    };
+    const settle = (wanted) => {
+      open = wanted;
+      place(open ? -SWIPE_OPEN : 0, true);
+      row.classList.toggle('swipe--open', open);
+      button.tabIndex = open ? 0 : -1;
+      button.setAttribute('aria-hidden', open ? 'false' : 'true');
+    };
+
+    body.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      start = { x: event.clientX, y: event.clientY, from: open ? -SWIPE_OPEN : 0 };
+      moved = false;
+    });
+    body.addEventListener('pointermove', (event) => {
+      if (!start) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (!moved) {
+        if (Math.abs(dx) < 8) return;
+        // Mostly up or down: a scroll, not a swipe.
+        if (Math.abs(dy) > Math.abs(dx)) {
+          start = null;
+          return;
+        }
+        moved = true;
+        body.setPointerCapture?.(event.pointerId);
+      }
+      place(Math.min(0, Math.max(-row.clientWidth * 0.6, start.from + dx)), false);
+    });
+    const end = () => {
+      if (!start) return;
+      start = null;
+      if (moved) settle(offset < -SWIPE_OPEN / 2);
+    };
+    body.addEventListener('pointerup', end);
+    body.addEventListener('pointercancel', end);
+    // The click that ends a swipe is not a tap on the card; nor is a tap on a
+    // card left open, which only closes it again.
+    body.addEventListener('click', (event) => {
+      if (!moved && !open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!moved) settle(false);
+      moved = false;
+    }, true);
+
+    button.addEventListener('click', () => onDelete(row.dataset.swipe));
+  });
+}
+
+/** Delete a whole board, here and in the database. Asked first: it is everyone's. */
+async function deleteBoard(board, { then = null } = {}) {
+  if (!(await ask(t('ideas.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) {
+    render();
+    return;
+  }
+  state.boards = state.boards.filter((item) => item.id !== board.id);
+  saveBoards(state.boards);
+  if (state.store) void state.store.remove(board.id);
+  if (state.remote && board.shared) state.remote.remove(board.id, keyFor(board), organiserSecret(board.id)).catch(() => {});
+  flash(t('ideas.deleted', { name: boardTitle(board) }));
+  if (then) navigate(then);
+  else render();
+}
+
+export function bindIdeas() {
+  bindSwipes((id) => {
+    const board = getBoard(id);
+    if (board) void deleteBoard(board);
+  });
+}
+
 /** Every board, on the home page: the live ones, then what was put away. */
 export function ideasView() {
   const sorted = [...shownDocs(state.boards)].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -64,7 +169,8 @@ export function ideasView() {
       <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
       ${
         live.length
-          ? `<div class="game-list">${live.map(boardCardHtml).join('')}</div>`
+          ? `<div class="game-list">${live.map((board) => swipeHtml(board.id, boardCardHtml(board))).join('')}</div>
+             <p class="muted small">${escapeHtml(t('ideas.swipeHint'))}</p>`
           : `<p class="muted small">${escapeHtml(t('ideas.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.boards)}
@@ -89,6 +195,7 @@ export function newBoardView() {
         <input type="text" id="board-name" placeholder="${escapeHtml(t('ideas.namePlaceholder'))}"
                value="${escapeHtml(state.newBoardName)}" required />
       </label>
+      ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('ideas.create'))}</button>
     </form>`;
 }
@@ -96,13 +203,27 @@ export function newBoardView() {
 export function bindNewBoard() {
   const form = view.querySelector('#new-board');
   if (!form) return;
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  const snapshot = () => {
     state.newBoardName = view.querySelector('#board-name').value;
-    const group = await askGroup();
-    const board = createBoard({ name: state.newBoardName, shared: Boolean(group), groupId: group?.id || null });
+  };
+
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      state.newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    snapshot();
+    // Where it goes is said on the form, « Garder pour moi » included, as for
+    // a list: no question asked after the button.
+    const board = landing(createBoard({ name: state.newBoardName }));
     state.boards = [...state.boards, board];
     persistBoard(board);
+    resetGroupChoice();
     state.newBoardName = '';
     navigate(`#/idea/${board.id}`);
   });
@@ -164,7 +285,8 @@ export function boardView(board) {
 
     ${
       cards.length
-        ? `<div class="idea-grid">${cards.map(ideaCardHtml).join('')}</div>`
+        ? `<div class="idea-grid">${cards.map((card) => swipeHtml(card.id, ideaCardHtml(card))).join('')}</div>
+           <p class="muted small idea-hint">${escapeHtml(t('ideas.swipeHint'))}</p>`
         : `<p class="muted small">${escapeHtml(t('ideas.empty'))}</p>`
     }
 
@@ -178,6 +300,13 @@ export function boardView(board) {
 
 export function bindBoard(board) {
   bindData();
+
+  bindSwipes((cardId) => {
+    const current = getBoard(board.id);
+    if (!current) return;
+    flash(t('ideas.cardDeleted'));
+    replaceBoard(removeCard(current, cardId));
+  });
 
   view.querySelector('#board-add-note')?.addEventListener('click', () => openNoteDialog(board.id, null));
   view.querySelector('#board-add-sketch')?.addEventListener('click', () => openSketchDialog(board.id, null));
@@ -220,14 +349,7 @@ export function bindBoard(board) {
     replaceBoard({ ...board, name: String(name).trim(), updatedAt: Date.now() });
   });
 
-  view.querySelector('#board-delete')?.addEventListener('click', async () => {
-    if (!(await ask(t('ideas.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
-    state.boards = state.boards.filter((item) => item.id !== board.id);
-    saveBoards(state.boards);
-    if (state.store) void state.store.remove(board.id);
-    if (state.remote && board.shared) state.remote.remove(board.id, keyFor(board), organiserSecret(board.id)).catch(() => {});
-    navigate('#/ideas');
-  });
+  view.querySelector('#board-delete')?.addEventListener('click', () => deleteBoard(board, { then: '#/ideas' }));
 }
 
 /**

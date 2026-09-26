@@ -59,11 +59,14 @@ check('l’onglet Idées dit quoi en faire', /Un voyage, un cadeau/.test(await p
 await page.click('[data-goto="#/ideas/new"]');
 await page.waitForSelector('#new-board');
 await page.fill('#board-name', 'Corse');
+check('le formulaire dit où va le tableau, « Garder pour moi » compris',
+  (await page.locator('#new-board [data-new-group]').allTextContents()).map((s) => s.trim()).join(' / ') === 'Mifa / Lien seulement / Garder pour moi',
+  (await page.locator('#new-board [data-new-group]').allTextContents()).map((s) => s.trim()).join(' / '));
+check('et le seul groupe est choisi d’office',
+  /Mifa/.test(await page.locator('#new-board .chip--on').textContent()));
 await page.click('#new-board button[type=submit]');
-// Un seul groupe : l'app peut demander lequel, ou pas.
-await page.waitForFunction(() => location.hash.startsWith('#/idea/') || document.querySelector('dialog[open]'), null, { timeout: 15000 });
-if (await page.locator('dialog[open] [data-group]').count()) await page.locator('dialog[open] [data-group]').first().click();
 await page.waitForSelector('#board-add-note', { timeout: 15000 });
+check('aucune question après le bouton', (await page.locator('dialog[open]').count()) === 0);
 check('un tableau se crée', (await page.locator('h1').textContent()).trim() === 'Corse');
 
 /* ---- 2. une note --------------------------------------------------------- */
@@ -163,7 +166,83 @@ const gone = await other.waitForFunction(() => document.querySelectorAll('.idea-
   .then(() => true).catch(() => false);
 check('et disparaît chez l’autre', gone);
 
-/* ---- 6. l'écran tient sur un téléphone ----------------------------------- */
+/* ---- 6. glisser pour supprimer ------------------------------------------ */
+
+/** Glisser une carte vers la gauche, à la souris (les mêmes événements qu'au doigt). */
+async function swipe(target, fraction = 0.6) {
+  const box = await target.boundingBox();
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width - 10, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i += 1) await page.mouse.move(box.x + box.width - 10 - (box.width * fraction * i) / 10, y);
+  await page.mouse.up();
+}
+
+await page.click('#board-add-note');
+await page.waitForSelector('dialog[open] #note-text');
+await page.fill('#note-text', 'À jeter');
+await page.click('#note-done');
+await page.waitForFunction(() => document.querySelectorAll('.idea-card').length === 2);
+check('le tableau dit comment supprimer', /Glissez une carte vers la gauche/.test(await page.locator('#view').textContent()));
+
+const first = page.locator('.swipe').first();
+await swipe(first.locator('.swipe__body'), 0.1);
+await page.waitForTimeout(250);
+check('un petit glissement ne découvre rien', !(await first.evaluate((n) => n.classList.contains('swipe--open'))));
+check('et n’ouvre pas la carte', (await page.locator('dialog[open]').count()) === 0);
+
+await swipe(first.locator('.swipe__body'));
+await page.waitForTimeout(250);
+check('glisser découvre « Supprimer »', await first.evaluate((n) => n.classList.contains('swipe--open')));
+check('le bouton est bien visible', await first.locator('.swipe__delete').evaluate((n) => {
+  const r = n.getBoundingClientRect();
+  return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === n;
+}));
+check('sans que la carte s’ouvre', (await page.locator('dialog[open]').count()) === 0);
+
+await first.locator('.swipe__body').click();
+await page.waitForTimeout(250);
+check('toucher la carte la referme, sans l’ouvrir',
+  !(await first.evaluate((n) => n.classList.contains('swipe--open'))) && (await page.locator('dialog[open]').count()) === 0);
+
+await swipe(first.locator('.swipe__body'));
+await page.waitForTimeout(250);
+await first.locator('.swipe__delete').click();
+await page.waitForFunction(() => document.querySelectorAll('.idea-card').length === 1);
+check('toucher « Supprimer » retire la carte', !/À jeter/.test(await page.locator('.idea-grid').textContent()));
+
+// Un tableau, dans la liste des tableaux, se glisse aussi — mais on demande.
+await page.click('[data-goto="#/ideas"]');
+await page.waitForSelector('.swipe');
+await swipe(page.locator('.swipe').first().locator('.swipe__body'));
+await page.waitForTimeout(250);
+await page.locator('.swipe').first().locator('.swipe__delete').click();
+await page.waitForSelector('.dialog--ask');
+await page.click('.dialog--ask [data-answer="no"]');
+await page.waitForTimeout(250);
+check('un tableau entier : on demande, et « Annuler » le garde', (await page.locator('.swipe').count()) === 1);
+
+/* ---- 6 bis. garder pour moi ---------------------------------------------- */
+
+await page.click('[data-goto="#/ideas/new"]');
+await page.waitForSelector('#new-board');
+await page.fill('#board-name', 'Secret');
+await page.locator('#new-board [data-new-group]', { hasText: 'Garder pour moi' }).click();
+await page.waitForSelector('#new-board [data-new-group=""].chip--on');
+check('le nom tapé reste quand on change de groupe', (await page.inputValue('#board-name')) === 'Secret');
+await page.click('#new-board button[type=submit]');
+await page.waitForSelector('#board-add-note');
+const secret = await page.evaluate(() => JSON.parse(localStorage.getItem('marque-points:boards:v1')).find((b) => b.name === 'Secret'));
+check('« Garder pour moi » : dans aucun groupe, rien envoyé', secret && !secret.shared && !secret.groupId);
+
+await other.reload();
+await other.click('[data-tab="home"]');
+await other.click('.segmented--kinds [data-goto="#/ideas"]');
+await other.waitForSelector('.game-card');
+await other.waitForTimeout(1500);
+check('et l’autre appareil ne le voit pas', !/Secret/.test(await other.locator('#view').textContent()));
+
+/* ---- 7. l'écran tient sur un téléphone ----------------------------------- */
 
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 check('pas de défilement horizontal', overflow <= 0, String(overflow));
