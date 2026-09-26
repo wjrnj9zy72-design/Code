@@ -7,7 +7,7 @@
  */
 
 import {
-  appLink, documentTitle, escapeHtml, flash, formatDate, isBusy, knocking, lookForUpdate, navigate,
+  appLink, documentTitle, escapeHtml, flash, formatDate, formatDay, isBusy, knocking, lookForUpdate, navigate,
   pullAny, render, showsGate, state, view,
 } from './app.js';
 import {
@@ -23,7 +23,8 @@ import { uid } from './model.js';
 import { inAppBrowser } from './helpers.js';
 import { progress } from './lists.js';
 import { withMeFirst } from './people.js';
-import { inGroup } from './dashboard.js';
+import { inGroup, upcomingEvents } from './dashboard.js';
+import { eventName } from './ics.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { bindSwipes } from './swipe.js';
 import { setLink } from './remote.js';
@@ -151,6 +152,35 @@ function groupForNew() {
 
 export function resetGroupChoice() {
   state.newGroupChoice = { touched: false, id: null };
+  state.newEventLink = null;
+}
+
+/** The group chip that says where an event's documents belong. */
+function chipOfEvent(poll) {
+  return poll.linkOnly ? LINK_ONLY : poll.groupId || '';
+}
+
+/**
+ * The event a new thing will be made for — dropped when the group chosen since
+ * is not the event's: what is made for an event lives where the event does.
+ */
+export function linkedEvent() {
+  const poll = state.newEventLink ? state.polls.find((one) => one.id === state.newEventLink) : null;
+  if (!poll) return null;
+  if (state.remote && groups().length && state.newGroupChoice.touched && state.newGroupChoice.id !== chipOfEvent(poll)) {
+    state.newEventLink = null;
+    return null;
+  }
+  return poll;
+}
+
+/**
+ * Make the next new thing part of an event: its group chosen to match. From
+ * the event's own page, and from the event chips of a form.
+ */
+export function chooseEvent(poll) {
+  state.newEventLink = poll?.id || null;
+  if (poll && state.remote && groups().length) state.newGroupChoice = { touched: true, id: chipOfEvent(poll) };
 }
 
 /** The group a new thing goes into, chip or no chip. */
@@ -183,19 +213,29 @@ export function destinationForNew() {
   return { group: groupForNew() || (held.length === 1 ? held[0] : null), linkOnly: false };
 }
 
-/** What a new document carries about where it went. */
-export function landing(document_) {
+/** What a new document carries about where it went, and which event it is for. */
+export function landing(document_, { forEvent = true } = {}) {
   const { group, linkOnly } = destinationForNew();
+  const event = forEvent ? linkedEvent() : null;
   return {
     ...document_,
     shared: Boolean(group),
     groupId: group?.id || null,
     ...(linkOnly ? { linkOnly: true } : {}),
+    ...(event ? { event: event.id } : {}),
   };
 }
 
-/** The chips that say where it will land, and change it. */
-export function willBeInHtml() {
+/**
+ * The chips that say where it will land, and change it — the group, then the
+ * event it is for, when there are events coming. Picking an event picks its
+ * group too.
+ */
+export function willBeInHtml({ events = true } = {}) {
+  return `${groupChoiceHtml()}${events ? eventChoiceHtml() : ''}`;
+}
+
+function groupChoiceHtml() {
   const held = groups();
   if (!state.remote || !held.length) return '';
   const { group, linkOnly } = destinationForNew();
@@ -216,6 +256,49 @@ export function willBeInHtml() {
       </div>
       ${note ? `<p class="muted small">${escapeHtml(note)}</p>` : ''}
     </div>`;
+}
+
+function eventChoiceHtml() {
+  const linked = linkedEvent();
+  const coming = upcomingEvents(state.polls).slice(0, 6);
+  if (linked && !coming.includes(linked)) coming.unshift(linked);
+  if (!coming.length) return '';
+  const on = linked?.id || '';
+  const chip = (id, label) => `
+    <button type="button" class="chip ${on === id ? 'chip--on' : ''}"
+            data-new-event="${escapeHtml(id)}" aria-pressed="${on === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
+  return `
+    <div class="stack stack--tight">
+      <span class="muted small">${escapeHtml(t('event.forWhich'))}</span>
+      <div class="row row--tight" role="group" aria-label="${escapeHtml(t('event.forWhich'))}">
+        ${chip('', t('event.none'))}
+        ${coming.map((poll) => chip(poll.id, `${eventName(poll) || poll.question} · ${formatDay(poll.date)}`)).join('')}
+      </div>
+    </div>`;
+}
+
+/**
+ * The event chips, on whichever form shows them. They change nothing typed,
+ * so they redraw nothing: the chips — the event's, and the group's it brings
+ * along — are updated where they are.
+ */
+export function bindEventChips(root) {
+  root.querySelectorAll('[data-new-event]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const poll = state.polls.find((one) => one.id === node.dataset.newEvent) || null;
+      chooseEvent(poll);
+      const form = node.closest('form') || root;
+      const mark = (selector, value) => form.querySelectorAll(selector).forEach((other) => {
+        const on = other.dataset[selector === '[data-new-event]' ? 'newEvent' : 'newGroup'] === value;
+        other.classList.toggle('chip--on', on);
+        other.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      mark('[data-new-event]', poll?.id || '');
+      if (poll && state.newGroupChoice.touched) mark('[data-new-group]', state.newGroupChoice.id || '');
+    });
+  });
 }
 
 /** The group a document belongs to, when it belongs to one this device knows. */

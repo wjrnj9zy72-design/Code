@@ -146,6 +146,7 @@ for (const lang of ['fr', 'en']) {
               chips: Boolean(chips),
               chipsBeforeSubmit: Boolean(chips && submit && (chips.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING)),
               firstPerson: person ? person.value : null,
+              eventChips: Boolean(form.querySelector('[data-new-event]')),
             };
           })(),
           more: [...document.querySelectorAll('#view .actions__more button')].map((b) => b.textContent.trim().replace(/\s+/g, ' ')),
@@ -168,6 +169,10 @@ for (const lang of ['fr', 'en']) {
           if (!facts.form.chips) note('formulaire sans choix du groupe', where);
           else if (!facts.form.chipsBeforeSubmit) note('choix du groupe pas juste avant le bouton', where);
           if (facts.form.firstPerson !== null && facts.form.firstPerson !== 'Gui') note('mon prénom pas proposé en premier', `${where} : « ${facts.form.firstPerson} »`);
+          // Un événement est à venir dans les données du tour : tout ce qui se
+          // crée peut être pour lui — sauf un autre événement.
+          if (hash !== '#/agenda/new' && !facts.form.eventChips) note('formulaire sans « Pour un événement ? »', where);
+          if (hash === '#/agenda/new' && facts.form.eventChips) note('un événement propose d’être pour un autre événement', where);
         }
       }
       if (isDoc && width === 390) {

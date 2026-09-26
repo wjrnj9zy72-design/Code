@@ -12,7 +12,7 @@
  */
 
 import { progress } from './lists.js';
-import { voteOf, goers } from './polls.js';
+import { voteOf, goers, lastDay } from './polls.js';
 import { balances } from './spends.js';
 import { standings, gameStatus } from './scoring.js';
 import { sameName } from './stats.js';
@@ -229,19 +229,36 @@ export function personFile({ lists = [], polls = [], games = [], spends = [] } =
 }
 
 /**
- * A poll that has settled on a date is an event, and the list of what to bring
- * and the account of what was spent hang off it. Nothing new is stored for the
- * event itself: a list or an account says which poll it is for, set once when
- * it is made, and the poll finds them by that.
+ * A poll that has settled on a date is an event, and everything made for it
+ * hangs off it: lists, accounts, polls, idea boards, games. Nothing new is
+ * stored for the event itself: each document says which poll it is for, set
+ * once when it is made, and the event finds them by that.
  *
- * The most recently touched one wins when two devices each made their own.
+ * Newest first in each kind. `list` and `spend` are the first of each — the
+ * list of what to bring and the account of what was spent, when there is one.
  */
-export function eventParts(poll, { lists = [], spends = [] } = {}) {
-  const latest = (documents) =>
+export function eventParts(poll, { lists = [], spends = [], polls = [], boards = [], games = [] } = {}) {
+  const of = (documents) =>
     documents
-      .filter((document_) => document_.event === poll.id)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
-  return { list: latest(lists), spend: latest(spends) };
+      .filter((document_) => document_.event === poll.id && document_.id !== poll.id)
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const parts = { lists: of(lists), spends: of(spends), polls: of(polls), boards: of(boards), games: of(games) };
+  return { ...parts, list: parts.lists[0] || null, spend: parts.spends[0] || null };
+}
+
+/** How many documents hang off an event, all kinds together. */
+export function partsCount(parts) {
+  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length;
+}
+
+/**
+ * The events still to come — or under way: a weekend is not past on its
+ * Saturday — soonest first.
+ */
+export function upcomingEvents(polls = [], today = dayNow()) {
+  return polls
+    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || '')));
 }
 
 /**

@@ -415,6 +415,9 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
 .game-card:hover { border-color: var(--accent); }
 .game-card__title { display: flex; align-items: center; gap: 8px; font-weight: 650; }
 .game-card__meta { color: var(--muted); font-size: 0.82rem; }
+/* The event a card belongs to: the thread that ties it to the rest. */
+.game-card__event { color: var(--accent); font-weight: 600; }
+.event-when { margin: 2px 0 0; }
 
 .pill {
   display: inline-block;

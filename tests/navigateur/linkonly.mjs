@@ -63,8 +63,8 @@ check('Claire voit le sondage de famille', hers.some((h) => /raclette/.test(h)),
 check('mais pas celui des voisins', !hers.some((h) => /voisins/.test(h)), hers.join(' | '));
 await sister.click('[data-tab="home"]');
 await sister.waitForSelector('.segmented--kinds [data-goto="#/"][aria-current="true"]');
-const coming = await text(sister, '.section:has-text("Ce qui vient")');
-check('ni dans « Ce qui vient »', /Raclette/.test(coming) && !/voisins/i.test(coming), coming.slice(0, 120));
+const coming = await text(sister, '.section:has-text("Événements")');
+check('ni dans les événements de l’Accueil', /Raclette/.test(coming) && !/voisins/i.test(coming), coming.slice(0, 120));
 
 // --- Paul, voisin, dans aucun groupe, qui reçoit le lien
 const paul = await device('Paul', { me: 'Paul' });

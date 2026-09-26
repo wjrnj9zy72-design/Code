@@ -10,7 +10,7 @@ import {
   askForText, escapeHtml, flash, flashHtml, formatDate, groupChipsHtml, isBusy, isHidden, kindsHtml,
   navigate, render, state, stopWatching, view,
 } from './app.js';
-import { actionsHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
+import { actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
 import { archivedHtml } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
@@ -47,6 +47,7 @@ export function boardCardHtml(board) {
         <span class="pill">${escapeHtml(t('ideas.cards', { count: board.cards.length }))}</span>
       </span>
       <span class="game-card__meta">${escapeHtml(formatDate(board.updatedAt))}${holds ? ` — ${escapeHtml(holds)}` : ''}</span>
+      ${eventTagHtml(board)}
     </button>`;
 }
 
@@ -186,6 +187,8 @@ export function boardView(board) {
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
+
+    ${eventLinkHtml(board)}
 
     ${inGroupHtml(board)}
 

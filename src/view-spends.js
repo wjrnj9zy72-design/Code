@@ -10,7 +10,7 @@ import {
   navigate, render, state, view, whenText,
 } from './app.js';
 import {
-  actionsHtml, eventLinkHtml, getSpend, persistPoll, persistSpend, pollCardHtml, pollTitle,
+  actionsHtml, eventLinkHtml, eventTagHtml, getSpend, persistPoll, persistSpend, pollCardHtml, pollTitle,
   replaceSpend, shareBarHtml, signed,
 } from './view-polls.js';
 import { archivedHtml, openPeopleEditor } from './view-lists.js';
@@ -63,6 +63,7 @@ export function spendCardHtml(spend) {
       <span class="game-card__meta">
         ${escapeHtml(formatDate(spend.updatedAt))} — <span class="${mine && mine.balance < 0 ? 'late' : ''}">${escapeHtml(line)}</span>
       </span>
+      ${eventTagHtml(spend)}
     </button>`;
 }
 
@@ -165,9 +166,13 @@ export function spendsView() {
     ${archivedHtml(sorted, swipeable(spendCardHtml))}`;
 }
 
-/** An event in the agenda: its day, who comes, and where its list and account stand. */
+/**
+ * An event, in the agenda and on Home: its day, who comes, and what hangs off
+ * it — where its list and account stand, and how many polls, idea boards and
+ * games were made for it.
+ */
 export function eventCardHtml(poll) {
-  const { list, spend } = eventParts(poll, state);
+  const { list, spend, polls, boards, games } = eventParts(poll, state);
   const when = whenText(poll, { long: true });
   const parts = [];
   if (list) {
@@ -175,6 +180,9 @@ export function eventCardHtml(poll) {
     parts.push(total ? `${t('event.list')} : ${t('lists.progress', { done, total })}` : `${t('event.list')} : ${t('lists.empty')}`);
   }
   if (spend) parts.push(t('spends.total', { amount: money(spendTotal(spend), spend) }));
+  if (polls.length) parts.push(t('count.polls', { count: polls.length }));
+  if (boards.length) parts.push(t('count.boards', { count: boards.length }));
+  if (games.length) parts.push(t('count.games', { count: games.length }));
   const people = poll.people.map((person) => person.name).join(' · ');
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
@@ -251,7 +259,7 @@ export function newEventView() {
         }
       </div>
 
-      ${willBeInHtml()}
+      ${willBeInHtml({ events: false })}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('events.create'))}</button>
     </form>`;
@@ -313,7 +321,7 @@ export function bindNewEvent() {
       date: state.newEventDay,
       at: state.newEventHour,
       until: state.newEventUntil,
-    }))));
+    }), { forEvent: false })));
     state.polls = [...state.polls, poll];
     persistPoll(poll);
     resetGroupChoice();
