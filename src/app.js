@@ -104,6 +104,9 @@ export const state = {
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
+  // The screens walked through to get here, oldest first, without loops: what
+  // "Back" returns to. See followTrail().
+  trail: [],
   // The new-list form's draft, kept across re-renders like the new-game one:
   // adding a person must not throw away the lines already typed.
   newListName: '',
@@ -284,15 +287,20 @@ const FLASH_KEPT = 4000;
 /* ----------------------------------------------------------------- router --- */
 
 export function route() {
-  const hash = location.hash.replace(/^#\/?/, '');
+  return routeOf(location.hash);
+}
+
+/** What an address opens, without going there. */
+function routeOf(address) {
+  const hash = address.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'games') return { name: 'home' };
   // An invitation link carries both the six digits and the group's name, so
   // the person who receives it has nothing to read out and nothing to type.
   // A return link: a person's own token, which hands this browser a key.
-  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(location.hash) };
+  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(address) };
   if (name === 'join' && param) {
-    const invitation = joinFrom(location.hash);
+    const invitation = joinFrom(address);
     if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
     // Half a link is still half a link: whichever of the two survived is kept,
     // and the page asks for the other rather than for both.
@@ -370,6 +378,40 @@ export function navigate(hash) {
   else location.hash = hash;
 }
 
+/** The address of the screen on show, spelled one way. */
+function hereHash() {
+  return location.hash && location.hash !== '#' ? location.hash : '#/';
+}
+
+/**
+ * Note the screen just reached. Reaching the one before is going back: it is
+ * taken off, so "Back" never bounces between two screens. Any other screen goes
+ * on top, and leaves the place it had lower down.
+ */
+function followTrail() {
+  const here = hereHash();
+  const trail = state.trail;
+  if (trail[trail.length - 1] === here) return;
+  if (trail[trail.length - 2] === here) state.trail = trail.slice(0, -1);
+  else state.trail = [...trail.filter((hash) => hash !== here), here].slice(-50);
+}
+
+/**
+ * Where "Back" goes: the screen one came from — the group's page for a list
+ * opened there, the person's for a poll opened from it — and the usual place
+ * when there is none (a link just opened). A form already filled in is not
+ * somewhere to go back to.
+ */
+function backTarget(fallback) {
+  const here = hereHash();
+  for (let index = state.trail.length - 1; index >= 0; index -= 1) {
+    const hash = state.trail[index];
+    if (hash === here || /^#\/(lists|polls|spends|agenda|ideas)\/new$|^#\/new$/.test(hash)) continue;
+    return hash;
+  }
+  return fallback;
+}
+
 /* ------------------------------------------------------------------ views --- */
 
 export function flashHtml() {
@@ -404,7 +446,7 @@ export function groupChipsHtml() {
   const counted = active === OUTSIDE_GROUPS
     ? groupCounts({
         lists: shownDocs(state.lists), polls: shownDocs(state.polls),
-        games: shownDocs(state.games), spends: shownDocs(state.spends),
+        games: shownDocs(state.games), spends: shownDocs(state.spends), boards: shownDocs(state.boards),
       })
     : groupCounts(state, active);
   const chip = (id, label) => `
@@ -418,7 +460,19 @@ export function groupChipsHtml() {
       ${held.map((group) => chip(group.id, group.name)).join('')}
       ${outside || active === OUTSIDE_GROUPS ? chip(OUTSIDE_GROUPS, t('filter.others')) : ''}
     </div>
-    <p class="muted small">${escapeHtml(t('overview.counts', counted))}</p>`;
+    <p class="muted small">${escapeHtml(countsText(counted))}</p>`;
+}
+
+/**
+ * What is going on, kind by kind, in the order of the tabs — leaving out the
+ * kinds with nothing: « 1 liste · 2 parties », not five numbers, three of
+ * them nought.
+ */
+function countsText(counts) {
+  const said = ['lists', 'polls', 'games', 'spends', 'boards']
+    .filter((kind) => counts[kind])
+    .map((kind) => t(`count.${kind}`, { count: counts[kind] }));
+  return said.length ? said.join(' · ') : t('count.none');
 }
 
 function gameCardHtml(game) {
@@ -856,6 +910,7 @@ function groupBoardHtml(group) {
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
         ${tile(counts.spends, t('tab.spends'), '#/spends')}
+        ${tile(counts.boards, t('tab.ideas'), '#/ideas')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -937,23 +992,23 @@ function groupView(group) {
 
   const sections = [
     section(t('events.coming'), events, eventCardHtml, '#/agenda'),
-    section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
-    section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
-    section(t('home.ongoing'), games, gameCardHtml, '#/games'),
-    section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
-    section(t('ideas.boards'), boards, boardCardHtml, '#/ideas'),
+    section(t('tab.lists'), lists, listCardHtml, '#/lists'),
+    section(t('tab.polls'), polls, pollCardHtml, '#/polls'),
+    section(t('tab.games'), games, gameCardHtml, '#/games'),
+    section(t('tab.spends'), spends, spendCardHtml, '#/spends'),
+    section(t('tab.ideas'), boards, boardCardHtml, '#/ideas'),
   ].join('');
 
   return `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(group.name)}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/groups">
+      <button type="button" class="button button--small button--ghost" data-goto="#/groups" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
     <p class="muted small">
-      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(t('overview.counts', counts))}
+      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(countsText(counts))}
     </p>
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
@@ -1739,7 +1794,7 @@ function backView(token) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('back.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -1874,7 +1929,7 @@ function joinView(invitation) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -1961,7 +2016,7 @@ function waitingView(knock) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('gate.waitingTitle', { name: knock.groupName }))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -2351,7 +2406,7 @@ function homeView() {
     }
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         ongoing.length
           ? `<div class="game-list">${ongoing.map(swipeable(gameCardHtml)).join('')}</div>`
@@ -2390,7 +2445,7 @@ function personView(who) {
   const head = (title, tail) => `
     <div class="spread">
       ${title}
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -2539,7 +2594,7 @@ function statsView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('stats.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
     ${groupChipsHtml()}
 
@@ -2978,7 +3033,7 @@ export function render() {
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
-    node.addEventListener('click', () => navigate(node.dataset.goto));
+    node.addEventListener('click', () => navigate('back' in node.dataset ? backTarget(node.dataset.goto) : node.dataset.goto));
   });
   view.querySelectorAll('[data-create-menu]').forEach((node) => {
     node.addEventListener('click', openCreateMenu);
@@ -3060,15 +3115,23 @@ function adoptGame(stored) {
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
+  const tabOf = (at) => {
+    if (['agenda', 'new-event'].includes(at.name)) return 'agenda';
+    if (['groups', 'group', 'person', 'join', 'back'].includes(at.name)) return 'groups';
+    if (at.name === 'settings') return 'settings';
+    return 'home';
+  };
+  // A document's page stays under the tab it was opened from: a poll opened
+  // from Home does not light up Agenda. Opened from a link, it goes where it
+  // is listed.
+  const document_ = ['list', 'poll', 'spend', 'board', 'game', 'person'].includes(current.name);
+  const from = document_ ? backTarget(null) : null;
   const poll = current.name === 'poll' ? getPoll(current.id) : null;
-  const inAgenda = ['agenda', 'new-event'].includes(current.name) || (poll && pollHome(poll) === '#/agenda');
-  const here = inAgenda
-    ? 'agenda'
-    : ['groups', 'group', 'person', 'join', 'back'].includes(current.name)
-      ? 'groups'
-      : current.name === 'settings'
-        ? 'settings'
-        : 'home';
+  const here = from
+    ? tabOf(routeOf(from))
+    : poll && pollHome(poll) === '#/agenda'
+      ? 'agenda'
+      : tabOf(current);
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -3195,7 +3258,9 @@ setLanguage(state.prefs.lang || detectLanguage());
 applyStaticText();
 applyTheme();
 bindChrome();
+followTrail();
 window.addEventListener('hashchange', () => {
+  followTrail();
   state.editingRoundId = null;
   state.listFilter = null;
   // A message already read belongs to the screen it was read on. One that has

@@ -94,7 +94,7 @@ export function peopleIn({ lists = [], polls = [], games = [], spends = [] } = {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-export function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, groupId = '', today = dayNow()) {
+export function groupCounts({ lists = [], polls = [], games = [], spends = [], boards = [] } = {}, groupId = '', today = dayNow()) {
   const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
   const held = { lists: mine(lists), polls: mine(polls), games: mine(games), spends: mine(spends) };
   const live = {
@@ -103,7 +103,8 @@ export function groupCounts({ lists = [], polls = [], games = [], spends = [] } 
     games: held.games.filter(isLive),
     spends: held.spends.filter(isLive),
   };
-  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends];
+  const ideas = mine(boards);
+  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends, ...ideas];
 
   return {
     lists: live.lists.filter((list) => progress(list).left > 0).length,
@@ -112,6 +113,8 @@ export function groupCounts({ lists = [], polls = [], games = [], spends = [] } 
     // Un compte compte tant que quelqu'un y doit quelque chose : un compte
     // soldé n'est pas en cours, il est fini.
     spends: live.spends.filter((spend) => balances(spend).some((row) => row.balance !== 0)).length,
+    // A board has nothing to finish: it counts for as long as it is out.
+    boards: ideas.filter(isLive).length,
     left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
     late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,

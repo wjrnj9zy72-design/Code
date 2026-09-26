@@ -57,12 +57,12 @@ const coming = page.locator('.section', { hasText: 'À venir' });
 check('à venir : la raclette', /Raclette/.test(await coming.textContent()));
 check('mais pas le pique-nique passé', !/Pique-nique/.test(await coming.textContent()));
 check('le passé est replié à part', /Passés \(1\)/.test(await text('details')), await text('details'));
-check('les comptes n’y sont plus', (await page.locator('.section', { hasText: 'Comptes en cours' }).count()) === 0);
+check('les comptes n’y sont plus', !/Coloc/.test(await page.textContent('#view')));
 
 await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/spends"]');
 await page.waitForSelector('[data-goto="#/spends/new"]');
 check('le compte de la coloc est dans les comptes en cours, sur l’Accueil',
-  /Coloc/.test(await page.locator('.section', { hasText: 'Comptes en cours' }).textContent()));
+  /Coloc/.test(await page.locator('.section', { hasText: 'En cours' }).first().textContent()));
 check('on ouvre toujours un compte seul', (await page.locator('[data-goto="#/spends/new"]').count()) === 1);
 await page.click('[data-tab="agenda"]');
 await page.waitForSelector('[data-goto="#/agenda/new"]');

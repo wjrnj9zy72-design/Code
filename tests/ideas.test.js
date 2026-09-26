@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  rubOut, ERASERS,
   createBoard, addCard, editCardText, addStrokes, eraseStrokes, removeCard, archiveBoard,
   cleanStroke, simplifyPoints, strokeNear, strokePath, cardsInOrder, mergeBoards, isValidBoard,
   boardSize, pointsOf, SKETCH_WIDTH, SKETCH_HEIGHT,
@@ -157,4 +158,30 @@ test('archiving a board puts it away without deleting it', () => {
   assert.ok(away.archivedAt);
   assert.equal(archiveBoard(away, true), away);
   assert.equal(archiveBoard(away, false).archivedAt, null);
+});
+
+test('la gomme ne prend que ce qu’elle touche : un trait coupé en deux', () => {
+  const line = cleanStroke({ id: 's1', ink: 'red', pen: 4, points: [100, 100, 900, 100] });
+  const pieces = rubOut(line, 500, 100, ERASERS[0]);
+  assert.equal(pieces.length, 2, 'un morceau de chaque côté');
+  for (const piece of pieces) {
+    assert.notEqual(piece.id, 's1', 'des traits neufs, que la fusion sait ajouter');
+    assert.equal(piece.ink, 'red');
+    assert.equal(piece.pen, 4);
+  }
+  const [left, right] = pieces.map((piece) => piece.points.split(' ').map(Number));
+  assert.deepEqual(left.slice(0, 2), [100, 100]);
+  assert.ok(left.at(-2) < 500 - ERASERS[0] && left.at(-2) > 450, `coupé près de la gomme : ${left.at(-2)}`);
+  assert.ok(right[0] > 500 + ERASERS[0] && right[0] < 550);
+  assert.deepEqual(right.slice(-2), [900, 100]);
+});
+
+test('la gomme loin du trait n’y touche pas ; au bout, elle le raccourcit ; large, elle l’efface', () => {
+  const line = cleanStroke({ id: 's1', pen: 4, points: [100, 100, 900, 100] });
+  assert.equal(rubOut(line, 500, 300), null);
+  const shorter = rubOut(line, 100, 100, ERASERS[1]);
+  assert.equal(shorter.length, 1);
+  assert.ok(Number(shorter[0].points.split(' ')[0]) > 100 + ERASERS[1]);
+  const dot = cleanStroke({ id: 's2', pen: 4, points: [300, 300] });
+  assert.deepEqual(rubOut(dot, 305, 305, ERASERS[2]), []);
 });

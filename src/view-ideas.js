@@ -19,7 +19,7 @@ import {
 } from './view-groups.js';
 import {
   createBoard, addCard, editCardText, addStrokes, eraseStrokes, removeCard, archiveBoard, cleanStroke, simplifyPoints,
-  strokeNear, strokePath, boardSize, cardsInOrder, mergeBoards, isValidBoard, INKS, PENS, SKETCH_WIDTH,
+  rubOut, strokePath, boardSize, cardsInOrder, mergeBoards, isValidBoard, INKS, PENS, ERASERS, SKETCH_WIDTH,
   SKETCH_HEIGHT, BOARD_LIMIT,
 } from './ideas.js';
 import { isLive } from './dashboard.js';
@@ -78,7 +78,7 @@ export function ideasView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         live.length
           ? `<div class="game-list">${live.map(swipeable(boardCardHtml)).join('')}</div>
@@ -96,7 +96,7 @@ export function newBoardView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('ideas.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -158,7 +158,8 @@ function strokeSvg(stroke) {
 function ideaCardHtml(card) {
   if (card.type === 'sketch') {
     return `
-      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}">
+      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}"
+              aria-label="${escapeHtml(card.text || t('ideas.sketchTitle'))}">
         ${card.strokes.length ? sketchSvg(card.strokes) : `<span class="muted small">${escapeHtml(t('ideas.emptySketch'))}</span>`}
         ${card.text ? `<span class="idea-card__caption">${escapeHtml(card.text)}</span>` : ''}
       </button>`;
@@ -181,7 +182,7 @@ export function boardView(board) {
           ${board.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -203,10 +204,10 @@ export function boardView(board) {
     }
 
     ${actionsHtml('', `
+        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -287,16 +288,52 @@ function commitCard(boardId, cardId, type, change) {
   replaceBoard(next);
 }
 
-function deleteCardButton(cardId) {
-  return cardId
-    ? `<button type="button" class="button button--danger" data-card-delete>${escapeHtml(t('action.delete'))}</button>`
-    : '';
+/** Save, leave without saving, and — for a card that exists — delete. */
+function cardButtonsHtml(cardId) {
+  return `
+    <div class="row">
+      <button type="submit" class="button button--primary" data-card-save>${escapeHtml(t('action.save'))}</button>
+      <button type="button" class="button" data-card-cancel>${escapeHtml(t('action.cancel'))}</button>
+      ${cardId ? `<button type="button" class="button button--danger" data-card-delete>${escapeHtml(t('action.delete'))}</button>` : ''}
+    </div>`;
 }
 
 /**
- * A note: one text box. What is typed is kept when the dialog closes, however
- * it closes — the button, Escape, or a tap beside it — because a thought lost
- * to a wrong gesture does not come back.
+ * Wire a card's editor: only « Enregistrer » keeps what was done. « Annuler »
+ * and Escape leave without saving — after asking, when something would be
+ * lost, so a slip of the finger never throws a thought away. Calls `leave`
+ * with 'save', 'drop' (the card deleted) or 'cancel' when the dialog closes.
+ */
+function bindCardButtons(dialog, { changed, leave }) {
+  let outcome = 'cancel';
+  const cancel = async () => {
+    if (changed() && !(await ask(t('ideas.discard'), { confirmLabel: t('ideas.discardYes'), danger: true }))) return;
+    outcome = 'cancel';
+    dialog.close();
+  };
+  dialog.querySelector('form').addEventListener('submit', () => {
+    outcome = 'save';
+  });
+  dialog.querySelector('[data-card-cancel]').addEventListener('click', (event) => {
+    event.preventDefault();
+    cancel();
+  });
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    cancel();
+  });
+  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    outcome = 'drop';
+    dialog.close();
+  });
+  dialog.addEventListener('close', () => leave(outcome));
+}
+
+/**
+ * A note: one text box. « Enregistrer » keeps it; « Annuler » leaves it as it
+ * was, after asking if something had been typed.
  */
 function openNoteDialog(boardId, cardId) {
   const card = getBoard(boardId)?.cards.find((entry) => entry.id === cardId) || null;
@@ -306,35 +343,26 @@ function openNoteDialog(boardId, cardId) {
       <h2>${escapeHtml(t('ideas.noteTitle'))}</h2>
       <textarea id="note-text" rows="8" placeholder="${escapeHtml(t('ideas.notePlaceholder'))}"
                 aria-label="${escapeHtml(t('ideas.noteTitle'))}">${escapeHtml(card?.text || '')}</textarea>
-      <div class="row">
-        <button type="submit" class="button button--primary" id="note-done">${escapeHtml(t('action.save'))}</button>
-        ${deleteCardButton(cardId)}
-      </div>
+      ${cardButtonsHtml(cardId)}
     </form>`;
 
-  let dropped = false;
-  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
-    dropped = true;
-    dialog.close();
-  });
-
   const text = dialog.querySelector('#note-text');
-  dialog.addEventListener('close', () => {
-    if (dropped) {
-      const current = getBoard(boardId);
-      if (current) replaceBoard(removeCard(current, cardId));
-      return;
-    }
-    const written = text.value.trim();
-    // A new note left empty was never a note: nothing to keep.
-    if (!cardId && !written) {
+  const before = card?.text || '';
+  bindCardButtons(dialog, {
+    changed: () => text.value.trim() !== before.trim(),
+    leave: (outcome) => {
+      if (outcome === 'drop') {
+        const current = getBoard(boardId);
+        if (current) replaceBoard(removeCard(current, cardId));
+        return;
+      }
+      const written = text.value.trim();
+      // A new note left empty was never a note: nothing to keep.
+      if (outcome === 'save' && (cardId || written)) {
+        commitCard(boardId, cardId, 'note', (board, id) => editCardText(board, id, written));
+      }
       render();
-      return;
-    }
-    commitCard(boardId, cardId, 'note', (board, id) => editCardText(board, id, written));
-    render();
+    },
   });
 
   dialog.showModal();
@@ -353,6 +381,7 @@ function openSketchDialog(boardId, cardId) {
   const dialog = makeDialog('dialog dialog--sketch');
   let ink = state.prefs.sketchInk && INKS.includes(state.prefs.sketchInk) ? state.prefs.sketchInk : 'ink';
   let pen = PENS.includes(state.prefs.sketchPen) ? state.prefs.sketchPen : PENS[0];
+  let rubber = ERASERS.includes(state.prefs.sketchRubber) ? state.prefs.sketchRubber : ERASERS[0];
   let erasing = false;
 
   const toolsHtml = () => `
@@ -367,10 +396,20 @@ function openSketchDialog(boardId, cardId) {
                 aria-pressed="${!erasing && ink === name ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.ink.${name}`))}"
                 title="${escapeHtml(t(`ideas.ink.${name}`))}"></button>`).join('')}
       <span class="sketch-tools__gap"></span>
-      ${PENS.map((size) => `
-        <button type="button" class="swatch swatch--pen ${pen === size ? 'swatch--on' : ''}" data-pen="${size}"
-                aria-pressed="${pen === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.pen.${size}`))}"
-                title="${escapeHtml(t(`ideas.pen.${size}`))}"><span style="width:${4 + size / 2}px;height:${4 + size / 2}px"></span></button>`).join('')}
+      ${
+        // The three sizes are the pen's while drawing, the eraser's while
+        // rubbing out: a fine eraser takes off a corner, a broad one a whole
+        // scribble.
+        erasing
+          ? ERASERS.map((size, index) => `
+              <button type="button" class="swatch swatch--pen ${rubber === size ? 'swatch--on' : ''}" data-rubber="${size}"
+                      aria-pressed="${rubber === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.rubber.${index}`))}"
+                      title="${escapeHtml(t(`ideas.rubber.${index}`))}"><span class="swatch__rubber" style="width:${6 + index * 6}px;height:${6 + index * 6}px"></span></button>`).join('')
+          : PENS.map((size) => `
+              <button type="button" class="swatch swatch--pen ${pen === size ? 'swatch--on' : ''}" data-pen="${size}"
+                      aria-pressed="${pen === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.pen.${size}`))}"
+                      title="${escapeHtml(t(`ideas.pen.${size}`))}"><span style="width:${4 + size / 2}px;height:${4 + size / 2}px"></span></button>`).join('')
+      }
     </div>`;
 
   dialog.innerHTML = `
@@ -383,10 +422,7 @@ function openSketchDialog(boardId, cardId) {
         <input type="text" id="sketch-caption" value="${escapeHtml(card?.text || '')}"
                placeholder="${escapeHtml(t('ideas.captionPlaceholder'))}" />
       </label>
-      <div class="row">
-        <button type="submit" class="button button--primary">${escapeHtml(t('action.save'))}</button>
-        ${deleteCardButton(cardId)}
-      </div>
+      ${cardButtonsHtml(cardId)}
     </form>`;
 
   const pad = dialog.querySelector('#sketch-pad');
@@ -421,6 +457,10 @@ function openSketchDialog(boardId, cardId) {
       erasing = false;
       state.prefs = { ...state.prefs, sketchPen: pen };
       savePrefs(state.prefs);
+    } else if (button.dataset.rubber) {
+      rubber = Number(button.dataset.rubber);
+      state.prefs = { ...state.prefs, sketchRubber: rubber };
+      savePrefs(state.prefs);
     }
     refreshTools();
   });
@@ -434,6 +474,7 @@ function openSketchDialog(boardId, cardId) {
       pad.querySelector(`[data-stroke="${last.id}"]`)?.remove();
     } else {
       for (const id of last.ids) erased.delete(id);
+      for (const id of last.added) erased.add(id);
       pad.innerHTML = visible().map(strokeSvg).join('');
     }
   }
@@ -450,12 +491,19 @@ function openSketchDialog(boardId, cardId) {
 
   let current = null;
   let rubbed = null;
+  // Only what is under the eraser goes: a stroke it crosses is cut in two.
   const rub = (x, y) => {
     for (const stroke of visible()) {
-      if (strokeNear(stroke, x, y)) {
-        erased.add(stroke.id);
-        rubbed.push(stroke.id);
-        pad.querySelector(`[data-stroke="${stroke.id}"]`)?.remove();
+      const pieces = rubOut(stroke, x, y, rubber);
+      if (!pieces) continue;
+      erased.add(stroke.id);
+      rubbed.ids.push(stroke.id);
+      const node = pad.querySelector(`[data-stroke="${stroke.id}"]`);
+      node?.insertAdjacentHTML('afterend', pieces.map(strokeSvg).join(''));
+      node?.remove();
+      for (const piece of pieces) {
+        drawn.push(piece);
+        rubbed.added.push(piece.id);
       }
     }
   };
@@ -465,7 +513,7 @@ function openSketchDialog(boardId, cardId) {
     pad.setPointerCapture?.(event.pointerId);
     const [x, y] = toFrame(event);
     if (erasing) {
-      rubbed = [];
+      rubbed = { ids: [], added: [] };
       rub(x, y);
       return;
     }
@@ -491,7 +539,7 @@ function openSketchDialog(boardId, cardId) {
 
   const finish = () => {
     if (rubbed) {
-      if (rubbed.length) history.push({ type: 'erase', ids: rubbed });
+      if (rubbed.ids.length) history.push({ type: 'erase', ...rubbed });
       rubbed = null;
       return;
     }
@@ -506,34 +554,28 @@ function openSketchDialog(boardId, cardId) {
   pad.addEventListener('pointerup', finish);
   pad.addEventListener('pointercancel', finish);
 
-  let dropped = false;
-  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
-    dropped = true;
-    dialog.close();
-  });
-
   const caption = dialog.querySelector('#sketch-caption');
-  dialog.addEventListener('close', () => {
-    finish();
-    if (dropped) {
-      const board = getBoard(boardId);
-      if (board) replaceBoard(removeCard(board, cardId));
-      return;
-    }
-    const kept = drawn.filter((stroke) => !erased.has(stroke.id));
-    const text = caption.value.trim();
-    if (!cardId && !kept.length && !text) {
+  const captionBefore = card?.text || '';
+  bindCardButtons(dialog, {
+    changed: () => history.length > 0 || caption.value.trim() !== captionBefore.trim(),
+    leave: (outcome) => {
+      finish();
+      if (outcome === 'drop') {
+        const board = getBoard(boardId);
+        if (board) replaceBoard(removeCard(board, cardId));
+        return;
+      }
+      const kept = drawn.filter((stroke) => !erased.has(stroke.id));
+      const text = caption.value.trim();
+      if (outcome === 'save' && (cardId || kept.length || text)) {
+        commitCard(boardId, cardId, 'sketch', (board, id) => {
+          let next = addStrokes(board, id, kept);
+          next = eraseStrokes(next, id, [...erased]);
+          return editCardText(next, id, text);
+        });
+      }
       render();
-      return;
-    }
-    commitCard(boardId, cardId, 'sketch', (board, id) => {
-      let next = addStrokes(board, id, kept);
-      next = eraseStrokes(next, id, [...erased]);
-      return editCardText(next, id, text);
-    });
-    render();
+    },
   });
 
   dialog.showModal();

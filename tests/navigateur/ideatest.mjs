@@ -74,7 +74,7 @@ check('un tableau se crée', (await page.locator('h1').textContent()).trim() ===
 await page.click('#board-add-note');
 await page.waitForSelector('dialog[open] #note-text');
 await page.fill('#note-text', 'Bateau à Bonifacio\nPlage de Palombaggia');
-await page.click('#note-done');
+await page.click('dialog[open] [data-card-save]');
 await page.waitForSelector('.idea-card');
 check('la note apparaît en carte', /Bonifacio/.test(await page.locator('.idea-card').first().textContent()));
 
@@ -88,8 +88,26 @@ await page.locator('.idea-card').first().click();
 await page.waitForSelector('dialog[open] #note-text');
 await page.fill('#note-text', 'Bateau à Bonifacio — réserver');
 await page.keyboard.press('Escape');
+await page.waitForSelector('.dialog--ask[open]');
+check('Échap sur une note changée demande avant de tout perdre', /sans enregistrer/.test(await page.textContent('.dialog--ask[open]')));
+await page.click('.dialog--ask[open] [data-answer="no"]');
+check('et « Annuler » là revient à la note, intacte', (await page.inputValue('#note-text')) === 'Bateau à Bonifacio — réserver');
+await page.click('dialog[open] [data-card-cancel]');
+await page.click('.dialog--ask[open] [data-answer="yes"]');
+await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+check('« Quitter sans enregistrer » laisse la note comme elle était',
+  !/réserver/.test(await page.locator('.idea-card').first().textContent()));
+await page.locator('.idea-card').first().click();
+await page.waitForSelector('dialog[open] #note-text');
+await page.click('dialog[open] [data-card-cancel]');
+await page.waitForFunction(() => !document.querySelector('dialog[open]'));
+check('rien changé : « Annuler » ferme sans rien demander', (await page.locator('.dialog--ask').count()) === 0);
+await page.locator('.idea-card').first().click();
+await page.waitForSelector('dialog[open] #note-text');
+await page.fill('#note-text', 'Bateau à Bonifacio — réserver');
+await page.click('dialog[open] [data-card-save]');
 await page.waitForFunction(() => /réserver/.test(document.querySelector('.idea-card')?.textContent || ''));
-check('Échap garde ce qui a été tapé', true);
+check('« Enregistrer » garde ce qui a été tapé', true);
 
 /* ---- 3. un croquis ------------------------------------------------------- */
 
@@ -105,12 +123,22 @@ const points = await page.locator('#sketch-pad path').first().getAttribute('d');
 check('un trait droit est allégé à ses deux bouts', (points.match(/L/g) || []).length <= 2, points);
 
 await page.click('dialog[open] [data-tool="undo"]');
-check('Annuler retire le dernier trait', (await strokes(page)) === 1);
+check('Défaire retire le dernier trait', (await strokes(page)) === 1);
 
 await draw(page, [0.5, 0.9], [0.5, 0.95], 3);
 await page.click('dialog[open] [data-tool="eraser"]');
+const kept = await page.locator('#sketch-pad path').first().getAttribute('d');
 await draw(page, [0.45, 0.92], [0.55, 0.92], 4);
-check('la gomme efface ce qu’elle touche, et seulement ça', (await strokes(page)) === 1);
+check('la gomme fine coupe le trait là où elle passe', (await strokes(page)) === 3, String(await strokes(page)));
+check('et ne touche pas au reste', (await page.locator('#sketch-pad path').first().getAttribute('d')) === kept);
+await page.click('dialog[open] [data-rubber="45"]');
+check('la gomme a trois tailles', (await page.locator('dialog[open] [data-rubber]').count()) === 3);
+await draw(page, [0.4, 0.9], [0.6, 0.95], 6);
+check('la large efface les morceaux restants', (await strokes(page)) === 1, String(await strokes(page)));
+await page.click('dialog[open] [data-tool="undo"]');
+check('Défaire rend ce que la gomme a pris', (await strokes(page)) === 3, String(await strokes(page)));
+await page.click('dialog[open] [data-tool="eraser"]');
+await draw(page, [0.4, 0.9], [0.6, 0.95], 6);
 
 await page.fill('#sketch-caption', 'Le trajet');
 await page.click('dialog[open] button[type=submit]');
@@ -181,7 +209,7 @@ async function swipe(target, fraction = 0.6) {
 await page.click('#board-add-note');
 await page.waitForSelector('dialog[open] #note-text');
 await page.fill('#note-text', 'À jeter');
-await page.click('#note-done');
+await page.click('dialog[open] [data-card-save]');
 await page.waitForFunction(() => document.querySelectorAll('.idea-card').length === 2);
 check('le tableau dit comment supprimer', /Glissez une carte vers la gauche/.test(await page.locator('#view').textContent()));
 

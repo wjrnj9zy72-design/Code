@@ -13,7 +13,7 @@ import {
   actionsHtml, eventLinkHtml, getSpend, persistPoll, persistSpend, pollCardHtml, pollTitle,
   replaceSpend, shareBarHtml, signed,
 } from './view-polls.js';
-import { archivedHtml } from './view-lists.js';
+import { archivedHtml, openPeopleEditor } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
   askGroup, bindData, groups, hiddenByGroupHtml, inGroupHtml, keyFor, landing, myName, organise,
@@ -144,7 +144,7 @@ export function spendsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
@@ -197,7 +197,7 @@ export function newEventView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('events.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -335,7 +335,7 @@ export function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -380,6 +380,8 @@ export function newSpendView() {
             : ''
         }
       </div>
+
+      ${willBeInHtml()}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
     </form>`;
@@ -609,7 +611,7 @@ export function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -626,10 +628,10 @@ export function spendView(spend) {
 
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -657,6 +659,14 @@ export function bindNewSpend() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      state.newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-suggest]').forEach((chip) => {
     chip.addEventListener('click', () => {
       snapshot();
@@ -669,22 +679,20 @@ export function bindNewSpend() {
     });
   });
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = await askGroup();
-    const spend = createSpend({
+    const spend = landing(createSpend({
       name: state.newSpendName,
       names: state.newSpendPeople,
-      shared: Boolean(group),
-      groupId: group?.id || null,
       currency: state.newSpendCurrency,
-    });
+    }));
     state.spends = [...state.spends, spend];
     persistSpend(spend);
+    resetGroupChoice();
     state.newSpendName = '';
     state.newSpendCurrency = 'EUR';
-    state.newSpendPeople = ['', ''];
+    state.newSpendPeople = withMeFirst(['', ''], myName());
     navigate(`#/spend/${spend.id}`);
   });
 }
@@ -972,88 +980,19 @@ function openRepayDialog(spend, { move = null, line = null }) {
 
 /** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
 function openSpendPeopleDialog(spend) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getSpend(spend.id) || spend;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="knock">
-                  <strong>${escapeHtml(person.name)}</strong>
-                  <div class="row">
-                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.rename'))}
-                    </button>
-                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.delete'))}
-                    </button>
-                  </div>
-                </div>`,
-            )
-            .join('')}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
-          <button type="button" class="button" id="spend-person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
-      const field = dialog.querySelector('#spend-person');
-      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
-      field.value = '';
-      replaceSpend(next, { redraw: false });
-      draw();
-    });
-
-    dialog.querySelectorAll('[data-rename]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const held = getSpend(spend.id) || spend;
-        const person = held.people.find((one) => one.id === button.dataset.rename);
-        if (!person) return;
-        const name = await askForText({
-          title: t('action.rename'),
-          hint: t('spends.renamePersonHint'),
-          value: person.name,
-          confirmLabel: t('action.save'),
-        });
-        if (name === null) return;
-        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelectorAll('[data-drop]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const held = getSpend(spend.id) || spend;
-        const why = canRemovePerson(held, button.dataset.drop);
-        if (why !== 'ok') {
-          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
-          // vaut refuser en expliquant que rendre un remboursement faux.
-          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
-          dialog.close();
-          render();
-          return;
-        }
-        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => {
-      dialog.close();
-      render();
-    });
-  };
-
-  draw();
-  dialog.showModal();
+  const held = () => getSpend(spend.id) || spend;
+  openPeopleEditor({
+    hint: t('spends.peopleHint'),
+    confirmRemove: t('spends.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceSpend(addSpendPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceSpend(renameSpendPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceSpend(removeSpendPerson(held(), id), { redraw: false }),
+    // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux vaut
+    // refuser en expliquant que rendre un remboursement faux.
+    blocked: (id) => {
+      const why = canRemovePerson(held(), id);
+      return why === 'ok' ? null : t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone');
+    },
+  });
 }

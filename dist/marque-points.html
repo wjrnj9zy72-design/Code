@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="65a6dc52" />
+    <meta name="app-build" content="89a1f517" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -456,14 +456,14 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
  */
 .tiles {
   display: grid;
-  /* 72px au minimum : à quatre cases sur un écran de 320, elles passent à la
+  /* 56px au minimum : à cinq cases sur un écran de 320, elles passent à la
      ligne plutôt que de rogner « Sondages » au milieu d'un mot. */
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
   gap: 8px;
 }
 
 .tile {
-  padding: 8px 4px;
+  padding: 8px 2px;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -476,7 +476,7 @@ button.tile { cursor: pointer; }
 button.tile:hover { background: var(--accent-soft); }
 
 .tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
-.tile__label { display: block; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.tile__label { display: block; color: var(--muted); font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* One line of someone's file: what it is on the left, where it stands on the right. */
 .entries { display: flex; flex-direction: column; }
@@ -591,6 +591,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 .score-row__name { font-weight: 600; overflow-wrap: anywhere; }
 .score-row input { text-align: right; font-variant-numeric: tabular-nums; }
+/* A name is read from the left, like every other name field in the app. */
+.score-row input[data-name-index] { text-align: left; font-variant-numeric: normal; }
 
 .sum-line {
   display: flex;
@@ -1403,6 +1405,7 @@ body:not(.solo) .view {
 
 .swatch--pen { background: var(--surface); }
 .swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
+.swatch--pen .swatch__rubber { background: transparent; border: 2px solid var(--text); }
 .swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 
 /* A card or a line that slides left to uncover « Supprimer » (src/swipe.js). */
@@ -1524,7 +1527,6 @@ const STRINGS = {
     'action.edit': 'Modifier',
     'action.rename': 'Renommer',
 
-    'home.ongoing': 'Parties en cours',
     'home.finished': 'Parties terminées',
     'home.empty': 'Aucune partie pour le moment. Lancez-en une !',
     'home.emptyFinished': 'Aucune partie terminée.',
@@ -1645,7 +1647,12 @@ const STRINGS = {
     'welcome.list': 'Faire une liste',
     'welcome.spend': 'Partager des dépenses',
     'overview.pending': 'En cours',
-    'overview.counts': '{lists} {lists|liste|listes} · {polls} {polls|sondage|sondages} · {games} {games|partie|parties}',
+    'count.lists': '{count} {count|liste|listes}',
+    'count.polls': '{count} {count|sondage|sondages}',
+    'count.games': '{count} {count|partie|parties}',
+    'count.spends': '{count} {count|compte|comptes}',
+    'count.boards': '{count} {count|tableau d’idées|tableaux d’idées}',
+    'count.none': 'rien en cours',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} {count|ligne|lignes} à faire',
     'lists.late': '{count} en retard',
@@ -1671,7 +1678,6 @@ const STRINGS = {
     'events.peopleHint': 'Qui vient (facultatif, on peut en ajouter après).',
     'events.coming': 'À venir',
     'events.none': 'Rien de prévu. Un sondage qui retient une date, ou un événement créé ici, apparaît ici.',
-    'events.accounts': 'Comptes en cours',
     'events.past': 'Passés ({count})',
     'events.nobody': 'Personne pour l’instant',
     'events.dateHint': 'Le jour part dans les agendas, sous le nom écrit en dessous. L’heure est facultative.',
@@ -1698,7 +1704,6 @@ const STRINGS = {
     'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
     'spends.settled': 'Soldés',
-    'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
     'spends.untitled': 'Compte sans nom',
     'spends.untitledLine': 'Dépense',
@@ -1754,14 +1759,15 @@ const STRINGS = {
     'spends.shared': 'Compte partagé dans {name}.',
     'spends.rename': 'Renommer le compte',
     'spends.renameHint': 'Le nom du compte, tel qu’il apparaît dans la liste.',
-    'spends.renamePersonHint': 'Le prénom de cette personne dans ce compte.',
+    'people.renameHint': 'Son prénom, tel qu’il s’affichera ici.',
+    'spends.confirmRemovePerson': 'Retirer cette personne du compte ?',
     'spends.confirmDelete': 'Supprimer ce compte et toutes ses dépenses ? C’est définitif.',
     'spends.loading': 'On va chercher ce compte…',
     'tab.ideas': 'Idées',
+    'kinds.ongoing': 'En cours',
     'ideas.new': 'Nouveau tableau d’idées',
     'ideas.none': 'Aucun tableau pour l’instant. Un voyage, un cadeau, un projet : on note et on dessine ce qui vient, avant de décider.',
     'ideas.untitled': 'Tableau sans nom',
-    'ideas.boards': 'Tableaux d’idées',
     'ideas.name': 'Sujet',
     'ideas.namePlaceholder': 'Voyage en Corse, cadeau de Léa…',
     'ideas.create': 'Créer le tableau',
@@ -1779,7 +1785,12 @@ const STRINGS = {
     'ideas.emptySketch': 'Croquis vide',
     'ideas.pen': 'Crayon',
     'ideas.eraser': 'Gomme',
-    'ideas.undoStroke': 'Annuler',
+    'ideas.undoStroke': 'Défaire',
+    'ideas.rubber.0': 'Gomme fine',
+    'ideas.rubber.1': 'Gomme moyenne',
+    'ideas.rubber.2': 'Gomme large',
+    'ideas.discard': 'Quitter sans enregistrer ? Ce qui a été changé sera perdu.',
+    'ideas.discardYes': 'Quitter sans enregistrer',
     'ideas.inks': 'Couleur',
     'ideas.pens': 'Épaisseur',
     'ideas.ink.ink': 'Encre',
@@ -2096,7 +2107,6 @@ const STRINGS = {
     'polls.peopleHint': 'Les personnes à qui on demande. On peut en ajouter plus tard.',
     'polls.create': 'Créer le sondage',
     'polls.untitled': 'Sondage sans question',
-    'polls.ongoing': 'En cours',
     'polls.done': 'Clos',
     'polls.none': 'Aucun sondage pour l’instant. Posez une question : un soir, un lieu, un cadeau.',
     'polls.answered': '{count} {count|réponse|réponses} sur {total}',
@@ -2155,7 +2165,6 @@ const STRINGS = {
     'lists.firstLinesPlaceholder': 'Pain\nLait\nRéserver le camion',
     'lists.create': 'Créer la liste',
     'lists.untitled': 'Liste sans titre',
-    'lists.ongoing': 'En cours',
     'lists.done': 'Terminées',
     'lists.none': 'Aucune liste pour l’instant. Créez-en une : courses, valise, corvées, ce que vous voulez.',
     'lists.empty': 'vide',
@@ -2392,7 +2401,6 @@ const STRINGS = {
     'action.edit': 'Edit',
     'action.rename': 'Rename',
 
-    'home.ongoing': 'Games in progress',
     'home.finished': 'Finished games',
     'home.empty': 'No games yet. Start one!',
     'home.emptyFinished': 'No finished games.',
@@ -2513,7 +2521,12 @@ const STRINGS = {
     'welcome.list': 'Make a list',
     'welcome.spend': 'Split costs',
     'overview.pending': 'Going on',
-    'overview.counts': '{lists} {lists|list|lists} · {polls} {polls|poll|polls} · {games} {games|game|games}',
+    'count.lists': '{count} {count|list|lists}',
+    'count.polls': '{count} {count|poll|polls}',
+    'count.games': '{count} {count|game|games}',
+    'count.spends': '{count} {count|account|accounts}',
+    'count.boards': '{count} {count|idea board|idea boards}',
+    'count.none': 'nothing going on',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} {count|line|lines} left',
     'lists.late': '{count} overdue',
@@ -2539,7 +2552,6 @@ const STRINGS = {
     'events.peopleHint': 'Who is coming (optional, more can be added later).',
     'events.coming': 'Coming up',
     'events.none': 'Nothing planned. A poll that settles on a day, or an event made here, shows up here.',
-    'events.accounts': 'Ongoing accounts',
     'events.past': 'Past ({count})',
     'events.nobody': 'Nobody yet',
     'events.dateHint': 'The day goes into calendars, under the name written below. The hour is optional.',
@@ -2566,7 +2578,6 @@ const STRINGS = {
     'group.who': 'See who owes what',
     'spends.new': 'New account',
     'spends.settled': 'Settled',
-    'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
     'spends.untitled': 'Untitled account',
     'spends.untitledLine': 'Expense',
@@ -2622,14 +2633,15 @@ const STRINGS = {
     'spends.shared': 'Account shared in {name}.',
     'spends.rename': 'Rename the account',
     'spends.renameHint': 'The account’s name, as it appears in the list.',
-    'spends.renamePersonHint': 'This person’s first name in this account.',
+    'people.renameHint': 'Their first name, as it will show here.',
+    'spends.confirmRemovePerson': 'Remove this person from the account?',
     'spends.confirmDelete': 'Delete this account and everything spent on it? This cannot be undone.',
     'spends.loading': 'Fetching that account…',
     'tab.ideas': 'Ideas',
+    'kinds.ongoing': 'In progress',
     'ideas.new': 'New idea board',
     'ideas.none': 'No board yet. A trip, a present, a project: write down and sketch what comes, before deciding.',
     'ideas.untitled': 'Untitled board',
-    'ideas.boards': 'Idea boards',
     'ideas.name': 'Topic',
     'ideas.namePlaceholder': 'Trip to Corsica, Léa’s present…',
     'ideas.create': 'Create the board',
@@ -2648,6 +2660,11 @@ const STRINGS = {
     'ideas.pen': 'Pencil',
     'ideas.eraser': 'Eraser',
     'ideas.undoStroke': 'Undo',
+    'ideas.rubber.0': 'Fine eraser',
+    'ideas.rubber.1': 'Medium eraser',
+    'ideas.rubber.2': 'Broad eraser',
+    'ideas.discard': 'Leave without saving? What was changed will be lost.',
+    'ideas.discardYes': 'Leave without saving',
     'ideas.inks': 'Colour',
     'ideas.pens': 'Thickness',
     'ideas.ink.ink': 'Ink',
@@ -2954,7 +2971,6 @@ const STRINGS = {
     'polls.peopleHint': 'The people being asked. More can be added later.',
     'polls.create': 'Create the poll',
     'polls.untitled': 'Poll with no question',
-    'polls.ongoing': 'Open',
     'polls.done': 'Closed',
     'polls.none': 'No polls yet. Ask something: an evening, a place, a present.',
     'polls.answered': '{count} of {total} answered',
@@ -3013,7 +3029,6 @@ const STRINGS = {
     'lists.firstLinesPlaceholder': 'Bread\nMilk\nBook the van',
     'lists.create': 'Create the list',
     'lists.untitled': 'Untitled list',
-    'lists.ongoing': 'In progress',
     'lists.done': 'Finished',
     'lists.none': 'No lists yet. Make one: shopping, a suitcase, the chores — whatever you like.',
     'lists.empty': 'empty',
@@ -5970,6 +5985,9 @@ const INKS = ['ink', 'red', 'blue', 'green', 'orange'];
 /** The pen sizes, in frame units. */
 const PENS = [4, 10, 24];
 
+/** How far the eraser reaches, in the frame's units: fine, medium, broad. */
+const ERASERS = [8, 20, 45];
+
 /**
  * How much a board may weigh, as JSON. The database refuses a document past
  * 200 000 bytes; this leaves room, so a board that is nearly full says so
@@ -6168,6 +6186,46 @@ function strokeNear(stroke, x, y, reach = 16) {
     }
   }
   return false;
+}
+
+/**
+ * Rub out only the part of a stroke under the eraser: what is left on either
+ * side becomes strokes of their own, with new ids — the old one is erased and
+ * the pieces added, which is how any two copies of a board already merge.
+ * Null when the eraser does not touch the stroke.
+ */
+function rubOut(stroke, x, y, reach = ERASERS[0]) {
+  const points = pointsOf(stroke);
+  if (!points.length) return null;
+  const margin = reach + (stroke.pen || 0) / 2;
+  // The kept points can be far apart along a straight line: fill in, so the
+  // eraser cuts where it is and not at the nearest corner.
+  const step = Math.max(2, reach / 3);
+  const dense = [points[0], points[1]];
+  for (let index = 2; index + 1 < points.length; index += 2) {
+    const [ax, ay, bx, by] = [points[index - 2], points[index - 1], points[index], points[index + 1]];
+    const parts = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let part = 1; part <= parts; part += 1) {
+      dense.push(ax + ((bx - ax) * part) / parts, ay + ((by - ay) * part) / parts);
+    }
+  }
+  const pieces = [];
+  let run = [];
+  let touched = false;
+  for (let index = 0; index + 1 < dense.length; index += 2) {
+    if (Math.hypot(dense[index] - x, dense[index + 1] - y) <= margin) {
+      touched = true;
+      if (run.length) pieces.push(run);
+      run = [];
+    } else {
+      run.push(dense[index], dense[index + 1]);
+    }
+  }
+  if (!touched) return null;
+  if (run.length) pieces.push(run);
+  return pieces
+    .map((piece) => cleanStroke({ id: uid('s'), ink: stroke.ink, pen: stroke.pen, points: simplifyPoints(piece.map(Math.round)) }))
+    .filter(Boolean);
 }
 
 /** The SVG path of a stroke: a dot for a single point, a line otherwise. */
@@ -6449,7 +6507,7 @@ function peopleIn({ lists = [], polls = [], games = [], spends = [] } = {}) {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, groupId = '', today = dayNow()) {
+function groupCounts({ lists = [], polls = [], games = [], spends = [], boards = [] } = {}, groupId = '', today = dayNow()) {
   const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
   const held = { lists: mine(lists), polls: mine(polls), games: mine(games), spends: mine(spends) };
   const live = {
@@ -6458,7 +6516,8 @@ function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, g
     games: held.games.filter(isLive),
     spends: held.spends.filter(isLive),
   };
-  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends];
+  const ideas = mine(boards);
+  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends, ...ideas];
 
   return {
     lists: live.lists.filter((list) => progress(list).left > 0).length,
@@ -6467,6 +6526,8 @@ function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, g
     // Un compte compte tant que quelqu'un y doit quelque chose : un compte
     // soldé n'est pas en cours, il est fini.
     spends: live.spends.filter((spend) => balances(spend).some((row) => row.balance !== 0)).length,
+    // A board has nothing to finish: it counts for as long as it is out.
+    boards: ideas.filter(isLive).length,
     left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
     late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,
@@ -8331,7 +8392,7 @@ function pollsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>`
@@ -8358,7 +8419,7 @@ function newPollView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('polls.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -8502,7 +8563,7 @@ function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}" data-back>
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -8614,11 +8675,11 @@ function pollView(poll, { solo = false } = {}) {
                </button>`
         }
 `, `
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -9265,72 +9326,15 @@ function openChoiceDialog(poll, optionId) {
 
 /** Who is being asked. */
 function openPollPeopleDialog(poll) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getPoll(poll.id) || poll;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('polls.peopleHint'))}</p>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
-                </div>`,
-            )
-            .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    const field = dialog.querySelector('#person-new');
-    const add = () => {
-      replacePoll(addPollPerson(getPoll(poll.id) || poll, field.value), { redraw: false });
-      draw();
-      dialog.querySelector('#person-new').focus();
-    };
-    dialog.querySelector('#person-add').addEventListener('click', add);
-    field.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      add();
-    });
-
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replacePoll(renamePollPerson(getPoll(poll.id) || poll, input.dataset.person, input.value), { redraw: false });
-      });
-    });
-
-    dialog.querySelectorAll('[data-remove]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (!(await ask(t('polls.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replacePoll(removePollPerson(getPoll(poll.id) || poll, button.dataset.remove), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
-  };
-
-  dialog.addEventListener('close', () => render());
-  draw();
-  dialog.showModal();
+  const held = () => getPoll(poll.id) || poll;
+  openPeopleEditor({
+    hint: t('polls.peopleHint'),
+    confirmRemove: t('polls.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replacePoll(addPollPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replacePoll(renamePollPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replacePoll(removePollPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openPollNameDialog(poll) {
@@ -9603,7 +9607,7 @@ function listsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(listCardHtml)).join('')}</div>`
@@ -9660,7 +9664,7 @@ function newListView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('lists.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9779,7 +9783,7 @@ function listView(list) {
         </p>
         ${signedByHtml(list)}
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9817,27 +9821,27 @@ function listView(list) {
     }
 
     ${actionsHtml(`
+        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
+        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           list.people.length
             ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
             : ''
         }
-        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
-        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           done
             ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
             : ''
         }
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="list-archive">
           ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -10193,34 +10197,47 @@ function openLineDialog(list, itemId) {
 }
 
 /** Who this list concerns: add, rename, remove. */
-function openPeopleDialog(list) {
+/**
+ * The people of a list, a poll or an account — one dialog for all three, so it
+ * works the same everywhere. Every change has its own button and happens at
+ * once, a removal after asking; nothing is left pending, so « Fermer » — or
+ * Escape — never saves a half-typed name behind one's back.
+ *
+ * `people()` reads the current people; `add`, `rename` and `remove` write.
+ * `blocked(id)` may say why someone cannot go — said before asking anything.
+ */
+function openPeopleEditor({ hint = '', confirmRemove, people, add, rename, remove, blocked = () => null }) {
   const dialog = makeDialog();
 
   const draw = () => {
-    const current = getList(list.id) || list;
+    const current = people();
     dialog.innerHTML = `
       <div class="stack">
         <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('lists.peopleHint'))}</p>
+        ${hint ? `<p class="muted small">${escapeHtml(hint)}</p>` : ''}
         <div class="stack stack--tight">
-          ${current.people
+          ${current
             .map(
               (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('lists.dropPerson'))}
+                    </button>
+                  </div>
                 </div>`,
             )
             .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+          ${current.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
         </div>
         <div class="row row--tight">
           <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button button--primary" id="person-add" aria-label="${escapeHtml(t('lists.addPerson'))}">+</button>
         </div>
         <div class="row">
           <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
@@ -10228,29 +10245,45 @@ function openPeopleDialog(list) {
       </div>`;
 
     const field = dialog.querySelector('#person-new');
-    const add = () => {
-      const next = addListPerson(getList(list.id) || list, field.value);
-      replaceList(next, { redraw: false });
+    const addOne = () => {
+      if (!field.value.trim()) return;
+      add(field.value);
       draw();
       dialog.querySelector('#person-new').focus();
     };
-    dialog.querySelector('#person-add').addEventListener('click', add);
+    dialog.querySelector('#person-add').addEventListener('click', addOne);
     field.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      add();
+      addOne();
     });
 
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replaceList(renameListPerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const person = people().find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('people.renameHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null || !name.trim()) return;
+        rename(person.id, name);
+        draw();
       });
     });
 
     dialog.querySelectorAll('[data-remove]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replaceList(removeListPerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        const refused = blocked(button.dataset.remove);
+        if (refused) {
+          flash(refused, 'error');
+          dialog.close();
+          return;
+        }
+        if (!(await ask(confirmRemove, { confirmLabel: t('lists.dropPerson'), danger: true }))) return;
+        remove(button.dataset.remove);
         draw();
       });
     });
@@ -10262,6 +10295,18 @@ function openPeopleDialog(list) {
   dialog.addEventListener('close', () => render());
   draw();
   dialog.showModal();
+}
+
+function openPeopleDialog(list) {
+  const held = () => getList(list.id) || list;
+  openPeopleEditor({
+    hint: t('lists.peopleHint'),
+    confirmRemove: t('lists.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceList(addListPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceList(renameListPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceList(removeListPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openListNameDialog(list) {
@@ -10470,7 +10515,7 @@ function spendsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
@@ -10523,7 +10568,7 @@ function newEventView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('events.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10661,7 +10706,7 @@ function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10706,6 +10751,8 @@ function newSpendView() {
             : ''
         }
       </div>
+
+      ${willBeInHtml()}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
     </form>`;
@@ -10935,7 +10982,7 @@ function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10952,10 +10999,10 @@ function spendView(spend) {
 
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -10983,6 +11030,14 @@ function bindNewSpend() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      state.newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-suggest]').forEach((chip) => {
     chip.addEventListener('click', () => {
       snapshot();
@@ -10995,22 +11050,20 @@ function bindNewSpend() {
     });
   });
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = await askGroup();
-    const spend = createSpend({
+    const spend = landing(createSpend({
       name: state.newSpendName,
       names: state.newSpendPeople,
-      shared: Boolean(group),
-      groupId: group?.id || null,
       currency: state.newSpendCurrency,
-    });
+    }));
     state.spends = [...state.spends, spend];
     persistSpend(spend);
+    resetGroupChoice();
     state.newSpendName = '';
     state.newSpendCurrency = 'EUR';
-    state.newSpendPeople = ['', ''];
+    state.newSpendPeople = withMeFirst(['', ''], myName());
     navigate(`#/spend/${spend.id}`);
   });
 }
@@ -11298,90 +11351,21 @@ function openRepayDialog(spend, { move = null, line = null }) {
 
 /** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
 function openSpendPeopleDialog(spend) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getSpend(spend.id) || spend;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="knock">
-                  <strong>${escapeHtml(person.name)}</strong>
-                  <div class="row">
-                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.rename'))}
-                    </button>
-                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.delete'))}
-                    </button>
-                  </div>
-                </div>`,
-            )
-            .join('')}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
-          <button type="button" class="button" id="spend-person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
-      const field = dialog.querySelector('#spend-person');
-      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
-      field.value = '';
-      replaceSpend(next, { redraw: false });
-      draw();
-    });
-
-    dialog.querySelectorAll('[data-rename]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const held = getSpend(spend.id) || spend;
-        const person = held.people.find((one) => one.id === button.dataset.rename);
-        if (!person) return;
-        const name = await askForText({
-          title: t('action.rename'),
-          hint: t('spends.renamePersonHint'),
-          value: person.name,
-          confirmLabel: t('action.save'),
-        });
-        if (name === null) return;
-        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelectorAll('[data-drop]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const held = getSpend(spend.id) || spend;
-        const why = canRemovePerson(held, button.dataset.drop);
-        if (why !== 'ok') {
-          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
-          // vaut refuser en expliquant que rendre un remboursement faux.
-          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
-          dialog.close();
-          render();
-          return;
-        }
-        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => {
-      dialog.close();
-      render();
-    });
-  };
-
-  draw();
-  dialog.showModal();
+  const held = () => getSpend(spend.id) || spend;
+  openPeopleEditor({
+    hint: t('spends.peopleHint'),
+    confirmRemove: t('spends.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceSpend(addSpendPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceSpend(renameSpendPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceSpend(removeSpendPerson(held(), id), { redraw: false }),
+    // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux vaut
+    // refuser en expliquant que rendre un remboursement faux.
+    blocked: (id) => {
+      const why = canRemovePerson(held(), id);
+      return why === 'ok' ? null : t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone');
+    },
+  });
 }
 
   // ---- src/view-ideas.js -----------------------------------------------
@@ -11454,7 +11438,7 @@ function ideasView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         live.length
           ? `<div class="game-list">${live.map(swipeable(boardCardHtml)).join('')}</div>
@@ -11472,7 +11456,7 @@ function newBoardView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('ideas.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -11534,7 +11518,8 @@ function strokeSvg(stroke) {
 function ideaCardHtml(card) {
   if (card.type === 'sketch') {
     return `
-      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}">
+      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}"
+              aria-label="${escapeHtml(card.text || t('ideas.sketchTitle'))}">
         ${card.strokes.length ? sketchSvg(card.strokes) : `<span class="muted small">${escapeHtml(t('ideas.emptySketch'))}</span>`}
         ${card.text ? `<span class="idea-card__caption">${escapeHtml(card.text)}</span>` : ''}
       </button>`;
@@ -11557,7 +11542,7 @@ function boardView(board) {
           ${board.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -11579,10 +11564,10 @@ function boardView(board) {
     }
 
     ${actionsHtml('', `
+        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -11663,16 +11648,52 @@ function commitCard(boardId, cardId, type, change) {
   replaceBoard(next);
 }
 
-function deleteCardButton(cardId) {
-  return cardId
-    ? `<button type="button" class="button button--danger" data-card-delete>${escapeHtml(t('action.delete'))}</button>`
-    : '';
+/** Save, leave without saving, and — for a card that exists — delete. */
+function cardButtonsHtml(cardId) {
+  return `
+    <div class="row">
+      <button type="submit" class="button button--primary" data-card-save>${escapeHtml(t('action.save'))}</button>
+      <button type="button" class="button" data-card-cancel>${escapeHtml(t('action.cancel'))}</button>
+      ${cardId ? `<button type="button" class="button button--danger" data-card-delete>${escapeHtml(t('action.delete'))}</button>` : ''}
+    </div>`;
 }
 
 /**
- * A note: one text box. What is typed is kept when the dialog closes, however
- * it closes — the button, Escape, or a tap beside it — because a thought lost
- * to a wrong gesture does not come back.
+ * Wire a card's editor: only « Enregistrer » keeps what was done. « Annuler »
+ * and Escape leave without saving — after asking, when something would be
+ * lost, so a slip of the finger never throws a thought away. Calls `leave`
+ * with 'save', 'drop' (the card deleted) or 'cancel' when the dialog closes.
+ */
+function bindCardButtons(dialog, { changed, leave }) {
+  let outcome = 'cancel';
+  const cancel = async () => {
+    if (changed() && !(await ask(t('ideas.discard'), { confirmLabel: t('ideas.discardYes'), danger: true }))) return;
+    outcome = 'cancel';
+    dialog.close();
+  };
+  dialog.querySelector('form').addEventListener('submit', () => {
+    outcome = 'save';
+  });
+  dialog.querySelector('[data-card-cancel]').addEventListener('click', (event) => {
+    event.preventDefault();
+    cancel();
+  });
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    cancel();
+  });
+  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    outcome = 'drop';
+    dialog.close();
+  });
+  dialog.addEventListener('close', () => leave(outcome));
+}
+
+/**
+ * A note: one text box. « Enregistrer » keeps it; « Annuler » leaves it as it
+ * was, after asking if something had been typed.
  */
 function openNoteDialog(boardId, cardId) {
   const card = getBoard(boardId)?.cards.find((entry) => entry.id === cardId) || null;
@@ -11682,35 +11703,26 @@ function openNoteDialog(boardId, cardId) {
       <h2>${escapeHtml(t('ideas.noteTitle'))}</h2>
       <textarea id="note-text" rows="8" placeholder="${escapeHtml(t('ideas.notePlaceholder'))}"
                 aria-label="${escapeHtml(t('ideas.noteTitle'))}">${escapeHtml(card?.text || '')}</textarea>
-      <div class="row">
-        <button type="submit" class="button button--primary" id="note-done">${escapeHtml(t('action.save'))}</button>
-        ${deleteCardButton(cardId)}
-      </div>
+      ${cardButtonsHtml(cardId)}
     </form>`;
 
-  let dropped = false;
-  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
-    dropped = true;
-    dialog.close();
-  });
-
   const text = dialog.querySelector('#note-text');
-  dialog.addEventListener('close', () => {
-    if (dropped) {
-      const current = getBoard(boardId);
-      if (current) replaceBoard(removeCard(current, cardId));
-      return;
-    }
-    const written = text.value.trim();
-    // A new note left empty was never a note: nothing to keep.
-    if (!cardId && !written) {
+  const before = card?.text || '';
+  bindCardButtons(dialog, {
+    changed: () => text.value.trim() !== before.trim(),
+    leave: (outcome) => {
+      if (outcome === 'drop') {
+        const current = getBoard(boardId);
+        if (current) replaceBoard(removeCard(current, cardId));
+        return;
+      }
+      const written = text.value.trim();
+      // A new note left empty was never a note: nothing to keep.
+      if (outcome === 'save' && (cardId || written)) {
+        commitCard(boardId, cardId, 'note', (board, id) => editCardText(board, id, written));
+      }
       render();
-      return;
-    }
-    commitCard(boardId, cardId, 'note', (board, id) => editCardText(board, id, written));
-    render();
+    },
   });
 
   dialog.showModal();
@@ -11729,6 +11741,7 @@ function openSketchDialog(boardId, cardId) {
   const dialog = makeDialog('dialog dialog--sketch');
   let ink = state.prefs.sketchInk && INKS.includes(state.prefs.sketchInk) ? state.prefs.sketchInk : 'ink';
   let pen = PENS.includes(state.prefs.sketchPen) ? state.prefs.sketchPen : PENS[0];
+  let rubber = ERASERS.includes(state.prefs.sketchRubber) ? state.prefs.sketchRubber : ERASERS[0];
   let erasing = false;
 
   const toolsHtml = () => `
@@ -11743,10 +11756,20 @@ function openSketchDialog(boardId, cardId) {
                 aria-pressed="${!erasing && ink === name ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.ink.${name}`))}"
                 title="${escapeHtml(t(`ideas.ink.${name}`))}"></button>`).join('')}
       <span class="sketch-tools__gap"></span>
-      ${PENS.map((size) => `
-        <button type="button" class="swatch swatch--pen ${pen === size ? 'swatch--on' : ''}" data-pen="${size}"
-                aria-pressed="${pen === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.pen.${size}`))}"
-                title="${escapeHtml(t(`ideas.pen.${size}`))}"><span style="width:${4 + size / 2}px;height:${4 + size / 2}px"></span></button>`).join('')}
+      ${
+        // The three sizes are the pen's while drawing, the eraser's while
+        // rubbing out: a fine eraser takes off a corner, a broad one a whole
+        // scribble.
+        erasing
+          ? ERASERS.map((size, index) => `
+              <button type="button" class="swatch swatch--pen ${rubber === size ? 'swatch--on' : ''}" data-rubber="${size}"
+                      aria-pressed="${rubber === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.rubber.${index}`))}"
+                      title="${escapeHtml(t(`ideas.rubber.${index}`))}"><span class="swatch__rubber" style="width:${6 + index * 6}px;height:${6 + index * 6}px"></span></button>`).join('')
+          : PENS.map((size) => `
+              <button type="button" class="swatch swatch--pen ${pen === size ? 'swatch--on' : ''}" data-pen="${size}"
+                      aria-pressed="${pen === size ? 'true' : 'false'}" aria-label="${escapeHtml(t(`ideas.pen.${size}`))}"
+                      title="${escapeHtml(t(`ideas.pen.${size}`))}"><span style="width:${4 + size / 2}px;height:${4 + size / 2}px"></span></button>`).join('')
+      }
     </div>`;
 
   dialog.innerHTML = `
@@ -11759,10 +11782,7 @@ function openSketchDialog(boardId, cardId) {
         <input type="text" id="sketch-caption" value="${escapeHtml(card?.text || '')}"
                placeholder="${escapeHtml(t('ideas.captionPlaceholder'))}" />
       </label>
-      <div class="row">
-        <button type="submit" class="button button--primary">${escapeHtml(t('action.save'))}</button>
-        ${deleteCardButton(cardId)}
-      </div>
+      ${cardButtonsHtml(cardId)}
     </form>`;
 
   const pad = dialog.querySelector('#sketch-pad');
@@ -11797,6 +11817,10 @@ function openSketchDialog(boardId, cardId) {
       erasing = false;
       state.prefs = { ...state.prefs, sketchPen: pen };
       savePrefs(state.prefs);
+    } else if (button.dataset.rubber) {
+      rubber = Number(button.dataset.rubber);
+      state.prefs = { ...state.prefs, sketchRubber: rubber };
+      savePrefs(state.prefs);
     }
     refreshTools();
   });
@@ -11810,6 +11834,7 @@ function openSketchDialog(boardId, cardId) {
       pad.querySelector(`[data-stroke="${last.id}"]`)?.remove();
     } else {
       for (const id of last.ids) erased.delete(id);
+      for (const id of last.added) erased.add(id);
       pad.innerHTML = visible().map(strokeSvg).join('');
     }
   }
@@ -11826,12 +11851,19 @@ function openSketchDialog(boardId, cardId) {
 
   let current = null;
   let rubbed = null;
+  // Only what is under the eraser goes: a stroke it crosses is cut in two.
   const rub = (x, y) => {
     for (const stroke of visible()) {
-      if (strokeNear(stroke, x, y)) {
-        erased.add(stroke.id);
-        rubbed.push(stroke.id);
-        pad.querySelector(`[data-stroke="${stroke.id}"]`)?.remove();
+      const pieces = rubOut(stroke, x, y, rubber);
+      if (!pieces) continue;
+      erased.add(stroke.id);
+      rubbed.ids.push(stroke.id);
+      const node = pad.querySelector(`[data-stroke="${stroke.id}"]`);
+      node?.insertAdjacentHTML('afterend', pieces.map(strokeSvg).join(''));
+      node?.remove();
+      for (const piece of pieces) {
+        drawn.push(piece);
+        rubbed.added.push(piece.id);
       }
     }
   };
@@ -11841,7 +11873,7 @@ function openSketchDialog(boardId, cardId) {
     pad.setPointerCapture?.(event.pointerId);
     const [x, y] = toFrame(event);
     if (erasing) {
-      rubbed = [];
+      rubbed = { ids: [], added: [] };
       rub(x, y);
       return;
     }
@@ -11867,7 +11899,7 @@ function openSketchDialog(boardId, cardId) {
 
   const finish = () => {
     if (rubbed) {
-      if (rubbed.length) history.push({ type: 'erase', ids: rubbed });
+      if (rubbed.ids.length) history.push({ type: 'erase', ...rubbed });
       rubbed = null;
       return;
     }
@@ -11882,34 +11914,28 @@ function openSketchDialog(boardId, cardId) {
   pad.addEventListener('pointerup', finish);
   pad.addEventListener('pointercancel', finish);
 
-  let dropped = false;
-  dialog.querySelector('[data-card-delete]')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    if (!(await ask(t('ideas.confirmDeleteCard'), { confirmLabel: t('action.delete'), danger: true }))) return;
-    dropped = true;
-    dialog.close();
-  });
-
   const caption = dialog.querySelector('#sketch-caption');
-  dialog.addEventListener('close', () => {
-    finish();
-    if (dropped) {
-      const board = getBoard(boardId);
-      if (board) replaceBoard(removeCard(board, cardId));
-      return;
-    }
-    const kept = drawn.filter((stroke) => !erased.has(stroke.id));
-    const text = caption.value.trim();
-    if (!cardId && !kept.length && !text) {
+  const captionBefore = card?.text || '';
+  bindCardButtons(dialog, {
+    changed: () => history.length > 0 || caption.value.trim() !== captionBefore.trim(),
+    leave: (outcome) => {
+      finish();
+      if (outcome === 'drop') {
+        const board = getBoard(boardId);
+        if (board) replaceBoard(removeCard(board, cardId));
+        return;
+      }
+      const kept = drawn.filter((stroke) => !erased.has(stroke.id));
+      const text = caption.value.trim();
+      if (outcome === 'save' && (cardId || kept.length || text)) {
+        commitCard(boardId, cardId, 'sketch', (board, id) => {
+          let next = addStrokes(board, id, kept);
+          next = eraseStrokes(next, id, [...erased]);
+          return editCardText(next, id, text);
+        });
+      }
       render();
-      return;
-    }
-    commitCard(boardId, cardId, 'sketch', (board, id) => {
-      let next = addStrokes(board, id, kept);
-      next = eraseStrokes(next, id, [...erased]);
-      return editCardText(next, id, text);
-    });
-    render();
+    },
   });
 
   dialog.showModal();
@@ -12049,6 +12075,7 @@ function newGameView() {
                  placeholder="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}"
                  aria-label="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}" />
           <button type="button" class="button button--small button--ghost" data-remove-name="${index}"
+                  aria-label="${escapeHtml(t('lists.dropPerson'))}" title="${escapeHtml(t('lists.dropPerson'))}"
                   ${names.length <= min ? 'disabled' : ''}>✕</button>
         </div>`,
     )
@@ -12058,7 +12085,7 @@ function newGameView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('new.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     <form id="new-game" class="card stack">
@@ -12290,7 +12317,7 @@ function gameView(game) {
         <h1>${escapeHtml(gameTitle(game))}</h1>
         <p class="muted small">${escapeHtml(preset ? presetLabel(preset) : '')} · ${escapeHtml(t('home.rounds', { count: game.rounds.length }))}</p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     ${inGroupHtml(game)}
@@ -14200,6 +14227,7 @@ function offerMeInForms() {
   state.newListPeople = withMeFirst(state.newListPeople, myName());
   state.newPollPeople = withMeFirst(state.newPollPeople, myName());
   state.newEventPeople = withMeFirst(state.newEventPeople, myName());
+  state.newSpendPeople = withMeFirst(state.newSpendPeople, myName());
   // Games are left to newGameView: only there is it known whether this preset
   // is played by people or by teams.
   state.newGameTouched = false;
@@ -15110,6 +15138,9 @@ const state = {
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
+  // The screens walked through to get here, oldest first, without loops: what
+  // "Back" returns to. See followTrail().
+  trail: [],
   // The new-list form's draft, kept across re-renders like the new-game one:
   // adding a person must not throw away the lines already typed.
   newListName: '',
@@ -15290,15 +15321,20 @@ const FLASH_KEPT = 4000;
 /* ----------------------------------------------------------------- router --- */
 
 function route() {
-  const hash = location.hash.replace(/^#\/?/, '');
+  return routeOf(location.hash);
+}
+
+/** What an address opens, without going there. */
+function routeOf(address) {
+  const hash = address.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'games') return { name: 'home' };
   // An invitation link carries both the six digits and the group's name, so
   // the person who receives it has nothing to read out and nothing to type.
   // A return link: a person's own token, which hands this browser a key.
-  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(location.hash) };
+  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(address) };
   if (name === 'join' && param) {
-    const invitation = joinFrom(location.hash);
+    const invitation = joinFrom(address);
     if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
     // Half a link is still half a link: whichever of the two survived is kept,
     // and the page asks for the other rather than for both.
@@ -15376,6 +15412,40 @@ function navigate(hash) {
   else location.hash = hash;
 }
 
+/** The address of the screen on show, spelled one way. */
+function hereHash() {
+  return location.hash && location.hash !== '#' ? location.hash : '#/';
+}
+
+/**
+ * Note the screen just reached. Reaching the one before is going back: it is
+ * taken off, so "Back" never bounces between two screens. Any other screen goes
+ * on top, and leaves the place it had lower down.
+ */
+function followTrail() {
+  const here = hereHash();
+  const trail = state.trail;
+  if (trail[trail.length - 1] === here) return;
+  if (trail[trail.length - 2] === here) state.trail = trail.slice(0, -1);
+  else state.trail = [...trail.filter((hash) => hash !== here), here].slice(-50);
+}
+
+/**
+ * Where "Back" goes: the screen one came from — the group's page for a list
+ * opened there, the person's for a poll opened from it — and the usual place
+ * when there is none (a link just opened). A form already filled in is not
+ * somewhere to go back to.
+ */
+function backTarget(fallback) {
+  const here = hereHash();
+  for (let index = state.trail.length - 1; index >= 0; index -= 1) {
+    const hash = state.trail[index];
+    if (hash === here || /^#\/(lists|polls|spends|agenda|ideas)\/new$|^#\/new$/.test(hash)) continue;
+    return hash;
+  }
+  return fallback;
+}
+
 /* ------------------------------------------------------------------ views --- */
 
 function flashHtml() {
@@ -15410,7 +15480,7 @@ function groupChipsHtml() {
   const counted = active === OUTSIDE_GROUPS
     ? groupCounts({
         lists: shownDocs(state.lists), polls: shownDocs(state.polls),
-        games: shownDocs(state.games), spends: shownDocs(state.spends),
+        games: shownDocs(state.games), spends: shownDocs(state.spends), boards: shownDocs(state.boards),
       })
     : groupCounts(state, active);
   const chip = (id, label) => `
@@ -15424,7 +15494,19 @@ function groupChipsHtml() {
       ${held.map((group) => chip(group.id, group.name)).join('')}
       ${outside || active === OUTSIDE_GROUPS ? chip(OUTSIDE_GROUPS, t('filter.others')) : ''}
     </div>
-    <p class="muted small">${escapeHtml(t('overview.counts', counted))}</p>`;
+    <p class="muted small">${escapeHtml(countsText(counted))}</p>`;
+}
+
+/**
+ * What is going on, kind by kind, in the order of the tabs — leaving out the
+ * kinds with nothing: « 1 liste · 2 parties », not five numbers, three of
+ * them nought.
+ */
+function countsText(counts) {
+  const said = ['lists', 'polls', 'games', 'spends', 'boards']
+    .filter((kind) => counts[kind])
+    .map((kind) => t(`count.${kind}`, { count: counts[kind] }));
+  return said.length ? said.join(' · ') : t('count.none');
 }
 
 function gameCardHtml(game) {
@@ -15862,6 +15944,7 @@ function groupBoardHtml(group) {
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
         ${tile(counts.spends, t('tab.spends'), '#/spends')}
+        ${tile(counts.boards, t('tab.ideas'), '#/ideas')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -15943,23 +16026,23 @@ function groupView(group) {
 
   const sections = [
     section(t('events.coming'), events, eventCardHtml, '#/agenda'),
-    section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
-    section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
-    section(t('home.ongoing'), games, gameCardHtml, '#/games'),
-    section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
-    section(t('ideas.boards'), boards, boardCardHtml, '#/ideas'),
+    section(t('tab.lists'), lists, listCardHtml, '#/lists'),
+    section(t('tab.polls'), polls, pollCardHtml, '#/polls'),
+    section(t('tab.games'), games, gameCardHtml, '#/games'),
+    section(t('tab.spends'), spends, spendCardHtml, '#/spends'),
+    section(t('tab.ideas'), boards, boardCardHtml, '#/ideas'),
   ].join('');
 
   return `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(group.name)}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/groups">
+      <button type="button" class="button button--small button--ghost" data-goto="#/groups" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
     <p class="muted small">
-      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(t('overview.counts', counts))}
+      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(countsText(counts))}
     </p>
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
@@ -16745,7 +16828,7 @@ function backView(token) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('back.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -16880,7 +16963,7 @@ function joinView(invitation) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -16967,7 +17050,7 @@ function waitingView(knock) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('gate.waitingTitle', { name: knock.groupName }))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -17357,7 +17440,7 @@ function homeView() {
     }
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         ongoing.length
           ? `<div class="game-list">${ongoing.map(swipeable(gameCardHtml)).join('')}</div>`
@@ -17396,7 +17479,7 @@ function personView(who) {
   const head = (title, tail) => `
     <div class="spread">
       ${title}
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -17545,7 +17628,7 @@ function statsView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('stats.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
     ${groupChipsHtml()}
 
@@ -17984,7 +18067,7 @@ function render() {
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
-    node.addEventListener('click', () => navigate(node.dataset.goto));
+    node.addEventListener('click', () => navigate('back' in node.dataset ? backTarget(node.dataset.goto) : node.dataset.goto));
   });
   view.querySelectorAll('[data-create-menu]').forEach((node) => {
     node.addEventListener('click', openCreateMenu);
@@ -18066,15 +18149,23 @@ function adoptGame(stored) {
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
+  const tabOf = (at) => {
+    if (['agenda', 'new-event'].includes(at.name)) return 'agenda';
+    if (['groups', 'group', 'person', 'join', 'back'].includes(at.name)) return 'groups';
+    if (at.name === 'settings') return 'settings';
+    return 'home';
+  };
+  // A document's page stays under the tab it was opened from: a poll opened
+  // from Home does not light up Agenda. Opened from a link, it goes where it
+  // is listed.
+  const document_ = ['list', 'poll', 'spend', 'board', 'game', 'person'].includes(current.name);
+  const from = document_ ? backTarget(null) : null;
   const poll = current.name === 'poll' ? getPoll(current.id) : null;
-  const inAgenda = ['agenda', 'new-event'].includes(current.name) || (poll && pollHome(poll) === '#/agenda');
-  const here = inAgenda
-    ? 'agenda'
-    : ['groups', 'group', 'person', 'join', 'back'].includes(current.name)
-      ? 'groups'
-      : current.name === 'settings'
-        ? 'settings'
-        : 'home';
+  const here = from
+    ? tabOf(routeOf(from))
+    : poll && pollHome(poll) === '#/agenda'
+      ? 'agenda'
+      : tabOf(current);
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -18201,7 +18292,9 @@ setLanguage(state.prefs.lang || detectLanguage());
 applyStaticText();
 applyTheme();
 bindChrome();
+followTrail();
 window.addEventListener('hashchange', () => {
+  followTrail();
   state.editingRoundId = null;
   state.listFilter = null;
   // A message already read belongs to the screen it was read on. One that has

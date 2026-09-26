@@ -437,14 +437,14 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
  */
 .tiles {
   display: grid;
-  /* 72px au minimum : à quatre cases sur un écran de 320, elles passent à la
+  /* 56px au minimum : à cinq cases sur un écran de 320, elles passent à la
      ligne plutôt que de rogner « Sondages » au milieu d'un mot. */
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
   gap: 8px;
 }
 
 .tile {
-  padding: 8px 4px;
+  padding: 8px 2px;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -457,7 +457,7 @@ button.tile { cursor: pointer; }
 button.tile:hover { background: var(--accent-soft); }
 
 .tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
-.tile__label { display: block; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.tile__label { display: block; color: var(--muted); font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* One line of someone's file: what it is on the left, where it stands on the right. */
 .entries { display: flex; flex-direction: column; }
@@ -572,6 +572,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 .score-row__name { font-weight: 600; overflow-wrap: anywhere; }
 .score-row input { text-align: right; font-variant-numeric: tabular-nums; }
+/* A name is read from the left, like every other name field in the app. */
+.score-row input[data-name-index] { text-align: left; font-variant-numeric: normal; }
 
 .sum-line {
   display: flex;
@@ -1384,6 +1386,7 @@ body:not(.solo) .view {
 
 .swatch--pen { background: var(--surface); }
 .swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
+.swatch--pen .swatch__rubber { background: transparent; border: 2px solid var(--text); }
 .swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 
 /* A card or a line that slides left to uncover « Supprimer » (src/swipe.js). */

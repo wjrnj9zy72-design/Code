@@ -618,6 +618,7 @@ export function offerMeInForms() {
   state.newListPeople = withMeFirst(state.newListPeople, myName());
   state.newPollPeople = withMeFirst(state.newPollPeople, myName());
   state.newEventPeople = withMeFirst(state.newEventPeople, myName());
+  state.newSpendPeople = withMeFirst(state.newSpendPeople, myName());
   // Games are left to newGameView: only there is it known whether this preset
   // is played by people or by teams.
   state.newGameTouched = false;

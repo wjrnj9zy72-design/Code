@@ -244,12 +244,21 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   événement, une partie ou un compte, depuis n'importe quelle page ; il dit
   dans quel groupe la chose ira (modifiable sur le formulaire).
 - L'onglet **Groupes** ouvre sur un bloc par groupe : combien de listes, de
-  sondages, de parties et de comptes y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
+  sondages, de parties, de comptes et de tableaux d'idées y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
   correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
   (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
-  vient, les listes, les sondages, les parties, les comptes à solder — avec
-  « Tout voir » vers l'onglet, déjà réglé sur ce groupe. Repliée en bas :
+  vient, les listes, les sondages, les parties, les comptes à solder, les
+  idées — chaque section titrée par sa sorte, avec « Tout voir » vers
+  l'onglet, déjà réglé sur ce groupe. Repliée en bas :
   « Voir qui doit quoi », les prénoms de ce groupe et ce qui les attend.
+- **Retour** ramène là d'où l'on vient : une liste ouverte depuis la page d'un
+  groupe revient à cette page, un sondage ouvert depuis l'Accueil revient à
+  l'Accueil, et l'onglet allumé reste celui d'où l'on est parti. Ouverte par un
+  lien, une page revient à sa place habituelle. Un formulaire déjà rempli
+  n'est jamais une étape du retour.
+- Partout, le même ordre : dans « Plus d'actions », *Renommer*, *Signer*,
+  *Modèle*, *Ranger*, puis *Supprimer* ; sur les formulaires, le choix du
+  groupe juste avant le bouton (le compte de dépenses aussi, désormais).
 - L'Accueil et l'Agenda portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages
@@ -301,12 +310,16 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
 - **Des cartes, pas une grande page** : deux personnes qui écrivent en même
   temps ne s'écrasent pas, chacune ajoute les siennes. La plus récente vient en
   premier.
-- **Une note**, c'est du texte libre : une idée, une adresse, un lien. Ce qui
-  est tapé est gardé à la fermeture, quelle qu'elle soit ; une note laissée
-  vide n'est pas créée.
+- **Une note**, c'est du texte libre : une idée, une adresse, un lien. Une
+  note laissée vide n'est pas créée.
+- **Enregistrer ou Annuler**, pour une note comme pour un croquis : seul
+  *Enregistrer* garde ce qui a été fait. *Annuler* (ou Échap) repart sans
+  rien changer — après avoir demandé, si quelque chose serait perdu.
 - **Un croquis** se dessine au doigt ou à la souris : cinq couleurs (l'encre
   suit le thème, foncée en clair, claire en sombre), trois épaisseurs, une
-  gomme qui efface le trait qu'elle touche, *Annuler*, et une légende.
+  gomme en trois tailles qui n'efface que ce qu'elle touche (un trait
+  traversé est coupé en deux, le reste ne bouge pas), *Défaire*, et une
+  légende.
 - **Gardé en traits, pas en image** : chaque trait est une suite de points
   (allégée des points inutiles) dans un cadre fixe de 1000 × 750. C'est léger
   pour la base, net sur tous les écrans, et deux personnes qui dessinent sur
@@ -462,6 +475,20 @@ tests/navigateur/lancer.sh polltest   # une suite seulement
 tests/sql/verifier.sh                 # le SQL du guide sur un vrai PostgreSQL
 tests/sql/verifier.sh --depuis <commit>   # la mise à jour d'une base plus ancienne
 ```
+
+Parmi les suites du navigateur, **`audit`** fait le tour de tous les écrans
+avec les règles que chacun doit suivre, pour que les incohérences se trouvent
+là plutôt qu'à l'usage : aucune erreur ni texte cassé (clé de traduction brute,
+« undefined »), rien qui déborde sur un petit téléphone, aucun mot français
+dans l'app en anglais, un titre et un « Retour » hors des onglets, « Retour »
+qui ramène d'où l'on vient ; chaque formulaire avec le choix du groupe juste
+avant son bouton et mon prénom en premier ; chaque document avec un bouton
+pour partager, son groupe dit, et « Plus d'actions » de *Renommer* à
+*Supprimer* ; chaque carte d'onglet supprimable d'un glissement ; et chaque
+fenêtre qu'un bouton ouvre, avec une façon visible d'en sortir — et en sortir
+sans valider (Échap) ne doit rien avoir enregistré. Un écran ou une fenêtre
+ajouté plus tard est vérifié de la même façon, en ajoutant sa route à
+`routesOf`.
 
 La première installe Playwright hors du projet si besoin et utilise le Chromium
 de l'environnement (`/opt/pw-browsers/chromium`) ; la seconde demande

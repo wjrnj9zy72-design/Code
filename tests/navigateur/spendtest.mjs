@@ -119,8 +119,8 @@ check('et Alice n’en paie rien', /doit 57,00/.test(await balance('Alice')), aw
 /* ---- 5. ce que le compte refuse ------------------------------------------ */
 
 await page.click('#spend-people');
-await page.waitForSelector('dialog[open] [data-drop]');
-await page.locator('dialog[open] .knock', { hasText: 'Alice' }).locator('[data-drop]').click();
+await page.waitForSelector('dialog[open] [data-remove]');
+await page.locator('dialog[open] .knock', { hasText: 'Alice' }).locator('[data-remove]').click();
 await page.waitForSelector('.banner', { timeout: 15000 });
 check('on ne retire pas quelqu’un qui a avancé de l’argent',
   /a avancé de l’argent/.test(await page.locator('.banner').first().textContent()),
@@ -146,7 +146,7 @@ check('et rien n’a été ajouté', (await page.locator('.line').count()) === 3
 await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 const tiles = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
-check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1', tiles.join(','));
+check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1,0', tiles.join(','));
 
 await page.evaluate(() => { location.hash = '#/person/Bob'; });
 await page.waitForSelector('.who');

@@ -48,9 +48,10 @@ RPC `security definer` ; la table n'est jamais exposée.
 
 1. `node tools/bundle.js` — sinon les tests « committed build is up to date » échouent.
 2. `npm test` (node --test, ~280 tests, quelques secondes).
-3. Si l'écran change : `tests/navigateur/lancer.sh <suites>` (Playwright contre
-   une fausse base, `tests/navigateur/fausse-base.mjs`, à tenir à jour avec le
-   SQL). Toutes les suites : ~10 min.
+3. Si l'écran change : `tests/navigateur/lancer.sh audit <suites>` (Playwright
+   contre une fausse base, `tests/navigateur/fausse-base.mjs`, à tenir à jour
+   avec le SQL). `audit` vérifie les règles communes à tous les écrans (voir
+   README → Tests) ; un nouvel écran s'ajoute à ses routes. Toutes : ~15 min.
 4. Si le SQL change : `tests/sql/verifier.sh` (base neuve) et
    `tests/sql/verifier.sh --depuis <commit d'avant>` (mise à jour d'une base
    existante, passée deux fois). Il faut PostgreSQL (`apt-get install -y postgresql`).

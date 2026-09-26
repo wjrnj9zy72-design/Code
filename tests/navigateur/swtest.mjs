@@ -40,6 +40,10 @@ await page.waitForFunction(
   () => /v9-essai/.test(document.querySelector('meta[name="app-version"]')?.content || ''),
   null, { timeout: 30000 },
 ).catch(() => {});
+// The new version shows as soon as the page is parsed; the load that counts
+// the reload comes a moment later, later still on a busy machine.
+await page.waitForLoadState('load');
+await page.waitForTimeout(300);
 const nowVersion = await page.evaluate(
   () => document.querySelector('meta[name="app-version"]')?.content,
 );
