@@ -1463,3 +1463,10 @@ body:not(.solo) .view {
 .relate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .relate-list__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chain-map__wait { flex: none; }
+
+/* What linked things bring: offers as chips, one tap each. */
+.flows .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Held for its menu: no callout, no selection, a hint that it is held. */
+.pressable { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.pressable--held { transition: transform .5s ease; transform: scale(.97); }
+.doc-menu .button { width: 100%; justify-content: center; }

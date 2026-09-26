@@ -20,7 +20,7 @@
 
 const VERSION = 'v10';
 /** Written by tools/bundle.js from the sources: it moves whenever they do. */
-const BUILD = '5a2e04a9';
+const BUILD = 'cc22c77d';
 const CACHE = `marque-points-${VERSION}-${BUILD}`;
 
 const SHELL = [
@@ -38,6 +38,7 @@ const SHELL = [
   './src/view-ideas.js',
   './src/view-games.js',
   './src/view-groups.js',
+  './src/view-flows.js',
   './src/games.js',
   './src/model.js',
   './src/scoring.js',
@@ -50,6 +51,7 @@ const SHELL = [
   './src/stamp.js',
   './src/people.js',
   './src/dashboard.js',
+  './src/flows.js',
   './src/ics.js',
   './src/lists.js',
   './src/polls.js',

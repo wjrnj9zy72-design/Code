@@ -261,6 +261,40 @@ Un seul côté garde le lien (`links` : `{ id, kind }`, `kind` valant `with`,
 `after` ou `before`) ; l'autre le retrouve, comme un parent retrouve ses
 enfants. Le plus récent l'emporte à la fusion. Rien ne change dans la base.
 
+### Ce que les éléments liés font l'un pour l'autre
+
+Un lien ne fait pas que renvoyer ailleurs : deux éléments liés se servent,
+d'une touche, sans rien faire tout seuls (deux téléphones le feraient deux fois).
+
+- **Idées → liste** : sur une liste liée à un tableau d'idées, les idées
+  s'affichent en pastilles ; une touche en fait une ligne.
+- **Idées → sondage** : sur un tableau d'au moins deux idées, **Faire voter ces
+  idées** crée un sondage dont les choix sont les idées, qui vient après le
+  tableau, au même endroit de la chaîne.
+- **Sondage clos → liste** : ce qu'il a choisi (égalités comprises) est
+  proposé à la liste liée, sur la liste comme sur le sondage.
+- **Liste → compte** : les lignes cochées d'une liste liée à un compte sont
+  proposées au compte ; on tape le montant, on choisit qui a payé (celui à qui
+  la ligne était confiée, d'office ; il entre dans le compte s'il n'y est pas),
+  et la dépense est pour tout le monde.
+- **Événement → listes et comptes** : l'événement dit qui vient et manque dans
+  les listes et comptes de sa chaîne ; **Mettre à jour les personnes** les y
+  ajoute. On n'y retire personne.
+- **Accueil → Débloqué** : ce qui attendait d'autres éléments, tous faits
+  depuis moins d'une semaine.
+
+Chaque ligne ou dépense née ainsi porte `from : { doc, part }` (d'où elle
+vient), pour ne jamais être proposée deux fois. Logique pure dans
+`src/flows.js`, écrans dans `src/view-flows.js`.
+
+### L'appui long
+
+Tenir un demi-seconde n'importe quoi qui ouvre un élément — une carte, une
+ligne de l'Accueil, un élément du plan de la chaîne — ouvre son menu :
+**Ouvrir**, **Rattacher…**, **Lier à…**, **Ranger**, **Supprimer**. Un clic
+droit fait de même sur ordinateur. Bouger le doigt (défiler, glisser pour
+supprimer) l'annule.
+
 Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
 l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il
 s'ouvre sur la même page, sans rien à voter (en coulisse : un sondage déjà

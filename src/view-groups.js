@@ -658,6 +658,8 @@ export async function copyToGroup(id) {
     // What it hung from stays in the other group, with the original.
     event: null,
     parent: null,
+    // Nor what it was linked to: all of that stays with the original.
+    links: [],
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,

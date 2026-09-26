@@ -73,6 +73,7 @@ import {
   setGroupFilter, setMyName, shownDocs, verifyGroups, bindDocSwipes, bindEventChips, chooseEvent,
   openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
+import { bindFlows, unblockedHtml } from './view-flows.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
@@ -1346,6 +1347,8 @@ function overviewView() {
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
     ${eventsHtml()}
+
+    ${unblockedHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('forYou.title'))}</h2></div>
@@ -3214,6 +3217,7 @@ export function render() {
     node.addEventListener('click', openCreateMenu);
   });
   bindEventChips(view);
+  bindFlows(view);
   view.querySelectorAll('[data-attach-doc]').forEach((node) => {
     node.addEventListener('click', () => {
       const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
