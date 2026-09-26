@@ -454,7 +454,8 @@ src/config.js     l'adresse de cette base, à remplir pour activer le partage
 tools/check-remote.js  vérifie que la base est correctement configurée
 docs/DEPLOIEMENT.md    mise en ligne pas à pas
 src/i18n.js       traductions fr / en
-src/app.js        routeur, vues et interactions
+src/app.js        routeur, accueil, agenda, pages des personnes
+src/view-*.js     un écran chacun : sondages, listes, comptes, parties, groupes
 tools/serve.js    serveur statique de développement
 tools/bundle.js   construction du fichier unique autonome
 dist/             le fichier unique, livré dans le dépôt

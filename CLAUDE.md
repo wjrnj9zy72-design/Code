@@ -18,8 +18,9 @@ base).
   a été essayé et retiré.
 - Si la fonction d'agenda change (`supabase/functions/agenda/index.ts`), le dire :
   elle se recolle dans Supabase → Edge Functions (JWT désactivé).
-- Sobriété : sessions courtes, une par chantier ; ne pas relire tout `src/app.js`
-  (≈ 8 000 lignes) — chercher avec grep et lire des extraits.
+- Sobriété : sessions courtes, une par chantier ; ne pas relire en entier
+  `src/app.js` ni les `src/view-*.js` (≈ 1 000 à 3 000 lignes chacun) —
+  chercher avec grep et lire des extraits.
 
 ## Le projet
 
@@ -29,8 +30,10 @@ App web installable (PWA), sans dépendance ni framework : modules ES dans
 facultative : Supabase (supabase.com), appelée uniquement par des fonctions
 RPC `security definer` ; la table n'est jamais exposée.
 
-- `src/app.js` : écrans et comportement ; `src/i18n.js` : tous les textes (FR et
-  EN, ajouter les deux) ; `src/remote.js` : appels à la base ; `polls.js`,
+- `src/app.js` : routeur, accueil, agenda, personnes ; `src/view-*.js` : un
+  écran chacun (sondages, listes, comptes, parties, groupes), qui rappellent
+  `app.js` depuis leurs fonctions seulement ; `src/i18n.js` : tous les textes
+  (FR et EN, ajouter les deux ; pluriel : `{count|ligne|lignes}`) ; `src/remote.js` : appels à la base ; `polls.js`,
   `lists.js`, `spends.js`, `model.js` (parties) : la logique pure, testée.
 - `tools/bundle.js` construit `dist/*.html` et `supabase/functions/agenda/index.ts`,
   et tamponne `sw.js`/`index.html`. Liste explicite `MODULES` : un nouveau module
