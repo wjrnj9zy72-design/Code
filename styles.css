@@ -1454,3 +1454,12 @@ body:not(.solo) .view {
 .chain-map__node--here { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; cursor: default; }
 .chain-map__title { overflow: hidden; text-overflow: ellipsis; }
 .chain-map__icon { flex: none; }
+/* The links across the chain, under its tree: each says how it binds this
+   page to another — goes with, waits for, unblocks. */
+.chain-map__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.chain-map__links li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chain-map__links .pill { flex: none; }
+.chain-map__waiting { font-weight: 600; }
+.relate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.relate-list__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chain-map__wait { flex: none; }

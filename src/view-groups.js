@@ -23,7 +23,9 @@ import { uid } from './model.js';
 import { inAppBrowser } from './helpers.js';
 import { progress } from './lists.js';
 import { withMeFirst } from './people.js';
-import { inGroup, upcomingEvents, attach, attachTargets, isEventDoc, kindOf, parentId } from './dashboard.js';
+import {
+  inGroup, upcomingEvents, attach, attachTargets, isEventDoc, kindOf, parentId, relationsOf, linkTargets, linkTo, unlinkFrom,
+} from './dashboard.js';
 import { eventName } from './ics.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { bindSwipes } from './swipe.js';
@@ -137,6 +139,78 @@ export function openGatherDialog(target) {
       flash(t('chain.gathered', { name: documentTitle(one), target: chainLabel(target) }));
     });
   });
+  dialog.showModal();
+}
+
+/**
+ * Link a document to another, across the chain: what goes with it, what must
+ * be done before it, what comes after. The links it has already come first,
+ * each with a way to undo it; then the way to link, then with what.
+ */
+export function openRelateDialog(document_) {
+  const dialog = makeDialog();
+  let kind = 'with';
+  const draw = () => {
+    const all = everything();
+    const relations = relationsOf(document_, all);
+    const targets = linkTargets(document_, all, kind);
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('relate.title', { name: documentTitle(document_) }))}</h2>
+        <p class="muted small">${escapeHtml(t('relate.hint'))}</p>
+        ${
+          relations.length
+            ? `<span class="muted small">${escapeHtml(t('relate.current'))}</span>
+               <ul class="relate-list">${relations.map((one) => `
+                 <li class="relate-list__row">
+                   <span><span class="pill">${escapeHtml(t(`relate.${one.kind}`))}</span> ${escapeHtml(chainLabel(one.document))}</span>
+                   <button type="button" class="button button--small button--ghost" data-unrelate="${escapeHtml(one.document.id)}">${escapeHtml(t('relate.undo'))}</button>
+                 </li>`).join('')}</ul>`
+            : ''
+        }
+        <span class="muted small">${escapeHtml(t('relate.how'))}</span>
+        <div class="row row--tight" role="group" aria-label="${escapeHtml(t('relate.how'))}">${['with', 'after', 'before'].map((one) => `
+          <button type="button" class="chip ${one === kind ? 'chip--on' : ''}" data-relate-kind="${one}"
+                  aria-pressed="${one === kind ? 'true' : 'false'}">${escapeHtml(t(`relate.kind.${one}`))}</button>`).join('')}
+        </div>
+        <span class="muted small">${escapeHtml(t('relate.pick'))}</span>
+        ${targets.length ? candidatesHtml(targets, { attr: 'data-relate-to' }) : `<p class="muted small">${escapeHtml(t('relate.nothing'))}</p>`}
+        <div class="row">
+          <button type="button" class="button button--ghost" data-relate-close>${escapeHtml(t('action.close'))}</button>
+        </div>
+      </div>`;
+    dialog.querySelector('[data-relate-close]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-relate-kind]').forEach((node) => {
+      node.addEventListener('click', () => {
+        kind = node.dataset.relateKind;
+        draw();
+      });
+    });
+    dialog.querySelectorAll('[data-relate-to]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const target = targets.find((one) => one.id === node.dataset.relateTo);
+        dialog.close();
+        if (!target) return;
+        const fresh = everything().find((one) => one.id === document_.id) || document_;
+        replaceAny(linkTo(fresh, target.id, kind));
+        flash(t('relate.done', { name: chainLabel(target) }));
+      });
+    });
+    dialog.querySelectorAll('[data-unrelate]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const one = relations.find((relation) => relation.document.id === node.dataset.unrelate);
+        if (!one) return;
+        // Either side may hold it — both, even, if two phones linked them at once.
+        for (const [holder, other] of [[document_.id, one.document.id], [one.document.id, document_.id]]) {
+          const held = everything().find((doc) => doc.id === holder);
+          if (held && (held.links || []).some((link) => link?.id === other)) replaceAny(unlinkFrom(held, other));
+        }
+        flash(t('relate.undone', { name: chainLabel(one.document) }));
+        draw();
+      });
+    });
+  };
+  draw();
   dialog.showModal();
 }
 
