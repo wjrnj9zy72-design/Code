@@ -146,7 +146,7 @@ check('et rien n’a été ajouté', (await page.locator('.line').count()) === 3
 await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 const tiles = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
-check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1', tiles.join(','));
+check('le bloc du groupe compte les comptes', tiles.join(',') === '0,0,0,1,0', tiles.join(','));
 
 await page.evaluate(() => { location.hash = '#/person/Bob'; });
 await page.waitForSelector('.who');

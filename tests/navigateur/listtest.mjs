@@ -128,7 +128,10 @@ await page.waitForFunction((was) => location.hash !== was, beforeReuse, { timeou
 await page.waitForSelector('.lines', { timeout: 10000 });
 check('« Reprendre » repart d’une liste décochée',
   (await page.locator('.line--done').count()) === 0 && (await page.locator('.line').count()) === 4);
-await page.click('[data-goto="#/lists"]');
+await page.click('#view [data-back]');
+await page.waitForFunction((was) => location.hash === was, beforeReuse, { timeout: 10000 });
+check('Retour ramène à la liste d’où l’on est parti', true);
+await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/lists"]');
 await page.waitForSelector('.game-card');
 check('et les deux listes sont là', (await page.locator('.game-card').count()) === 2,
   String(await page.locator('.game-card').count()));
