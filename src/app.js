@@ -454,6 +454,12 @@ function pollView(poll, { solo = false } = {}) {
 
     ${guest ? '' : inGroupHtml(poll)}
 
+    ${guest ? '' : shareBarHtml(`
+      ${state.remote ? `<button type="button" class="button button--primary" id="poll-share">${escapeHtml(t(fixed ? 'events.share' : 'polls.share'))}</button>` : ''}
+      ${state.remote && !fixed && !closed && answered < poll.people.length && poll.options.length
+        ? `<button type="button" class="button" id="poll-nudge">${escapeHtml(t('polls.nudge'))}</button>`
+        : ''}`)}
+
     ${
       poll.people.length && !fixed
         ? `<div class="row">
@@ -541,15 +547,8 @@ function pollView(poll, { solo = false } = {}) {
       ${dateCardHtml(poll, fixed)}
     </details>`}
 
-    ${guest ? '' : `<section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
-      <div class="row">
+    ${guest ? '' : actionsHtml(`
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
-        ${
-          state.remote
-            ? `<button type="button" class="button button--small" id="poll-share">${escapeHtml(t(fixed ? 'events.share' : 'polls.share'))}</button>`
-            : ''
-        }
         <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
         ${
           fixed
@@ -558,14 +557,36 @@ function pollView(poll, { solo = false } = {}) {
                  ${escapeHtml(closed ? t('polls.reopen') : t('polls.close'))}
                </button>`
         }
+`, `
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
-        <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>
-      </div>
-    </section>`}`;
+        <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
+}
+
+/**
+ * Sharing is what a document is made for here, so it has a row of its own
+ * under the title, not a place among nine buttons at the bottom.
+ */
+function shareBarHtml(buttons) {
+  return buttons.trim() ? `<div class="row share-bar">${buttons}</div>` : '';
+}
+
+/**
+ * A document's other actions: the everyday ones in sight, the rare ones —
+ * archive, rename, sign, delete — folded under « Plus d’actions ».
+ */
+function actionsHtml(everyday, rare) {
+  return `
+    <section class="section actions">
+      <div class="row">${everyday}</div>
+      <details class="details actions__more">
+        <summary>${escapeHtml(t('actions.more'))}</summary>
+        <div class="row">${rare}</div>
+      </details>
+    </section>`;
 }
 
 /** The day an event is on, as its organiser sets it by hand. */
@@ -1102,6 +1123,24 @@ function bindPoll(poll) {
     navigate(pollHome(poll));
   });
 
+  // Nobody is told a poll waits for them unless someone says so: the
+  // organiser sends a reminder naming who has not answered, with the link.
+  view.querySelector('#poll-nudge')?.addEventListener('click', async (event) => {
+    let current = poll;
+    if (!current.shared) {
+      event.currentTarget.disabled = true;
+      current = await startSharing(current);
+      if (!current) return;
+      replacePoll(current);
+    }
+    showCopyDialog({
+      title: t('polls.nudge'),
+      hint: t('polls.nudgeHint'),
+      text: nudgeText(current, pollLink(location, current.id)),
+      send: true,
+    });
+  });
+
   view.querySelector('#poll-share')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     let current = poll;
@@ -1332,6 +1371,14 @@ function openSignatureDialog(document_, save) {
 }
 
 /** The poll as text, to paste into a message. */
+/** The reminder: the question, who has not answered yet, and the link. */
+function nudgeText(poll, link) {
+  const silent = poll.people
+    .filter((person) => !poll.options.some((option) => voteOf(poll, person.id, option.id)))
+    .map((person) => person.name);
+  return t('polls.nudgeText', { question: pollTitle(poll), names: silent.join(', '), count: silent.length, link });
+}
+
 function pollText(poll) {
   const { rows } = tally(poll);
   const line = (row) =>
@@ -1662,6 +1709,8 @@ function listView(list) {
 
     ${inGroupHtml(list)}
 
+    ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="list-share">${escapeHtml(t('lists.share'))}</button>`) : ''}
+
     <form id="add-line" class="card stack stack--tight">
       <label class="visually-hidden" for="new-line">${escapeHtml(t('lists.addLine'))}</label>
       <div class="row row--tight">
@@ -1688,27 +1737,20 @@ function listView(list) {
         : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
     }
 
-    <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
-      <div class="row">
+    ${actionsHtml(`
         ${
           list.people.length
             ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
             : ''
         }
         <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
-        ${
-          state.remote
-            ? `<button type="button" class="button button--small" id="list-share">${escapeHtml(t('lists.share'))}</button>`
-            : ''
-        }
         <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           done
             ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
             : ''
         }
-        <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>
+        <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>
@@ -1717,9 +1759,7 @@ function listView(list) {
         </button>
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
-        <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>
-      </div>
-    </section>`;
+        <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
 /**
@@ -2306,26 +2346,19 @@ function spendView(spend) {
 
     ${inGroupHtml(spend)}
 
+    ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="spend-share">${escapeHtml(t('spends.share'))}</button>`) : ''}
+
     ${segmented}
 
     ${spendTab === 'balances' ? balancesTab : expensesTab}
 
-    <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.data'))}</h2></div>
-      <div class="row">
-        <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>
-        ${
-          state.remote
-            ? `<button type="button" class="button button--small" id="spend-share">${escapeHtml(t('spends.share'))}</button>`
-            : ''
-        }
+    ${actionsHtml(`
+        <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>
-      </div>
-    </section>`;
+        <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
 function bindNewSpend() {
@@ -5277,6 +5310,8 @@ function gameView(game) {
 
     ${inGroupHtml(game)}
 
+    ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="share">${escapeHtml(t('action.share'))}</button>`) : ''}
+
     ${winnerBanner}
 
     <section class="section card">
@@ -5308,9 +5343,12 @@ function gameView(game) {
 
     ${roundFormHtml(game)}
 
-    <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('results.title'))}</h2></div>
-      <div class="row">
+    ${actionsHtml(`
+        ${
+          game.rounds.length
+            ? `<button type="button" class="button button--small" id="undo">${escapeHtml(t('action.undo'))}</button>`
+            : ''
+        }
         <button type="button" class="button button--small" id="recap">${escapeHtml(t('action.recap'))}</button>
         ${
           EXPORT_MODE === 'download'
@@ -5319,29 +5357,14 @@ function gameView(game) {
             : ''
         }
         <button type="button" class="button button--small" id="replay">${escapeHtml(t('action.replay'))}</button>
+        <button type="button" class="button button--small" id="toggle-finish">
+          ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
+        </button>`, `
+        <button type="button" class="button button--small button--ghost" id="rename">${escapeHtml(t('action.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="game-archive">
           ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-      </div>
-    </section>
-
-    <section class="row">
-      ${
-        game.rounds.length
-          ? `<button type="button" class="button button--small" id="undo">${escapeHtml(t('action.undo'))}</button>`
-          : ''
-      }
-      ${
-        state.remote
-          ? `<button type="button" class="button button--small" id="share">${escapeHtml(t('action.share'))}</button>`
-          : ''
-      }
-      <button type="button" class="button button--small" id="rename">${escapeHtml(t('action.rename'))}</button>
-      <button type="button" class="button button--small" id="toggle-finish">
-        ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
-      </button>
-      <button type="button" class="button button--small button--danger" id="delete-game">${escapeHtml(t('action.delete'))}</button>
-    </section>
+        <button type="button" class="button button--small button--danger" id="delete-game">${escapeHtml(t('action.delete'))}</button>`)}
 
     ${preset ? `<p class="notes">${escapeHtml(t(preset.notesKey))}</p>` : ''}`;
 }

@@ -573,6 +573,10 @@ export const STRINGS = {
     'polls.confirmDelete': 'Supprimer ce sondage ? Il disparaîtra aussi pour les personnes avec qui il est partagé.',
     'polls.rename': 'Modifier la question',
     'polls.share': 'Partager le sondage',
+    'polls.nudge': 'Relancer',
+    'polls.nudgeHint': 'Un message prêt à envoyer à ceux qui n’ont pas encore répondu.',
+    'polls.nudgeText': '{question}\n{count|Il manque encore la réponse de|Il manque encore les réponses de} {names}. Cochez ce qui vous va ici : {link}',
+    'actions.more': 'Plus d’actions',
     'polls.shareTitle': 'Lien vers ce sondage',
     'polls.shareHint':
       'Scannez le code, ou envoyez le lien : la personne répond de son côté, et le compte se met à jour ici.',
@@ -1369,6 +1373,10 @@ export const STRINGS = {
     'polls.confirmDelete': 'Delete this poll? It will go for the people it is shared with too.',
     'polls.rename': 'Edit the question',
     'polls.share': 'Share the poll',
+    'polls.nudge': 'Remind',
+    'polls.nudgeHint': 'A message ready to send to those who have not answered yet.',
+    'polls.nudgeText': '{question}\nStill waiting for {names}. Tick what suits you here: {link}',
+    'actions.more': 'More actions',
     'polls.shareTitle': 'Link to this poll',
     'polls.shareHint':
       'Scan the code, or send the link: they answer on their side, and the count updates here.',

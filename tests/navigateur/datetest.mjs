@@ -160,7 +160,8 @@ check('le sondage aussi', /Alix/.test(await page.locator('#view').textContent())
 
 await openTab('lists');
 await page.click('.game-card');
-await page.waitForSelector('#list-archive');
+await page.waitForSelector('#list-archive', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-archive');
 await page.waitForFunction(() => location.hash === '#/lists');
 // Attendre l'onglet redessiné, pas seulement l'adresse changée : compter avant,
@@ -183,7 +184,8 @@ check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,
 await openTab('lists');
 await page.click('details.details summary');
 await page.click('details.details .game-card');
-await page.waitForSelector('#list-archive');
+await page.waitForSelector('#list-archive', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-archive');
 await page.waitForFunction(() => location.hash === '#/list/' || location.hash.startsWith('#/list/'));
 await openTab('lists');
@@ -194,7 +196,8 @@ check('et elle ressort entière',
 /* ---- 5. les modèles ------------------------------------------------------ */
 
 await page.click('.game-card');
-await page.waitForSelector('#list-template');
+await page.waitForSelector('#list-template', { state: 'attached' });
+await page.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await page.click('#list-template');
 await page.waitForSelector('.banner');
 check('une liste se garde comme modèle',

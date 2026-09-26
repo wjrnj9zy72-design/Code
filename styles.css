@@ -1254,3 +1254,13 @@ body:not(.solo) .view {
   cursor: pointer;
 }
 .group-link span { white-space: nowrap; }
+
+/* Sharing, under a document's title: the one action it is made for. */
+.share-bar > .button { flex: 1 1 auto; }
+
+/* A document's rare actions, folded away until asked for. */
+.actions__more { margin-top: 10px; }
+.actions__more > .row { margin-top: 8px; }
+
+/* Picking a day for a poll's choices, under the box of choices. */
+.add-day { max-width: 16em; }

@@ -53,6 +53,7 @@ await paul.waitForTimeout(800);
 check('Paul vote', (await db('marque_points_get', { p_id: pollId })).includes('"yes"'));
 
 // --- Gui le supprime
+await gui.evaluate(() => document.querySelectorAll('.actions__more').forEach((d) => { d.open = true; }));
 await gui.click('#poll-delete');
 await gui.locator('dialog[open] button', { hasText: 'Supprimer' }).first().click();
 await gui.waitForTimeout(800);
