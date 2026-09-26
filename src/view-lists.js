@@ -19,6 +19,7 @@ import {
   hiddenByGroupHtml, inGroupHtml, keyFor, landing, myName, organiserSecret, resetGroupChoice,
   shownDocs, startSharing, willBeInHtml,
 } from './view-groups.js';
+import { listFlowsHtml } from './view-flows.js';
 import { recentNames } from './model.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList, addListPerson,
@@ -280,6 +281,8 @@ export function listView(list) {
         <button type="submit" class="button button--primary">+</button>
       </div>
     </form>
+
+    ${listFlowsHtml(list)}
 
     ${
       list.people.length

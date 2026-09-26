@@ -21,6 +21,7 @@ import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
   organise, organiserSecret, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
 } from './view-groups.js';
+import { eventFlowsHtml, pollFlowsHtml } from './view-flows.js';
 import { recentNames } from './model.js';
 import { sameName } from './stats.js';
 import { icsFor, pollEvent, eventName } from './ics.js';
@@ -279,6 +280,8 @@ export function pollView(poll, { solo = false } = {}) {
 
     ${guest ? '' : eventLinkHtml(poll)}
 
+    ${guest ? '' : pollFlowsHtml(poll)}
+
     ${guest ? '' : inGroupHtml(poll)}
 
     ${guest ? '' : shareBarHtml(`
@@ -518,6 +521,7 @@ function eventHtml(poll, { guest }) {
       ${kind(t('tab.games'), parts.games, gameCardHtml)}
       ${kind(t('tab.spends'), parts.spends, spendCardHtml)}
       ${kind(t('tab.ideas'), parts.boards, boardCardHtml)}
+      ${guest ? '' : eventFlowsHtml(poll)}
       ${
         guest
           ? ''

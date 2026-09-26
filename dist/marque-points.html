@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="5a2e04a9" />
+    <meta name="app-build" content="cc22c77d" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1482,6 +1482,13 @@ body:not(.solo) .view {
 .relate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .relate-list__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chain-map__wait { flex: none; }
+
+/* What linked things bring: offers as chips, one tap each. */
+.flows .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Held for its menu: no callout, no selection, a hint that it is held. */
+.pressable { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.pressable--held { transition: transform .5s ease; transform: scale(.97); }
+.doc-menu .button { width: 100%; justify-content: center; }
     </style>
   </head>
   <body>
@@ -1780,6 +1787,31 @@ const STRINGS = {
     'relate.isDone': 'fait',
     'relate.notDone': 'pas encore fait',
     'relate.waiting': '⏳ Attend « {name} »',
+    'flows.title': 'Ce que les éléments liés apportent',
+    'flows.ideasFrom': 'Idées de « {name} » : touchez pour les ajouter',
+    'flows.chosenIn': 'Choisi dans « {name} »',
+    'flows.toAccount': 'Cochées, pas encore dans « {name} »',
+    'flows.intoList': 'Ajouter le choix à « {name} »',
+    'flows.added': '« {name} » ajouté à « {list} ».',
+    'flows.spendTitle': 'Dépense : {name}',
+    'flows.amount': 'Montant',
+    'flows.paidBy': 'Payé par',
+    'flows.spendHint': 'Écrite dans « {name} », pour tout le monde.',
+    'flows.spendAdd': 'Ajouter la dépense',
+    'flows.spent': '« {name} » écrit dans « {account} ».',
+    'flows.vote': 'Faire voter ces idées',
+    'flows.voteTitle': 'Faire voter ces idées',
+    'flows.voteHint': 'Un sondage dont les choix sont les idées du tableau. La question :',
+    'flows.voteMake': 'Créer le sondage',
+    'flows.voteMade': 'Sondage créé avec les idées du tableau.',
+    'flows.missing': '{names} : pas encore dans « {name} ».',
+    'flows.people': 'Mettre à jour les personnes',
+    'flows.peopleDone': '{count} {count|élément mis à jour|éléments mis à jour}.',
+    'flows.unblocked': 'Débloqué',
+    'flows.freedBy': 'Fait : {names}',
+    'menu.open': 'Ouvrir',
+    'menu.archived': '« {name} » rangé.',
+    'menu.unarchived': '« {name} » ressorti.',
     'event.tagUndated': 'Pour {name}',
     'event.addTo': 'Ajouter à « {name} »',
     'event.addToHint': 'Dans le groupe de l’événement, avec les personnes qui viennent.',
@@ -2711,6 +2743,31 @@ const STRINGS = {
     'relate.isDone': 'done',
     'relate.notDone': 'not done yet',
     'relate.waiting': '⏳ Waits for “{name}”',
+    'flows.title': 'What linked things bring',
+    'flows.ideasFrom': 'Ideas from “{name}”: tap to add them',
+    'flows.chosenIn': 'Chosen in “{name}”',
+    'flows.toAccount': 'Ticked, not yet in “{name}”',
+    'flows.intoList': 'Add the choice to “{name}”',
+    'flows.added': '“{name}” added to “{list}”.',
+    'flows.spendTitle': 'Expense: {name}',
+    'flows.amount': 'Amount',
+    'flows.paidBy': 'Paid by',
+    'flows.spendHint': 'Written in “{name}”, for everyone.',
+    'flows.spendAdd': 'Add the expense',
+    'flows.spent': '“{name}” written in “{account}”.',
+    'flows.vote': 'Vote on these ideas',
+    'flows.voteTitle': 'Vote on these ideas',
+    'flows.voteHint': 'A poll whose choices are the board’s ideas. The question:',
+    'flows.voteMake': 'Create the poll',
+    'flows.voteMade': 'Poll created with the board’s ideas.',
+    'flows.missing': '{names}: not yet in “{name}”.',
+    'flows.people': 'Update the people',
+    'flows.peopleDone': '{count} {count|thing updated|things updated}.',
+    'flows.unblocked': 'Unblocked',
+    'flows.freedBy': 'Done: {names}',
+    'menu.open': 'Open',
+    'menu.archived': '“{name}” put away.',
+    'menu.unarchived': '“{name}” brought back.',
     'event.tagUndated': 'For {name}',
     'event.addTo': 'Add to “{name}”',
     'event.addToHint': 'In the event’s group, with the people coming.',
@@ -7102,6 +7159,183 @@ function stepOf(document_, all, seen = new Set()) {
   return 1 + Math.max(...before.map((one) => stepOf(one.document, all, path)));
 }
 
+  // ---- src/flows.js ----------------------------------------------------
+/**
+ * What linked things do for each other. A link says two things belong
+ * together; these are the ways one feeds the other, each a tap:
+ *
+ * - a board's ideas become lines of the list it goes with;
+ * - a board's ideas become the choices of a poll, to vote on them;
+ * - what a closed poll chose becomes a line of the list it goes with;
+ * - a line ticked becomes an expense of the account it goes with;
+ * - whoever joins an event comes into its lists and accounts.
+ *
+ * What came from where is written on what it made — `from: { doc, part }` on
+ * a line or an expense — so nothing is offered twice. Nothing happens by
+ * itself: two phones doing it at once would do it twice.
+ *
+ * Pure, like the models.
+ */
+
+
+
+
+
+
+
+
+
+/** The things of one kind a document is linked to, whichever way. */
+function related(document_, all, kind) {
+  return relationsOf(document_, all)
+    .map((one) => one.document)
+    .filter((one) => kindOf(one) === kind && !isEventDoc(one));
+}
+
+/** A text on one line, as a line of a list or a choice of a poll holds it. */
+function oneLine(text) {
+  return String(text || '').split('\n').map((part) => part.trim()).filter(Boolean).join(' — ');
+}
+
+/** Whether something in `rows` came from that part of that document. */
+function cameFrom(rows, docId, partId) {
+  return (rows || []).some((row) => row.from?.doc === docId && row.from?.part === partId);
+}
+
+/** Put a mark on the last row a model added: where it came from. */
+function markLast(document_, field, from) {
+  const rows = document_[field];
+  const last = rows[rows.length - 1];
+  return touch(document_, { [field]: [...rows.slice(0, -1), { ...last, from }] });
+}
+
+/* ------------------------------------------------------ ideas → a list --- */
+
+/** A board's ideas, as a list may take them: those with words, and whether taken. */
+function ideasFor(list, board) {
+  return cardsInOrder(board)
+    .map((card) => ({ card, text: oneLine(card.text), added: cameFrom(list.items, board.id, card.id) }))
+    .filter((one) => one.text);
+}
+
+/** Make an idea a line of the list. */
+function addIdea(list, board, card) {
+  const text = oneLine(card.text);
+  if (!text || cameFrom(list.items, board.id, card.id)) return list;
+  const next = addItems(list, text);
+  return next === list ? list : markLast(next, 'items', { doc: board.id, part: card.id });
+}
+
+/* ------------------------------------------------------ ideas → a poll --- */
+
+/**
+ * A poll whose choices are a board's ideas, to vote on them. It comes after
+ * the board, in the same group and the same place in the chain.
+ */
+function pollFromIdeas(board, { question = '', names = [] } = {}) {
+  const texts = [...new Set(cardsInOrder(board).map((card) => oneLine(card.text)).filter(Boolean))];
+  const poll = addOptions(
+    createPoll({ question: question || board.name, names, shared: Boolean(board.shared), groupId: board.groupId || null }),
+    texts.join('\n'),
+  );
+  return {
+    ...poll,
+    parent: parentId(board),
+    links: [{ id: board.id, kind: 'after' }],
+    ...(board.linkOnly ? { linkOnly: true } : {}),
+  };
+}
+
+/* ------------------------------------------------- a poll's choice → a list --- */
+
+/** What a closed poll chose: the choices ahead, ties and all. Nothing while open. */
+function winnersOf(poll) {
+  if (!poll?.closedAt || isEventDoc(poll)) return [];
+  const { leaders } = tally(poll);
+  return poll.options.filter((option) => leaders.includes(option.id));
+}
+
+/** What a closed poll chose, as a list may take it, and whether taken. */
+function winnerOffers(poll, list) {
+  return winnersOf(poll).map((option) => ({ option, added: cameFrom(list.items, poll.id, option.id) }));
+}
+
+/** Make what the poll chose a line of the list. */
+function addWinner(list, poll, option) {
+  const text = oneLine(option.text);
+  if (!text || cameFrom(list.items, poll.id, option.id)) return list;
+  const next = addItems(list, text);
+  return next === list ? list : markLast(next, 'items', { doc: poll.id, part: option.id });
+}
+
+/* -------------------------------------------------- a line → an account --- */
+
+/** The lines of a list already written in an account. */
+function spentItems(spend, list) {
+  return new Set((spend.lines || []).filter((line) => line.from?.doc === list.id).map((line) => line.from.part));
+}
+
+/**
+ * Write a line of a list as an expense: its text, the amount given, paid by
+ * whoever the line was for — found by name, brought into the account if it
+ * does not have them — and shared by everyone.
+ */
+function spendFromLine(spend, list, item, amount, byName = null) {
+  if (spentItems(spend, list).has(item.id)) return spend;
+  const name = String(byName || list.people.find((person) => person.id === item.who)?.name || '').trim();
+  let next = spend;
+  let payer = name ? next.people.find((person) => sameName(person.name) === sameName(name)) : null;
+  if (name && !payer) {
+    next = addPerson(next, name);
+    payer = next.people[next.people.length - 1];
+  }
+  const added = addSpend(next, { text: oneLine(item.text), amount, by: payer?.id || null });
+  if (added === next) return spend;
+  return markLast(added, 'lines', { doc: list.id, part: item.id });
+}
+
+/* ------------------------------------------------------- what is freed --- */
+
+/**
+ * What has just been unblocked: things not done yet, that waited for others
+ * which are now all done — the last of them lately (`days`). Each with what
+ * freed it, newest first.
+ */
+function unblockedNow(all, { today = dayNow(), now = Date.now(), days = 7 } = {}) {
+  const since = now - days * 864e5;
+  const found = [];
+  for (const document_ of all) {
+    if (!isLive(document_) || isDone(document_, today) === true) continue;
+    const waited = relationsOf(document_, all).filter((one) => one.kind === 'waits').map((one) => one.document);
+    const done = waited.filter((one) => isDone(one, today) !== null);
+    if (!done.length || done.some((one) => !isDone(one, today))) continue;
+    const at = Math.max(...done.map((one) => one.closedAt || one.updatedAt || 0));
+    if (at >= since) found.push({ document: document_, by: done, at });
+  }
+  return found.sort((a, b) => b.at - a.at);
+}
+
+/* ------------------------------------------------ an event's people → all --- */
+
+/** The lists and accounts under an event that miss some of who is coming. */
+function missingGoers(event, all) {
+  const coming = goers(event).map((name) => String(name || '').trim()).filter(Boolean);
+  return descendantsOf(event, all)
+    .filter((one) => isLive(one) && ['list', 'spend'].includes(kindOf(one)))
+    .map((one) => ({
+      document: one,
+      names: coming.filter((name) => !(one.people || []).some((person) => sameName(person.name) === sameName(name))),
+    }))
+    .filter((one) => one.names.length);
+}
+
+/** Bring people into a list or an account. Nobody is taken out. */
+function addGoers(document_, names) {
+  return names.reduce((next, name) => (
+    next.people.some((person) => sameName(person.name) === sameName(name)) ? next : addPerson(next, name)
+  ), document_);
+}
+
   // ---- src/ics.js ------------------------------------------------------
 /**
  * The calendar file: what the app has settled, in the one format every
@@ -8763,6 +8997,7 @@ function bindSwipes(kind, onDelete) {
 
 
 
+
 /* ------------------------------------------------------------------ polls --- */
 
 /**
@@ -9001,6 +9236,8 @@ function pollView(poll, { solo = false } = {}) {
     </div>
 
     ${guest ? '' : eventLinkHtml(poll)}
+
+    ${guest ? '' : pollFlowsHtml(poll)}
 
     ${guest ? '' : inGroupHtml(poll)}
 
@@ -9241,6 +9478,7 @@ function eventHtml(poll, { guest }) {
       ${kind(t('tab.games'), parts.games, gameCardHtml)}
       ${kind(t('tab.spends'), parts.spends, spendCardHtml)}
       ${kind(t('tab.ideas'), parts.boards, boardCardHtml)}
+      ${guest ? '' : eventFlowsHtml(poll)}
       ${
         guest
           ? ''
@@ -10079,6 +10317,7 @@ function watchSpend(id) {
 
 
 
+
 /* ------------------------------------------------------------------ lists --- */
 
 /**
@@ -10327,6 +10566,8 @@ function listView(list) {
         <button type="submit" class="button button--primary">+</button>
       </div>
     </form>
+
+    ${listFlowsHtml(list)}
 
     ${
       list.people.length
@@ -11928,6 +12169,7 @@ function openSpendPeopleDialog(spend) {
 
 
 
+
 function boardTitle(board) {
   return board.name || t('ideas.untitled');
 }
@@ -12108,7 +12350,7 @@ function boardView(board) {
 
     ${attachedHtml(board)}
 
-    ${actionsHtml('', `
+    ${actionsHtml(boardFlowsHtml(board), `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
@@ -14816,6 +15058,8 @@ async function copyToGroup(id) {
     // What it hung from stays in the other group, with the original.
     event: null,
     parent: null,
+    // Nor what it was linked to: all of that stays with the original.
+    links: [],
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,
@@ -15886,8 +16130,381 @@ function bindData() {
   });
 }
 
+  // ---- src/view-flows.js -----------------------------------------------
+/**
+ * What linked things do for each other, on screen: on a list, the ideas and
+ * the poll's choice waiting to come in, and the lines ticked that the account
+ * has not seen; on a board, the way to vote on its ideas; on a closed poll,
+ * its choice for the list; on an event, who is coming and missing from its
+ * lists and accounts; on Home, what has just been unblocked. And the long
+ * press, on anything that opens a document, for what is done to it.
+ *
+ * Calls back into app.js and the other views only from inside functions.
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/** One document by id, whatever its kind. */
+function byId(id) {
+  return everything().find((one) => one.id === id) || null;
+}
+
+/** A block of offers: a title, then a row of buttons. */
+function offersHtml(title, buttons) {
+  return buttons.length
+    ? `<div class="stack stack--tight">
+         <span class="muted small">${escapeHtml(title)}</span>
+         <div class="row row--tight">${buttons.join('')}</div>
+       </div>`
+    : '';
+}
+
+function offerButton(attr, value, label) {
+  return `<button type="button" class="chip" ${attr}="${escapeHtml(value)}">+ ${escapeHtml(label)}</button>`;
+}
+
+/* ---------------------------------------------------------------- a list --- */
+
+/**
+ * On a list, what the things it is linked to offer: ideas from a board, what
+ * a closed poll chose, and — to an account — the lines ticked and not yet
+ * written there.
+ */
+function listFlowsHtml(list) {
+  const all = everything();
+  const blocks = [];
+  for (const board of related(list, all, 'board')) {
+    const offers = ideasFor(list, board).filter((one) => !one.added).slice(0, 12);
+    blocks.push(offersHtml(t('flows.ideasFrom', { name: documentTitle(board) }),
+      offers.map((one) => offerButton('data-flow-idea', `${board.id}|${one.card.id}`, one.text))));
+  }
+  for (const poll of related(list, all, 'poll')) {
+    const offers = winnerOffers(poll, list).filter((one) => !one.added);
+    blocks.push(offersHtml(t('flows.chosenIn', { name: documentTitle(poll) }),
+      offers.map((one) => offerButton('data-flow-winner', `${poll.id}|${one.option.id}`, one.option.text))));
+  }
+  for (const spend of related(list, all, 'spend')) {
+    const spent = spentItems(spend, list);
+    const ticked = list.items.filter((item) => item.done && !spent.has(item.id)).slice(0, 12);
+    blocks.push(offersHtml(t('flows.toAccount', { name: documentTitle(spend) }),
+      ticked.map((item) => `<button type="button" class="chip" data-flow-spend="${escapeHtml(`${spend.id}|${item.id}`)}">💶 ${escapeHtml(item.text)}</button>`)));
+  }
+  const shown = blocks.filter(Boolean);
+  return shown.length
+    ? `<section class="card stack flows" data-flows-for="${escapeHtml(list.id)}" aria-label="${escapeHtml(t('flows.title'))}">${shown.join('')}</section>`
+    : '';
+}
+
+/** Write a ticked line in the account: how much, and who paid. */
+function openSpendDialog(spend, list, item) {
+  const given = list.people.find((person) => person.id === item.who)?.name || '';
+  const names = [...new Set([given, ...spend.people.map((person) => person.name), ...list.people.map((person) => person.name)]
+    .map((name) => String(name || '').trim()).filter(Boolean))];
+  let payer = given || myName() || names[0] || '';
+  const dialog = makeDialog();
+  const draw = () => {
+    dialog.innerHTML = `
+      <form class="stack" method="dialog">
+        <h2>${escapeHtml(t('flows.spendTitle', { name: item.text }))}</h2>
+        <label class="stack stack--tight">
+          <span class="small">${escapeHtml(t('flows.amount'))}</span>
+          <input type="text" inputmode="decimal" id="flow-amount" autocomplete="off" />
+        </label>
+        ${
+          names.length
+            ? `<span class="small">${escapeHtml(t('flows.paidBy'))}</span>
+               <div class="row row--tight" role="group">${names.map((name) => `
+                 <button type="button" class="chip ${name === payer ? 'chip--on' : ''}" data-flow-payer="${escapeHtml(name)}"
+                         aria-pressed="${name === payer ? 'true' : 'false'}">${escapeHtml(name)}</button>`).join('')}
+               </div>`
+            : ''
+        }
+        <p class="muted small">${escapeHtml(t('flows.spendHint', { name: documentTitle(spend) }))}</p>
+        <div class="row">
+          <button type="submit" class="button button--primary" id="flow-spend-ok">${escapeHtml(t('flows.spendAdd'))}</button>
+          <button type="button" class="button" data-flow-cancel>${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </form>`;
+    dialog.querySelector('[data-flow-cancel]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-flow-payer]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const amount = dialog.querySelector('#flow-amount').value;
+        payer = node.dataset.flowPayer;
+        draw();
+        dialog.querySelector('#flow-amount').value = amount;
+      });
+    });
+    dialog.querySelector('form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const cents = readAmount(dialog.querySelector('#flow-amount').value);
+      if (!cents) {
+        dialog.querySelector('#flow-amount').focus();
+        return;
+      }
+      const fresh = byId(spend.id) || spend;
+      const next = spendFromLine(fresh, byId(list.id) || list, item, cents, payer);
+      dialog.close();
+      if (next === fresh) return;
+      flash(t('flows.spent', { name: item.text, account: documentTitle(spend) }));
+      replaceAny(next);
+    });
+  };
+  draw();
+  dialog.showModal();
+  dialog.querySelector('#flow-amount').focus();
+}
+
+/* ---------------------------------------------------------------- a board --- */
+
+/** On a board with ideas, the way to vote on them. */
+function boardFlowsHtml(board) {
+  if (ideasFor({ items: [] }, board).length < 2) return '';
+  return `<button type="button" class="button button--small" data-flow-vote="${escapeHtml(board.id)}">🗳️ ${escapeHtml(t('flows.vote'))}</button>`;
+}
+
+async function voteOnIdeas(board) {
+  const question = await askForText({
+    title: t('flows.voteTitle'),
+    hint: t('flows.voteHint'),
+    value: documentTitle(board),
+    confirmLabel: t('flows.voteMake'),
+  });
+  if (question === null || question === undefined) return;
+  const poll = signed(organise(pollFromIdeas(board, { question, names: [myName()].filter(Boolean) })));
+  state.polls = [...state.polls, poll];
+  persistPoll(poll);
+  flash(t('flows.voteMade'));
+  navigate(`#/poll/${poll.id}`);
+}
+
+/* ----------------------------------------------------------------- a poll --- */
+
+/** On a closed poll, its choice for the lists it goes with. */
+function pollFlowsHtml(poll) {
+  if (!winnersOf(poll).length) return '';
+  const blocks = related(poll, everything(), 'list').map((list) => offersHtml(
+    t('flows.intoList', { name: documentTitle(list) }),
+    winnerOffers(poll, list).filter((one) => !one.added)
+      .map((one) => offerButton('data-flow-winner-to', `${list.id}|${one.option.id}`, one.option.text)),
+  )).filter(Boolean);
+  return blocks.length
+    ? `<section class="card stack flows" data-flows-for="${escapeHtml(poll.id)}" aria-label="${escapeHtml(t('flows.title'))}">${blocks.join('')}</section>`
+    : '';
+}
+
+/* ---------------------------------------------------------------- an event --- */
+
+/** On an event, who is coming and missing from its lists and accounts. */
+function eventFlowsHtml(event) {
+  const missing = missingGoers(event, everything());
+  if (!missing.length) return '';
+  return `
+    <div class="card stack stack--tight flows">
+      ${missing.map((one) => `<p class="small">${escapeHtml(t('flows.missing', { names: one.names.join(', '), name: documentTitle(one.document) }))}</p>`).join('')}
+      <div class="row"><button type="button" class="button button--small" data-flow-people="${escapeHtml(event.id)}">${escapeHtml(t('flows.people'))}</button></div>
+    </div>`;
+}
+
+/* ------------------------------------------------------------------ Home --- */
+
+/** On Home, what has just been unblocked. */
+function unblockedHtml() {
+  const found = unblockedNow(shownDocs(everything())).slice(0, 5);
+  if (!found.length) return '';
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('flows.unblocked'))}</h2></div>
+      <div class="game-list">${found.map(({ document: one, by }) => `
+        <button type="button" class="game-card" data-goto="${escapeHtml(documentHref(one))}">
+          <span class="game-card__title">🔓 ${escapeHtml(documentTitle(one))}</span>
+          <span class="game-card__meta">${escapeHtml(t('flows.freedBy', { names: by.map(chainLabel).join(', ') }))}</span>
+        </button>`).join('')}
+      </div>
+    </section>`;
+}
+
+/* ------------------------------------------------------------ the binder --- */
+
+/** Every offer on the page, bound. Called after each render. */
+function bindFlows(root) {
+  const pair = (value) => String(value || '').split('|');
+  const current = (id) => byId(id);
+  const owner = (node) => current(node.closest('[data-flows-for]')?.dataset.flowsFor);
+  root.querySelectorAll('[data-flow-idea]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const [boardId, cardId] = pair(node.dataset.flowIdea);
+      const list = owner(node);
+      addFrom(list, boardId, (target, board) => addIdea(target, board, board.cards.find((card) => card.id === cardId)));
+    });
+  });
+  root.querySelectorAll('[data-flow-winner]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const [pollId, optionId] = pair(node.dataset.flowWinner);
+      const list = owner(node);
+      addFrom(list, pollId, (target, poll) => addWinner(target, poll, poll.options.find((option) => option.id === optionId)));
+    });
+  });
+  root.querySelectorAll('[data-flow-winner-to]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const [listId, optionId] = pair(node.dataset.flowWinnerTo);
+      const poll = owner(node);
+      if (!poll) return;
+      addFrom(current(listId), poll.id, (target, source) => addWinner(target, source, source.options.find((option) => option.id === optionId)));
+    });
+  });
+  root.querySelectorAll('[data-flow-spend]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const [spendId, itemId] = pair(node.dataset.flowSpend);
+      const list = owner(node);
+      const spend = current(spendId);
+      const item = list?.items.find((one) => one.id === itemId);
+      if (list && spend && item) openSpendDialog(spend, list, item);
+    });
+  });
+  root.querySelectorAll('[data-flow-vote]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const board = current(node.dataset.flowVote);
+      if (board) void voteOnIdeas(board);
+    });
+  });
+  root.querySelectorAll('[data-flow-people]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = current(node.dataset.flowPeople);
+      if (!event) return;
+      const missing = missingGoers(event, everything());
+      flash(t('flows.peopleDone', { count: missing.length }));
+      for (const one of missing) replaceAny(addGoers(one.document, one.names));
+    });
+  });
+  bindLongPress(root);
+}
+
+/** Add to a list from another document, and say so. */
+function addFrom(list, sourceId, make) {
+  const source = byId(sourceId);
+  if (!list || !source) return;
+  const next = make(list, source);
+  if (!next || next === list) return;
+  flash(t('flows.added', { name: next.items[next.items.length - 1].text, list: documentTitle(list) }));
+  replaceAny(next);
+}
+
+/* ------------------------------------------------------------ long press --- */
+
+const PRESS_MS = 500;
+const PRESS_SLOP = 10;
+
+/** Whatever opens a document's page, as the id of that document. */
+function pressedDocument(node) {
+  const match = /^#\/(list|poll|spend|game|idea)\/([^/]+)$/.exec(node.dataset.goto || '');
+  return match ? byId(match[2]) : null;
+}
+
+/**
+ * Hold anything that opens a document — a card, a line of Home, a node of the
+ * chain's tree — for its menu: open, attach, link, put away, delete. A right
+ * click does the same on a computer. Moving the finger, as a scroll or a
+ * swipe does, cancels it; once the menu is out, the tap that ends the press
+ * opens nothing.
+ */
+function bindLongPress(root) {
+  root.querySelectorAll('[data-goto]').forEach((node) => {
+    if (!pressedDocument(node) || node.dataset.pressBound) return;
+    node.dataset.pressBound = '1';
+    node.classList.add('pressable');
+    let timer = null;
+    let start = null;
+    let fired = false;
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = null;
+      node.classList.remove('pressable--held');
+    };
+    node.addEventListener('pointerdown', (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      fired = false;
+      start = { x: event.clientX, y: event.clientY };
+      node.classList.add('pressable--held');
+      timer = setTimeout(() => {
+        timer = null;
+        fired = true;
+        node.classList.remove('pressable--held');
+        const document_ = pressedDocument(node);
+        if (document_) openDocumentMenu(document_);
+      }, PRESS_MS);
+    });
+    node.addEventListener('pointermove', (event) => {
+      if (timer && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > PRESS_SLOP) cancel();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => node.addEventListener(type, cancel));
+    // Capture: the menu's press must not also open the page.
+    node.addEventListener('click', (event) => {
+      if (!fired) return;
+      fired = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+    node.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      cancel();
+      if (fired) return;
+      const document_ = pressedDocument(node);
+      if (document_) openDocumentMenu(document_);
+    });
+  });
+}
+
+const ARCHIVERS = { list: archiveList, poll: archivePoll, spend: archiveSpend, board: archiveBoard, game: archiveGame };
+
+/** What can be done to a document, from wherever it shows. */
+function openDocumentMenu(document_) {
+  const kind = kindOf(document_) || 'game';
+  const dialog = makeDialog('dialog dialog--ask');
+  const button = (attr, label, extra = '') => `<button type="button" class="button ${extra}" ${attr}>${escapeHtml(label)}</button>`;
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(chainLabel(document_))}</h2>
+      <div class="stack stack--tight doc-menu">
+        ${button('data-menu-open', t('menu.open'), 'button--primary')}
+        ${isEventDoc(document_) ? '' : button('data-menu-attach', t('chain.attach'))}
+        ${button('data-menu-relate', t('relate.button'))}
+        ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
+        ${button('data-menu-delete', t('action.delete'), 'button--danger')}
+        ${button('data-menu-cancel', t('action.cancel'), 'button--ghost')}
+      </div>
+    </div>`;
+  const on = (attr, run) => dialog.querySelector(`[${attr}]`)?.addEventListener('click', () => {
+    dialog.close();
+    run();
+  });
+  on('data-menu-open', () => navigate(documentHref(document_)));
+  on('data-menu-attach', () => openAttachDialog(byId(document_.id) || document_));
+  on('data-menu-relate', () => openRelateDialog(byId(document_.id) || document_));
+  on('data-menu-archive', () => {
+    const fresh = byId(document_.id) || document_;
+    flash(t(fresh.archivedAt ? 'menu.unarchived' : 'menu.archived', { name: documentTitle(fresh) }));
+    replaceAny(ARCHIVERS[kind](fresh, !fresh.archivedAt));
+    if (kind === 'game') render(); // a game's writer does not redraw
+  });
+  on('data-menu-delete', () => void deleteDocument(document_.id));
+  on('data-menu-cancel', () => {});
+  dialog.showModal();
+}
+
   // ---- src/app.js ------------------------------------------------------
 /** UI layer: hash router, views, event wiring. */
+
 
 
 
@@ -17191,6 +17808,8 @@ function overviewView() {
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
     ${eventsHtml()}
+
+    ${unblockedHtml()}
 
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('forYou.title'))}</h2></div>
@@ -19059,6 +19678,7 @@ function render() {
     node.addEventListener('click', openCreateMenu);
   });
   bindEventChips(view);
+  bindFlows(view);
   view.querySelectorAll('[data-attach-doc]').forEach((node) => {
     node.addEventListener('click', () => {
       const document_ = everything().find((one) => one.id === node.dataset.attachDoc);

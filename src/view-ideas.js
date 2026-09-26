@@ -18,6 +18,7 @@ import {
   askGroup, bindData, hiddenByGroupHtml, inGroupHtml, keyFor, landing, organiserSecret, resetGroupChoice,
   shownDocs, willBeInHtml,
 } from './view-groups.js';
+import { boardFlowsHtml } from './view-flows.js';
 import {
   createBoard, addCard, editCardText, addStrokes, eraseStrokes, removeCard, archiveBoard, cleanStroke, simplifyPoints,
   rubOut, strokePath, boardSize, cardsInOrder, mergeBoards, isValidBoard, INKS, PENS, ERASERS, SKETCH_WIDTH,
@@ -209,7 +210,7 @@ export function boardView(board) {
 
     ${attachedHtml(board)}
 
-    ${actionsHtml('', `
+    ${actionsHtml(boardFlowsHtml(board), `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
