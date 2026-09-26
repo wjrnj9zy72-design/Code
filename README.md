@@ -1,7 +1,7 @@
 # 🃏 Together
 
-Quatre onglets et un « + », une seule app. **Accueil** : ce qui vous attend,
-ce qui vient, ce qui est en cours — et, d'une rangée *Tout · Listes · Sondages
+Quatre onglets et un « + », une seule app. **Accueil** : les événements qui
+viennent, ce qui vous attend, ce qui est en cours — et, d'une rangée *Tout · Listes · Sondages
 · Parties · Comptes · Idées*, chaque sorte en entier : des **listes** à cocher
 et à répartir, des **sondages** pour trancher une date ou un choix, un compteur
 de points pour Papayoo et une vingtaine d'autres **parties**, des **comptes** de
@@ -174,13 +174,61 @@ heures où qu'on la lise.
 
 ## Ce que ça fait — l'événement
 
-Un sondage qui a retenu sa date devient **l'événement** : sous la date, son
-organisateur ouvre d'une touche **la liste de ce qu'on apporte** et **le compte
-des dépenses**. Tous deux prennent le nom de l'événement, son groupe, et les
-personnes dispo sur le choix qui l'a emporté (tout le monde s'il y a égalité).
-Le sondage montre ensuite où en sont la liste et le compte ; la liste et le
-compte ramènent au sondage. Rien de nouveau n'est stocké : la liste et le
-compte disent pour quel sondage ils ont été faits.
+L'événement est au centre : une raclette, un week-end, un anniversaire, et
+tout ce qu'on prépare pour lui.
+
+- **Il ouvre l'Accueil** : la section *Événements* montre les trois plus
+  proches, chacun avec où en est ce qui s'y rattache (« Ce qu'on apporte :
+  2 sur 5 · 120 € · 1 sondage »), les sondages qui cherchent encore un jour, et
+  *+ Nouvel événement*.
+- **Sa page rassemble tout** ce qui est fait pour lui, rangé par sorte :
+  listes, sondages, parties, comptes, idées. Le contenu vient d'abord, le
+  réglage de la date ensuite ; le jour s'affiche sous le titre.
+- **Deux raccourcis** pour ce que presque tout événement demande : *+ Liste de
+  ce qu'on apporte* et *+ Compte des dépenses*, qui prennent le nom de
+  l'événement, son groupe et les personnes dispo sur le choix qui l'a emporté
+  (tout le monde s'il y a égalité).
+- **+ Ajouter à l'événement** — ou le « + » d'en bas, sur la page d'un
+  événement — propose une liste, un sondage, une partie, un compte ou un
+  tableau d'idées, déjà rangés dans le groupe de l'événement et entre ceux qui
+  viennent. *Autre chose, hors de l'événement* rouvre le menu ordinaire.
+- **Chaque formulaire** (sauf celui d'un événement) demande *Pour un
+  événement ?* parmi ceux à venir. En choisir un choisit aussi son groupe : ce
+  qui est fait pour un événement vit où il vit. Changer de groupe ensuite
+  défait le lien.
+- **Partout, le fil** : une carte faite pour un événement le dit (« Pour
+  Raclette · 1 oct. »), sur l'Accueil aussi, et sa page ramène à l'événement.
+
+### La chaîne : tout se rattache
+
+Au-delà de l'événement, **tout élément se rattache à un autre**, comme une
+chaîne : une liste à l'événement, un sondage à cette liste (« quel vin ? »
+sous « Courses »), un tableau d'idées à ce sondage. L'événement reste
+au-dessus : il ne se rattache à rien.
+
+- **Plus d'actions → Rattacher…** sur n'importe quelle liste, sondage, compte,
+  partie ou tableau d'idées : les événements d'abord, puis les autres éléments,
+  seulement ceux du même groupe (ou gardés pour soi, comme lui). Jamais sous ce
+  qui est déjà en dessous de lui : la chaîne ne se referme pas.
+- **Détacher**, dans la même fenêtre, le libère — pour le rattacher ailleurs
+  plus tard. Ce qui lui était rattaché le reste.
+- **Rattacher un élément existant**, sur la page d'un événement : ce qui existe
+  déjà dans son groupe vient s'y ranger d'une touche.
+- **La chaîne se voit** : en tête de la page de tout élément qui en fait
+  partie, **le plan de toute la chaîne**, en arbre — l'événement en haut, puis
+  chaque élément sous celui auquel il est rattaché, relié par un trait, la page
+  où l'on est marquée « ici ». Chaque autre élément du plan ouvre sa page. Et
+  sur les cartes et les lignes
+  de l'Accueil (« Pour Raclette › Courses ») ; sous **Rattaché ici**, sur la page
+  de ce qui en porte d'autres. La page d'un événement montre toute sa chaîne,
+  même loin, rangée par sorte.
+- Pour un sondage, seul son organisateur le rattache ou le détache, comme il
+  est seul à en changer la question.
+
+Rien de nouveau n'est stocké pour l'événement ni pour la chaîne : chaque
+document dit ce à quoi il est rattaché (`parent`, l'identifiant de l'autre
+élément), et le plus récent l'emporte à la fusion, comme pour un titre. Les
+documents d'avant la chaîne disaient `event`, qui se lit de la même façon.
 
 Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
 l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il
@@ -236,7 +284,7 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   Ils répondent à une question — quoi, quand, avec qui — plutôt que de ranger
   par sorte ; les sortes sont la rangée du haut de l'Accueil, et leurs
   adresses (`#/lists`, `#/polls`, `#/games`, `#/spends`) marchent toujours.
-- **Pour vous**, en tête de l'Accueil : les sondages où votre prénom n'a pas
+- **Pour vous**, sous les événements, sur l'Accueil : les sondages où votre prénom n'a pas
   répondu, les lignes qui vous sont confiées (en retard d'abord), l'argent que
   vous devez, et les personnes qui frappent à la porte d'un groupe que vous
   ouvrez. Sans prénom (Réglages), l'Accueil le dit. Pile au

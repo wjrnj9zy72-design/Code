@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="89a1f517" />
+    <meta name="app-build" content="87ee7727" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -434,6 +434,10 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
 .game-card:hover { border-color: var(--accent); }
 .game-card__title { display: flex; align-items: center; gap: 8px; font-weight: 650; }
 .game-card__meta { color: var(--muted); font-size: 0.82rem; }
+/* The event a card belongs to: the thread that ties it to the rest. */
+.game-card__event { color: var(--accent); font-weight: 600; }
+.game-card--on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.event-when { margin: 2px 0 0; }
 
 .pill {
   display: inline-block;
@@ -1444,6 +1448,31 @@ body:not(.solo) .view {
 }
 
 .idea-hint { margin: -6px 0 16px; }
+
+/* The chain a document belongs to, as a tree, at the top of its page: each
+   level drawn with a line from the one it hangs from. */
+.chain-map { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; }
+.chain-map ul { list-style: none; margin: 0; padding: 0; }
+.chain-map ul ul { margin-left: 16px; }
+.chain-map ul ul > li { position: relative; padding-left: 18px; }
+/* The line down from the parent, and the branch across to this one; the last
+   child's line stops at its branch. */
+.chain-map ul ul > li::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid var(--border);
+}
+.chain-map ul ul > li:last-child::before { bottom: auto; height: 21px; }
+.chain-map ul ul > li::after {
+  content: ''; position: absolute; left: 0; top: 20px; width: 14px; border-top: 2px solid var(--border);
+}
+.chain-map__node {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%;
+  padding: 4px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.chain-map button.chain-map__node:hover { background: var(--surface-alt); }
+.chain-map__node--here { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; cursor: default; }
+.chain-map__title { overflow: hidden; text-overflow: ellipsis; }
+.chain-map__icon { flex: none; }
     </style>
   </head>
   <body>
@@ -1687,9 +1716,46 @@ const STRINGS = {
     'event.hint': 'Les personnes dispo pour le {day} y seront déjà.',
     'event.addList': '+ Liste de ce qu’on apporte',
     'event.addSpend': '+ Compte des dépenses',
-    'event.for': '↩ {name} — {day}',
-    'event.forUndated': '↩ {name}',
     'agenda.coming': 'Ce qui vient',
+    'agenda.dated': 'Lignes datées',
+    'events.title': 'Événements',
+    'events.seeAgenda': 'L’agenda',
+    'events.noneHome': 'Aucun événement prévu. Créez-en un, ou laissez un sondage retenir une date.',
+    'events.more': '… et {count} {count|autre|autres} dans l’agenda.',
+    'events.deciding': '{count} {count|sondage cherche|sondages cherchent} encore un jour.',
+    'event.forWhich': 'Pour un événement ?',
+    'event.none': 'Aucun',
+    'event.tag': 'Pour {name} · {day}',
+    'event.named': '{name} · {day}',
+    'chain.label': 'Rattaché à',
+    'chain.map': 'La chaîne',
+    'chain.youAreHere': 'ici',
+    'chain.attach': 'Rattacher…',
+    'chain.attachTitle': 'Rattacher « {name} »',
+    'chain.attachHint': 'À un événement, ou à un élément de sa chaîne : une liste, un sondage, un compte… Seulement dans le même groupe.',
+    'chain.now': 'Rattaché à : {chain}',
+    'chain.detach': 'Détacher',
+    'chain.attached': 'Rattaché à « {name} ».',
+    'chain.detached': 'Détaché de « {name} ».',
+    'chain.nothing': 'Rien à quoi le rattacher dans ce groupe.',
+    'chain.others': 'Autres éléments',
+    'chain.here': 'Rattaché ici',
+    'chain.gather': 'Rattacher un élément existant',
+    'chain.gatherTitle': 'Rattacher à « {name} »',
+    'chain.gatherHint': 'Ce qui existe déjà dans ce groupe et peut venir ici. Touchez pour le rattacher.',
+    'chain.gathered': '« {name} » rattaché à « {target} ».',
+    'chain.nothingToGather': 'Rien d’autre à rattacher ici dans ce groupe.',
+    'chain.kind.event': 'Événement',
+    'chain.kind.list': 'Liste',
+    'chain.kind.poll': 'Sondage',
+    'chain.kind.spend': 'Compte',
+    'chain.kind.board': 'Tableau d’idées',
+    'chain.kind.game': 'Partie',
+    'event.tagUndated': 'Pour {name}',
+    'event.addTo': 'Ajouter à « {name} »',
+    'event.addToHint': 'Dans le groupe de l’événement, avec les personnes qui viennent.',
+    'event.addMore': '+ Ajouter à l’événement',
+    'event.addElsewhere': 'Autre chose, hors de l’événement',
     'agenda.nothing':
       'Rien de daté pour l’instant. Une date retenue sur un sondage, ou un jour posé sur une ligne, apparaît ici — et part dans les agendas abonnés.',
     'agenda.late': 'en retard',
@@ -2561,9 +2627,46 @@ const STRINGS = {
     'event.hint': 'Whoever is free on {day} will already be in it.',
     'event.addList': '+ What to bring',
     'event.addSpend': '+ Shared expenses',
-    'event.for': '↩ {name} — {day}',
-    'event.forUndated': '↩ {name}',
     'agenda.coming': 'What’s coming',
+    'agenda.dated': 'Lines with a day',
+    'events.title': 'Events',
+    'events.seeAgenda': 'Agenda',
+    'events.noneHome': 'No event planned. Create one, or let a poll settle on a date.',
+    'events.more': '… and {count} more in the agenda.',
+    'events.deciding': '{count} {count|poll is|polls are} still looking for a day.',
+    'event.forWhich': 'For an event?',
+    'event.none': 'None',
+    'event.tag': 'For {name} · {day}',
+    'event.named': '{name} · {day}',
+    'chain.label': 'Attached to',
+    'chain.map': 'The chain',
+    'chain.youAreHere': 'here',
+    'chain.attach': 'Attach…',
+    'chain.attachTitle': 'Attach “{name}”',
+    'chain.attachHint': 'To an event, or to something in its chain: a list, a poll, an account… Only within the same group.',
+    'chain.now': 'Attached to: {chain}',
+    'chain.detach': 'Detach',
+    'chain.attached': 'Attached to “{name}”.',
+    'chain.detached': 'Detached from “{name}”.',
+    'chain.nothing': 'Nothing to attach it to in this group.',
+    'chain.others': 'Other things',
+    'chain.here': 'Attached here',
+    'chain.gather': 'Attach something existing',
+    'chain.gatherTitle': 'Attach to “{name}”',
+    'chain.gatherHint': 'What already exists in this group and can come here. Tap to attach it.',
+    'chain.gathered': '“{name}” attached to “{target}”.',
+    'chain.nothingToGather': 'Nothing else to attach here in this group.',
+    'chain.kind.event': 'Event',
+    'chain.kind.list': 'List',
+    'chain.kind.poll': 'Poll',
+    'chain.kind.spend': 'Account',
+    'chain.kind.board': 'Idea board',
+    'chain.kind.game': 'Game',
+    'event.tagUndated': 'For {name}',
+    'event.addTo': 'Add to “{name}”',
+    'event.addToHint': 'In the event’s group, with the people coming.',
+    'event.addMore': '+ Add to the event',
+    'event.addElsewhere': 'Something else, not for this event',
     'agenda.nothing':
       'Nothing on a day yet. A day a poll settled on, or a day put on a line, shows up here — and goes out to subscribed calendars.',
     'agenda.late': 'overdue',
@@ -6641,20 +6744,157 @@ function personFile({ lists = [], polls = [], games = [], spends = [] } = {}, wh
   };
 }
 
+/* ------------------------------------------------------------- the chain --- */
+
 /**
- * A poll that has settled on a date is an event, and the list of what to bring
- * and the account of what was spent hang off it. Nothing new is stored for the
- * event itself: a list or an account says which poll it is for, set once when
- * it is made, and the poll finds them by that.
+ * Anything can be attached to anything else — a list to an event, a poll to
+ * that list — and the chain goes up to an event, the one thing that sits above
+ * all others and is never attached itself. A document says what it hangs from,
+ * and nothing else is stored: the parent finds its children by that.
  *
- * The most recently touched one wins when two devices each made their own.
+ * `parent` is the id of what it hangs from, null once detached. Documents made
+ * before the chain say `event` instead, which reads the same until they are
+ * attached or detached again.
  */
-function eventParts(poll, { lists = [], spends = [] } = {}) {
-  const latest = (documents) =>
-    documents
-      .filter((document_) => document_.event === poll.id)
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
-  return { list: latest(lists), spend: latest(spends) };
+function parentId(document_) {
+  if (!document_) return null;
+  return Object.prototype.hasOwnProperty.call(document_, 'parent') ? document_.parent || null : document_.event || null;
+}
+
+/** An event: a poll that has settled on its day, or made with its day known. */
+function isEventDoc(document_) {
+  return document_?.kind === 'poll' && Boolean(document_.date || document_.fixed);
+}
+
+/** The kind of a document, games included, which predate the field. */
+function kindOf(document_) {
+  if (document_?.kind) return document_.kind;
+  return document_?.presetId ? 'game' : null;
+}
+
+/** Everything held, of every kind, in one array. */
+function allDocuments({ lists = [], polls = [], games = [], spends = [], boards = [] } = {}) {
+  return [...lists, ...polls, ...games, ...spends, ...boards];
+}
+
+/** What a document hangs from, up to the top: the farthest first. */
+function ancestorsOf(document_, all) {
+  const byId = new Map(all.map((one) => [one.id, one]));
+  const chain = [];
+  const seen = new Set([document_.id]);
+  let above = byId.get(parentId(document_));
+  while (above && !seen.has(above.id)) {
+    chain.unshift(above);
+    seen.add(above.id);
+    above = byId.get(parentId(above));
+  }
+  return chain;
+}
+
+/** The event a document is for, however far up the chain: the nearest one. */
+function eventOf(document_, all) {
+  return [...ancestorsOf(document_, all)].reverse().find(isEventDoc) || null;
+}
+
+/** What hangs directly from a document. */
+function childrenOf(document_, all) {
+  return all.filter((one) => one.id !== document_.id && parentId(one) === document_.id);
+}
+
+/** Everything below a document, however deep, each once. */
+function descendantsOf(document_, all) {
+  const found = [];
+  const seen = new Set([document_.id]);
+  const queue = [document_];
+  while (queue.length) {
+    const current = queue.shift();
+    for (const child of childrenOf(current, all)) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      found.push(child);
+      queue.push(child);
+    }
+  }
+  return found;
+}
+
+/**
+ * The whole chain a document belongs to, as a tree: from the top of its chain
+ * — its event, most of the time — down to everything attached below, each
+ * node `{ document, children }`. What is put away is left out, except the
+ * document itself. Children come in the order of the tabs, then by title.
+ */
+function chainTree(document_, all) {
+  const top = ancestorsOf(document_, all)[0] || document_;
+  const order = ['poll', 'list', 'game', 'spend', 'board'];
+  const rank = (one) => (isEventDoc(one) ? -1 : order.indexOf(kindOf(one)));
+  const title = (one) => String(one.title || one.name || one.question || '');
+  const seen = new Set();
+  const grow = (node) => {
+    seen.add(node.id);
+    const children = childrenOf(node, all)
+      .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
+      .sort((a, b) => rank(a) - rank(b) || title(a).localeCompare(title(b)));
+    return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
+  };
+  return grow(top);
+}
+
+/** How many documents a tree holds, its top included. */
+function treeSize(tree) {
+  return 1 + tree.children.reduce((sum, child) => sum + treeSize(child), 0);
+}
+
+/**
+ * What a document may be attached to: anything live in the same group — or
+ * kept to oneself like it — except itself and what already hangs below it,
+ * which would close the chain on itself. An event is never attached: it stays
+ * on top.
+ */
+function attachTargets(document_, all) {
+  if (isEventDoc(document_)) return [];
+  const below = new Set(descendantsOf(document_, all).map((one) => one.id));
+  const group = document_.groupId || null;
+  return all.filter(
+    (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group,
+  );
+}
+
+/**
+ * Attach a document to another, or detach it with null. Last write wins, as
+ * for a title: the stamp makes this copy the newer one.
+ */
+function attach(document_, targetId) {
+  const { event: _legacy, ...rest } = document_;
+  return { ...rest, parent: targetId || null, updatedAt: Math.max(Date.now(), (document_.updatedAt || 0) + 1) };
+}
+
+/**
+ * Everything made for an event, however deep in its chain, by kind, newest
+ * first in each. `list` and `spend` are the first of each — the list of what
+ * to bring and the account of what was spent, when there is one.
+ */
+function eventParts(poll, state = {}) {
+  const below = descendantsOf(poll, allDocuments(state));
+  const recent = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
+  const of = (kind) => below.filter((one) => kindOf(one) === kind).sort(recent);
+  const parts = { lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game') };
+  return { ...parts, list: parts.lists[0] || null, spend: parts.spends[0] || null };
+}
+
+/** How many documents hang off an event, all kinds together. */
+function partsCount(parts) {
+  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length;
+}
+
+/**
+ * The events still to come — or under way: a weekend is not past on its
+ * Saturday — soonest first.
+ */
+function upcomingEvents(polls = [], today = dayNow()) {
+  return polls
+    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || '')));
 }
 
 /**
@@ -6666,7 +6906,7 @@ function forEvent(poll, make, name) {
   const made = make({ name, names: goers(poll) });
   return {
     ...made,
-    event: poll.id,
+    parent: poll.id,
     shared: Boolean(poll.shared),
     groupId: poll.groupId || null,
     ...(poll.linkOnly ? { linkOnly: true } : {}),
@@ -8373,6 +8613,7 @@ function pollCardHtml(poll) {
           poll.date ? ` — ${escapeHtml(t(poll.until ? 'polls.settledRange' : 'polls.settledOn', { day: whenText(poll) }))}` : ''
         }
       </span>
+      ${eventTagHtml(poll)}
     </button>`;
 }
 
@@ -8558,6 +8799,7 @@ function pollView(poll, { solo = false } = {}) {
           }
           ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
+        ${poll.date ? `<p class="event-when"><strong>${escapeHtml(whenText(poll, { long: true }))}</strong></p>` : ''}
         ${signedByHtml(poll)}
       </div>
       ${
@@ -8568,6 +8810,8 @@ function pollView(poll, { solo = false } = {}) {
              </button>`
       }
     </div>
+
+    ${guest ? '' : eventLinkHtml(poll)}
 
     ${guest ? '' : inGroupHtml(poll)}
 
@@ -8592,9 +8836,13 @@ function pollView(poll, { solo = false } = {}) {
 
     ${guest && !closed ? soloJoinHtml() : ''}
 
-    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
+    ${
+      // An event: what is made for it first — it is what the page is for —
+      // then its date, to change.
+      solo ? '' : eventHtml(poll, { guest })
+    }
 
-    ${solo ? '' : eventHtml(poll, { guest })}
+    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
 
     ${fixed ? '' : gaugeHtml(poll)}
 
@@ -8664,6 +8912,8 @@ function pollView(poll, { solo = false } = {}) {
       ${dateCardHtml(poll, fixed)}
     </details>`}
 
+    ${poll.date ? '' : attachedHtml(poll)}
+
     ${guest ? '' : actionsHtml(`
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
         <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
@@ -8677,6 +8927,7 @@ function pollView(poll, { solo = false } = {}) {
 `, `
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
+        ${chainButtonsHtml(poll)}
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -8776,44 +9027,90 @@ function retainHtml(poll) {
 }
 
 /**
- * Once a poll has settled on a day, it is an event: what to bring, and what
- * it cost, hang off it and are one tap away. The organiser starts either; the
- * others see what has been started and nothing to press.
+ * Once a poll has settled on a day, it is an event, and the event is where
+ * everything made for it is found: what to bring, what it cost, the polls,
+ * the ideas, the games — each under its kind. The two things almost every
+ * event needs are one tap away; anything else is added from « Ajouter ».
+ * A guest sees what is there and nothing to press.
  */
 function eventHtml(poll, { guest }) {
   if (!poll.date) return '';
-  const { list, spend } = eventParts(poll, state);
-  if (guest && !list && !spend) return '';
+  const parts = eventParts(poll, state);
+  const { list, spend } = parts;
+  if (guest && !partsCount(parts)) return '';
   const day = formatDay(poll.date);
+  const kind = (label, documents, cardHtml) =>
+    documents.length
+      ? `<span class="muted small">${escapeHtml(label)}</span>
+         <div class="game-list">${documents.map(cardHtml).join('')}</div>`
+      : '';
   return `
-    <section class="section stack stack--tight">
+    <section class="section stack stack--tight" id="event-parts">
       <div class="section__head"><h2>${escapeHtml(t('event.title'))}</h2></div>
-      ${list ? `<span class="muted small">${escapeHtml(t('event.list'))}</span>${listCardHtml(list)}` : ''}
-      ${spend ? `<span class="muted small">${escapeHtml(t('tab.spends'))}</span>${spendCardHtml(spend)}` : ''}
+      ${kind(t('tab.lists'), parts.lists, listCardHtml)}
+      ${kind(t('tab.polls'), parts.polls, pollCardHtml)}
+      ${kind(t('tab.games'), parts.games, gameCardHtml)}
+      ${kind(t('tab.spends'), parts.spends, spendCardHtml)}
+      ${kind(t('tab.ideas'), parts.boards, boardCardHtml)}
       ${
-        guest || (list && spend)
+        guest
           ? ''
-          : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>
+          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
              <div class="row">
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
+               <button type="button" class="button button--small" id="event-add">${escapeHtml(t('event.addMore'))}</button>
+               <button type="button" class="button button--small" data-gather-doc="${escapeHtml(poll.id)}">${escapeHtml(t('chain.gather'))}</button>
              </div>`
       }
     </section>`;
 }
 
-/** On a list or an account made for an event: the way back to it. */
+/**
+ * On a card, what a document hangs from — « Pour Raclette · 1 oct. › Courses ».
+ * On the page of something in that chain, only what lies below it is said:
+ * the card already sits under the rest.
+ */
+function eventTagHtml(document_) {
+  let chain = chainOf(document_);
+  const here = chain.findIndex((one) => one.id === route().id);
+  if (here >= 0) chain = chain.slice(here + 1);
+  if (!chain.length) return '';
+  return `<span class="game-card__meta game-card__event">${escapeHtml(
+    t('event.tagUndated', { name: chain.map(chainLabel).join(' › ') }),
+  )}</span>`;
+}
+
+/**
+ * At the top of a document's page, the whole chain it belongs to, drawn as a
+ * tree: its event on top, everything attached below, this page marked. Every
+ * other node opens its page. Nothing is shown for a document on its own.
+ */
 function eventLinkHtml(document_) {
-  const poll = document_.event ? getPoll(document_.event) : null;
-  if (!poll) return '';
-  const name = eventName(poll) || pollTitle(poll);
-  const label = poll.date ? t('event.for', { name, day: whenText(poll) }) : t('event.forUndated', { name });
+  const tree = chainTree(document_, everything());
+  if (treeSize(tree) < 2) return '';
+  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const node = ({ document: one, children }) => {
+    const here = one.id === document_.id;
+    const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>`;
+    return `
+      <li>
+        ${
+          here
+            ? `<span class="chain-map__node chain-map__node--here" aria-current="page">${label}
+                 <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
+            : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
+                       title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">${label}</button>`
+        }
+        ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
+      </li>`;
+  };
   return `
-    <div class="row row--tight">
-      <button type="button" class="button button--small button--ghost" data-goto="#/poll/${escapeHtml(poll.id)}">
-        ${escapeHtml(label)}
-      </button>
-    </div>`;
+    <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
+      <span class="muted small">${escapeHtml(t('chain.map'))}</span>
+      <ul class="chain-map__tree">${node(tree)}</ul>
+    </nav>`;
 }
 
 /**
@@ -9203,6 +9500,8 @@ function bindPoll(poll) {
     replacePoll(next);
   });
 
+  view.querySelector('#event-add')?.addEventListener('click', () => openEventMenu(poll));
+
   view.querySelector('#event-list')?.addEventListener('click', () => {
     const list = signed(forEvent(poll, createList, eventName(poll) || pollTitle(poll)));
     state.lists = [...state.lists, list];
@@ -9588,6 +9887,7 @@ function listCardHtml(list) {
           late ? ` — <span class="late">${escapeHtml(t('lists.late', { count: late }))}</span>` : ''
         }
       </span>
+      ${eventTagHtml(list)}
     </button>`;
 }
 
@@ -9820,6 +10120,8 @@ function listView(list) {
         : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
     }
 
+    ${attachedHtml(list)}
+
     ${actionsHtml(`
         <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
         <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
@@ -9836,6 +10138,7 @@ function listView(list) {
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
+        ${chainButtonsHtml(list)}
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>
@@ -10434,6 +10737,7 @@ function spendCardHtml(spend) {
       <span class="game-card__meta">
         ${escapeHtml(formatDate(spend.updatedAt))} — <span class="${mine && mine.balance < 0 ? 'late' : ''}">${escapeHtml(line)}</span>
       </span>
+      ${eventTagHtml(spend)}
     </button>`;
 }
 
@@ -10536,9 +10840,13 @@ function spendsView() {
     ${archivedHtml(sorted, swipeable(spendCardHtml))}`;
 }
 
-/** An event in the agenda: its day, who comes, and where its list and account stand. */
+/**
+ * An event, in the agenda and on Home: its day, who comes, and what hangs off
+ * it — where its list and account stand, and how many polls, idea boards and
+ * games were made for it.
+ */
 function eventCardHtml(poll) {
-  const { list, spend } = eventParts(poll, state);
+  const { list, spend, polls, boards, games } = eventParts(poll, state);
   const when = whenText(poll, { long: true });
   const parts = [];
   if (list) {
@@ -10546,6 +10854,9 @@ function eventCardHtml(poll) {
     parts.push(total ? `${t('event.list')} : ${t('lists.progress', { done, total })}` : `${t('event.list')} : ${t('lists.empty')}`);
   }
   if (spend) parts.push(t('spends.total', { amount: money(spendTotal(spend), spend) }));
+  if (polls.length) parts.push(t('count.polls', { count: polls.length }));
+  if (boards.length) parts.push(t('count.boards', { count: boards.length }));
+  if (games.length) parts.push(t('count.games', { count: games.length }));
   const people = poll.people.map((person) => person.name).join(' · ');
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
@@ -10622,7 +10933,7 @@ function newEventView() {
         }
       </div>
 
-      ${willBeInHtml()}
+      ${willBeInHtml({ events: false })}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('events.create'))}</button>
     </form>`;
@@ -10684,7 +10995,7 @@ function bindNewEvent() {
       date: state.newEventDay,
       at: state.newEventHour,
       until: state.newEventUntil,
-    }))));
+    }), { forEvent: false })));
     state.polls = [...state.polls, poll];
     persistPoll(poll);
     resetGroupChoice();
@@ -10997,9 +11308,12 @@ function spendView(spend) {
 
     ${state.spendTab === 'balances' ? balancesTab : expensesTab}
 
+    ${attachedHtml(spend)}
+
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
+        ${chainButtonsHtml(spend)}
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -11407,6 +11721,7 @@ function boardCardHtml(board) {
         <span class="pill">${escapeHtml(t('ideas.cards', { count: board.cards.length }))}</span>
       </span>
       <span class="game-card__meta">${escapeHtml(formatDate(board.updatedAt))}${holds ? ` — ${escapeHtml(holds)}` : ''}</span>
+      ${eventTagHtml(board)}
     </button>`;
 }
 
@@ -11547,6 +11862,8 @@ function boardView(board) {
       </button>
     </div>
 
+    ${eventLinkHtml(board)}
+
     ${inGroupHtml(board)}
 
     ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="board-share">${escapeHtml(t('ideas.share'))}</button>`) : ''}
@@ -11563,8 +11880,11 @@ function boardView(board) {
         : `<p class="muted small">${escapeHtml(t('ideas.empty'))}</p>`
     }
 
+    ${attachedHtml(board)}
+
     ${actionsHtml('', `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
+        ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -12320,6 +12640,8 @@ function gameView(game) {
       <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
+    ${eventLinkHtml(game)}
+
     ${inGroupHtml(game)}
 
     ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="share">${escapeHtml(t('action.share'))}</button>`) : ''}
@@ -12355,6 +12677,8 @@ function gameView(game) {
 
     ${roundFormHtml(game)}
 
+    ${attachedHtml(game)}
+
     ${actionsHtml(`
         ${
           game.rounds.length
@@ -12373,6 +12697,7 @@ function gameView(game) {
           ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
         </button>`, `
         <button type="button" class="button button--small button--ghost" id="rename">${escapeHtml(t('action.rename'))}</button>
+        ${chainButtonsHtml(game)}
         <button type="button" class="button button--small button--ghost" id="game-archive">
           ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -13639,6 +13964,116 @@ function bindGame(game) {
 
 
 
+
+/* ------------------------------------------------------------- the chain --- */
+
+/** Write a document back, whatever its kind. */
+function replaceAny(next) {
+  const kind = kindOf(next);
+  if (kind === 'list') replaceList(next);
+  else if (kind === 'poll') replacePoll(next);
+  else if (kind === 'spend') replaceSpend(next);
+  else if (kind === 'board') replaceBoard(next);
+  else replaceGame(next);
+}
+
+/** What a document is, in a word: « Liste », « Sondage »… — an event says so. */
+function kindLabel(document_) {
+  if (isEventDoc(document_)) return t('chain.kind.event');
+  return t(`chain.kind.${kindOf(document_) || 'game'}`);
+}
+
+/** The choices of an attach dialog: events first, soonest first; then the rest, newest first. */
+function candidatesHtml(documents, { on = null, attr }) {
+  const events = documents.filter(isEventDoc).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const others = documents.filter((one) => !isEventDoc(one)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const row = (one) => `
+    <button type="button" class="game-card ${one.id === on ? 'game-card--on' : ''}" ${attr}="${escapeHtml(one.id)}"
+            ${one.id === on ? 'aria-current="true"' : ''}>
+      <span class="game-card__title">${escapeHtml(chainLabel(one))}</span>
+      <span class="game-card__meta">${escapeHtml([kindLabel(one), ...chainOf(one).map(chainLabel)].join(' · '))}</span>
+    </button>`;
+  const block = (title, rows) => (rows.length
+    ? `<span class="muted small">${escapeHtml(title)}</span><div class="game-list">${rows.map(row).join('')}</div>`
+    : '');
+  return `${block(t('events.title'), events)}${block(t('chain.others'), others)}`;
+}
+
+/**
+ * Attach a document to another — an event, or anything in its chain — or
+ * detach it, to attach it elsewhere later. Only what lives in the same group
+ * is offered, and nothing below it: the chain never closes on itself.
+ */
+function openAttachDialog(document_) {
+  const targets = attachTargets(document_, everything());
+  const chain = chainOf(document_);
+  const current = parentId(document_) && chain.length ? chain[chain.length - 1] : null;
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('chain.attachTitle', { name: documentTitle(document_) }))}</h2>
+      ${
+        current
+          ? `<p class="small">${escapeHtml(t('chain.now', { chain: chain.map(chainLabel).join(' › ') }))}</p>
+             <div class="row"><button type="button" class="button" data-detach>${escapeHtml(t('chain.detach'))}</button></div>`
+          : `<p class="muted small">${escapeHtml(t('chain.attachHint'))}</p>`
+      }
+      ${targets.length ? candidatesHtml(targets, { on: current?.id, attr: 'data-attach-to' }) : `<p class="muted small">${escapeHtml(t('chain.nothing'))}</p>`}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-attach-cancel>${escapeHtml(t('action.cancel'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelector('[data-attach-cancel]').addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-detach]')?.addEventListener('click', () => {
+    dialog.close();
+    replaceAny(attach(document_, null));
+    flash(t('chain.detached', { name: chainLabel(current) }));
+  });
+  dialog.querySelectorAll('[data-attach-to]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const target = targets.find((one) => one.id === node.dataset.attachTo);
+      dialog.close();
+      if (!target || target.id === current?.id) return;
+      replaceAny(attach(document_, target.id));
+      flash(t('chain.attached', { name: chainLabel(target) }));
+    });
+  });
+  dialog.showModal();
+}
+
+/**
+ * The other way round: bring existing things under this one — on an event,
+ * the list made last week, the poll started before the date was known. Offers
+ * what may go there and is not there yet.
+ */
+function openGatherDialog(target) {
+  const all = everything();
+  const offered = all.filter(
+    (one) => parentId(one) !== target.id && attachTargets(one, all).some((candidate) => candidate.id === target.id),
+  );
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('chain.gatherTitle', { name: chainLabel(target) }))}</h2>
+      <p class="muted small">${escapeHtml(t('chain.gatherHint'))}</p>
+      ${offered.length ? candidatesHtml(offered, { attr: 'data-gather' }) : `<p class="muted small">${escapeHtml(t('chain.nothingToGather'))}</p>`}
+      <div class="row">
+        <button type="button" class="button button--ghost" data-gather-close>${escapeHtml(t('action.close'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelector('[data-gather-close]').addEventListener('click', () => dialog.close());
+  dialog.querySelectorAll('[data-gather]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const one = offered.find((candidate) => candidate.id === node.dataset.gather);
+      dialog.close();
+      if (!one) return;
+      replaceAny(attach(one, target.id));
+      flash(t('chain.gathered', { name: documentTitle(one), target: chainLabel(target) }));
+    });
+  });
+  dialog.showModal();
+}
+
 /* ----------------------------------------------------------------- groups --- */
 
 /**
@@ -13760,6 +14195,35 @@ function groupForNew() {
 
 function resetGroupChoice() {
   state.newGroupChoice = { touched: false, id: null };
+  state.newEventLink = null;
+}
+
+/** The group chip that says where an event's documents belong. */
+function chipOfEvent(poll) {
+  return poll.linkOnly ? LINK_ONLY : poll.groupId || '';
+}
+
+/**
+ * The event a new thing will be made for — dropped when the group chosen since
+ * is not the event's: what is made for an event lives where the event does.
+ */
+function linkedEvent() {
+  const poll = state.newEventLink ? state.polls.find((one) => one.id === state.newEventLink) : null;
+  if (!poll) return null;
+  if (state.remote && groups().length && state.newGroupChoice.touched && state.newGroupChoice.id !== chipOfEvent(poll)) {
+    state.newEventLink = null;
+    return null;
+  }
+  return poll;
+}
+
+/**
+ * Make the next new thing part of an event: its group chosen to match. From
+ * the event's own page, and from the event chips of a form.
+ */
+function chooseEvent(poll) {
+  state.newEventLink = poll?.id || null;
+  if (poll && state.remote && groups().length) state.newGroupChoice = { touched: true, id: chipOfEvent(poll) };
 }
 
 /** The group a new thing goes into, chip or no chip. */
@@ -13792,19 +14256,29 @@ function destinationForNew() {
   return { group: groupForNew() || (held.length === 1 ? held[0] : null), linkOnly: false };
 }
 
-/** What a new document carries about where it went. */
-function landing(document_) {
+/** What a new document carries about where it went, and which event it is for. */
+function landing(document_, { forEvent = true } = {}) {
   const { group, linkOnly } = destinationForNew();
+  const event = forEvent ? linkedEvent() : null;
   return {
     ...document_,
     shared: Boolean(group),
     groupId: group?.id || null,
     ...(linkOnly ? { linkOnly: true } : {}),
+    ...(event ? { parent: event.id } : {}),
   };
 }
 
-/** The chips that say where it will land, and change it. */
-function willBeInHtml() {
+/**
+ * The chips that say where it will land, and change it — the group, then the
+ * event it is for, when there are events coming. Picking an event picks its
+ * group too.
+ */
+function willBeInHtml({ events = true } = {}) {
+  return `${groupChoiceHtml()}${events ? eventChoiceHtml() : ''}`;
+}
+
+function groupChoiceHtml() {
   const held = groups();
   if (!state.remote || !held.length) return '';
   const { group, linkOnly } = destinationForNew();
@@ -13825,6 +14299,49 @@ function willBeInHtml() {
       </div>
       ${note ? `<p class="muted small">${escapeHtml(note)}</p>` : ''}
     </div>`;
+}
+
+function eventChoiceHtml() {
+  const linked = linkedEvent();
+  const coming = upcomingEvents(state.polls).slice(0, 6);
+  if (linked && !coming.includes(linked)) coming.unshift(linked);
+  if (!coming.length) return '';
+  const on = linked?.id || '';
+  const chip = (id, label) => `
+    <button type="button" class="chip ${on === id ? 'chip--on' : ''}"
+            data-new-event="${escapeHtml(id)}" aria-pressed="${on === id ? 'true' : 'false'}">
+      ${escapeHtml(label)}
+    </button>`;
+  return `
+    <div class="stack stack--tight">
+      <span class="muted small">${escapeHtml(t('event.forWhich'))}</span>
+      <div class="row row--tight" role="group" aria-label="${escapeHtml(t('event.forWhich'))}">
+        ${chip('', t('event.none'))}
+        ${coming.map((poll) => chip(poll.id, `${eventName(poll) || poll.question} · ${formatDay(poll.date)}`)).join('')}
+      </div>
+    </div>`;
+}
+
+/**
+ * The event chips, on whichever form shows them. They change nothing typed,
+ * so they redraw nothing: the chips — the event's, and the group's it brings
+ * along — are updated where they are.
+ */
+function bindEventChips(root) {
+  root.querySelectorAll('[data-new-event]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const poll = state.polls.find((one) => one.id === node.dataset.newEvent) || null;
+      chooseEvent(poll);
+      const form = node.closest('form') || root;
+      const mark = (selector, value) => form.querySelectorAll(selector).forEach((other) => {
+        const on = other.dataset[selector === '[data-new-event]' ? 'newEvent' : 'newGroup'] === value;
+        other.classList.toggle('chip--on', on);
+        other.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      mark('[data-new-event]', poll?.id || '');
+      if (poll && state.newGroupChoice.touched) mark('[data-new-group]', state.newGroupChoice.id || '');
+    });
+  });
 }
 
 /** The group a document belongs to, when it belongs to one this device knows. */
@@ -13998,8 +14515,9 @@ async function copyToGroup(id) {
     // Copied into a group, it is the group's: a link-only original makes a
     // copy the group can see, which is the point of copying it there.
     linkOnly: false,
-    // The event it was made for stays in the other group, with the original.
+    // What it hung from stays in the other group, with the original.
     event: null,
+    parent: null,
     // A copy is its own thing from here on: it is new to the group receiving
     // it, whatever age the original had reached.
     createdAt: now,
@@ -15189,6 +15707,9 @@ const state = {
   // the default — so opening the form after changing the pastille follows the
   // pastille rather than a stale choice.
   newGroupChoice: { touched: false, id: null },
+  // The event a new thing is made for, if any: the id of its poll. Picked on
+  // the form, or already set when « Ajouter » was pressed on the event.
+  newEventLink: null,
   // The deal being entered on the Tarot screen.
   deal: null,
 };
@@ -15233,6 +15754,28 @@ function documentTitle(document_) {
   if (isValidBoard(document_)) return boardTitle(document_);
   if (isValidSpend(document_)) return spendTitle(document_);
   return gameTitle(document_);
+}
+
+/** Where a document's page is, whatever its kind. */
+function documentHref(document_) {
+  const page = { list: 'list', poll: 'poll', spend: 'spend', board: 'idea', game: 'game' }[kindOf(document_)] || 'game';
+  return `#/${page}/${document_.id}`;
+}
+
+/** Every document this device holds, of every kind. */
+function everything() {
+  return allDocuments(state);
+}
+
+/** What a document hangs from, up to its event: the farthest first. */
+function chainOf(document_) {
+  return ancestorsOf(document_, everything());
+}
+
+/** A link in the chain, as it reads: an event says its day. */
+function chainLabel(document_) {
+  const title = isEventDoc(document_) ? eventName(document_) || pollTitle(document_) : documentTitle(document_);
+  return isEventDoc(document_) && document_.date ? t('event.named', { name: title, day: formatDay(document_.date) }) : title;
 }
 
 /**
@@ -15531,6 +16074,7 @@ function gameCardHtml(game) {
       </span>
       <span class="game-card__meta">${escapeHtml(game.players.map((p) => p.name).join(' · '))}</span>
       <span class="game-card__meta">${escapeHtml(formatDate(game.updatedAt))}${line ? ` — ${escapeHtml(line)}` : ''}</span>
+      ${eventTagHtml(game)}
     </button>`;
 }
 
@@ -15555,16 +16099,15 @@ function gameCardHtml(game) {
  */
 function comingHtml() {
   const today = dayNow();
-  const events = agendaFor({ lists: shownDocs(state.lists), polls: shownDocs(state.polls) });
+  // Events have their own section above; what is left is the lines given a day.
+  const events = agendaFor({ lists: shownDocs(state.lists), polls: [] });
   // An event over several days is late only once its last day has gone.
   const ends = (event) => event.until || event.day;
   const late = events.filter((event) => ends(event) < today);
   const coming = events.filter((event) => ends(event) >= today);
 
-  if (!events.length) {
-    return `<p class="muted small">${escapeHtml(t('agenda.nothing'))}</p>
-            ${hiddenByGroupHtml([...state.lists, ...state.polls])}`;
-  }
+  // Nothing dated on show: say so only when the group filter is what hides it.
+  if (!events.length) return hiddenByGroupHtml(state.lists.filter((list) => isLive(list) && list.items.some((item) => item.due)));
 
   const shown = [...late.slice(-3), ...coming.slice(0, 8)];
   const hidden = events.length - shown.length;
@@ -15585,6 +16128,86 @@ function comingHtml() {
   return `
     <div class="game-list">${shown.map(row).join('')}</div>
     ${hidden > 0 ? `<p class="muted small">${escapeHtml(t('agenda.more', { count: hidden }))}</p>` : ''}`;
+}
+
+/**
+ * The events coming, first on Home: an event is what most of the rest is for —
+ * the list of what to bring, the account, the polls, the ideas. Each card says
+ * where those stand; the event's page holds them all. Polls still looking for
+ * a day are counted, one tap from the agenda where they are decided.
+ */
+function eventsHtml() {
+  const coming = upcomingEvents(shownDocs(state.polls));
+  const deciding = shownDocs(state.polls).filter((poll) => isLive(poll) && !poll.date && !poll.closedAt && seeksDay(poll));
+  const shown = coming.slice(0, 3);
+  return `
+    <section class="section">
+      <div class="section__head">
+        <h2>${escapeHtml(t('events.title'))}</h2>
+        <button type="button" class="button button--small button--ghost" data-goto="#/agenda">${escapeHtml(t('events.seeAgenda'))}</button>
+      </div>
+      ${
+        shown.length
+          ? `<div class="game-list">${shown.map(eventCardHtml).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('events.noneHome'))}</p>`
+      }
+      ${coming.length > shown.length ? `<p class="muted small">${escapeHtml(t('events.more', { count: coming.length - shown.length }))}</p>` : ''}
+      ${hiddenByGroupHtml(upcomingEvents(state.polls))}
+      ${
+        deciding.length
+          ? `<button type="button" class="game-card" data-goto="#/agenda">
+               <span class="game-card__title">${escapeHtml(t('polls.toDecide'))}</span>
+               <span class="game-card__meta">${escapeHtml(t('events.deciding', { count: deciding.length }))}</span>
+             </button>`
+          : ''
+      }
+      <div class="row">
+        <button type="button" class="button button--small" data-goto="#/agenda/new">+ ${escapeHtml(t('events.new'))}</button>
+      </div>
+    </section>`;
+}
+
+/** « · Pour Raclette › Courses » after a line about something attached. */
+function forEventText(document_) {
+  const chain = document_ ? chainOf(document_) : [];
+  return chain.length ? ` · ${t('event.tagUndated', { name: chain.map(chainLabelShort).join(' › ') })}` : '';
+}
+
+/** A document's card, whatever its kind. */
+function documentCardHtml(document_) {
+  const kind = kindOf(document_);
+  if (kind === 'list') return listCardHtml(document_);
+  if (kind === 'poll') return isEventDoc(document_) ? eventCardHtml(document_) : pollCardHtml(document_);
+  if (kind === 'spend') return spendCardHtml(document_);
+  if (kind === 'board') return boardCardHtml(document_);
+  return gameCardHtml(document_);
+}
+
+/**
+ * On a document's page, what is attached to it — a poll under a list, a board
+ * under that poll — and the way to bring more. An event has its own section,
+ * which holds its whole chain.
+ */
+function attachedHtml(document_) {
+  const children = childrenOf(document_, everything()).filter(isLive);
+  if (!children.length) return '';
+  return `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('chain.here'))}</h2></div>
+      <div class="game-list">${children.map(documentCardHtml).join('')}</div>
+    </section>`;
+}
+
+/** The buttons of « Plus d'actions » for the chain: attach, detach, gather. */
+function chainButtonsHtml(document_) {
+  return isEventDoc(document_)
+    ? ''
+    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t('chain.attach'))}</button>`;
+}
+
+/** A link in the chain, in a line of text: its title alone. */
+function chainLabelShort(document_) {
+  return isEventDoc(document_) ? eventName(document_) || pollTitle(document_) : documentTitle(document_);
 }
 
 /**
@@ -15610,7 +16233,7 @@ function pendingHtml(shown = new Set()) {
     lines.push({
       goto: `#/list/${list.id}`,
       title: listTitle(list),
-      meta: t('lists.leftToDo', { count: left }),
+      meta: t('lists.leftToDo', { count: left }) + forEventText(list),
     });
   }
   for (const poll of asked.slice(0, 3)) {
@@ -15618,7 +16241,7 @@ function pendingHtml(shown = new Set()) {
     lines.push({
       goto: `#/poll/${poll.id}`,
       title: pollTitle(poll),
-      meta: t('polls.answered', { count: answered, total: poll.people.length }),
+      meta: t('polls.answered', { count: answered, total: poll.people.length }) + forEventText(poll),
     });
   }
   for (const spend of owing.slice(0, 3)) {
@@ -15626,16 +16249,16 @@ function pendingHtml(shown = new Set()) {
     lines.push({
       goto: `#/spend/${spend.id}`,
       title: spendTitle(spend),
-      meta: mine && mine.balance !== 0
+      meta: (mine && mine.balance !== 0
         ? t(mine.balance > 0 ? 'spends.owedToMe' : 'spends.iOwe', { amount: money(Math.abs(mine.balance), spend) })
-        : t('spends.total', { amount: money(spendTotal(spend), spend) }),
+        : t('spends.total', { amount: money(spendTotal(spend), spend) })) + forEventText(spend),
     });
   }
   for (const game of ongoing.slice(0, 3)) {
     lines.push({
       goto: `#/game/${game.id}`,
       title: gameTitle(game),
-      meta: t('home.rounds', { count: game.rounds.length }),
+      meta: t('home.rounds', { count: game.rounds.length }) + forEventText(game),
     });
   }
 
@@ -16063,8 +16686,16 @@ function groupView(group) {
  * that opens carries it on, with the same chips.
  */
 function openCreateMenu() {
-  const dialog = makeDialog();
   const here = route();
+  // On an event's page, the "+" adds to that event.
+  const poll = here.name === 'poll' && !here.solo ? getPoll(here.id) : null;
+  if (poll?.date) openEventMenu(poll);
+  else openPlainMenu();
+}
+
+function openPlainMenu() {
+  const here = route();
+  const dialog = makeDialog();
   resetGroupChoice();
   const fromPage = here.name === 'group' ? groups().find((group) => group.id === here.id) : null;
   const start = fromPage ? { group: fromPage, linkOnly: false } : destinationForNew();
@@ -16119,6 +16750,57 @@ function openCreateMenu() {
     node.addEventListener('click', () => {
       // Said in the menu is chosen: the form starts from it.
       if (asks) state.newGroupChoice = { touched: true, id: chosen };
+      dialog.close();
+      navigate(node.dataset.create);
+    });
+  });
+  dialog.querySelector('[data-create-close]').addEventListener('click', () => dialog.close());
+  dialog.showModal();
+}
+
+/**
+ * Add something to an event: whatever can be made, already set on the event —
+ * in its group, and between the people who are coming. No group to choose:
+ * what is made for an event lives where the event does.
+ */
+function openEventMenu(poll) {
+  const dialog = makeDialog();
+  const name = eventName(poll) || pollTitle(poll);
+  const choice = (goto, label) => `
+    <button type="button" class="button button--block" data-create="${goto}">+ ${escapeHtml(label)}</button>`;
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('event.addTo', { name }))}</h2>
+      <p class="muted small">${escapeHtml(t('event.addToHint'))}</p>
+      <div class="create-menu">
+        ${choice('#/lists/new', t('lists.new'))}
+        ${choice('#/polls/new', t('polls.new'))}
+        ${choice('#/new', t('action.newGame'))}
+        ${choice('#/spends/new', t('spends.new'))}
+        ${choice('#/ideas/new', t('ideas.new'))}
+      </div>
+      <div class="row">
+        <button type="button" class="button button--ghost" data-create-close>${escapeHtml(t('action.cancel'))}</button>
+        <button type="button" class="button button--ghost" data-create-plain>${escapeHtml(t('event.addElsewhere'))}</button>
+      </div>
+    </div>`;
+  dialog.querySelector('[data-create-plain]').addEventListener('click', () => {
+    dialog.close();
+    openPlainMenu();
+  });
+  dialog.querySelectorAll('[data-create]').forEach((node) => {
+    node.addEventListener('click', () => {
+      resetGroupChoice();
+      chooseEvent(poll);
+      // Those coming are the people of whatever is made for the event.
+      const coming = goers(poll);
+      if (coming.length) {
+        state.newListPeople = [...coming];
+        state.newPollPeople = [...coming];
+        state.newSpendPeople = [...coming];
+        state.newGameNames = [...coming];
+        state.newGameTouched = true;
+      }
       dialog.close();
       navigate(node.dataset.create);
     });
@@ -16193,6 +16875,7 @@ function overviewView() {
   const forYou = forYouItems();
   const nothingYet = ![...state.lists, ...state.polls, ...state.games, ...state.spends, ...state.boards].length;
   const pending = pendingHtml(new Set(forYou.items.map((item) => item.goto)));
+  const coming = comingHtml();
   // The first opening: the welcome says it all, and empty sections under it
   // would only say « nothing yet » three more times.
   if (nothingYet && !groups().length) {
@@ -16208,17 +16891,21 @@ function overviewView() {
     ${groupChipsHtml()}
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
+    ${eventsHtml()}
+
     <section class="section">
       <div class="section__head"><h2>${escapeHtml(t('forYou.title'))}</h2></div>
       ${forYouHtml(forYou)}
     </section>
 
-    <section class="section">
-      <div class="section__head">
-        <h2>${escapeHtml(t('agenda.coming'))}</h2>
-      </div>
-      ${comingHtml()}
-    </section>
+    ${
+      coming
+        ? `<section class="section">
+             <div class="section__head"><h2>${escapeHtml(t('agenda.dated'))}</h2></div>
+             ${coming}
+           </section>`
+        : ''
+    }
 
     ${
       pending
@@ -16276,13 +16963,13 @@ function forYouItems() {
     lists: shownDocs(state.lists), polls: shownDocs(state.polls), spends: shownDocs(state.spends),
   }, me);
   for (const row of file.votes.filter((one) => !one.closed && !one.answered)) {
-    items.push({ goto: `#/poll/${row.poll.id}`, title: pollTitle(row.poll), meta: t('forYou.vote') });
+    items.push({ goto: `#/poll/${row.poll.id}`, title: pollTitle(row.poll), meta: t('forYou.vote') + forEventText(row.poll) });
   }
   for (const row of file.lines.filter((one) => one.left > 0).sort((a, b) => b.late - a.late)) {
     items.push({
       goto: `#/list/${row.list.id}`,
       title: listTitle(row.list),
-      meta: t('forYou.lines', { count: row.left }),
+      meta: t('forYou.lines', { count: row.left }) + forEventText(row.list),
       late: row.late ? t('lists.late', { count: row.late }) : '',
     });
   }
@@ -16290,7 +16977,7 @@ function forYouItems() {
     items.push({
       goto: `#/spend/${row.spend.id}`,
       title: spendTitle(row.spend),
-      meta: t('spends.iOwe', { amount: money(-row.balance, row.spend) }),
+      meta: t('spends.iOwe', { amount: money(-row.balance, row.spend) }) + forEventText(row.spend),
     });
   }
   return { items };
@@ -18072,6 +18759,19 @@ function render() {
   view.querySelectorAll('[data-create-menu]').forEach((node) => {
     node.addEventListener('click', openCreateMenu);
   });
+  bindEventChips(view);
+  view.querySelectorAll('[data-attach-doc]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
+      if (document_) openAttachDialog(document_);
+    });
+  });
+  view.querySelectorAll('[data-gather-doc]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const document_ = everything().find((one) => one.id === node.dataset.gatherDoc);
+      if (document_) openGatherDialog(document_);
+    });
+  });
 
   // The group pastilles, and the overview's numbers — which pick a group and
   // open its tab in one tap, so the filter is set before the page changes.
@@ -18295,6 +18995,8 @@ bindChrome();
 followTrail();
 window.addEventListener('hashchange', () => {
   followTrail();
+  // An event chosen for a form holds for that form only.
+  if (!/^new/.test(route().name)) state.newEventLink = null;
   state.editingRoundId = null;
   state.listFilter = null;
   // A message already read belongs to the screen it was read on. One that has

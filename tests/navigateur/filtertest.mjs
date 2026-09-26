@@ -60,7 +60,7 @@ await page.waitForTimeout(400);
 check('« Tous » ramène le sondage', (await page.locator('.game-card').count()) === 1,
   String(await page.locator('.game-card').count()));
 
-/* --- « Ce qui vient » ------------------------------------------------------ */
+/* --- « Événements », sur l'Accueil ------------------------------------------ */
 await page.evaluate(() => {
   const prefs = JSON.parse(localStorage.getItem('marque-points:prefs:v1'));
   prefs.groupFilter = 'grp_famille';
@@ -70,13 +70,13 @@ await page.reload();
 await page.waitForSelector('.app-bar');
 await page.click('[data-tab="home"]');
 await page.waitForSelector('.segmented--kinds [data-goto="#/"][aria-current="true"]');
-const coming = page.locator('.section').filter({ hasText: 'Ce qui vient' }).first();
+const coming = page.locator('.section').filter({ hasText: 'Événements' }).first();
 const comingText = (await coming.textContent()).replace(/\s+/g, ' ');
-check('« Ce qui vient » dit aussi ce qu’il cache', /autres? (est|sont) masqués?/.test(comingText), comingText.slice(0, 140));
+check('« Événements » dit aussi ce qu’il cache', /autres? (est|sont) masqués?/.test(comingText), comingText.slice(0, 140));
 
 await coming.locator('[data-group-filter=""]').first().click();
 await page.waitForTimeout(400);
-const back = (await page.locator('.section').filter({ hasText: 'Ce qui vient' }).first().textContent()).replace(/\s+/g, ' ');
+const back = (await page.locator('#view').textContent()).replace(/\s+/g, ' ');
 check('et le bouton ramène les deux', /Raclette/.test(back) && /Réserver le camion/.test(back), back.slice(0, 160));
 
 check('aucune erreur de page', errors.length === 0, errors.join(' | '));

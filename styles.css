@@ -415,6 +415,10 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
 .game-card:hover { border-color: var(--accent); }
 .game-card__title { display: flex; align-items: center; gap: 8px; font-weight: 650; }
 .game-card__meta { color: var(--muted); font-size: 0.82rem; }
+/* The event a card belongs to: the thread that ties it to the rest. */
+.game-card__event { color: var(--accent); font-weight: 600; }
+.game-card--on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.event-when { margin: 2px 0 0; }
 
 .pill {
   display: inline-block;
@@ -1425,3 +1429,28 @@ body:not(.solo) .view {
 }
 
 .idea-hint { margin: -6px 0 16px; }
+
+/* The chain a document belongs to, as a tree, at the top of its page: each
+   level drawn with a line from the one it hangs from. */
+.chain-map { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; }
+.chain-map ul { list-style: none; margin: 0; padding: 0; }
+.chain-map ul ul { margin-left: 16px; }
+.chain-map ul ul > li { position: relative; padding-left: 18px; }
+/* The line down from the parent, and the branch across to this one; the last
+   child's line stops at its branch. */
+.chain-map ul ul > li::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid var(--border);
+}
+.chain-map ul ul > li:last-child::before { bottom: auto; height: 21px; }
+.chain-map ul ul > li::after {
+  content: ''; position: absolute; left: 0; top: 20px; width: 14px; border-top: 2px solid var(--border);
+}
+.chain-map__node {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%;
+  padding: 4px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.chain-map button.chain-map__node:hover { background: var(--surface-alt); }
+.chain-map__node--here { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; cursor: default; }
+.chain-map__title { overflow: hidden; text-overflow: ellipsis; }
+.chain-map__icon { flex: none; }

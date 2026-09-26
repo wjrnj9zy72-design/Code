@@ -8,9 +8,10 @@
 import {
   askForText, escapeHtml, flash, flashHtml, formatDate, formatDay, groupChipsHtml, kindsHtml, navigate, render,
   state, view,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import {
-  actionsHtml, eventLinkHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
+  actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
   signedByHtml,
 } from './view-polls.js';
 import { ask, makeDialog, showCopyDialog } from './view-games.js';
@@ -65,6 +66,7 @@ export function listCardHtml(list) {
           late ? ` — <span class="late">${escapeHtml(t('lists.late', { count: late }))}</span>` : ''
         }
       </span>
+      ${eventTagHtml(list)}
     </button>`;
 }
 
@@ -297,6 +299,8 @@ export function listView(list) {
         : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
     }
 
+    ${attachedHtml(list)}
+
     ${actionsHtml(`
         <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
         <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
@@ -313,6 +317,7 @@ export function listView(list) {
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
         <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
+        ${chainButtonsHtml(list)}
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>

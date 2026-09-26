@@ -9,8 +9,9 @@
 import {
   escapeHtml, flash, flashHtml, formatDate, gameTitle, navigate, parseIntOrNull, parseScore,
   presetLabel, pullGame, render, route, state, view,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
-import { actionsHtml, dropDeleted, getPoll, pullPoll, shareBarHtml } from './view-polls.js';
+import { actionsHtml, dropDeleted, eventLinkHtml, getPoll, pullPoll, shareBarHtml } from './view-polls.js';
 import { forget, getGame, getList, persist, pullList, replaceGame } from './view-lists.js';
 import {
   groups, heldOrganiserSecrets, inGroupHtml, keyFor, landing, myName, openSet, organiserSecret,
@@ -312,6 +313,8 @@ export function gameView(game) {
       <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
+    ${eventLinkHtml(game)}
+
     ${inGroupHtml(game)}
 
     ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="share">${escapeHtml(t('action.share'))}</button>`) : ''}
@@ -347,6 +350,8 @@ export function gameView(game) {
 
     ${roundFormHtml(game)}
 
+    ${attachedHtml(game)}
+
     ${actionsHtml(`
         ${
           game.rounds.length
@@ -365,6 +370,7 @@ export function gameView(game) {
           ${escapeHtml(game.finishedAt ? t('action.reopen') : t('action.finish'))}
         </button>`, `
         <button type="button" class="button button--small button--ghost" id="rename">${escapeHtml(t('action.rename'))}</button>
+        ${chainButtonsHtml(game)}
         <button type="button" class="button button--small button--ghost" id="game-archive">
           ${escapeHtml(game.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>

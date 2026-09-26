@@ -9,8 +9,9 @@
 import {
   askForText, escapeHtml, flash, flashHtml, formatDate, groupChipsHtml, isBusy, isHidden, kindsHtml,
   navigate, render, state, stopWatching, view,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
-import { actionsHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
+import { actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
 import { archivedHtml } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
@@ -47,6 +48,7 @@ export function boardCardHtml(board) {
         <span class="pill">${escapeHtml(t('ideas.cards', { count: board.cards.length }))}</span>
       </span>
       <span class="game-card__meta">${escapeHtml(formatDate(board.updatedAt))}${holds ? ` — ${escapeHtml(holds)}` : ''}</span>
+      ${eventTagHtml(board)}
     </button>`;
 }
 
@@ -187,6 +189,8 @@ export function boardView(board) {
       </button>
     </div>
 
+    ${eventLinkHtml(board)}
+
     ${inGroupHtml(board)}
 
     ${state.remote ? shareBarHtml(`<button type="button" class="button button--primary" id="board-share">${escapeHtml(t('ideas.share'))}</button>`) : ''}
@@ -203,8 +207,11 @@ export function boardView(board) {
         : `<p class="muted small">${escapeHtml(t('ideas.empty'))}</p>`
     }
 
+    ${attachedHtml(board)}
+
     ${actionsHtml('', `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
+        ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>

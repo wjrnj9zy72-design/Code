@@ -8,13 +8,14 @@
  */
 
 import {
-  escapeHtml, flash, flashHtml, formatDate, formatDay, formatDayLong, gameTitle, groupChipsHtml,
-  isBusy, isHidden, kindsHtml, navigate, pollHome, render, route, signature, state, stopWatching,
+  chainLabel, chainOf, documentHref, escapeHtml, everything, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
+  isBusy, isHidden, kindsHtml, navigate, openEventMenu, pollHome, render, route, signature, state, stopWatching,
   view, whenText,
+  attachedHtml, chainButtonsHtml,
 } from './app.js';
 import { archivedHtml, getGame, getList, listCardHtml, listTitle, openPeopleEditor, persistList } from './view-lists.js';
 import { spendCardHtml, spendTitle } from './view-spends.js';
-import { boardTitle, getBoard } from './view-ideas.js';
+import { boardCardHtml, boardTitle, getBoard } from './view-ideas.js';
 import { ask, download, fileName, makeDialog, showCopyDialog } from './view-games.js';
 import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
@@ -31,7 +32,7 @@ import {
 } from './polls.js';
 import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
-import { isLive, eventParts, forEvent } from './dashboard.js';
+import { isLive, eventParts, forEvent, partsCount, chainTree, treeSize, isEventDoc, kindOf } from './dashboard.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
 import { swipeable } from './swipe.js';
@@ -76,6 +77,7 @@ export function pollCardHtml(poll) {
           poll.date ? ` — ${escapeHtml(t(poll.until ? 'polls.settledRange' : 'polls.settledOn', { day: whenText(poll) }))}` : ''
         }
       </span>
+      ${eventTagHtml(poll)}
     </button>`;
 }
 
@@ -261,6 +263,7 @@ export function pollView(poll, { solo = false } = {}) {
           }
           ${poll.shared && !guest ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
+        ${poll.date ? `<p class="event-when"><strong>${escapeHtml(whenText(poll, { long: true }))}</strong></p>` : ''}
         ${signedByHtml(poll)}
       </div>
       ${
@@ -271,6 +274,8 @@ export function pollView(poll, { solo = false } = {}) {
              </button>`
       }
     </div>
+
+    ${guest ? '' : eventLinkHtml(poll)}
 
     ${guest ? '' : inGroupHtml(poll)}
 
@@ -295,9 +300,13 @@ export function pollView(poll, { solo = false } = {}) {
 
     ${guest && !closed ? soloJoinHtml() : ''}
 
-    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
+    ${
+      // An event: what is made for it first — it is what the page is for —
+      // then its date, to change.
+      solo ? '' : eventHtml(poll, { guest })
+    }
 
-    ${solo ? '' : eventHtml(poll, { guest })}
+    ${guest ? soloDateHtml(poll) : poll.date || fixed ? dateCardHtml(poll, fixed) : ''}
 
     ${fixed ? '' : gaugeHtml(poll)}
 
@@ -367,6 +376,8 @@ export function pollView(poll, { solo = false } = {}) {
       ${dateCardHtml(poll, fixed)}
     </details>`}
 
+    ${poll.date ? '' : attachedHtml(poll)}
+
     ${guest ? '' : actionsHtml(`
         <button type="button" class="button button--small" id="poll-people">${escapeHtml(t('lists.people'))}</button>
         <button type="button" class="button button--small" id="poll-text">${escapeHtml(t('action.recap'))}</button>
@@ -380,6 +391,7 @@ export function pollView(poll, { solo = false } = {}) {
 `, `
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
+        ${chainButtonsHtml(poll)}
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
@@ -479,44 +491,90 @@ function retainHtml(poll) {
 }
 
 /**
- * Once a poll has settled on a day, it is an event: what to bring, and what
- * it cost, hang off it and are one tap away. The organiser starts either; the
- * others see what has been started and nothing to press.
+ * Once a poll has settled on a day, it is an event, and the event is where
+ * everything made for it is found: what to bring, what it cost, the polls,
+ * the ideas, the games — each under its kind. The two things almost every
+ * event needs are one tap away; anything else is added from « Ajouter ».
+ * A guest sees what is there and nothing to press.
  */
 function eventHtml(poll, { guest }) {
   if (!poll.date) return '';
-  const { list, spend } = eventParts(poll, state);
-  if (guest && !list && !spend) return '';
+  const parts = eventParts(poll, state);
+  const { list, spend } = parts;
+  if (guest && !partsCount(parts)) return '';
   const day = formatDay(poll.date);
+  const kind = (label, documents, cardHtml) =>
+    documents.length
+      ? `<span class="muted small">${escapeHtml(label)}</span>
+         <div class="game-list">${documents.map(cardHtml).join('')}</div>`
+      : '';
   return `
-    <section class="section stack stack--tight">
+    <section class="section stack stack--tight" id="event-parts">
       <div class="section__head"><h2>${escapeHtml(t('event.title'))}</h2></div>
-      ${list ? `<span class="muted small">${escapeHtml(t('event.list'))}</span>${listCardHtml(list)}` : ''}
-      ${spend ? `<span class="muted small">${escapeHtml(t('tab.spends'))}</span>${spendCardHtml(spend)}` : ''}
+      ${kind(t('tab.lists'), parts.lists, listCardHtml)}
+      ${kind(t('tab.polls'), parts.polls, pollCardHtml)}
+      ${kind(t('tab.games'), parts.games, gameCardHtml)}
+      ${kind(t('tab.spends'), parts.spends, spendCardHtml)}
+      ${kind(t('tab.ideas'), parts.boards, boardCardHtml)}
       ${
-        guest || (list && spend)
+        guest
           ? ''
-          : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>
+          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
              <div class="row">
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
+               <button type="button" class="button button--small" id="event-add">${escapeHtml(t('event.addMore'))}</button>
+               <button type="button" class="button button--small" data-gather-doc="${escapeHtml(poll.id)}">${escapeHtml(t('chain.gather'))}</button>
              </div>`
       }
     </section>`;
 }
 
-/** On a list or an account made for an event: the way back to it. */
+/**
+ * On a card, what a document hangs from — « Pour Raclette · 1 oct. › Courses ».
+ * On the page of something in that chain, only what lies below it is said:
+ * the card already sits under the rest.
+ */
+export function eventTagHtml(document_) {
+  let chain = chainOf(document_);
+  const here = chain.findIndex((one) => one.id === route().id);
+  if (here >= 0) chain = chain.slice(here + 1);
+  if (!chain.length) return '';
+  return `<span class="game-card__meta game-card__event">${escapeHtml(
+    t('event.tagUndated', { name: chain.map(chainLabel).join(' › ') }),
+  )}</span>`;
+}
+
+/**
+ * At the top of a document's page, the whole chain it belongs to, drawn as a
+ * tree: its event on top, everything attached below, this page marked. Every
+ * other node opens its page. Nothing is shown for a document on its own.
+ */
 export function eventLinkHtml(document_) {
-  const poll = document_.event ? getPoll(document_.event) : null;
-  if (!poll) return '';
-  const name = eventName(poll) || pollTitle(poll);
-  const label = poll.date ? t('event.for', { name, day: whenText(poll) }) : t('event.forUndated', { name });
+  const tree = chainTree(document_, everything());
+  if (treeSize(tree) < 2) return '';
+  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const node = ({ document: one, children }) => {
+    const here = one.id === document_.id;
+    const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>`;
+    return `
+      <li>
+        ${
+          here
+            ? `<span class="chain-map__node chain-map__node--here" aria-current="page">${label}
+                 <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
+            : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
+                       title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">${label}</button>`
+        }
+        ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
+      </li>`;
+  };
   return `
-    <div class="row row--tight">
-      <button type="button" class="button button--small button--ghost" data-goto="#/poll/${escapeHtml(poll.id)}">
-        ${escapeHtml(label)}
-      </button>
-    </div>`;
+    <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
+      <span class="muted small">${escapeHtml(t('chain.map'))}</span>
+      <ul class="chain-map__tree">${node(tree)}</ul>
+    </nav>`;
 }
 
 /**
@@ -905,6 +963,8 @@ export function bindPoll(poll) {
     flash(next.date ? t('polls.dateKept', { day: whenText(next) }) : t('polls.dateCleared'));
     replacePoll(next);
   });
+
+  view.querySelector('#event-add')?.addEventListener('click', () => openEventMenu(poll));
 
   view.querySelector('#event-list')?.addEventListener('click', () => {
     const list = signed(forEvent(poll, createList, eventName(poll) || pollTitle(poll)));
