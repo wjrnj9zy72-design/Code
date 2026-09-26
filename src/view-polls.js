@@ -34,6 +34,7 @@ import { recentPeople, withMeFirst } from './people.js';
 import { isLive, eventParts, forEvent } from './dashboard.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
+import { swipeable } from './swipe.js';
 import { t, getLanguage } from './i18n.js';
 
 /* ------------------------------------------------------------------ polls --- */
@@ -97,7 +98,7 @@ export function pollsView() {
       <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(pollCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('polls.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.polls)}
@@ -107,12 +108,12 @@ export function pollsView() {
       closed.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('polls.done'))}</h2></div>
-             <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
+             <div class="game-list">${closed.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, pollCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(pollCardHtml, isOrganiser))}`;
 }
 
 export function newPollView() {

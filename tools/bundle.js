@@ -24,7 +24,7 @@ const root = resolve(import.meta.dirname, '..');
  * for app.js and the screens split out of it (view-*.js), which call each
  * other, and only from inside functions, run once everything is loaded.
  */
-const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'spends.js', 'ideas.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'view-polls.js', 'view-lists.js', 'view-spends.js', 'view-ideas.js', 'view-games.js', 'view-groups.js', 'app.js'];
+const MODULES = ['i18n.js', 'games.js', 'model.js', 'scoring.js', 'helpers.js', 'tarot.js', 'qr.js', 'stamp.js', 'people.js', 'lists.js', 'polls.js', 'spends.js', 'ideas.js', 'stats.js', 'dashboard.js', 'ics.js', 'recap.js', 'export-docx.js', 'export-pdf.js', 'storage.js', 'config.js', 'lock.js', 'remote.js', 'cloud.js', 'swipe.js', 'view-polls.js', 'view-lists.js', 'view-spends.js', 'view-ideas.js', 'view-games.js', 'view-groups.js', 'app.js'];
 
 /**
  * An import, on one line or spread over several — a long list of names wraps,
