@@ -76,7 +76,7 @@ export function newGameView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('new.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     <form id="new-game" class="card stack">
@@ -308,7 +308,7 @@ export function gameView(game) {
         <h1>${escapeHtml(gameTitle(game))}</h1>
         <p class="muted small">${escapeHtml(preset ? presetLabel(preset) : '')} · ${escapeHtml(t('home.rounds', { count: game.rounds.length }))}</p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     ${inGroupHtml(game)}

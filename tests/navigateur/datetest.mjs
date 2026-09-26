@@ -179,7 +179,7 @@ check('et la liste attend dans l’archive',
 await page.click('[data-tab="groups"]');
 await page.waitForSelector('.tiles');
 const numbers = await page.locator('.card', { has: page.locator('.tiles') }).first().locator('.tile__value').allTextContents();
-check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,1,1,0', numbers.join(','));
+check('ce qui est archivé ne compte plus nulle part', numbers.join(',') === '0,1,1,0,0', numbers.join(','));
 
 await openTab('lists');
 await page.click('details.details summary');

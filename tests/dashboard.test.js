@@ -244,6 +244,16 @@ test('les comptes de dépenses comptent parmi ce que tient un groupe', async () 
   assert.ok(peopleIn({ spends: [owing] }).includes('Alice'), 'et ses personnes sont des personnes');
 });
 
+test('les tableaux d’idées comptent aussi, tant qu’ils ne sont pas rangés', async () => {
+  const { createBoard } = await import('../src/ideas.js');
+  const board = { ...createBoard({ name: 'Déco' }), groupId: 'mifa', shared: true };
+
+  assert.equal(groupCounts({ boards: [board] }, 'mifa').boards, 1);
+  assert.equal(groupCounts({ boards: [board] }, 'copains').boards, 0, 'pas dans un autre groupe');
+  assert.equal(groupCounts({ boards: [{ ...board, archivedAt: 1 }] }, 'mifa').boards, 0, 'ni rangé');
+  assert.ok(groupCounts({ boards: [board] }, 'mifa').at > 0, 'et il date le groupe');
+});
+
 test('la page d’une personne dit ce qu’elle doit, et ce qu’on lui doit', async () => {
   const { createSpend, addSpend } = await import('../src/spends.js');
   const spend = createSpend({ name: 'Vacances', names: ['Gui', 'Alice'], groupId: 'mifa' });

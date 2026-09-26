@@ -84,7 +84,7 @@ export function listsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(listCardHtml)).join('')}</div>`
@@ -141,7 +141,7 @@ export function newListView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('lists.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -260,7 +260,7 @@ export function listView(list) {
         </p>
         ${signedByHtml(list)}
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -298,27 +298,27 @@ export function listView(list) {
     }
 
     ${actionsHtml(`
+        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
+        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           list.people.length
             ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
             : ''
         }
-        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
-        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           done
             ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
             : ''
         }
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="list-archive">
           ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 

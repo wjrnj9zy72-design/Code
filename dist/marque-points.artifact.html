@@ -439,14 +439,14 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
  */
 .tiles {
   display: grid;
-  /* 72px au minimum : à quatre cases sur un écran de 320, elles passent à la
+  /* 56px au minimum : à cinq cases sur un écran de 320, elles passent à la
      ligne plutôt que de rogner « Sondages » au milieu d'un mot. */
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
   gap: 8px;
 }
 
 .tile {
-  padding: 8px 4px;
+  padding: 8px 2px;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -459,7 +459,7 @@ button.tile { cursor: pointer; }
 button.tile:hover { background: var(--accent-soft); }
 
 .tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
-.tile__label { display: block; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.tile__label { display: block; color: var(--muted); font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* One line of someone's file: what it is on the left, where it stands on the right. */
 .entries { display: flex; flex-direction: column; }
@@ -1507,7 +1507,6 @@ const STRINGS = {
     'action.edit': 'Modifier',
     'action.rename': 'Renommer',
 
-    'home.ongoing': 'Parties en cours',
     'home.finished': 'Parties terminées',
     'home.empty': 'Aucune partie pour le moment. Lancez-en une !',
     'home.emptyFinished': 'Aucune partie terminée.',
@@ -1628,7 +1627,12 @@ const STRINGS = {
     'welcome.list': 'Faire une liste',
     'welcome.spend': 'Partager des dépenses',
     'overview.pending': 'En cours',
-    'overview.counts': '{lists} {lists|liste|listes} · {polls} {polls|sondage|sondages} · {games} {games|partie|parties}',
+    'count.lists': '{count} {count|liste|listes}',
+    'count.polls': '{count} {count|sondage|sondages}',
+    'count.games': '{count} {count|partie|parties}',
+    'count.spends': '{count} {count|compte|comptes}',
+    'count.boards': '{count} {count|tableau d’idées|tableaux d’idées}',
+    'count.none': 'rien en cours',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
     'lists.leftToDo': '{count} {count|ligne|lignes} à faire',
     'lists.late': '{count} en retard',
@@ -1654,7 +1658,6 @@ const STRINGS = {
     'events.peopleHint': 'Qui vient (facultatif, on peut en ajouter après).',
     'events.coming': 'À venir',
     'events.none': 'Rien de prévu. Un sondage qui retient une date, ou un événement créé ici, apparaît ici.',
-    'events.accounts': 'Comptes en cours',
     'events.past': 'Passés ({count})',
     'events.nobody': 'Personne pour l’instant',
     'events.dateHint': 'Le jour part dans les agendas, sous le nom écrit en dessous. L’heure est facultative.',
@@ -1681,7 +1684,6 @@ const STRINGS = {
     'group.who': 'Voir qui doit quoi',
     'spends.new': 'Nouveau compte',
     'spends.settled': 'Soldés',
-    'spends.ongoing': 'En cours',
     'spends.none': 'Aucun compte pour l’instant. Vacances, coloc, week-end : tout ce qu’on avance à plusieurs.',
     'spends.untitled': 'Compte sans nom',
     'spends.untitledLine': 'Dépense',
@@ -1741,10 +1743,10 @@ const STRINGS = {
     'spends.confirmDelete': 'Supprimer ce compte et toutes ses dépenses ? C’est définitif.',
     'spends.loading': 'On va chercher ce compte…',
     'tab.ideas': 'Idées',
+    'kinds.ongoing': 'En cours',
     'ideas.new': 'Nouveau tableau d’idées',
     'ideas.none': 'Aucun tableau pour l’instant. Un voyage, un cadeau, un projet : on note et on dessine ce qui vient, avant de décider.',
     'ideas.untitled': 'Tableau sans nom',
-    'ideas.boards': 'Tableaux d’idées',
     'ideas.name': 'Sujet',
     'ideas.namePlaceholder': 'Voyage en Corse, cadeau de Léa…',
     'ideas.create': 'Créer le tableau',
@@ -2079,7 +2081,6 @@ const STRINGS = {
     'polls.peopleHint': 'Les personnes à qui on demande. On peut en ajouter plus tard.',
     'polls.create': 'Créer le sondage',
     'polls.untitled': 'Sondage sans question',
-    'polls.ongoing': 'En cours',
     'polls.done': 'Clos',
     'polls.none': 'Aucun sondage pour l’instant. Posez une question : un soir, un lieu, un cadeau.',
     'polls.answered': '{count} {count|réponse|réponses} sur {total}',
@@ -2138,7 +2139,6 @@ const STRINGS = {
     'lists.firstLinesPlaceholder': 'Pain\nLait\nRéserver le camion',
     'lists.create': 'Créer la liste',
     'lists.untitled': 'Liste sans titre',
-    'lists.ongoing': 'En cours',
     'lists.done': 'Terminées',
     'lists.none': 'Aucune liste pour l’instant. Créez-en une : courses, valise, corvées, ce que vous voulez.',
     'lists.empty': 'vide',
@@ -2375,7 +2375,6 @@ const STRINGS = {
     'action.edit': 'Edit',
     'action.rename': 'Rename',
 
-    'home.ongoing': 'Games in progress',
     'home.finished': 'Finished games',
     'home.empty': 'No games yet. Start one!',
     'home.emptyFinished': 'No finished games.',
@@ -2496,7 +2495,12 @@ const STRINGS = {
     'welcome.list': 'Make a list',
     'welcome.spend': 'Split costs',
     'overview.pending': 'Going on',
-    'overview.counts': '{lists} {lists|list|lists} · {polls} {polls|poll|polls} · {games} {games|game|games}',
+    'count.lists': '{count} {count|list|lists}',
+    'count.polls': '{count} {count|poll|polls}',
+    'count.games': '{count} {count|game|games}',
+    'count.spends': '{count} {count|account|accounts}',
+    'count.boards': '{count} {count|idea board|idea boards}',
+    'count.none': 'nothing going on',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
     'lists.leftToDo': '{count} {count|line|lines} left',
     'lists.late': '{count} overdue',
@@ -2522,7 +2526,6 @@ const STRINGS = {
     'events.peopleHint': 'Who is coming (optional, more can be added later).',
     'events.coming': 'Coming up',
     'events.none': 'Nothing planned. A poll that settles on a day, or an event made here, shows up here.',
-    'events.accounts': 'Ongoing accounts',
     'events.past': 'Past ({count})',
     'events.nobody': 'Nobody yet',
     'events.dateHint': 'The day goes into calendars, under the name written below. The hour is optional.',
@@ -2549,7 +2552,6 @@ const STRINGS = {
     'group.who': 'See who owes what',
     'spends.new': 'New account',
     'spends.settled': 'Settled',
-    'spends.ongoing': 'Going on',
     'spends.none': 'No account yet. Holidays, a flatshare, a weekend away: anything several people pay for.',
     'spends.untitled': 'Untitled account',
     'spends.untitledLine': 'Expense',
@@ -2609,10 +2611,10 @@ const STRINGS = {
     'spends.confirmDelete': 'Delete this account and everything spent on it? This cannot be undone.',
     'spends.loading': 'Fetching that account…',
     'tab.ideas': 'Ideas',
+    'kinds.ongoing': 'In progress',
     'ideas.new': 'New idea board',
     'ideas.none': 'No board yet. A trip, a present, a project: write down and sketch what comes, before deciding.',
     'ideas.untitled': 'Untitled board',
-    'ideas.boards': 'Idea boards',
     'ideas.name': 'Topic',
     'ideas.namePlaceholder': 'Trip to Corsica, Léa’s present…',
     'ideas.create': 'Create the board',
@@ -2937,7 +2939,6 @@ const STRINGS = {
     'polls.peopleHint': 'The people being asked. More can be added later.',
     'polls.create': 'Create the poll',
     'polls.untitled': 'Poll with no question',
-    'polls.ongoing': 'Open',
     'polls.done': 'Closed',
     'polls.none': 'No polls yet. Ask something: an evening, a place, a present.',
     'polls.answered': '{count} of {total} answered',
@@ -2996,7 +2997,6 @@ const STRINGS = {
     'lists.firstLinesPlaceholder': 'Bread\nMilk\nBook the van',
     'lists.create': 'Create the list',
     'lists.untitled': 'Untitled list',
-    'lists.ongoing': 'In progress',
     'lists.done': 'Finished',
     'lists.none': 'No lists yet. Make one: shopping, a suitcase, the chores — whatever you like.',
     'lists.empty': 'empty',
@@ -6432,7 +6432,7 @@ function peopleIn({ lists = [], polls = [], games = [], spends = [] } = {}) {
  * with lines left, an open poll, an unfinished game. `left` is the lines still
  * to tick, `at` when anything here last moved (0 when there is nothing).
  */
-function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, groupId = '', today = dayNow()) {
+function groupCounts({ lists = [], polls = [], games = [], spends = [], boards = [] } = {}, groupId = '', today = dayNow()) {
   const mine = (documents) => documents.filter((document_) => inGroup(document_, groupId));
   const held = { lists: mine(lists), polls: mine(polls), games: mine(games), spends: mine(spends) };
   const live = {
@@ -6441,7 +6441,8 @@ function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, g
     games: held.games.filter(isLive),
     spends: held.spends.filter(isLive),
   };
-  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends];
+  const ideas = mine(boards);
+  const everything = [...held.lists, ...held.polls, ...held.games, ...held.spends, ...ideas];
 
   return {
     lists: live.lists.filter((list) => progress(list).left > 0).length,
@@ -6450,6 +6451,8 @@ function groupCounts({ lists = [], polls = [], games = [], spends = [] } = {}, g
     // Un compte compte tant que quelqu'un y doit quelque chose : un compte
     // soldé n'est pas en cours, il est fini.
     spends: live.spends.filter((spend) => balances(spend).some((row) => row.balance !== 0)).length,
+    // A board has nothing to finish: it counts for as long as it is out.
+    boards: ideas.filter(isLive).length,
     left: live.lists.reduce((sum, list) => sum + progress(list).left, 0),
     late: live.lists.reduce((sum, list) => sum + list.items.filter((item) => isLate(item, today)).length, 0),
     people: peopleIn(held).length,
@@ -8314,7 +8317,7 @@ function pollsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>`
@@ -8341,7 +8344,7 @@ function newPollView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('polls.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -8485,7 +8488,7 @@ function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}" data-back>
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -8597,11 +8600,11 @@ function pollView(poll, { solo = false } = {}) {
                </button>`
         }
 `, `
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -9586,7 +9589,7 @@ function listsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(listCardHtml)).join('')}</div>`
@@ -9643,7 +9646,7 @@ function newListView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('lists.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9762,7 +9765,7 @@ function listView(list) {
         </p>
         ${signedByHtml(list)}
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/lists">
+      <button type="button" class="button button--small button--ghost" data-goto="#/lists" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -9800,27 +9803,27 @@ function listView(list) {
     }
 
     ${actionsHtml(`
+        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
+        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           list.people.length
             ? `<button type="button" class="button button--small" id="share-out">${escapeHtml(t('lists.shareOut'))}</button>`
             : ''
         }
-        <button type="button" class="button button--small" id="list-people">${escapeHtml(t('lists.people'))}</button>
-        <button type="button" class="button button--small" id="list-text">${escapeHtml(t('action.recap'))}</button>
         ${
           done
             ? `<button type="button" class="button button--small" id="clear-done">${escapeHtml(t('lists.clearDone'))}</button>`
             : ''
         }
         <button type="button" class="button button--small" id="list-reuse">${escapeHtml(t('lists.reuse'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-template">
           ${escapeHtml(list.template ? t('lists.unTemplate') : t('lists.makeTemplate'))}
         </button>
         <button type="button" class="button button--small button--ghost" id="list-archive">
           ${escapeHtml(list.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="list-rename">${escapeHtml(t('lists.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="list-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="list-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -10453,7 +10456,7 @@ function spendsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
@@ -10506,7 +10509,7 @@ function newEventView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('events.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10644,7 +10647,7 @@ function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10689,6 +10692,8 @@ function newSpendView() {
             : ''
         }
       </div>
+
+      ${willBeInHtml()}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
     </form>`;
@@ -10918,7 +10923,7 @@ function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -10935,10 +10940,10 @@ function spendView(spend) {
 
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -10966,6 +10971,14 @@ function bindNewSpend() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      state.newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-suggest]').forEach((chip) => {
     chip.addEventListener('click', () => {
       snapshot();
@@ -10978,22 +10991,20 @@ function bindNewSpend() {
     });
   });
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = await askGroup();
-    const spend = createSpend({
+    const spend = landing(createSpend({
       name: state.newSpendName,
       names: state.newSpendPeople,
-      shared: Boolean(group),
-      groupId: group?.id || null,
       currency: state.newSpendCurrency,
-    });
+    }));
     state.spends = [...state.spends, spend];
     persistSpend(spend);
+    resetGroupChoice();
     state.newSpendName = '';
     state.newSpendCurrency = 'EUR';
-    state.newSpendPeople = ['', ''];
+    state.newSpendPeople = withMeFirst(['', ''], myName());
     navigate(`#/spend/${spend.id}`);
   });
 }
@@ -11437,7 +11448,7 @@ function ideasView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         live.length
           ? `<div class="game-list">${live.map(swipeable(boardCardHtml)).join('')}</div>
@@ -11455,7 +11466,7 @@ function newBoardView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('ideas.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -11540,7 +11551,7 @@ function boardView(board) {
           ${board.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -11562,10 +11573,10 @@ function boardView(board) {
     }
 
     ${actionsHtml('', `
+        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -12041,7 +12052,7 @@ function newGameView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('new.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     <form id="new-game" class="card stack">
@@ -12273,7 +12284,7 @@ function gameView(game) {
         <h1>${escapeHtml(gameTitle(game))}</h1>
         <p class="muted small">${escapeHtml(preset ? presetLabel(preset) : '')} · ${escapeHtml(t('home.rounds', { count: game.rounds.length }))}</p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
 
     ${inGroupHtml(game)}
@@ -14183,6 +14194,7 @@ function offerMeInForms() {
   state.newListPeople = withMeFirst(state.newListPeople, myName());
   state.newPollPeople = withMeFirst(state.newPollPeople, myName());
   state.newEventPeople = withMeFirst(state.newEventPeople, myName());
+  state.newSpendPeople = withMeFirst(state.newSpendPeople, myName());
   // Games are left to newGameView: only there is it known whether this preset
   // is played by people or by teams.
   state.newGameTouched = false;
@@ -15093,6 +15105,9 @@ const state = {
   // Whose lines are on screen in a list: null for everyone, 'none' for the
   // ones nobody has taken.
   listFilter: null,
+  // The screens walked through to get here, oldest first, without loops: what
+  // "Back" returns to. See followTrail().
+  trail: [],
   // The new-list form's draft, kept across re-renders like the new-game one:
   // adding a person must not throw away the lines already typed.
   newListName: '',
@@ -15273,15 +15288,20 @@ const FLASH_KEPT = 4000;
 /* ----------------------------------------------------------------- router --- */
 
 function route() {
-  const hash = location.hash.replace(/^#\/?/, '');
+  return routeOf(location.hash);
+}
+
+/** What an address opens, without going there. */
+function routeOf(address) {
+  const hash = address.replace(/^#\/?/, '');
   const [name, param] = hash.split('/');
   if (name === 'games') return { name: 'home' };
   // An invitation link carries both the six digits and the group's name, so
   // the person who receives it has nothing to read out and nothing to type.
   // A return link: a person's own token, which hands this browser a key.
-  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(location.hash) };
+  if (name === 'back' && param) return { name: 'back', token: backTokenFrom(address) };
   if (name === 'join' && param) {
-    const invitation = joinFrom(location.hash);
+    const invitation = joinFrom(address);
     if (invitation) return { name: 'join', code: invitation.code, group: invitation.name };
     // Half a link is still half a link: whichever of the two survived is kept,
     // and the page asks for the other rather than for both.
@@ -15359,6 +15379,40 @@ function navigate(hash) {
   else location.hash = hash;
 }
 
+/** The address of the screen on show, spelled one way. */
+function hereHash() {
+  return location.hash && location.hash !== '#' ? location.hash : '#/';
+}
+
+/**
+ * Note the screen just reached. Reaching the one before is going back: it is
+ * taken off, so "Back" never bounces between two screens. Any other screen goes
+ * on top, and leaves the place it had lower down.
+ */
+function followTrail() {
+  const here = hereHash();
+  const trail = state.trail;
+  if (trail[trail.length - 1] === here) return;
+  if (trail[trail.length - 2] === here) state.trail = trail.slice(0, -1);
+  else state.trail = [...trail.filter((hash) => hash !== here), here].slice(-50);
+}
+
+/**
+ * Where "Back" goes: the screen one came from — the group's page for a list
+ * opened there, the person's for a poll opened from it — and the usual place
+ * when there is none (a link just opened). A form already filled in is not
+ * somewhere to go back to.
+ */
+function backTarget(fallback) {
+  const here = hereHash();
+  for (let index = state.trail.length - 1; index >= 0; index -= 1) {
+    const hash = state.trail[index];
+    if (hash === here || /^#\/(lists|polls|spends|agenda|ideas)\/new$|^#\/new$/.test(hash)) continue;
+    return hash;
+  }
+  return fallback;
+}
+
 /* ------------------------------------------------------------------ views --- */
 
 function flashHtml() {
@@ -15393,7 +15447,7 @@ function groupChipsHtml() {
   const counted = active === OUTSIDE_GROUPS
     ? groupCounts({
         lists: shownDocs(state.lists), polls: shownDocs(state.polls),
-        games: shownDocs(state.games), spends: shownDocs(state.spends),
+        games: shownDocs(state.games), spends: shownDocs(state.spends), boards: shownDocs(state.boards),
       })
     : groupCounts(state, active);
   const chip = (id, label) => `
@@ -15407,7 +15461,19 @@ function groupChipsHtml() {
       ${held.map((group) => chip(group.id, group.name)).join('')}
       ${outside || active === OUTSIDE_GROUPS ? chip(OUTSIDE_GROUPS, t('filter.others')) : ''}
     </div>
-    <p class="muted small">${escapeHtml(t('overview.counts', counted))}</p>`;
+    <p class="muted small">${escapeHtml(countsText(counted))}</p>`;
+}
+
+/**
+ * What is going on, kind by kind, in the order of the tabs — leaving out the
+ * kinds with nothing: « 1 liste · 2 parties », not five numbers, three of
+ * them nought.
+ */
+function countsText(counts) {
+  const said = ['lists', 'polls', 'games', 'spends', 'boards']
+    .filter((kind) => counts[kind])
+    .map((kind) => t(`count.${kind}`, { count: counts[kind] }));
+  return said.length ? said.join(' · ') : t('count.none');
 }
 
 function gameCardHtml(game) {
@@ -15845,6 +15911,7 @@ function groupBoardHtml(group) {
         ${tile(counts.polls, t('tab.polls'), '#/polls')}
         ${tile(counts.games, t('tab.games'), '#/games')}
         ${tile(counts.spends, t('tab.spends'), '#/spends')}
+        ${tile(counts.boards, t('tab.ideas'), '#/ideas')}
       </div>
       <p class="muted small">
         ${escapeHtml(t('dash.peopleCount', { count: counts.people }))}${
@@ -15926,23 +15993,23 @@ function groupView(group) {
 
   const sections = [
     section(t('events.coming'), events, eventCardHtml, '#/agenda'),
-    section(t('lists.ongoing'), lists, listCardHtml, '#/lists'),
-    section(t('polls.ongoing'), polls, pollCardHtml, '#/polls'),
-    section(t('home.ongoing'), games, gameCardHtml, '#/games'),
-    section(t('events.accounts'), spends, spendCardHtml, '#/spends'),
-    section(t('ideas.boards'), boards, boardCardHtml, '#/ideas'),
+    section(t('tab.lists'), lists, listCardHtml, '#/lists'),
+    section(t('tab.polls'), polls, pollCardHtml, '#/polls'),
+    section(t('tab.games'), games, gameCardHtml, '#/games'),
+    section(t('tab.spends'), spends, spendCardHtml, '#/spends'),
+    section(t('tab.ideas'), boards, boardCardHtml, '#/ideas'),
   ].join('');
 
   return `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(group.name)}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/groups">
+      <button type="button" class="button button--small button--ghost" data-goto="#/groups" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
     <p class="muted small">
-      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(t('overview.counts', counts))}
+      ${escapeHtml(t('dash.peopleCount', { count: counts.people }))} · ${escapeHtml(countsText(counts))}
     </p>
     <button type="button" class="button button--primary button--block" data-create-menu>
       + ${escapeHtml(t('create.title'))}
@@ -16728,7 +16795,7 @@ function backView(token) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('back.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -16863,7 +16930,7 @@ function joinView(invitation) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -16950,7 +17017,7 @@ function waitingView(knock) {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('gate.waitingTitle', { name: knock.groupName }))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -17340,7 +17407,7 @@ function homeView() {
     }
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         ongoing.length
           ? `<div class="game-list">${ongoing.map(swipeable(gameCardHtml)).join('')}</div>`
@@ -17379,7 +17446,7 @@ function personView(who) {
   const head = (title, tail) => `
     <div class="spread">
       ${title}
-      <button type="button" class="button button--small button--ghost" data-goto="#/">
+      <button type="button" class="button button--small button--ghost" data-goto="#/" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -17528,7 +17595,7 @@ function statsView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('stats.title'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/games">${escapeHtml(t('action.back'))}</button>
+      <button type="button" class="button button--small button--ghost" data-goto="#/games" data-back>${escapeHtml(t('action.back'))}</button>
     </div>
     ${groupChipsHtml()}
 
@@ -17967,7 +18034,7 @@ function render() {
   }
 
   view.querySelectorAll('[data-goto]').forEach((node) => {
-    node.addEventListener('click', () => navigate(node.dataset.goto));
+    node.addEventListener('click', () => navigate('back' in node.dataset ? backTarget(node.dataset.goto) : node.dataset.goto));
   });
   view.querySelectorAll('[data-create-menu]').forEach((node) => {
     node.addEventListener('click', openCreateMenu);
@@ -18049,15 +18116,23 @@ function adoptGame(stored) {
 function markTab(current) {
   const bar = document.getElementById('tabs');
   if (!bar) return;
+  const tabOf = (at) => {
+    if (['agenda', 'new-event'].includes(at.name)) return 'agenda';
+    if (['groups', 'group', 'person', 'join', 'back'].includes(at.name)) return 'groups';
+    if (at.name === 'settings') return 'settings';
+    return 'home';
+  };
+  // A document's page stays under the tab it was opened from: a poll opened
+  // from Home does not light up Agenda. Opened from a link, it goes where it
+  // is listed.
+  const document_ = ['list', 'poll', 'spend', 'board', 'game', 'person'].includes(current.name);
+  const from = document_ ? backTarget(null) : null;
   const poll = current.name === 'poll' ? getPoll(current.id) : null;
-  const inAgenda = ['agenda', 'new-event'].includes(current.name) || (poll && pollHome(poll) === '#/agenda');
-  const here = inAgenda
-    ? 'agenda'
-    : ['groups', 'group', 'person', 'join', 'back'].includes(current.name)
-      ? 'groups'
-      : current.name === 'settings'
-        ? 'settings'
-        : 'home';
+  const here = from
+    ? tabOf(routeOf(from))
+    : poll && pollHome(poll) === '#/agenda'
+      ? 'agenda'
+      : tabOf(current);
   bar.querySelectorAll('[data-tab]').forEach((tab) => {
     if (tab.dataset.tab === here) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -18184,7 +18259,9 @@ setLanguage(state.prefs.lang || detectLanguage());
 applyStaticText();
 applyTheme();
 bindChrome();
+followTrail();
 window.addEventListener('hashchange', () => {
+  followTrail();
   state.editingRoundId = null;
   state.listFilter = null;
   // A message already read belongs to the screen it was read on. One that has

@@ -144,7 +144,7 @@ export function spendsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
@@ -197,7 +197,7 @@ export function newEventView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('events.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/agenda">
+      <button type="button" class="button button--small button--ghost" data-goto="#/agenda" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -335,7 +335,7 @@ export function newSpendView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('spends.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -380,6 +380,8 @@ export function newSpendView() {
             : ''
         }
       </div>
+
+      ${willBeInHtml()}
 
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('spends.create'))}</button>
     </form>`;
@@ -609,7 +611,7 @@ export function spendView(spend) {
           ${spend.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/spends">
+      <button type="button" class="button button--small button--ghost" data-goto="#/spends" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -626,10 +628,10 @@ export function spendView(spend) {
 
     ${actionsHtml(`
         <button type="button" class="button button--small" id="spend-people">${escapeHtml(t('lists.people'))}</button>`, `
+        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-archive">
           ${escapeHtml(spend.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="spend-rename">${escapeHtml(t('spends.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="spend-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 
@@ -657,6 +659,14 @@ export function bindNewSpend() {
     render();
   });
 
+  view.querySelectorAll('[data-new-group]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      snapshot();
+      state.newGroupChoice = { touched: true, id: chip.dataset.newGroup || null };
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-suggest]').forEach((chip) => {
     chip.addEventListener('click', () => {
       snapshot();
@@ -669,22 +679,20 @@ export function bindNewSpend() {
     });
   });
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     snapshot();
-    const group = await askGroup();
-    const spend = createSpend({
+    const spend = landing(createSpend({
       name: state.newSpendName,
       names: state.newSpendPeople,
-      shared: Boolean(group),
-      groupId: group?.id || null,
       currency: state.newSpendCurrency,
-    });
+    }));
     state.spends = [...state.spends, spend];
     persistSpend(spend);
+    resetGroupChoice();
     state.newSpendName = '';
     state.newSpendCurrency = 'EUR';
-    state.newSpendPeople = ['', ''];
+    state.newSpendPeople = withMeFirst(['', ''], myName());
     navigate(`#/spend/${spend.id}`);
   });
 }

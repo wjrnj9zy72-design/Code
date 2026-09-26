@@ -437,14 +437,14 @@ input[type='time']::-webkit-date-and-time-value { text-align: left; }
  */
 .tiles {
   display: grid;
-  /* 72px au minimum : à quatre cases sur un écran de 320, elles passent à la
+  /* 56px au minimum : à cinq cases sur un écran de 320, elles passent à la
      ligne plutôt que de rogner « Sondages » au milieu d'un mot. */
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
   gap: 8px;
 }
 
 .tile {
-  padding: 8px 4px;
+  padding: 8px 2px;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -457,7 +457,7 @@ button.tile { cursor: pointer; }
 button.tile:hover { background: var(--accent-soft); }
 
 .tile__value { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.15; }
-.tile__label { display: block; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.tile__label { display: block; color: var(--muted); font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* One line of someone's file: what it is on the left, where it stands on the right. */
 .entries { display: flex; flex-direction: column; }

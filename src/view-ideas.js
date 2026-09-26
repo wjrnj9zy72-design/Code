@@ -78,7 +78,7 @@ export function ideasView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         live.length
           ? `<div class="game-list">${live.map(swipeable(boardCardHtml)).join('')}</div>
@@ -96,7 +96,7 @@ export function newBoardView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('ideas.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -181,7 +181,7 @@ export function boardView(board) {
           ${board.shared ? ` · ${escapeHtml(t('lists.sharedMark'))}` : ''}
         </p>
       </div>
-      <button type="button" class="button button--small button--ghost" data-goto="#/ideas">
+      <button type="button" class="button button--small button--ghost" data-goto="#/ideas" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -203,10 +203,10 @@ export function boardView(board) {
     }
 
     ${actionsHtml('', `
+        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-archive">
           ${escapeHtml(board.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         <button type="button" class="button button--small button--ghost" id="board-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 

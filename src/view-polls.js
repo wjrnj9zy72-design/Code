@@ -95,7 +95,7 @@ export function pollsView() {
     ${groupChipsHtml()}
 
     <section class="section">
-      <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t('kinds.ongoing'))}</h2></div>
       ${
         open.length
           ? `<div class="game-list">${open.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>`
@@ -122,7 +122,7 @@ export function newPollView() {
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(t('polls.new'))}</h1>
-      <button type="button" class="button button--small button--ghost" data-goto="#/polls">
+      <button type="button" class="button button--small button--ghost" data-goto="#/polls" data-back>
         ${escapeHtml(t('action.back'))}
       </button>
     </div>
@@ -266,7 +266,7 @@ export function pollView(poll, { solo = false } = {}) {
       ${
         solo
           ? ''
-          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}">
+          : `<button type="button" class="button button--small button--ghost" data-goto="${pollHome(poll)}" data-back>
                ${escapeHtml(t('action.back'))}
              </button>`
       }
@@ -378,11 +378,11 @@ export function pollView(poll, { solo = false } = {}) {
                </button>`
         }
 `, `
+        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
+        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-archive">
           ${escapeHtml(poll.archivedAt ? t('archive.back') : t('archive.put'))}
         </button>
-        <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
-        <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         <button type="button" class="button button--small button--ghost" id="poll-delete">${escapeHtml(t('action.delete'))}</button>`)}`;
 }
 

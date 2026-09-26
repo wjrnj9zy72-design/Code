@@ -244,12 +244,21 @@ Avec plusieurs groupes, l'app ne mélange plus tout.
   événement, une partie ou un compte, depuis n'importe quelle page ; il dit
   dans quel groupe la chose ira (modifiable sur le formulaire).
 - L'onglet **Groupes** ouvre sur un bloc par groupe : combien de listes, de
-  sondages, de parties et de comptes y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
+  sondages, de parties, de comptes et de tableaux d'idées y sont en cours. Chaque chiffre est un bouton — il ouvre l'onglet
   correspondant, déjà réglé sur ce groupe. Le nom du groupe ouvre **sa page**
   (`#/group/<id>`) : tout ce qui y est en cours, sur une seule page — ce qui
-  vient, les listes, les sondages, les parties, les comptes à solder — avec
-  « Tout voir » vers l'onglet, déjà réglé sur ce groupe. Repliée en bas :
+  vient, les listes, les sondages, les parties, les comptes à solder, les
+  idées — chaque section titrée par sa sorte, avec « Tout voir » vers
+  l'onglet, déjà réglé sur ce groupe. Repliée en bas :
   « Voir qui doit quoi », les prénoms de ce groupe et ce qui les attend.
+- **Retour** ramène là d'où l'on vient : une liste ouverte depuis la page d'un
+  groupe revient à cette page, un sondage ouvert depuis l'Accueil revient à
+  l'Accueil, et l'onglet allumé reste celui d'où l'on est parti. Ouverte par un
+  lien, une page revient à sa place habituelle. Un formulaire déjà rempli
+  n'est jamais une étape du retour.
+- Partout, le même ordre : dans « Plus d'actions », *Renommer*, *Signer*,
+  *Modèle*, *Ranger*, puis *Supprimer* ; sur les formulaires, le choix du
+  groupe juste avant le bouton (le compte de dépenses aussi, désormais).
 - L'Accueil et l'Agenda portent alors les mêmes **pastilles** : *Tous*, puis un
   groupe par pastille. Le choix tient d'un onglet à l'autre et d'une ouverture à
   la suivante — regarder un groupe, c'est regarder ses listes *et* ses sondages

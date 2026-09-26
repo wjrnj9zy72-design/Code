@@ -100,11 +100,11 @@ check('un bloc par groupe dans l’onglet Groupes', (await boards.count()) === 2
 
 const mifaBoard = page.locator('.card', { hasText: 'Mifa' }).filter({ has: page.locator('.tiles') }).first();
 const mifaNumbers = await mifaBoard.locator('.tile__value').allTextContents();
-check('Mifa : 2 listes, 1 sondage, 0 partie, 0 compte', mifaNumbers.join(',') === '2,1,0,0', mifaNumbers.join(','));
+check('Mifa : 2 listes, 1 sondage, 0 partie, 0 compte, 0 idée', mifaNumbers.join(',') === '2,1,0,0,0', mifaNumbers.join(','));
 
 const copainsBoard = page.locator('.card', { hasText: 'Copains du mardi' }).filter({ has: page.locator('.tiles') }).first();
 const copainsNumbers = await copainsBoard.locator('.tile__value').allTextContents();
-check('Copains : 1 liste, 0 sondage, 1 partie en cours', copainsNumbers.join(',') === '1,0,1,0', copainsNumbers.join(','));
+check('Copains : 1 liste, 0 sondage, 1 partie en cours', copainsNumbers.join(',') === '1,0,1,0,0', copainsNumbers.join(','));
 
 check('le groupe dont on tient la porte est signalé',
   (await mifaBoard.locator('.pill').textContent()).includes('porte'),
@@ -128,8 +128,8 @@ check('seules les listes de Mifa sont là',
   cards.map((c) => c.trim()).join(' | '));
 
 const countLine = (await page.locator('.chip').first().locator('xpath=../following-sibling::p[1]').textContent()).trim();
-check('la ligne sous les pastilles compte ce qui est à l’écran',
-  countLine === '2 listes · 1 sondage · 0 partie', countLine);
+check('la ligne sous les pastilles compte ce qui est à l’écran, sans les zéros',
+  countLine === '2 listes · 1 sondage', countLine);
 
 /* ---- 4. le filtre suit d'un onglet à l'autre ---------------------------- */
 
