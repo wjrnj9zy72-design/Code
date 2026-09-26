@@ -15729,7 +15729,8 @@ function comingHtml() {
   const late = events.filter((event) => ends(event) < today);
   const coming = events.filter((event) => ends(event) >= today);
 
-  if (!events.length) return '';
+  // Nothing dated on show: say so only when the group filter is what hides it.
+  if (!events.length) return hiddenByGroupHtml(state.lists.filter((list) => isLive(list) && list.items.some((item) => item.due)));
 
   const shown = [...late.slice(-3), ...coming.slice(0, 8)];
   const hidden = events.length - shown.length;
@@ -15774,6 +15775,7 @@ function eventsHtml() {
           : `<p class="muted small">${escapeHtml(t('events.noneHome'))}</p>`
       }
       ${coming.length > shown.length ? `<p class="muted small">${escapeHtml(t('events.more', { count: coming.length - shown.length }))}</p>` : ''}
+      ${hiddenByGroupHtml(upcomingEvents(state.polls))}
       ${
         deciding.length
           ? `<button type="button" class="game-card" data-goto="#/agenda">
