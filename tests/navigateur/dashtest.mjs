@@ -129,7 +129,7 @@ check('seules les listes de Mifa sont là',
 
 const countLine = (await page.locator('.chip').first().locator('xpath=../following-sibling::p[1]').textContent()).trim();
 check('la ligne sous les pastilles compte ce qui est à l’écran',
-  countLine === '2 liste(s) · 1 sondage(s) · 0 partie(s)', countLine);
+  countLine === '2 listes · 1 sondage · 0 partie', countLine);
 
 /* ---- 4. le filtre suit d'un onglet à l'autre ---------------------------- */
 
@@ -166,7 +166,7 @@ check('ses groupes sont nommés',
   (await page.locator('.who').textContent()).replace(/\s+/g, ' ').trim());
 
 const band = (await page.locator('.banner').first().textContent()).trim();
-check('ce qui attend est en tête', /1 ligne\(s\) à faire · 1 vote\(s\) en attente/.test(band), band);
+check('ce qui attend est en tête', /1 ligne à faire · 1 vote en attente/.test(band), band);
 
 const tiles = await page.locator('.tile__value').allTextContents();
 check('ses quatre chiffres : 1 partie, 1 victoire, 1 à faire, 1 vote',

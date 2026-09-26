@@ -212,16 +212,16 @@ par lien seulement, ou venu d'un groupe dont l'appareil n'est pas.
 
 ## Ce que ça fait — les sondages
 
-Une question, des choix, et une grille : **une réponse par personne et par
-choix** — oui, peut-être, non. C'est la forme du « quel soir ? », et choisir une
-chose parmi plusieurs, c'est la même grille avec un seul oui dedans. Donc pas de
-type de sondage à choisir avant de poser la question.
+Une question, des choix, et une grille : **chacun coche les choix qui lui
+vont**, et rien d'autre — pas de « non », pas de « peut-être ». C'est la forme
+du « quel soir ? », et choisir une chose parmi plusieurs, c'est la même grille
+avec une seule coche dedans. Donc pas de type de sondage à choisir avant de
+poser la question.
 
-- On touche une case : oui, puis peut-être, puis non, puis plus rien. **Ne pas
-  avoir répondu n'est pas un non** — la grille le montre, et le compte aussi.
-- Le classement met en tête ce qui arrange le plus de monde, un *peut-être*
-  valant un demi-oui : assez pour départager deux soirs que tout le monde peut à
-  moitié, jamais assez pour battre un soir que tout le monde peut.
+- On touche une case pour dire « dispo », on la retouche pour l'enlever. **Ne
+  pas avoir répondu n'est pas un non** — le compte dit combien ont répondu.
+- Une jauge horizontale classe les choix par nombre de personnes dispo ; à
+  égalité, l'ordre d'écriture décide.
 - **Clore** le sondage fige les réponses ; on peut le rouvrir.
 - **Partager** comme le reste : un lien, un code QR, chacun répond de son côté,
   et les réponses de chacun arrivent sans écraser celles des autres.

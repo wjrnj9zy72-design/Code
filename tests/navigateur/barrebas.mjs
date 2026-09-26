@@ -76,7 +76,7 @@ const forYou = await page.locator('#for-you').textContent();
 check('« Pour vous » : les deux sondages où Gui n’a pas répondu',
   forYou.includes('Quel soir pour la raclette') && forYou.includes('Quel cadeau pour Léa'), forYou);
 check('une liste dont les lignes ne sont à personne n’y est pas', !forYou.includes('Courses Mifa'), forYou);
-check('une ligne confiée à Gui y est', /Valise/.test(forYou) && /1 chose\(s\) pour vous/.test(forYou), forYou);
+check('une ligne confiée à Gui y est', /Valise/.test(forYou) && /1 chose pour vous/.test(forYou), forYou);
 check('rien n’y est montré deux fois',
   (await page.locator('#view .game-card', { hasText: 'Courses Mifa' }).count()) === 1);
 

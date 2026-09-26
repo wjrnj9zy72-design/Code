@@ -64,7 +64,7 @@ check('le dialogue explique pourquoi', /prénom relie une personne/.test(
 await page.fill('#asked-text', 'Alexandre');
 await page.click('#asked-ok');
 await page.waitForSelector('.banner', { timeout: 15000 });
-check('renommer partout le dit', /document\(s\) renommé/.test(await page.locator('.banner').textContent()),
+check('renommer partout le dit', /documents? renommé/.test(await page.locator('.banner').textContent()),
   await page.locator('.banner').textContent());
 
 const after = (await page.locator('tbody td:first-child').allTextContents()).map((n) => n.replace(/[✎\s]+/g, ' ').trim());

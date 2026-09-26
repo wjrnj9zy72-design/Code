@@ -1,0 +1,19 @@
+# Les tests sur chaque PR : un voyant rouge avant la fusion, pas après.
+# Le build n'est pas refait ici, exprès : un dist/ oublié se voit tout de suite.
+name: Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test

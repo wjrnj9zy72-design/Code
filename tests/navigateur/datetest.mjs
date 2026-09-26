@@ -121,7 +121,7 @@ check('le bloc du groupe aussi',
 await page.evaluate(() => { location.hash = '#/person/Alice'; });
 await page.waitForSelector('.who');
 check('et sa page met le retard en premier',
-  /^1 en retard · 2 ligne\(s\) à faire/.test((await page.locator('.banner').first().textContent()).trim()),
+  /^1 en retard · 2 lignes à faire/.test((await page.locator('.banner').first().textContent()).trim()),
   (await page.locator('.banner').first().textContent()).trim());
 const tiles = await page.locator('.tile__value').allTextContents();
 check('sa page compte le retard à part', tiles.join(',') === '1,0,2,1', tiles.join(','));
@@ -141,7 +141,7 @@ check('la page suit la personne renommée',
   (await page.evaluate(() => location.hash)) === '#/person/Alix',
   await page.evaluate(() => location.hash));
 check('et le message compte les trois documents',
-  /3 document\(s\)/.test(await page.locator('.banner').first().textContent()),
+  /3 documents/.test(await page.locator('.banner').first().textContent()),
   (await page.locator('.banner').first().textContent()).trim());
 
 await openTab('lists');

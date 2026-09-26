@@ -27,7 +27,7 @@ export const STRINGS = {
     'home.finished': 'Parties terminées',
     'home.empty': 'Aucune partie pour le moment. Lancez-en une !',
     'home.emptyFinished': 'Aucune partie terminée.',
-    'home.rounds': '{count} manche(s)',
+    'home.rounds': '{count} {count|manche|manches}',
     'home.leader': 'En tête : {name}',
     'home.winner': 'Vainqueur : {name}',
     'home.winners': 'Vainqueurs : {name}',
@@ -39,7 +39,7 @@ export const STRINGS = {
     'helper.open': 'Compter les cartes',
     'helper.title': '{name} — compter les cartes',
     'helper.total': 'Total : {total}',
-    'helper.cards': '{count} carte(s)',
+    'helper.cards': '{count} {count|carte|cartes}',
     'helper.undo': 'Annuler la dernière',
     'helper.clear': 'Tout effacer',
     'helper.apply': 'Reporter le score',
@@ -107,8 +107,8 @@ export const STRINGS = {
     'tarot.chelem.announcedMade': 'Annoncé et réussi (+400)',
     'tarot.chelem.announcedFailed': 'Annoncé et chuté (−200)',
     'tarot.chelem.unannouncedMade': 'Non annoncé et réussi (+200)',
-    'tarot.made': 'Contrat réussi de {gap} point(s)',
-    'tarot.failed': 'Contrat chuté de {gap} point(s)',
+    'tarot.made': 'Contrat réussi de {gap} {gap|point|points}',
+    'tarot.failed': 'Contrat chuté de {gap} {gap|point|points}',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Saisissez les points du preneur pour voir le résultat.',
     'data.autoShare': 'Envoyer mes nouveautés dans mon groupe',
@@ -127,17 +127,17 @@ export const STRINGS = {
     'forYou.nothing': 'Rien ne vous attend. Tranquille.',
     'forYou.noName': 'Écrivez votre prénom dans Réglages : l’app vous montrera ici ce qui vous attend.',
     'forYou.vote': 'votre réponse est attendue',
-    'forYou.lines': '{count} chose(s) pour vous',
-    'forYou.knocks': '{count} personne(s) demandent à entrer',
+    'forYou.lines': '{count} {count|chose|choses} pour vous',
+    'forYou.knocks': '{count} {count|personne|personnes} {count|demande|demandent} à entrer',
     'forYou.knocksWhere': 'Groupes › {name}',
     'groups.noDatabase': 'Cette copie de l’app n’a pas de base partagée : il n’y a pas de groupe ici. Tout reste sur cet appareil.',
     'polls.toDecide': 'À décider',
     'overview.what':
       'Une app à plusieurs : des listes à cocher et à répartir, des sondages pour trancher une date, et de quoi compter les points d’une vingtaine de jeux.',
     'overview.pending': 'En cours',
-    'overview.counts': '{lists} liste(s) · {polls} sondage(s) · {games} partie(s)',
+    'overview.counts': '{lists} {lists|liste|listes} · {polls} {polls|sondage|sondages} · {games} {games|partie|parties}',
     'overview.nothing': 'Rien en cours. Commencez par une liste, un sondage ou une partie.',
-    'lists.leftToDo': '{count} ligne(s) à faire',
+    'lists.leftToDo': '{count} {count|ligne|lignes} à faire',
     'lists.late': '{count} en retard',
     'polls.date': 'La date retenue',
     'polls.hour': 'Heure',
@@ -177,7 +177,7 @@ export const STRINGS = {
     'agenda.nothing':
       'Rien de daté pour l’instant. Une date retenue sur un sondage, ou un jour posé sur une ligne, apparaît ici — et part dans les agendas abonnés.',
     'agenda.late': 'en retard',
-    'agenda.more': '+ {count} autre(s), dans les agendas abonnés',
+    'agenda.more': '+ {count} {count|autre|autres}, dans les agendas abonnés',
     'tab.spends': 'Comptes',
     'tab.agenda': 'Agenda',
     'create.title': 'Créer',
@@ -273,18 +273,18 @@ export const STRINGS = {
     'archive.back': 'Sortir de l’archive',
     'archive.done': 'Rangé. Rien n’est perdu : tout est dans « Archivés ».',
     'archive.undone': 'Ressorti de l’archive.',
-    'archive.shown': '{count} archivé(s)',
+    'archive.shown': '{count} {count|archivé|archivés}',
     'filter.by': 'Filtrer par groupe',
     'filter.all': 'Tous',
     'filter.others': 'Autres',
     'filter.hidden':
-      '{count} autre(s) sont masqué(s) par le groupe choisi — dont tout ce qui n’a été partagé dans aucun groupe.',
-    'dash.groupCount': '{count} groupe(s)',
+      '{count} {count|autre|autres} {count|est|sont} {count|masqué|masqués} par le groupe choisi — dont tout ce qui n’a été partagé dans aucun groupe.',
+    'dash.groupCount': '{count} {count|groupe|groupes}',
     'dash.gate': 'vous ouvrez la porte',
     'dash.member': 'membre',
-    'dash.peopleCount': '{count} personne(s)',
+    'dash.peopleCount': '{count} {count|personne|personnes}',
     'dash.you': '{name} (vous)',
-    'dash.votes': '{count} vote(s) en attente',
+    'dash.votes': '{count} {count|vote|votes} en attente',
     'dash.nothing': 'rien en attente',
     'person.none': 'Personne de ce nom dans ce que tient cet appareil.',
     'person.statGames': 'parties',
@@ -381,17 +381,17 @@ export const STRINGS = {
     'groups.refused': 'Cette clé n’ouvre aucun groupe. Vérifiez qu’elle a été copiée en entier.',
     'groups.unsure': 'La base n’a pas répondu. Réessayez dans un moment.',
     'groups.joined': 'Vous êtes dans {name}.',
-    'groups.joinedWith': 'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s).',
+    'groups.joinedWith': 'Vous êtes dans {name}, avec {count} {count|élément|éléments} déjà {count|partagé|partagés}.',
     'groups.joinedKeepLink':
       'Vous êtes dans {name}. Gardez votre lien de retour — bouton « Mon lien de retour » — : c’est lui qui vous ramènera depuis un autre navigateur ou après une réinstallation.',
     'groups.joinedWithKeepLink':
-      'Vous êtes dans {name}, avec {count} élément(s) déjà partagé(s). Gardez votre lien de retour — bouton « Mon lien de retour ».',
+      'Vous êtes dans {name}, avec {count} {count|élément|éléments} déjà {count|partagé|partagés}. Gardez votre lien de retour — bouton « Mon lien de retour ».',
     'groups.codeLabel': 'Le code',
     'groups.codeInLink':
       'Déjà dans le message et dans le lien : à dire de vive voix seulement si rien ne passe.',
-    'groups.shared': '{count} partagé(s) ici',
+    'groups.shared': '{count} {count|partagé|partagés} ici',
     'groups.catchUp': 'Tout récupérer',
-    'groups.caughtUp': '{count} élément(s) récupéré(s) depuis le groupe.',
+    'groups.caughtUp': '{count} {count|élément|éléments} {count|récupéré|récupérés} depuis le groupe.',
     'groups.upToDate': 'Rien de nouveau : cet appareil est à jour.',
     'groups.showKey': 'Voir ma clé',
     'groups.confirmShowKey':
@@ -444,11 +444,11 @@ export const STRINGS = {
     'join.needMe': 'Écrivez votre prénom : le groupe verra qui est entré.',
     'join.action': 'Demander à entrer',
     'join.alreadyUpToDate': 'Cet appareil est déjà dans {name}, et à jour.',
-    'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} élément(s) récupéré(s).',
+    'join.alreadyCaughtUp': 'Cet appareil est déjà dans {name} : {count} {count|élément|éléments} {count|récupéré|récupérés}.',
     'data.holds':
-      'Sur cet appareil : {lists} liste(s), {polls} sondage(s), {games} partie(s), {spends} compte(s) — dont {shared} partagé(s) et {archived} archivé(s).',
+      'Sur cet appareil : {lists} {lists|liste|listes}, {polls} {polls|sondage|sondages}, {games} {games|partie|parties}, {spends} {spends|compte|comptes} — dont {shared} {shared|partagé|partagés} et {archived} {archived|archivé|archivés}.',
     'data.organiserBackup':
-      'Vous organisez {count} sondage(s) : ce droit ne vit que sur cet appareil. Exporter le garde ; Importer le rend, sur un nouveau téléphone par exemple. Ne donnez pas ce fichier.',
+      'Vous organisez {count} {count|sondage|sondages} : ce droit ne vit que sur cet appareil. Exporter le garde ; Importer le rend, sur un nouveau téléphone par exemple. Ne donnez pas ce fichier.',
     'data.version': 'Version de l’app : {version}.',
     'data.lookForUpdate': 'Chercher une mise à jour',
     'data.updateComing':
@@ -457,7 +457,7 @@ export const STRINGS = {
     'data.updateUnknown':
       'Impossible de vérifier pour l’instant — sans réseau, ou depuis un fichier ouvert hors ligne.',
     'sync.title': 'Récupérer ce que les autres ont fait',
-    'sync.done': '{count} élément(s) récupéré(s).',
+    'sync.done': '{count} {count|élément|éléments} {count|récupéré|récupérés}.',
     'sync.nothing': 'Rien de nouveau : cet appareil est à jour.',
     'sync.failed': 'La base n’a pas répondu. Réessayez dans un moment.',
     'gate.knock': 'Demander',
@@ -535,7 +535,7 @@ export const STRINGS = {
     'polls.ongoing': 'En cours',
     'polls.done': 'Clos',
     'polls.none': 'Aucun sondage pour l’instant. Posez une question : un soir, un lieu, un cadeau.',
-    'polls.answered': '{count} réponse(s) sur {total}',
+    'polls.answered': '{count} {count|réponse|réponses} sur {total}',
     'polls.noAnswerYet': 'Personne n’a encore répondu.',
     'polls.leading': 'En tête : {option} ({count} dispo)',
     'polls.gauge': 'Les dates qui arrangent le plus',
@@ -596,7 +596,7 @@ export const STRINGS = {
     'lists.addFirst': 'Écrivez la première ligne ci-dessus.',
     'lists.nothingHere': 'Rien ici pour l’instant.',
     'lists.everyone': 'Tout',
-    'lists.nobody': 'Personne',
+    'lists.nobody': 'À prendre',
     'lists.assignTitle': 'Pour qui ?',
     'lists.lineTitle': 'Modifier la ligne',
     'lists.shareOut': 'Répartir',
@@ -624,7 +624,7 @@ export const STRINGS = {
     'home.search': 'Rechercher une partie ou un joueur',
     'game.dealer': 'À {name} de donner',
     'stats.title': 'Statistiques',
-    'stats.games': '{count} partie(s)',
+    'stats.games': '{count} {count|partie|parties}',
     'stats.played': 'Jouées',
     'stats.won': 'Gagnées',
     'stats.average': 'Moyenne',
@@ -634,7 +634,7 @@ export const STRINGS = {
     'stats.renameTitle': 'Renommer cette personne partout',
     'stats.renameHint':
       'Le prénom relie une personne d’une partie à l’autre, d’une liste à l’autre. Si {name} a été écrit autrement ailleurs — ou a changé —, renommez-le ici : parties, listes et sondages suivent, et les lignes se réunissent.',
-    'stats.renamed': '{name} : {count} document(s) renommé(s).',
+    'stats.renamed': '{name} : {count} {count|document|documents} {count|renommé|renommés}.',
     'stats.renamedNone': 'Rien à renommer.',
     'stats.note':
       'Les joueurs sont reconnus par leur nom, et les totaux comparés jeu par jeu. Seules les parties terminées comptent une victoire.',
@@ -664,8 +664,8 @@ export const STRINGS = {
       'Aucune partie trouvée pour ce lien. Vérifiez qu’il est complet, et qu’il n’est pas trop ancien.',
     'shareSet.noDatabase':
       'Cette copie de l’app n’est reliée à aucune base partagée : elle ne peut pas récupérer ces parties.',
-    'shareSet.opened': '{count} partie(s) ajoutée(s) depuis le lien.',
-    'shareSet.openedSome': '{count} partie(s) sur {total} ajoutée(s) : les autres sont introuvables.',
+    'shareSet.opened': '{count} {count|partie|parties} {count|ajoutée|ajoutées} depuis le lien.',
+    'shareSet.openedSome': '{count} {count|partie|parties} sur {total} {count|ajoutée|ajoutées} : les autres sont introuvables.',
     'shareApp.needsSql':
       'La base n’a pas cette fonction : relancez le bloc SQL de l’étape 2 bis du guide de déploiement.',
     'shareApp.needsUpdate':
@@ -678,7 +678,7 @@ export const STRINGS = {
     'shareSet.codeHint':
       'Ce lien apporte des parties. Tapez les six chiffres donnés par la personne qui vous l’a envoyé.',
     'shareSet.badCode': 'Un code est fait de six chiffres.',
-    'shareSet.wrongCode': 'Code incorrect. Il reste {left} essai(s) avant que ce lien se bloque.',
+    'shareSet.wrongCode': 'Code incorrect. Il reste {left} {left|essai|essais} avant que ce lien se bloque.',
     'shareSet.locked':
       'Ce lien est bloqué : dix codes faux ont été essayés. Demandez un nouveau lien à la personne qui l’a créé.',
     'shareSet.cannotUnseal':
@@ -686,7 +686,7 @@ export const STRINGS = {
     'lots.title': 'Mes partages ({count})',
     'lots.hint':
       'Les liens avec parties créés depuis cet appareil. Le code est rappelé ici, et révoquer un lien le rend inutilisable pour tout le monde, même avec le bon code.',
-    'lots.line': '{count} partie(s) · {date}',
+    'lots.line': '{count} {count|partie|parties} · {date}',
     'lots.link': 'Revoir le lien',
     'lots.revoke': 'Révoquer',
     'lots.confirmRevoke':
@@ -722,9 +722,9 @@ export const STRINGS = {
       'Copiez ce texte et gardez-le pour vous : il porte aussi vos droits d’organisateur. Pour le remettre dans l’appli plus tard, enregistrez-le dans un fichier .json et utilisez Importer.',
     'export.copied': 'Copié !',
     'export.copyByHand': 'Texte sélectionné — copiez-le',
-    'home.importDone': '{count} élément(s) importé(s).',
+    'home.importDone': '{count} {count|élément|éléments} {count|importé|importés}.',
     'home.importOrganiser':
-      '{count} élément(s) importé(s), et vous organisez de nouveau {polls} sondage(s).',
+      '{count} {count|élément|éléments} {count|importé|importés}, et vous organisez de nouveau {polls} {polls|sondage|sondages}.',
     'home.importFailed': 'Fichier illisible : aucune partie importée.',
     'home.storageWarning':
       'Impossible d’enregistrer sur cet appareil : ce qui vient d’être fait sera perdu au prochain rechargement. Le stockage est peut-être plein, ou refusé (navigation privée).',
@@ -763,8 +763,8 @@ export const STRINGS = {
     'game.sum': 'Total saisi : {sum}',
     'game.sumExpected': 'Total saisi : {sum} / {expected}',
     'game.note': 'Note (facultatif)',
-    'game.remainingThreshold': 'Encore {count} point(s) avant la fin de la partie.',
-    'game.remainingRounds': 'Encore {count} manche(s).',
+    'game.remainingThreshold': 'Encore {count} {count|point|points} avant la fin de la partie.',
+    'game.remainingRounds': 'Encore {count} {count|manche|manches}.',
     'game.finished': 'Partie terminée',
     'game.confirmDeleteGame': 'Supprimer définitivement cette partie ?',
     'game.confirmDeleteRound': 'Supprimer cette manche ?',
@@ -828,7 +828,7 @@ export const STRINGS = {
     'home.finished': 'Finished games',
     'home.empty': 'No games yet. Start one!',
     'home.emptyFinished': 'No finished games.',
-    'home.rounds': '{count} round(s)',
+    'home.rounds': '{count} {count|round|rounds}',
     'home.leader': 'Leading: {name}',
     'home.winner': 'Winner: {name}',
     'home.winners': 'Winners: {name}',
@@ -840,7 +840,7 @@ export const STRINGS = {
     'helper.open': 'Count the cards',
     'helper.title': '{name} — count the cards',
     'helper.total': 'Total: {total}',
-    'helper.cards': '{count} card(s)',
+    'helper.cards': '{count} {count|card|cards}',
     'helper.undo': 'Undo last',
     'helper.clear': 'Clear all',
     'helper.apply': 'Use this score',
@@ -908,8 +908,8 @@ export const STRINGS = {
     'tarot.chelem.announcedMade': 'Announced and made (+400)',
     'tarot.chelem.announcedFailed': 'Announced and failed (−200)',
     'tarot.chelem.unannouncedMade': 'Unannounced and made (+200)',
-    'tarot.made': 'Contract made by {gap} point(s)',
-    'tarot.failed': 'Contract down by {gap} point(s)',
+    'tarot.made': 'Contract made by {gap} {gap|point|points}',
+    'tarot.failed': 'Contract down by {gap} {gap|point|points}',
     'tarot.sum': '({base} + {gap}{petit}) × {multiplier}{extra} = {amount}',
     'tarot.needPoints': 'Enter the taker\u2019s points to see the result.',
     'data.autoShare': 'Send whatever I start to my group',
@@ -928,17 +928,17 @@ export const STRINGS = {
     'forYou.nothing': 'Nothing is waiting on you. All quiet.',
     'forYou.noName': 'Write your first name in Settings: the app will show you here what is waiting on you.',
     'forYou.vote': 'your answer is awaited',
-    'forYou.lines': '{count} thing(s) for you',
-    'forYou.knocks': '{count} person(s) asking to join',
+    'forYou.lines': '{count} {count|thing|things} for you',
+    'forYou.knocks': '{count} {count|person|people} asking to join',
     'forYou.knocksWhere': 'Groups › {name}',
     'groups.noDatabase': 'This copy of the app has no shared database: there are no groups here. Everything stays on this device.',
     'polls.toDecide': 'To decide',
     'overview.what':
       'An app for several people: lists to tick and hand out, polls to settle a date, and a score keeper for a couple of dozen games.',
     'overview.pending': 'Going on',
-    'overview.counts': '{lists} list(s) · {polls} poll(s) · {games} game(s)',
+    'overview.counts': '{lists} {lists|list|lists} · {polls} {polls|poll|polls} · {games} {games|game|games}',
     'overview.nothing': 'Nothing on the go. Start with a list, a poll or a game.',
-    'lists.leftToDo': '{count} line(s) left',
+    'lists.leftToDo': '{count} {count|line|lines} left',
     'lists.late': '{count} overdue',
     'polls.date': 'The day settled on',
     'polls.hour': 'Time',
@@ -1079,13 +1079,13 @@ export const STRINGS = {
     'filter.all': 'All',
     'filter.others': 'Others',
     'filter.hidden':
-      '{count} more are hidden by the chosen group — including everything shared in no group at all.',
-    'dash.groupCount': '{count} group(s)',
+      '{count} more {count|is|are} hidden by the chosen group — including everything shared in no group at all.',
+    'dash.groupCount': '{count} {count|group|groups}',
     'dash.gate': 'you let people in',
     'dash.member': 'member',
-    'dash.peopleCount': '{count} person(s)',
+    'dash.peopleCount': '{count} {count|person|people}',
     'dash.you': '{name} (you)',
-    'dash.votes': '{count} vote(s) awaited',
+    'dash.votes': '{count} {count|vote|votes} awaited',
     'dash.nothing': 'nothing waiting',
     'person.none': 'Nobody by that name in what this device holds.',
     'person.statGames': 'games',
@@ -1178,16 +1178,16 @@ export const STRINGS = {
     'groups.refused': 'That key opens no group. Check that all of it was copied.',
     'groups.unsure': 'The database did not answer. Try again in a moment.',
     'groups.joined': 'You are in {name}.',
-    'groups.joinedWith': 'You are in {name}, with {count} item(s) already shared.',
+    'groups.joinedWith': 'You are in {name}, with {count} {count|item|items} already shared.',
     'groups.joinedKeepLink':
       'You are in {name}. Keep your return link — the “My return link” button — it is what brings you back from another browser or after reinstalling.',
     'groups.joinedWithKeepLink':
-      'You are in {name}, with {count} item(s) already shared. Keep your return link — the “My return link” button.',
+      'You are in {name}, with {count} {count|item|items} already shared. Keep your return link — the “My return link” button.',
     'groups.codeLabel': 'The code',
     'groups.codeInLink': 'Already in the message and in the link: say them out loud only if nothing gets through.',
     'groups.shared': '{count} shared here',
     'groups.catchUp': 'Fetch everything',
-    'groups.caughtUp': '{count} item(s) fetched from the group.',
+    'groups.caughtUp': '{count} {count|item|items} fetched from the group.',
     'groups.upToDate': 'Nothing new: this device is up to date.',
     'groups.showKey': 'Show my key',
     'groups.confirmShowKey':
@@ -1239,18 +1239,18 @@ export const STRINGS = {
     'join.needMe': 'Write your first name: the group will see who has joined.',
     'join.action': 'Ask to join',
     'join.alreadyUpToDate': 'This device is already in {name}, and up to date.',
-    'join.alreadyCaughtUp': 'This device is already in {name}: {count} item(s) fetched.',
+    'join.alreadyCaughtUp': 'This device is already in {name}: {count} {count|item|items} fetched.',
     'data.holds':
-      'On this device: {lists} list(s), {polls} poll(s), {games} game(s), {spends} account(s) — of which {shared} shared and {archived} archived.',
+      'On this device: {lists} {lists|list|lists}, {polls} {polls|poll|polls}, {games} {games|game|games}, {spends} {spends|account|accounts} — of which {shared} shared and {archived} archived.',
     'data.organiserBackup':
-      'You organise {count} poll(s): that right lives on this device only. Export keeps it; Import brings it back, on a new phone for instance. Do not hand that file out.',
+      'You organise {count} {count|poll|polls}: that right lives on this device only. Export keeps it; Import brings it back, on a new phone for instance. Do not hand that file out.',
     'data.version': 'App version: {version}.',
     'data.lookForUpdate': 'Look for an update',
     'data.updateComing': 'A new version is on its way: the app reloads itself in a moment.',
     'data.updateNone': 'This is already the latest published version.',
     'data.updateUnknown': 'Cannot check right now — no network, or a file opened offline.',
     'sync.title': 'Fetch what the others have done',
-    'sync.done': '{count} item(s) fetched.',
+    'sync.done': '{count} {count|item|items} fetched.',
     'sync.nothing': 'Nothing new: this device is up to date.',
     'sync.failed': 'The database did not answer. Try again in a moment.',
     'gate.knock': 'Ask',
@@ -1415,7 +1415,7 @@ export const STRINGS = {
     'home.search': 'Search a game or a player',
     'game.dealer': '{name} deals',
     'stats.title': 'Statistics',
-    'stats.games': '{count} game(s)',
+    'stats.games': '{count} {count|game|games}',
     'stats.played': 'Played',
     'stats.won': 'Won',
     'stats.average': 'Average',
@@ -1425,7 +1425,7 @@ export const STRINGS = {
     'stats.renameTitle': 'Rename this person everywhere',
     'stats.renameHint':
       'A first name is what links one person from game to game, from list to list. If {name} was written differently elsewhere — or has changed — rename them here: games, lists and polls all follow, and the lines come together.',
-    'stats.renamed': '{name}: {count} document(s) renamed.',
+    'stats.renamed': '{name}: {count} {count|document|documents} renamed.',
     'stats.renamedNone': 'Nothing to rename.',
     'stats.note':
       'Players are matched by name, and totals compared game by game. Only finished games count a win.',
@@ -1454,8 +1454,8 @@ export const STRINGS = {
       'No games found for that link. Check that it is complete, and not too old.',
     'shareSet.noDatabase':
       'This copy of the app has no shared database, so it cannot fetch those games.',
-    'shareSet.opened': '{count} game(s) added from the link.',
-    'shareSet.openedSome': '{count} of {total} game(s) added: the others could not be found.',
+    'shareSet.opened': '{count} {count|game|games} added from the link.',
+    'shareSet.openedSome': '{count} of {total} {total|game|games} added: the others could not be found.',
     'shareApp.needsSql':
       'The database does not have that function: run the SQL block from step 2b of the deployment guide again.',
     'shareApp.needsUpdate':
@@ -1468,7 +1468,7 @@ export const STRINGS = {
     'shareSet.codeHint':
       'This link carries games. Type the six digits given to you by whoever sent it.',
     'shareSet.badCode': 'A code is six digits.',
-    'shareSet.wrongCode': 'Wrong code. {left} attempt(s) left before this link locks itself.',
+    'shareSet.wrongCode': 'Wrong code. {left} {left|attempt|attempts} left before this link locks itself.',
     'shareSet.locked':
       'This link is locked: ten wrong codes were tried. Ask whoever made it for a new one.',
     'shareSet.cannotUnseal':
@@ -1476,7 +1476,7 @@ export const STRINGS = {
     'lots.title': 'My shares ({count})',
     'lots.hint':
       'The links carrying games made from this device. The code is shown again here, and revoking a link makes it useless to everyone, right code or not.',
-    'lots.line': '{count} game(s) · {date}',
+    'lots.line': '{count} {count|game|games} · {date}',
     'lots.link': 'Show the link',
     'lots.revoke': 'Revoke',
     'lots.confirmRevoke':
@@ -1512,8 +1512,8 @@ export const STRINGS = {
       'Copy this text and keep it to yourself: it also carries your organiser rights. To bring it back into the app later, save it as a .json file and use Import.',
     'export.copied': 'Copied!',
     'export.copyByHand': 'Text selected — copy it',
-    'home.importDone': 'Imported {count} item(s).',
-    'home.importOrganiser': 'Imported {count} item(s), and you organise {polls} poll(s) again.',
+    'home.importDone': 'Imported {count} {count|item|items}.',
+    'home.importOrganiser': 'Imported {count} {count|item|items}, and you organise {polls} {polls|poll|polls} again.',
     'home.importFailed': 'Could not read that file: nothing was imported.',
     'home.storageWarning':
       'Nothing can be stored on this device: what was just done will be lost at the next reload. Storage may be full, or refused (private browsing).',
@@ -1552,8 +1552,8 @@ export const STRINGS = {
     'game.sum': 'Entered total: {sum}',
     'game.sumExpected': 'Entered total: {sum} / {expected}',
     'game.note': 'Note (optional)',
-    'game.remainingThreshold': '{count} point(s) left before the game ends.',
-    'game.remainingRounds': '{count} round(s) left.',
+    'game.remainingThreshold': '{count} {count|point|points} left before the game ends.',
+    'game.remainingRounds': '{count} {count|round|rounds} left.',
     'game.finished': 'Game over',
     'game.confirmDeleteGame': 'Permanently delete this game?',
     'game.confirmDeleteRound': 'Delete this round?',
@@ -1617,7 +1617,20 @@ export function getLanguage() {
 
 export function t(key, params = {}) {
   const template = STRINGS[current]?.[key] ?? STRINGS.fr[key] ?? key;
-  return template.replace(/\{(\w+)\}/g, (match, name) =>
-    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match,
-  );
+  return template
+    .replace(/\{(\w+)\|([^|{}]*)\|([^|{}]*)\}/g, (match, name, one, many) =>
+      Object.prototype.hasOwnProperty.call(params, name) ? (isOne(params[name]) ? one : many) : match,
+    )
+    .replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match,
+    );
+}
+
+/**
+ * Whether a count takes the singular: « 0 ligne, 1 ligne, 2 lignes » in
+ * French, "0 lines, 1 line, 2 lines" in English.
+ */
+function isOne(count) {
+  const n = Math.abs(Number(count));
+  return current === 'en' ? n === 1 : n < 2;
 }

@@ -1294,7 +1294,7 @@ function watchPoll(id) {
   if (!state.remote) return;
   state.pollWatched = id;
   const look = async () => {
-    if (isBusy()) return;
+    if (isBusy() || isHidden()) return;
     if (await pullPoll(id)) render();
   };
   // At once, and then every five seconds: opening a poll should show the
@@ -1334,7 +1334,7 @@ function watchSpend(id) {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy()) return;
+    if (isBusy() || isHidden()) return;
     if (await pullSpend(id)) render();
   }, 5000);
 }
@@ -3143,8 +3143,8 @@ function groupsHtml() {
                placeholder="${escapeHtml(t('groups.namePlaceholder'))}" />
         <input type="text" id="group-code" class="code-input" inputmode="numeric" autocomplete="one-time-code"
                placeholder="000000" aria-label="${escapeHtml(t('groups.codePlaceholder'))}" />
-        <button type="button" class="button button--primary" id="group-join">${escapeHtml(t('gate.knock'))}</button>
       </div>
+      <button type="button" class="button button--primary button--block" id="group-join">${escapeHtml(t('gate.knock'))}</button>
       <p class="muted small" id="group-state">${escapeHtml(t('groups.codeHint'))}</p>
 
       <details class="details">
@@ -3614,7 +3614,7 @@ function dataHtml() {
           : ''
       }
       ${
-        state.remote
+        state.remote && groups().length
           ? `<label class="checkbox">
                <input type="checkbox" id="auto-share" ${state.prefs.autoShare ? 'checked' : ''} />
                ${escapeHtml(t('data.autoShare'))}
@@ -4495,7 +4495,7 @@ function watchGate() {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy() || !showsGate()) return;
+    if (isBusy() || isHidden() || !showsGate()) return;
     if (await refreshGate()) render();
   }, 15000);
 }
@@ -4505,7 +4505,7 @@ function watchPending() {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy()) return;
+    if (isBusy() || isHidden()) return;
     const knock = pendingFor(route().group);
     if (!knock) return;
     const status = await checkPending(knock);
@@ -8791,7 +8791,7 @@ function watchList(id) {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy()) return;
+    if (isBusy() || isHidden()) return;
     if (await pullList(id)) render();
   }, 5000);
 }
@@ -8801,7 +8801,7 @@ function watchGame(id) {
   stopWatching();
   if (!state.remote) return;
   state.poll = setInterval(async () => {
-    if (isBusy()) return; // never redraw under someone's fingers
+    if (isBusy() || isHidden()) return; // never redraw under someone's fingers
     if (await pullGame(id)) render();
   }, 5000);
 }
@@ -8819,6 +8819,14 @@ function signature(games) {
     .map((game) => `${game.id}:${game.updatedAt}`)
     .sort()
     .join('|');
+}
+
+/**
+ * The app is in the background: nobody is looking, so the watchers ask the
+ * base nothing until it comes back (a document is caught up at once then).
+ */
+function isHidden() {
+  return document.visibilityState === 'hidden';
 }
 
 /** Someone is typing, or a dialog is open: a bad moment to redraw the view. */
