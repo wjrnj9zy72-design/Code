@@ -58,7 +58,7 @@ await page.waitForSelector('#add-item, .list, h1');
 check('la liste porte le nom de l’événement', (await text('h1')) === 'Annecy', await text('h1'));
 const listPeople = await page.locator('body').textContent();
 check('avec les personnes dispo', /Gui/.test(listPeople) && /Alice/.test(listPeople) && !/Bob/.test(listPeople));
-check('et ramène à l’événement', /Annecy — .*12 oct/.test(await text(`[data-goto="#/poll/${poll.id}"]`)), await text(`[data-goto="#/poll/${poll.id}"]`));
+check('et ramène à l’événement', /Annecy · .*12 oct/.test(await text(`[data-goto="#/poll/${poll.id}"]`)), await text(`[data-goto="#/poll/${poll.id}"]`));
 
 await page.click(`[data-goto="#/poll/${poll.id}"]`);
 await page.waitForSelector('#event-spend');
