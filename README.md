@@ -312,14 +312,26 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
   pour la base, net sur tous les écrans, et deux personnes qui dessinent sur
   le même croquis gardent chacune leurs traits. Un tableau trop lourd pour la
   base le dit avant d'écrire.
-- **Supprimer d'un glissement** : une carte glissée vers la gauche découvre un
-  bouton rouge *Supprimer* ; il faut le toucher, un glissement seul n'efface
-  rien. Un tableau entier se glisse de même dans la liste des tableaux, et
-  l'app demande avant.
+- **Supprimer d'un glissement**, comme partout ailleurs (voir plus bas).
 - Où va un tableau se dit sur le formulaire, comme pour une liste : un groupe,
   *Lien seulement*, ou *Garder pour moi*.
 - Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
   schémas (boîtes et flèches) ni de photos.
+
+## Supprimer d'un glissement
+
+Ce qui se supprime dans une liste de choses se glisse vers la gauche, au doigt
+ou à la souris : ça découvre un bouton rouge *Supprimer*, qu'il faut toucher —
+un glissement seul n'efface rien, un défilement non plus, et toucher la carte
+la referme.
+
+- **Tout de suite** : une ligne de liste, une dépense ou un remboursement, une
+  carte d'idée — comme depuis leur fenêtre.
+- **Après confirmation** : une liste, un sondage, un événement, une partie, un
+  compte ou un tableau d'idées, depuis son onglet ou l'agenda — il est souvent
+  à tout le groupe.
+- Un sondage organisé par quelqu'un d'autre ne se glisse pas : lui seul peut le
+  supprimer.
 
 ## Jeux fournis
 
@@ -466,6 +478,7 @@ src/tarot.js      calcul d'une donne de Tarot, contrat par contrat
 src/stats.js      statistiques par joueur, jeu par jeu
 src/dashboard.js  ce que tient un groupe, et le dossier d'une personne
 src/spends.js     les comptes de dépenses : parts, soldes, remboursements
+src/swipe.js      glisser vers la gauche pour supprimer, partout pareil
 src/ideas.js      les tableaux d'idées : notes, croquis en traits, fusion
 src/ics.js        l'écriture des fichiers .ics (iCalendar, à la main)
 supabase/functions/agenda/  la fonction qui sert l'agenda d'un groupe

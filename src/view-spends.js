@@ -17,7 +17,7 @@ import { archivedHtml } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
   askGroup, bindData, groups, hiddenByGroupHtml, inGroupHtml, keyFor, landing, myName, organise,
-  organiserSecret, resetGroupChoice, shownDocs, willBeInHtml,
+  organiserSecret, resetGroupChoice, shownDocs, willBeInHtml, isOrganiser,
 } from './view-groups.js';
 import { recentNames } from './model.js';
 import { sameName } from './stats.js';
@@ -32,6 +32,7 @@ import {
 import { recentPeople, withMeFirst } from './people.js';
 import { isLive, dayNow, eventParts } from './dashboard.js';
 import { saveSpends } from './storage.js';
+import { swipeHtml, swipeable, bindSwipes } from './swipe.js';
 import { t, getLanguage } from './i18n.js';
 
 /* --------------------------------------------------------------- dépenses --- */
@@ -99,7 +100,7 @@ export function agendaView() {
       deciding.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('polls.toDecide'))}</h2></div>
-             <div class="game-list">${deciding.map(pollCardHtml).join('')}</div>
+             <div class="game-list">${deciding.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>
            </section>`
         : ''
     }
@@ -108,7 +109,7 @@ export function agendaView() {
       <div class="section__head"><h2>${escapeHtml(t('events.coming'))}</h2></div>
       ${
         coming.length
-          ? `<div class="game-list">${coming.map(eventCardHtml).join('')}</div>`
+          ? `<div class="game-list">${coming.map(swipeable(eventCardHtml, isOrganiser)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('events.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.polls.filter((poll) => poll.date))}
@@ -118,12 +119,12 @@ export function agendaView() {
       past.length
         ? `<details class="details">
              <summary>${escapeHtml(t('events.past', { count: past.length }))}</summary>
-             <div class="game-list">${past.map(eventCardHtml).join('')}</div>
+             <div class="game-list">${past.map(swipeable(eventCardHtml, isOrganiser)).join('')}</div>
            </details>`
         : ''
     }
 
-    ${archivedHtml(archivedEvents, eventCardHtml)}`;
+    ${archivedHtml(archivedEvents, swipeable(eventCardHtml, isOrganiser))}`;
 }
 
 /** Every account, on the home page: the ones someone still owes on, then the settled. */
@@ -146,7 +147,7 @@ export function spendsView() {
       <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(spendCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.spends)}
@@ -156,12 +157,12 @@ export function spendsView() {
       done.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('spends.settled'))}</h2></div>
-             <div class="game-list">${done.map(spendCardHtml).join('')}</div>
+             <div class="game-list">${done.map(swipeable(spendCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, spendCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(spendCardHtml))}`;
 }
 
 /** An event in the agenda: its day, who comes, and where its list and account stand. */
@@ -415,20 +416,18 @@ function spendLineHtml(spend, line) {
   const who = spend.people.find((person) => person.id === line.by)?.name || '';
   if (isRepayment(line)) {
     const to = spend.people.find((person) => person.id === line.forWhom[0])?.name || '';
-    return `
-      <li class="line line--repay">
+    return swipeHtml(line.id, `
         <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
           <span>${escapeHtml(t('spends.repaid', { from: who, to }))}</span>
           <span class="line__due">${escapeHtml(t('spends.repayment'))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}</span>
         </button>
-        <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
-      </li>`;
+        <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>`,
+      { kind: 'line', tag: 'li', bodyClass: 'line line--repay' });
   }
   const forWhom = line.forWhom.length
     ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
     : t('spends.everyone');
-  return `
-    <li class="line">
+  return swipeHtml(line.id, `
       <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
         <span>${escapeHtml(line.text || t('spends.untitledLine'))}</span>
         <span class="line__due">
@@ -436,8 +435,8 @@ function spendLineHtml(spend, line) {
           · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
         </span>
       </button>
-      <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
-    </li>`;
+      <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>`,
+    { kind: 'line', tag: 'li', bodyClass: 'line' });
 }
 
 export function spendView(spend) {
@@ -692,6 +691,14 @@ export function bindNewSpend() {
 
 export function bindSpend(spend) {
   bindData();
+
+  // An expense or a repayment slides left to be deleted, as in its dialog.
+  bindSwipes('line', (lineId) => {
+    const current = getSpend(spend.id);
+    if (!current) return;
+    flash(t('swipe.lineDeleted'));
+    replaceSpend(removeSpend(current, lineId));
+  });
 
   view.querySelectorAll('[data-spend-tab]').forEach((button) => {
     button.addEventListener('click', () => {

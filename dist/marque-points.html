@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="83d3e385" />
+    <meta name="app-build" content="65a6dc52" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1405,7 +1405,7 @@ body:not(.solo) .view {
 .swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
 .swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 
-/* A card that slides left to uncover « Supprimer ». */
+/* A card or a line that slides left to uncover « Supprimer » (src/swipe.js). */
 .swipe {
   position: relative;
   display: grid;
@@ -1420,6 +1420,8 @@ body:not(.solo) .view {
   touch-action: pan-y;
   background: var(--bg);
 }
+
+.swipe__body.line { background: var(--surface); }
 
 .swipe__body > .game-card,
 .swipe__body > .idea-card { box-shadow: none; }
@@ -1798,6 +1800,8 @@ const STRINGS = {
     'ideas.confirmDelete': 'Supprimer ce tableau et toutes ses cartes ? C’est définitif.',
     'ideas.loading': 'On va chercher ce tableau…',
     'ideas.swipeHint': 'Glissez une carte vers la gauche pour la supprimer.',
+    'swipe.deleted': '« {name} » supprimé.',
+    'swipe.lineDeleted': 'Ligne supprimée.',
     'ideas.cardDeleted': 'Carte supprimée.',
     'ideas.deleted': '« {name} » supprimé.',
     'spends.cannotDropPaid':
@@ -2664,6 +2668,8 @@ const STRINGS = {
     'ideas.confirmDelete': 'Delete this board and all its cards? This cannot be undone.',
     'ideas.loading': 'Fetching that board…',
     'ideas.swipeHint': 'Swipe a card to the left to delete it.',
+    'swipe.deleted': '“{name}” deleted.',
+    'swipe.lineDeleted': 'Line deleted.',
     'ideas.cardDeleted': 'Card deleted.',
     'ideas.deleted': '“{name}” deleted.',
     'spends.cannotDropPaid':
@@ -8134,6 +8140,111 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
   return { save, remove, stop };
 }
 
+  // ---- src/swipe.js ----------------------------------------------------
+/**
+ * Slide left to delete — the gesture a phone's own lists taught everyone.
+ *
+ * A card or a line slides left to uncover a red « Supprimer » behind it.
+ * Sliding only uncovers the button; it takes a tap on it to delete, so a swipe
+ * meant as a scroll deletes nothing. The same everywhere something can be
+ * deleted from a list of things: documents in their tab, the lines of a list,
+ * an account's expenses, the cards of a board.
+ */
+
+
+
+/** How far a row slides to uncover its button, in pixels. */
+const SWIPE_OPEN = 96;
+
+/**
+ * A row that slides. `kind` says which binder handles it; `tag` and `bodyClass`
+ * let a line of a list stay an `<li>` holding the line itself.
+ */
+function swipeHtml(id, inner, { kind, tag = 'div', bodyClass = '' } = {}) {
+  return `
+    <${tag} class="swipe" data-swipe="${escapeHtml(id)}" data-swipe-kind="${escapeHtml(kind)}">
+      <button type="button" class="swipe__delete" data-swipe-delete tabindex="-1" aria-hidden="true">
+        ${escapeHtml(t('action.delete'))}
+      </button>
+      <div class="swipe__body ${bodyClass}">${inner}</div>
+    </${tag}>`;
+}
+
+/**
+ * A card function made slideable, for the documents in their tab. `canDelete`
+ * leaves a card as it was where deleting is not this device's to do — a poll
+ * someone else organises.
+ */
+function swipeable(cardHtml, canDelete = () => true) {
+  return (document_) =>
+    canDelete(document_) ? swipeHtml(document_.id, cardHtml(document_), { kind: 'doc' }) : cardHtml(document_);
+}
+
+/** Make every row of that kind on the page slide, and delete through `onDelete(id)`. */
+function bindSwipes(kind, onDelete) {
+  view.querySelectorAll(`[data-swipe-kind="${kind}"]`).forEach((row) => {
+    const body = row.querySelector('.swipe__body');
+    const button = row.querySelector('[data-swipe-delete]');
+    let start = null;
+    let offset = 0;
+    let moved = false;
+    let open = false;
+
+    const place = (x, animate) => {
+      offset = x;
+      body.style.transition = animate ? 'transform 0.18s ease' : 'none';
+      body.style.transform = x ? `translateX(${x}px)` : '';
+    };
+    const settle = (wanted) => {
+      open = wanted;
+      place(open ? -SWIPE_OPEN : 0, true);
+      row.classList.toggle('swipe--open', open);
+      button.tabIndex = open ? 0 : -1;
+      button.setAttribute('aria-hidden', open ? 'false' : 'true');
+    };
+
+    body.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      start = { x: event.clientX, y: event.clientY, from: open ? -SWIPE_OPEN : 0 };
+      moved = false;
+    });
+    body.addEventListener('pointermove', (event) => {
+      if (!start) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (!moved) {
+        if (Math.abs(dx) < 8) return;
+        // Mostly up or down: a scroll, not a swipe.
+        if (Math.abs(dy) > Math.abs(dx)) {
+          start = null;
+          return;
+        }
+        moved = true;
+        body.setPointerCapture?.(event.pointerId);
+      }
+      place(Math.min(0, Math.max(-row.clientWidth * 0.6, start.from + dx)), false);
+    });
+    const end = () => {
+      if (!start) return;
+      start = null;
+      if (moved) settle(offset < -SWIPE_OPEN / 2);
+    };
+    body.addEventListener('pointerup', end);
+    body.addEventListener('pointercancel', end);
+    // The click that ends a swipe is not a tap on what slid; nor is a tap on a
+    // row left open, which only closes it again.
+    body.addEventListener('click', (event) => {
+      if (!moved && !open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!moved) settle(false);
+      moved = false;
+    }, true);
+
+    button.addEventListener('click', () => onDelete(row.dataset.swipe));
+  });
+}
+
   // ---- src/view-polls.js -----------------------------------------------
 /**
  * Polls and events on screen: the list, the form, the grid, the day kept,
@@ -8143,6 +8254,7 @@ async function connectStore({ getLocalGames, onGames, onLost }) {
  * Split out of app.js, which it calls back into: only from inside functions,
  * so the two may import each other.
  */
+
 
 
 
@@ -8222,7 +8334,7 @@ function pollsView() {
       <div class="section__head"><h2>${escapeHtml(t('polls.ongoing'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(pollCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('polls.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.polls)}
@@ -8232,12 +8344,12 @@ function pollsView() {
       closed.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('polls.done'))}</h2></div>
-             <div class="game-list">${closed.map(pollCardHtml).join('')}</div>
+             <div class="game-list">${closed.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, pollCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(pollCardHtml, isOrganiser))}`;
 }
 
 function newPollView() {
@@ -9437,6 +9549,7 @@ function watchSpend(id) {
 
 
 
+
 /* ------------------------------------------------------------------ lists --- */
 
 /**
@@ -9493,7 +9606,7 @@ function listsView() {
       <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(listCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(listCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('lists.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.lists)}
@@ -9503,7 +9616,7 @@ function listsView() {
       finished.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('lists.done'))}</h2></div>
-             <div class="game-list">${finished.map(listCardHtml).join('')}</div>
+             <div class="game-list">${finished.map(swipeable(listCardHtml)).join('')}</div>
            </section>`
         : ''
     }
@@ -9515,12 +9628,12 @@ function listsView() {
                <h2>${escapeHtml(t('lists.templates'))}</h2>
                <span class="muted small">${escapeHtml(t('lists.templatesHint'))}</span>
              </div>
-             <div class="game-list">${templates.map(listCardHtml).join('')}</div>
+             <div class="game-list">${templates.map(swipeable(listCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, listCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(listCardHtml))}`;
 }
 
 /**
@@ -9619,8 +9732,7 @@ function newListView() {
 function listItemHtml(list, item) {
   const who = personName(list, item.who);
   const late = isLate(item);
-  return `
-    <li class="line ${item.done ? 'line--done' : ''}">
+  return swipeHtml(item.id, `
       <label class="line__tick">
         <input type="checkbox" data-tick="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}
                aria-label="${escapeHtml(item.text)}" />
@@ -9639,8 +9751,8 @@ function listItemHtml(list, item) {
       </button>
       <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
         ${escapeHtml(who || t('lists.nobody'))}
-      </button>
-    </li>`;
+      </button>`,
+    { kind: 'item', tag: 'li', bodyClass: `line ${item.done ? 'line--done' : ''}` });
 }
 
 function listView(list) {
@@ -9864,6 +9976,14 @@ function bindNewList() {
 }
 
 function bindList(list) {
+  // A line slides left to be deleted, as from its dialog.
+  bindSwipes('item', (itemId) => {
+    const current = getList(list.id);
+    if (!current) return;
+    flash(t('swipe.lineDeleted'));
+    replaceList(removeItem(current, itemId));
+  });
+
   view.querySelector('#add-line')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const field = view.querySelector('#new-line');
@@ -10240,6 +10360,7 @@ function adoptList(stored) {
 
 
 
+
 /* --------------------------------------------------------------- dépenses --- */
 
 function spendTitle(spend) {
@@ -10305,7 +10426,7 @@ function agendaView() {
       deciding.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('polls.toDecide'))}</h2></div>
-             <div class="game-list">${deciding.map(pollCardHtml).join('')}</div>
+             <div class="game-list">${deciding.map(swipeable(pollCardHtml, isOrganiser)).join('')}</div>
            </section>`
         : ''
     }
@@ -10314,7 +10435,7 @@ function agendaView() {
       <div class="section__head"><h2>${escapeHtml(t('events.coming'))}</h2></div>
       ${
         coming.length
-          ? `<div class="game-list">${coming.map(eventCardHtml).join('')}</div>`
+          ? `<div class="game-list">${coming.map(swipeable(eventCardHtml, isOrganiser)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('events.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.polls.filter((poll) => poll.date))}
@@ -10324,12 +10445,12 @@ function agendaView() {
       past.length
         ? `<details class="details">
              <summary>${escapeHtml(t('events.past', { count: past.length }))}</summary>
-             <div class="game-list">${past.map(eventCardHtml).join('')}</div>
+             <div class="game-list">${past.map(swipeable(eventCardHtml, isOrganiser)).join('')}</div>
            </details>`
         : ''
     }
 
-    ${archivedHtml(archivedEvents, eventCardHtml)}`;
+    ${archivedHtml(archivedEvents, swipeable(eventCardHtml, isOrganiser))}`;
 }
 
 /** Every account, on the home page: the ones someone still owes on, then the settled. */
@@ -10352,7 +10473,7 @@ function spendsView() {
       <div class="section__head"><h2>${escapeHtml(t('events.accounts'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(spendCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(spendCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('spends.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.spends)}
@@ -10362,12 +10483,12 @@ function spendsView() {
       done.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('spends.settled'))}</h2></div>
-             <div class="game-list">${done.map(spendCardHtml).join('')}</div>
+             <div class="game-list">${done.map(swipeable(spendCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, spendCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(spendCardHtml))}`;
 }
 
 /** An event in the agenda: its day, who comes, and where its list and account stand. */
@@ -10621,20 +10742,18 @@ function spendLineHtml(spend, line) {
   const who = spend.people.find((person) => person.id === line.by)?.name || '';
   if (isRepayment(line)) {
     const to = spend.people.find((person) => person.id === line.forWhom[0])?.name || '';
-    return `
-      <li class="line line--repay">
+    return swipeHtml(line.id, `
         <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
           <span>${escapeHtml(t('spends.repaid', { from: who, to }))}</span>
           <span class="line__due">${escapeHtml(t('spends.repayment'))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}</span>
         </button>
-        <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
-      </li>`;
+        <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>`,
+      { kind: 'line', tag: 'li', bodyClass: 'line line--repay' });
   }
   const forWhom = line.forWhom.length
     ? spend.people.filter((person) => line.forWhom.includes(person.id)).map((person) => person.name).join(', ')
     : t('spends.everyone');
-  return `
-    <li class="line">
+  return swipeHtml(line.id, `
       <button type="button" class="line__text" data-spend-line="${escapeHtml(line.id)}">
         <span>${escapeHtml(line.text || t('spends.untitledLine'))}</span>
         <span class="line__due">
@@ -10642,8 +10761,8 @@ function spendLineHtml(spend, line) {
           · ${escapeHtml(t('spends.forWhom', { names: forWhom }))}${line.day ? ` · ${escapeHtml(formatDay(line.day))}` : ''}
         </span>
       </button>
-      <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>
-    </li>`;
+      <span class="line__amount">${escapeHtml(money(line.amount, spend))}</span>`,
+    { kind: 'line', tag: 'li', bodyClass: 'line' });
 }
 
 function spendView(spend) {
@@ -10898,6 +11017,14 @@ function bindNewSpend() {
 
 function bindSpend(spend) {
   bindData();
+
+  // An expense or a repayment slides left to be deleted, as in its dialog.
+  bindSwipes('line', (lineId) => {
+    const current = getSpend(spend.id);
+    if (!current) return;
+    flash(t('swipe.lineDeleted'));
+    replaceSpend(removeSpend(current, lineId));
+  });
 
   view.querySelectorAll('[data-spend-tab]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -11276,6 +11403,7 @@ function openSpendPeopleDialog(spend) {
 
 
 
+
 function boardTitle(board) {
   return board.name || t('ideas.untitled');
 }
@@ -11298,88 +11426,6 @@ function boardCardHtml(board) {
     </button>`;
 }
 
-/**
- * A card that slides left to show a red « Supprimer » behind it — the gesture
- * a phone's own lists taught everyone. Sliding only uncovers the button; it
- * takes a tap on it to delete, so a swipe meant as a scroll deletes nothing.
- */
-function swipeHtml(id, inner) {
-  return `
-    <div class="swipe" data-swipe="${escapeHtml(id)}">
-      <button type="button" class="swipe__delete" data-swipe-delete tabindex="-1" aria-hidden="true">
-        ${escapeHtml(t('action.delete'))}
-      </button>
-      <div class="swipe__body">${inner}</div>
-    </div>`;
-}
-
-/** How far a card slides to uncover its button, in pixels. */
-const SWIPE_OPEN = 96;
-
-function bindSwipes(onDelete) {
-  view.querySelectorAll('[data-swipe]').forEach((row) => {
-    const body = row.querySelector('.swipe__body');
-    const button = row.querySelector('[data-swipe-delete]');
-    let start = null;
-    let offset = 0;
-    let moved = false;
-    let open = false;
-
-    const place = (x, animate) => {
-      offset = x;
-      body.style.transition = animate ? 'transform 0.18s ease' : 'none';
-      body.style.transform = x ? `translateX(${x}px)` : '';
-    };
-    const settle = (wanted) => {
-      open = wanted;
-      place(open ? -SWIPE_OPEN : 0, true);
-      row.classList.toggle('swipe--open', open);
-      button.tabIndex = open ? 0 : -1;
-      button.setAttribute('aria-hidden', open ? 'false' : 'true');
-    };
-
-    body.addEventListener('pointerdown', (event) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
-      start = { x: event.clientX, y: event.clientY, from: open ? -SWIPE_OPEN : 0 };
-      moved = false;
-    });
-    body.addEventListener('pointermove', (event) => {
-      if (!start) return;
-      const dx = event.clientX - start.x;
-      const dy = event.clientY - start.y;
-      if (!moved) {
-        if (Math.abs(dx) < 8) return;
-        // Mostly up or down: a scroll, not a swipe.
-        if (Math.abs(dy) > Math.abs(dx)) {
-          start = null;
-          return;
-        }
-        moved = true;
-        body.setPointerCapture?.(event.pointerId);
-      }
-      place(Math.min(0, Math.max(-row.clientWidth * 0.6, start.from + dx)), false);
-    });
-    const end = () => {
-      if (!start) return;
-      start = null;
-      if (moved) settle(offset < -SWIPE_OPEN / 2);
-    };
-    body.addEventListener('pointerup', end);
-    body.addEventListener('pointercancel', end);
-    // The click that ends a swipe is not a tap on the card; nor is a tap on a
-    // card left open, which only closes it again.
-    body.addEventListener('click', (event) => {
-      if (!moved && !open) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (!moved) settle(false);
-      moved = false;
-    }, true);
-
-    button.addEventListener('click', () => onDelete(row.dataset.swipe));
-  });
-}
-
 /** Delete a whole board, here and in the database. Asked first: it is everyone's. */
 async function deleteBoard(board, { then = null } = {}) {
   if (!(await ask(t('ideas.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) {
@@ -11393,13 +11439,6 @@ async function deleteBoard(board, { then = null } = {}) {
   flash(t('ideas.deleted', { name: boardTitle(board) }));
   if (then) navigate(then);
   else render();
-}
-
-function bindIdeas() {
-  bindSwipes((id) => {
-    const board = getBoard(id);
-    if (board) void deleteBoard(board);
-  });
 }
 
 /** Every board, on the home page: the live ones, then what was put away. */
@@ -11418,14 +11457,14 @@ function ideasView() {
       <div class="section__head"><h2>${escapeHtml(t('ideas.boards'))}</h2></div>
       ${
         live.length
-          ? `<div class="game-list">${live.map((board) => swipeHtml(board.id, boardCardHtml(board))).join('')}</div>
+          ? `<div class="game-list">${live.map(swipeable(boardCardHtml)).join('')}</div>
              <p class="muted small">${escapeHtml(t('ideas.swipeHint'))}</p>`
           : `<p class="muted small">${escapeHtml(t('ideas.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.boards)}
     </section>
 
-    ${archivedHtml(sorted, boardCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(boardCardHtml))}`;
 }
 
 function newBoardView() {
@@ -11534,7 +11573,7 @@ function boardView(board) {
 
     ${
       cards.length
-        ? `<div class="idea-grid">${cards.map((card) => swipeHtml(card.id, ideaCardHtml(card))).join('')}</div>
+        ? `<div class="idea-grid">${cards.map((card) => swipeHtml(card.id, ideaCardHtml(card), { kind: 'card' })).join('')}</div>
            <p class="muted small idea-hint">${escapeHtml(t('ideas.swipeHint'))}</p>`
         : `<p class="muted small">${escapeHtml(t('ideas.empty'))}</p>`
     }
@@ -11550,7 +11589,7 @@ function boardView(board) {
 function bindBoard(board) {
   bindData();
 
-  bindSwipes((cardId) => {
+  bindSwipes('card', (cardId) => {
     const current = getBoard(board.id);
     if (!current) return;
     flash(t('ideas.cardDeleted'));
@@ -13572,6 +13611,7 @@ function bindGame(game) {
 
 
 
+
 /* ----------------------------------------------------------------- groups --- */
 
 /**
@@ -13840,6 +13880,60 @@ async function putInGroup(id) {
   else if (spend) replaceSpend(next);
   else if (board) replaceBoard(next);
   else replaceGame(next);
+}
+
+/**
+ * Delete a whole document from its tab, whichever kind it is — what sliding
+ * its card left leads to. Asked first, as on its own page: a list or an
+ * account is usually everyone's, and deleting it deletes it for them too.
+ */
+async function deleteDocument(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const spend = getSpend(id);
+  const board = getBoard(id);
+  const game = getGame(id);
+  const document_ = poll || list || spend || board || game;
+  if (!document_) return;
+  const question = poll
+    ? 'polls.confirmDelete'
+    : list
+      ? 'lists.confirmDelete'
+      : spend
+        ? 'spends.confirmDelete'
+        : board
+          ? 'ideas.confirmDelete'
+          : 'game.confirmDeleteGame';
+  if (!(await ask(t(question), { confirmLabel: t('action.delete'), danger: true }))) {
+    render();
+    return;
+  }
+
+  if (poll) {
+    state.polls = state.polls.filter((item) => item.id !== id);
+    savePolls(state.polls);
+  } else if (list) {
+    state.lists = state.lists.filter((item) => item.id !== id);
+    saveLists(state.lists);
+  } else if (spend) {
+    state.spends = state.spends.filter((item) => item.id !== id);
+    saveSpends(state.spends);
+  } else if (board) {
+    state.boards = state.boards.filter((item) => item.id !== id);
+    saveBoards(state.boards);
+  } else {
+    state.games = state.games.filter((item) => item.id !== id);
+    saveGames(state.games);
+  }
+  if (state.store) void state.store.remove(id);
+  if (state.remote) state.remote.remove(id, keyFor(document_), organiserSecret(id)).catch(() => {});
+  flash(t('swipe.deleted', { name: documentTitle(document_) }));
+  render();
+}
+
+/** The cards of a tab slide left to be deleted. */
+function bindDocSwipes() {
+  bindSwipes('doc', (id) => void deleteDocument(id));
 }
 
 /**
@@ -14980,6 +15074,7 @@ function bindData() {
 
 
 
+
 const view = document.getElementById('view');
 
 const state = {
@@ -15105,6 +15200,7 @@ function documentTitle(document_) {
   if (isValidList(document_)) return listTitle(document_);
   if (isValidPoll(document_)) return pollTitle(document_);
   if (isValidBoard(document_)) return boardTitle(document_);
+  if (isValidSpend(document_)) return spendTitle(document_);
   return gameTitle(document_);
 }
 
@@ -17264,7 +17360,7 @@ function homeView() {
       <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
       ${
         ongoing.length
-          ? `<div class="game-list">${ongoing.map(gameCardHtml).join('')}</div>`
+          ? `<div class="game-list">${ongoing.map(swipeable(gameCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('home.empty'))}</p>`
       }
       ${hiddenByGroupHtml(state.games)}
@@ -17274,12 +17370,12 @@ function homeView() {
       finished.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('home.finished'))}</h2></div>
-             <div class="game-list">${finished.map(gameCardHtml).join('')}</div>
+             <div class="game-list">${finished.map(swipeable(gameCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, gameCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(gameCardHtml))}`;
 }
 
 /* ---------------------------------------------------------------- person --- */
@@ -17661,6 +17757,7 @@ function render() {
   if (current.name === 'lists') {
     stopWatching();
     view.innerHTML = listsView();
+    bindDocSwipes();
   } else if (current.name === 'new-list') {
     stopWatching();
     view.innerHTML = newListView();
@@ -17694,6 +17791,7 @@ function render() {
   } else if (current.name === 'agenda') {
     stopWatching();
     view.innerHTML = agendaView();
+    bindDocSwipes();
   } else if (current.name === 'new-event') {
     stopWatching();
     view.innerHTML = newEventView();
@@ -17730,7 +17828,7 @@ function render() {
   } else if (current.name === 'ideas') {
     stopWatching();
     view.innerHTML = ideasView();
-    bindIdeas();
+    bindDocSwipes();
   } else if (current.name === 'new-board') {
     stopWatching();
     view.innerHTML = newBoardView();
@@ -17763,6 +17861,7 @@ function render() {
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
+    bindDocSwipes();
   } else if (current.name === 'new-poll') {
     stopWatching();
     view.innerHTML = newPollView();
@@ -17863,9 +17962,11 @@ function render() {
     stopWatching();
     view.innerHTML = homeView();
     bindHome();
+    bindDocSwipes();
   } else if (current.name === 'spends') {
     stopWatching();
     view.innerHTML = spendsView();
+    bindDocSwipes();
   } else if (current.name === 'settings') {
     stopWatching();
     view.innerHTML = settingsView();

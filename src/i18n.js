@@ -299,6 +299,8 @@ export const STRINGS = {
     'ideas.confirmDelete': 'Supprimer ce tableau et toutes ses cartes ? C’est définitif.',
     'ideas.loading': 'On va chercher ce tableau…',
     'ideas.swipeHint': 'Glissez une carte vers la gauche pour la supprimer.',
+    'swipe.deleted': '« {name} » supprimé.',
+    'swipe.lineDeleted': 'Ligne supprimée.',
     'ideas.cardDeleted': 'Carte supprimée.',
     'ideas.deleted': '« {name} » supprimé.',
     'spends.cannotDropPaid':
@@ -1165,6 +1167,8 @@ export const STRINGS = {
     'ideas.confirmDelete': 'Delete this board and all its cards? This cannot be undone.',
     'ideas.loading': 'Fetching that board…',
     'ideas.swipeHint': 'Swipe a card to the left to delete it.',
+    'swipe.deleted': '“{name}” deleted.',
+    'swipe.lineDeleted': 'Line deleted.',
     'ideas.cardDeleted': 'Card deleted.',
     'ideas.deleted': '“{name}” deleted.',
     'spends.cannotDropPaid':

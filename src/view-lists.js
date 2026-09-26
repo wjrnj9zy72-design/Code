@@ -28,6 +28,7 @@ import { recentPeople, withMeFirst } from './people.js';
 import { isLive, isLate } from './dashboard.js';
 import { saveGames, saveLists } from './storage.js';
 import { listLink } from './remote.js';
+import { swipeHtml, swipeable, bindSwipes } from './swipe.js';
 import { t } from './i18n.js';
 
 /* ------------------------------------------------------------------ lists --- */
@@ -86,7 +87,7 @@ export function listsView() {
       <div class="section__head"><h2>${escapeHtml(t('lists.ongoing'))}</h2></div>
       ${
         open.length
-          ? `<div class="game-list">${open.map(listCardHtml).join('')}</div>`
+          ? `<div class="game-list">${open.map(swipeable(listCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('lists.none'))}</p>`
       }
       ${hiddenByGroupHtml(state.lists)}
@@ -96,7 +97,7 @@ export function listsView() {
       finished.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('lists.done'))}</h2></div>
-             <div class="game-list">${finished.map(listCardHtml).join('')}</div>
+             <div class="game-list">${finished.map(swipeable(listCardHtml)).join('')}</div>
            </section>`
         : ''
     }
@@ -108,12 +109,12 @@ export function listsView() {
                <h2>${escapeHtml(t('lists.templates'))}</h2>
                <span class="muted small">${escapeHtml(t('lists.templatesHint'))}</span>
              </div>
-             <div class="game-list">${templates.map(listCardHtml).join('')}</div>
+             <div class="game-list">${templates.map(swipeable(listCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, listCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(listCardHtml))}`;
 }
 
 /**
@@ -212,8 +213,7 @@ export function newListView() {
 function listItemHtml(list, item) {
   const who = personName(list, item.who);
   const late = isLate(item);
-  return `
-    <li class="line ${item.done ? 'line--done' : ''}">
+  return swipeHtml(item.id, `
       <label class="line__tick">
         <input type="checkbox" data-tick="${escapeHtml(item.id)}" ${item.done ? 'checked' : ''}
                aria-label="${escapeHtml(item.text)}" />
@@ -232,8 +232,8 @@ function listItemHtml(list, item) {
       </button>
       <button type="button" class="line__who ${who ? '' : 'line__who--nobody'}" data-assign="${escapeHtml(item.id)}">
         ${escapeHtml(who || t('lists.nobody'))}
-      </button>
-    </li>`;
+      </button>`,
+    { kind: 'item', tag: 'li', bodyClass: `line ${item.done ? 'line--done' : ''}` });
 }
 
 export function listView(list) {
@@ -457,6 +457,14 @@ export function bindNewList() {
 }
 
 export function bindList(list) {
+  // A line slides left to be deleted, as from its dialog.
+  bindSwipes('item', (itemId) => {
+    const current = getList(list.id);
+    if (!current) return;
+    flash(t('swipe.lineDeleted'));
+    replaceList(removeItem(current, itemId));
+  });
+
   view.querySelector('#add-line')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const field = view.querySelector('#new-line');

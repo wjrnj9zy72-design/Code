@@ -24,7 +24,8 @@ import { inAppBrowser } from './helpers.js';
 import { progress } from './lists.js';
 import { withMeFirst } from './people.js';
 import { inGroup } from './dashboard.js';
-import { saveGames, saveLists, savePolls, savePrefs } from './storage.js';
+import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
+import { bindSwipes } from './swipe.js';
 import { setLink } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { t } from './i18n.js';
@@ -297,6 +298,60 @@ export async function putInGroup(id) {
   else if (spend) replaceSpend(next);
   else if (board) replaceBoard(next);
   else replaceGame(next);
+}
+
+/**
+ * Delete a whole document from its tab, whichever kind it is — what sliding
+ * its card left leads to. Asked first, as on its own page: a list or an
+ * account is usually everyone's, and deleting it deletes it for them too.
+ */
+export async function deleteDocument(id) {
+  const poll = getPoll(id);
+  const list = getList(id);
+  const spend = getSpend(id);
+  const board = getBoard(id);
+  const game = getGame(id);
+  const document_ = poll || list || spend || board || game;
+  if (!document_) return;
+  const question = poll
+    ? 'polls.confirmDelete'
+    : list
+      ? 'lists.confirmDelete'
+      : spend
+        ? 'spends.confirmDelete'
+        : board
+          ? 'ideas.confirmDelete'
+          : 'game.confirmDeleteGame';
+  if (!(await ask(t(question), { confirmLabel: t('action.delete'), danger: true }))) {
+    render();
+    return;
+  }
+
+  if (poll) {
+    state.polls = state.polls.filter((item) => item.id !== id);
+    savePolls(state.polls);
+  } else if (list) {
+    state.lists = state.lists.filter((item) => item.id !== id);
+    saveLists(state.lists);
+  } else if (spend) {
+    state.spends = state.spends.filter((item) => item.id !== id);
+    saveSpends(state.spends);
+  } else if (board) {
+    state.boards = state.boards.filter((item) => item.id !== id);
+    saveBoards(state.boards);
+  } else {
+    state.games = state.games.filter((item) => item.id !== id);
+    saveGames(state.games);
+  }
+  if (state.store) void state.store.remove(id);
+  if (state.remote) state.remote.remove(id, keyFor(document_), organiserSecret(id)).catch(() => {});
+  flash(t('swipe.deleted', { name: documentTitle(document_) }));
+  render();
+}
+
+/** The cards of a tab slide left to be deleted. */
+export function bindDocSwipes() {
+  bindSwipes('doc', (id) => void deleteDocument(id));
 }
 
 /**

@@ -66,7 +66,7 @@ test('the app never reaches for a browser modal', async () => {
   // A sandboxed page is refused window.confirm/alert/prompt: the call returns
   // without asking, and whatever it guarded silently does nothing. Everything
   // must go through the page's own <dialog>.
-  const sources = ['app.js', 'view-polls.js', 'view-lists.js', 'view-spends.js', 'view-ideas.js', 'view-games.js', 'view-groups.js', 'games.js', 'helpers.js', 'i18n.js', 'model.js', 'scoring.js', 'storage.js', 'cloud.js'];
+  const sources = ['app.js', 'view-polls.js', 'view-lists.js', 'view-spends.js', 'view-ideas.js', 'swipe.js', 'view-games.js', 'view-groups.js', 'games.js', 'helpers.js', 'i18n.js', 'model.js', 'scoring.js', 'storage.js', 'cloud.js'];
   for (const name of sources) {
     const code = await readFile(join(root, 'src', name), 'utf8');
     const found = code.match(/\b(confirm|alert|prompt)\s*\(/g);

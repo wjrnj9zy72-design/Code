@@ -53,7 +53,7 @@ import {
   newSpendView, spendCardHtml, spendTitle, spendView, spendsView,
 } from './view-spends.js';
 import {
-  adoptBoard, bindBoard, bindIdeas, bindNewBoard, boardCardHtml, boardTitle, boardView, getBoard, ideasView,
+  adoptBoard, bindBoard, bindNewBoard, boardCardHtml, boardTitle, boardView, getBoard, ideasView,
   newBoardView, pullBoard, watchBoard,
 } from './view-ideas.js';
 import {
@@ -66,8 +66,9 @@ import {
   heldOrganiserSecrets, hiddenByGroupHtml, inAppWarningHtml, joinGroup, landing, loadGate, lots,
   myName, offerMeInForms, onHomeScreen, openSet, outsideGroups, pendingFor, pendings, putInGroup,
   refreshGate, refreshGroup, rememberGroup, rememberPending, remoteReason, resetGroupChoice,
-  setGroupFilter, setMyName, shownDocs, verifyGroups,
+  setGroupFilter, setMyName, shownDocs, verifyGroups, bindDocSwipes,
 } from './view-groups.js';
+import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
 export const state = {
@@ -193,6 +194,7 @@ export function documentTitle(document_) {
   if (isValidList(document_)) return listTitle(document_);
   if (isValidPoll(document_)) return pollTitle(document_);
   if (isValidBoard(document_)) return boardTitle(document_);
+  if (isValidSpend(document_)) return spendTitle(document_);
   return gameTitle(document_);
 }
 
@@ -2352,7 +2354,7 @@ function homeView() {
       <div class="section__head"><h2>${escapeHtml(t('home.ongoing'))}</h2></div>
       ${
         ongoing.length
-          ? `<div class="game-list">${ongoing.map(gameCardHtml).join('')}</div>`
+          ? `<div class="game-list">${ongoing.map(swipeable(gameCardHtml)).join('')}</div>`
           : `<p class="muted small">${escapeHtml(t('home.empty'))}</p>`
       }
       ${hiddenByGroupHtml(state.games)}
@@ -2362,12 +2364,12 @@ function homeView() {
       finished.length
         ? `<section class="section">
              <div class="section__head"><h2>${escapeHtml(t('home.finished'))}</h2></div>
-             <div class="game-list">${finished.map(gameCardHtml).join('')}</div>
+             <div class="game-list">${finished.map(swipeable(gameCardHtml)).join('')}</div>
            </section>`
         : ''
     }
 
-    ${archivedHtml(sorted, gameCardHtml)}`;
+    ${archivedHtml(sorted, swipeable(gameCardHtml))}`;
 }
 
 /* ---------------------------------------------------------------- person --- */
@@ -2749,6 +2751,7 @@ export function render() {
   if (current.name === 'lists') {
     stopWatching();
     view.innerHTML = listsView();
+    bindDocSwipes();
   } else if (current.name === 'new-list') {
     stopWatching();
     view.innerHTML = newListView();
@@ -2782,6 +2785,7 @@ export function render() {
   } else if (current.name === 'agenda') {
     stopWatching();
     view.innerHTML = agendaView();
+    bindDocSwipes();
   } else if (current.name === 'new-event') {
     stopWatching();
     view.innerHTML = newEventView();
@@ -2818,7 +2822,7 @@ export function render() {
   } else if (current.name === 'ideas') {
     stopWatching();
     view.innerHTML = ideasView();
-    bindIdeas();
+    bindDocSwipes();
   } else if (current.name === 'new-board') {
     stopWatching();
     view.innerHTML = newBoardView();
@@ -2851,6 +2855,7 @@ export function render() {
   } else if (current.name === 'polls') {
     stopWatching();
     view.innerHTML = pollsView();
+    bindDocSwipes();
   } else if (current.name === 'new-poll') {
     stopWatching();
     view.innerHTML = newPollView();
@@ -2951,9 +2956,11 @@ export function render() {
     stopWatching();
     view.innerHTML = homeView();
     bindHome();
+    bindDocSwipes();
   } else if (current.name === 'spends') {
     stopWatching();
     view.innerHTML = spendsView();
+    bindDocSwipes();
   } else if (current.name === 'settings') {
     stopWatching();
     view.innerHTML = settingsView();
