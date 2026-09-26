@@ -36,6 +36,8 @@ function documents(where) {
   let poll = { ...addOptions(createPoll({ question: 'Quel soir ?', names: ['Gui', 'Alice'] }), 'Vendredi 12\nSamedi 13'), ...where };
   poll = setVote(poll, poll.people[0].id, poll.options[0].id, true);
   const event = { ...createEvent({ name: 'Raclette', names: ['Gui', 'Alice'], date: dayIn(5), at: '19:00' }), ...where };
+  // La liste est rattachée à l'événement : une chaîne, pour les règles qui la regardent.
+  list.parent = event.id;
   let spend = { ...createSpend({ name: 'Vacances', names: ['Gui', 'Alice'] }), ...where };
   spend = addSpend(spend, { text: 'Gîte', amount: 12000, by: spend.people[0].id, forWhom: spend.people.map((p) => p.id) });
   const game = { ...createGame({ presetId: 'papayoo', names: ['Gui', 'Alice', 'Bob'] }), ...where };
@@ -150,6 +152,7 @@ for (const lang of ['fr', 'en']) {
             };
           })(),
           more: [...document.querySelectorAll('#view .actions__more button')].map((b) => b.textContent.trim().replace(/\s+/g, ' ')),
+          map: Boolean(document.querySelector('#view .chain-map [aria-current="page"]')),
           attach: Boolean(document.querySelector('#view .actions__more [data-attach-doc]')),
           gather: Boolean(document.querySelector('#view [data-gather-doc]')),
           share: Boolean(document.querySelector('#view .share-bar .button--primary, #view [id$="-share"], #view #share')),
@@ -186,6 +189,9 @@ for (const lang of ['fr', 'en']) {
         if (!facts.share) note('pas de bouton pour partager', where);
         // La chaîne : tout se rattache, sauf l'événement, qui rassemble.
         const isEventPage = hash === `#/poll/${shared.event.id}`;
+        const inChain = isEventPage || hash === `#/list/${shared.list.id}`;
+        if (inChain && !facts.map) note('une page dans une chaîne sans le plan de la chaîne', where);
+        if (!inChain && facts.map) note('un plan de chaîne sur ce qui n’est dans aucune chaîne', where);
         if (isEventPage && facts.attach) note('un événement propose de se rattacher', where);
         if (isEventPage && !facts.gather) note('un événement sans « Rattacher un élément existant »', where);
         if (!isEventPage && !facts.attach) note('pas de « Rattacher… » dans « Plus d’actions »', where);

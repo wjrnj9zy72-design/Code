@@ -214,8 +214,11 @@ au-dessus : il ne se rattache à rien.
   plus tard. Ce qui lui était rattaché le reste.
 - **Rattacher un élément existant**, sur la page d'un événement : ce qui existe
   déjà dans son groupe vient s'y ranger d'une touche.
-- **La chaîne se voit** : en tête de la page d'un élément (« ↩ Raclette · 1 oct.
-  › Courses », chaque maillon ramène à sa page) ; sur les cartes et les lignes
+- **La chaîne se voit** : en tête de la page de tout élément qui en fait
+  partie, **le plan de toute la chaîne**, en arbre — l'événement en haut, puis
+  chaque élément sous celui auquel il est rattaché, relié par un trait, la page
+  où l'on est marquée « ici ». Chaque autre élément du plan ouvre sa page. Et
+  sur les cartes et les lignes
   de l'Accueil (« Pour Raclette › Courses ») ; sous **Rattaché ici**, sur la page
   de ce qui en porte d'autres. La page d'un événement montre toute sa chaîne,
   même loin, rangée par sorte.

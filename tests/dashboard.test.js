@@ -365,3 +365,24 @@ test('la chaîne : tout se rattache à tout, l’événement reste au-dessus', a
   assert.equal(parentId(mergeBoards(deco, moved)), raclette.id);
   assert.equal(parentId(mergeBoards(moved, deco)), raclette.id);
 });
+
+test('le plan de la chaîne : tout l’arbre, depuis l’événement, où que l’on soit', async () => {
+  const { attach, chainTree, treeSize } = await import('../src/dashboard.js');
+  const { createEvent, createPoll } = await import('../src/polls.js');
+  const { createBoard } = await import('../src/ideas.js');
+  const raclette = createEvent({ name: 'Raclette', date: '2026-10-10' });
+  const courses = attach(createList({ name: 'Courses' }), raclette.id);
+  const vin = attach(createPoll({ question: 'Quel vin ?' }), courses.id);
+  const deco = attach(createBoard({ name: 'Déco' }), raclette.id);
+  const range = { ...attach(createBoard({ name: 'Rangé' }), raclette.id), archivedAt: 1 };
+  const seul = createList({ name: 'Seul' });
+  const all = [raclette, courses, vin, deco, range, seul];
+
+  const tree = chainTree(vin, all);
+  assert.equal(tree.document.id, raclette.id, 'le plan part de l’événement, même vu du bout');
+  assert.deepEqual(tree.children.map((c) => c.document.id), [courses.id, deco.id], 'dans l’ordre des onglets, sans ce qui est rangé');
+  assert.deepEqual(tree.children[0].children.map((c) => c.document.id), [vin.id]);
+  assert.equal(treeSize(tree), 4);
+  assert.equal(treeSize(chainTree(seul, all)), 1, 'seul, il n’a pas de chaîne');
+  assert.equal(chainTree(range, all).children.length, 3, 'rangé, il se voit encore depuis sa propre page');
+});

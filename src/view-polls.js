@@ -8,7 +8,7 @@
  */
 
 import {
-  chainLabel, chainOf, documentHref, escapeHtml, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
+  chainLabel, chainOf, documentHref, escapeHtml, everything, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
   isBusy, isHidden, kindsHtml, navigate, openEventMenu, pollHome, render, route, signature, state, stopWatching,
   view, whenText,
   attachedHtml, chainButtonsHtml,
@@ -32,7 +32,7 @@ import {
 } from './polls.js';
 import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
-import { isLive, eventParts, forEvent, partsCount } from './dashboard.js';
+import { isLive, eventParts, forEvent, partsCount, chainTree, treeSize, isEventDoc, kindOf } from './dashboard.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
 import { swipeable } from './swipe.js';
@@ -546,18 +546,34 @@ export function eventTagHtml(document_) {
 }
 
 /**
- * On a document's page, the chain it hangs from, each link a way back up:
- * « ↩ Raclette · 1 oct. › Courses ».
+ * At the top of a document's page, the whole chain it belongs to, drawn as a
+ * tree: its event on top, everything attached below, this page marked. Every
+ * other node opens its page. Nothing is shown for a document on its own.
  */
 export function eventLinkHtml(document_) {
-  const chain = chainOf(document_);
-  if (!chain.length) return '';
+  const tree = chainTree(document_, everything());
+  if (treeSize(tree) < 2) return '';
+  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const node = ({ document: one, children }) => {
+    const here = one.id === document_.id;
+    const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>`;
+    return `
+      <li>
+        ${
+          here
+            ? `<span class="chain-map__node chain-map__node--here" aria-current="page">${label}
+                 <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
+            : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
+                       title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">${label}</button>`
+        }
+        ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
+      </li>`;
+  };
   return `
-    <nav class="chain row row--tight" aria-label="${escapeHtml(t('chain.label'))}">
-      <span aria-hidden="true">↩</span>
-      ${chain
-        .map((one) => `<button type="button" class="button button--small button--ghost" data-goto="${escapeHtml(documentHref(one))}">${escapeHtml(chainLabel(one))}</button>`)
-        .join('<span class="muted" aria-hidden="true">›</span>')}
+    <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
+      <span class="muted small">${escapeHtml(t('chain.map'))}</span>
+      <ul class="chain-map__tree">${node(tree)}</ul>
     </nav>`;
 }
 

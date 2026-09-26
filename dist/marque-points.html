@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="cc12c37c" />
+    <meta name="app-build" content="87ee7727" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1448,6 +1448,31 @@ body:not(.solo) .view {
 }
 
 .idea-hint { margin: -6px 0 16px; }
+
+/* The chain a document belongs to, as a tree, at the top of its page: each
+   level drawn with a line from the one it hangs from. */
+.chain-map { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; }
+.chain-map ul { list-style: none; margin: 0; padding: 0; }
+.chain-map ul ul { margin-left: 16px; }
+.chain-map ul ul > li { position: relative; padding-left: 18px; }
+/* The line down from the parent, and the branch across to this one; the last
+   child's line stops at its branch. */
+.chain-map ul ul > li::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid var(--border);
+}
+.chain-map ul ul > li:last-child::before { bottom: auto; height: 21px; }
+.chain-map ul ul > li::after {
+  content: ''; position: absolute; left: 0; top: 20px; width: 14px; border-top: 2px solid var(--border);
+}
+.chain-map__node {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%;
+  padding: 4px 10px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.chain-map button.chain-map__node:hover { background: var(--surface-alt); }
+.chain-map__node--here { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; cursor: default; }
+.chain-map__title { overflow: hidden; text-overflow: ellipsis; }
+.chain-map__icon { flex: none; }
     </style>
   </head>
   <body>
@@ -1703,6 +1728,8 @@ const STRINGS = {
     'event.tag': 'Pour {name} · {day}',
     'event.named': '{name} · {day}',
     'chain.label': 'Rattaché à',
+    'chain.map': 'La chaîne',
+    'chain.youAreHere': 'ici',
     'chain.attach': 'Rattacher…',
     'chain.attachTitle': 'Rattacher « {name} »',
     'chain.attachHint': 'À un événement, ou à un élément de sa chaîne : une liste, un sondage, un compte… Seulement dans le même groupe.',
@@ -2612,6 +2639,8 @@ const STRINGS = {
     'event.tag': 'For {name} · {day}',
     'event.named': '{name} · {day}',
     'chain.label': 'Attached to',
+    'chain.map': 'The chain',
+    'chain.youAreHere': 'here',
     'chain.attach': 'Attach…',
     'chain.attachTitle': 'Attach “{name}”',
     'chain.attachHint': 'To an event, or to something in its chain: a list, a poll, an account… Only within the same group.',
@@ -6790,6 +6819,33 @@ function descendantsOf(document_, all) {
 }
 
 /**
+ * The whole chain a document belongs to, as a tree: from the top of its chain
+ * — its event, most of the time — down to everything attached below, each
+ * node `{ document, children }`. What is put away is left out, except the
+ * document itself. Children come in the order of the tabs, then by title.
+ */
+function chainTree(document_, all) {
+  const top = ancestorsOf(document_, all)[0] || document_;
+  const order = ['poll', 'list', 'game', 'spend', 'board'];
+  const rank = (one) => (isEventDoc(one) ? -1 : order.indexOf(kindOf(one)));
+  const title = (one) => String(one.title || one.name || one.question || '');
+  const seen = new Set();
+  const grow = (node) => {
+    seen.add(node.id);
+    const children = childrenOf(node, all)
+      .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
+      .sort((a, b) => rank(a) - rank(b) || title(a).localeCompare(title(b)));
+    return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
+  };
+  return grow(top);
+}
+
+/** How many documents a tree holds, its top included. */
+function treeSize(tree) {
+  return 1 + tree.children.reduce((sum, child) => sum + treeSize(child), 0);
+}
+
+/**
  * What a document may be attached to: anything live in the same group — or
  * kept to oneself like it — except itself and what already hangs below it,
  * which would close the chain on itself. An event is never attached: it stays
@@ -9026,18 +9082,34 @@ function eventTagHtml(document_) {
 }
 
 /**
- * On a document's page, the chain it hangs from, each link a way back up:
- * « ↩ Raclette · 1 oct. › Courses ».
+ * At the top of a document's page, the whole chain it belongs to, drawn as a
+ * tree: its event on top, everything attached below, this page marked. Every
+ * other node opens its page. Nothing is shown for a document on its own.
  */
 function eventLinkHtml(document_) {
-  const chain = chainOf(document_);
-  if (!chain.length) return '';
+  const tree = chainTree(document_, everything());
+  if (treeSize(tree) < 2) return '';
+  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const node = ({ document: one, children }) => {
+    const here = one.id === document_.id;
+    const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+      <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>`;
+    return `
+      <li>
+        ${
+          here
+            ? `<span class="chain-map__node chain-map__node--here" aria-current="page">${label}
+                 <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
+            : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
+                       title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">${label}</button>`
+        }
+        ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
+      </li>`;
+  };
   return `
-    <nav class="chain row row--tight" aria-label="${escapeHtml(t('chain.label'))}">
-      <span aria-hidden="true">↩</span>
-      ${chain
-        .map((one) => `<button type="button" class="button button--small button--ghost" data-goto="${escapeHtml(documentHref(one))}">${escapeHtml(chainLabel(one))}</button>`)
-        .join('<span class="muted" aria-hidden="true">›</span>')}
+    <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
+      <span class="muted small">${escapeHtml(t('chain.map'))}</span>
+      <ul class="chain-map__tree">${node(tree)}</ul>
     </nav>`;
 }
 

@@ -303,6 +303,33 @@ export function descendantsOf(document_, all) {
 }
 
 /**
+ * The whole chain a document belongs to, as a tree: from the top of its chain
+ * — its event, most of the time — down to everything attached below, each
+ * node `{ document, children }`. What is put away is left out, except the
+ * document itself. Children come in the order of the tabs, then by title.
+ */
+export function chainTree(document_, all) {
+  const top = ancestorsOf(document_, all)[0] || document_;
+  const order = ['poll', 'list', 'game', 'spend', 'board'];
+  const rank = (one) => (isEventDoc(one) ? -1 : order.indexOf(kindOf(one)));
+  const title = (one) => String(one.title || one.name || one.question || '');
+  const seen = new Set();
+  const grow = (node) => {
+    seen.add(node.id);
+    const children = childrenOf(node, all)
+      .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
+      .sort((a, b) => rank(a) - rank(b) || title(a).localeCompare(title(b)));
+    return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
+  };
+  return grow(top);
+}
+
+/** How many documents a tree holds, its top included. */
+export function treeSize(tree) {
+  return 1 + tree.children.reduce((sum, child) => sum + treeSize(child), 0);
+}
+
+/**
  * What a document may be attached to: anything live in the same group — or
  * kept to oneself like it — except itself and what already hangs below it,
  * which would close the chain on itself. An event is never attached: it stays

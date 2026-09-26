@@ -64,9 +64,12 @@ await page.waitForSelector('dialog[open] [data-attach-to]');
 check('on peut le rattacher à l’événement ou à la liste',
   (await page.locator('dialog[open] [data-attach-to]').count()) === 2, String(await page.locator('dialog[open] [data-attach-to]').count()));
 await page.locator('dialog[open] [data-attach-to]', { hasText: 'Courses' }).click();
-await page.waitForSelector('#view .chain');
-check('sa page montre toute la chaîne, l’événement en tête', /Raclette.*›.*Courses/.test(await text('#view .chain')), await text('#view .chain'));
-await page.click('#view .chain [data-goto^="#/list/"]');
+await page.waitForSelector('#view .chain-map');
+check('en haut de sa page, le plan de toute la chaîne, l’événement en tête',
+  /Raclette.*Courses.*Quel vin/.test(await text('#view .chain-map')), await text('#view .chain-map'));
+check('la page où l’on est y est marquée', /Quel vin/.test(await text('#view .chain-map [aria-current="page"]')));
+check('et chaque étage est rangé sous le sien', (await page.locator('#view .chain-map ul ul ul [aria-current="page"]').count()) === 1);
+await page.click('#view .chain-map [data-goto^="#/list/"]');
 await page.waitForSelector('.lines');
 check('la liste montre ce qui lui est rattaché', /Rattaché ici/.test(await text('#view')) && /Quel vin/.test(await text('#view')));
 await page.goto(`${B}#/poll/${raclette.id}`);
@@ -88,8 +91,8 @@ check('elle dit à quoi elle est rattachée', /Rattaché à : Raclette/.test(awa
 /* --- 4. détacher --------------------------------------------------------- */
 
 await page.click('dialog[open] [data-detach]');
-await page.waitForFunction(() => !document.querySelector('#view .chain'));
-check('détachée : plus de chaîne sur sa page', true);
+await page.waitForFunction(() => !/Raclette/.test(document.querySelector('#view .chain-map')?.textContent || ''));
+check('détachée : sa chaîne part d’elle, sans l’événement', /Courses.*Quel vin/.test(await text('#view .chain-map')));
 check('ni dans ce qui est gardé', (await stored('lists', courses.id)).parent === null);
 check('son sondage lui reste rattaché', (await stored('polls', vin.id)).parent === courses.id);
 await page.goto(`${B}#/poll/${raclette.id}`);
