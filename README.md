@@ -310,12 +310,16 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
 - **Des cartes, pas une grande page** : deux personnes qui écrivent en même
   temps ne s'écrasent pas, chacune ajoute les siennes. La plus récente vient en
   premier.
-- **Une note**, c'est du texte libre : une idée, une adresse, un lien. Ce qui
-  est tapé est gardé à la fermeture, quelle qu'elle soit ; une note laissée
-  vide n'est pas créée.
+- **Une note**, c'est du texte libre : une idée, une adresse, un lien. Une
+  note laissée vide n'est pas créée.
+- **Enregistrer ou Annuler**, pour une note comme pour un croquis : seul
+  *Enregistrer* garde ce qui a été fait. *Annuler* (ou Échap) repart sans
+  rien changer — après avoir demandé, si quelque chose serait perdu.
 - **Un croquis** se dessine au doigt ou à la souris : cinq couleurs (l'encre
   suit le thème, foncée en clair, claire en sombre), trois épaisseurs, une
-  gomme qui efface le trait qu'elle touche, *Annuler*, et une légende.
+  gomme en trois tailles qui n'efface que ce qu'elle touche (un trait
+  traversé est coupé en deux, le reste ne bouge pas), *Défaire*, et une
+  légende.
 - **Gardé en traits, pas en image** : chaque trait est une suite de points
   (allégée des points inutiles) dans un cadre fixe de 1000 × 750. C'est léger
   pour la base, net sur tous les écrans, et deux personnes qui dessinent sur

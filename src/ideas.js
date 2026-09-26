@@ -26,6 +26,9 @@ export const INKS = ['ink', 'red', 'blue', 'green', 'orange'];
 /** The pen sizes, in frame units. */
 export const PENS = [4, 10, 24];
 
+/** How far the eraser reaches, in the frame's units: fine, medium, broad. */
+export const ERASERS = [8, 20, 45];
+
 /**
  * How much a board may weigh, as JSON. The database refuses a document past
  * 200 000 bytes; this leaves room, so a board that is nearly full says so
@@ -224,6 +227,46 @@ export function strokeNear(stroke, x, y, reach = 16) {
     }
   }
   return false;
+}
+
+/**
+ * Rub out only the part of a stroke under the eraser: what is left on either
+ * side becomes strokes of their own, with new ids — the old one is erased and
+ * the pieces added, which is how any two copies of a board already merge.
+ * Null when the eraser does not touch the stroke.
+ */
+export function rubOut(stroke, x, y, reach = ERASERS[0]) {
+  const points = pointsOf(stroke);
+  if (!points.length) return null;
+  const margin = reach + (stroke.pen || 0) / 2;
+  // The kept points can be far apart along a straight line: fill in, so the
+  // eraser cuts where it is and not at the nearest corner.
+  const step = Math.max(2, reach / 3);
+  const dense = [points[0], points[1]];
+  for (let index = 2; index + 1 < points.length; index += 2) {
+    const [ax, ay, bx, by] = [points[index - 2], points[index - 1], points[index], points[index + 1]];
+    const parts = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+    for (let part = 1; part <= parts; part += 1) {
+      dense.push(ax + ((bx - ax) * part) / parts, ay + ((by - ay) * part) / parts);
+    }
+  }
+  const pieces = [];
+  let run = [];
+  let touched = false;
+  for (let index = 0; index + 1 < dense.length; index += 2) {
+    if (Math.hypot(dense[index] - x, dense[index + 1] - y) <= margin) {
+      touched = true;
+      if (run.length) pieces.push(run);
+      run = [];
+    } else {
+      run.push(dense[index], dense[index + 1]);
+    }
+  }
+  if (!touched) return null;
+  if (run.length) pieces.push(run);
+  return pieces
+    .map((piece) => cleanStroke({ id: uid('s'), ink: stroke.ink, pen: stroke.pen, points: simplifyPoints(piece.map(Math.round)) }))
+    .filter(Boolean);
 }
 
 /** The SVG path of a stroke: a dot for a single point, a line otherwise. */

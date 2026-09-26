@@ -1384,6 +1384,7 @@ body:not(.solo) .view {
 
 .swatch--pen { background: var(--surface); }
 .swatch--pen span { display: block; border-radius: 50%; background: var(--text); }
+.swatch--pen .swatch__rubber { background: transparent; border: 2px solid var(--text); }
 .swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 
 /* A card or a line that slides left to uncover « Supprimer » (src/swipe.js). */
