@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="53898989" />
+    <meta name="app-build" content="89a1f517" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -591,6 +591,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 .score-row__name { font-weight: 600; overflow-wrap: anywhere; }
 .score-row input { text-align: right; font-variant-numeric: tabular-nums; }
+/* A name is read from the left, like every other name field in the app. */
+.score-row input[data-name-index] { text-align: left; font-variant-numeric: normal; }
 
 .sum-line {
   display: flex;
@@ -1757,7 +1759,8 @@ const STRINGS = {
     'spends.shared': 'Compte partagé dans {name}.',
     'spends.rename': 'Renommer le compte',
     'spends.renameHint': 'Le nom du compte, tel qu’il apparaît dans la liste.',
-    'spends.renamePersonHint': 'Le prénom de cette personne dans ce compte.',
+    'people.renameHint': 'Son prénom, tel qu’il s’affichera ici.',
+    'spends.confirmRemovePerson': 'Retirer cette personne du compte ?',
     'spends.confirmDelete': 'Supprimer ce compte et toutes ses dépenses ? C’est définitif.',
     'spends.loading': 'On va chercher ce compte…',
     'tab.ideas': 'Idées',
@@ -2630,7 +2633,8 @@ const STRINGS = {
     'spends.shared': 'Account shared in {name}.',
     'spends.rename': 'Rename the account',
     'spends.renameHint': 'The account’s name, as it appears in the list.',
-    'spends.renamePersonHint': 'This person’s first name in this account.',
+    'people.renameHint': 'Their first name, as it will show here.',
+    'spends.confirmRemovePerson': 'Remove this person from the account?',
     'spends.confirmDelete': 'Delete this account and everything spent on it? This cannot be undone.',
     'spends.loading': 'Fetching that account…',
     'tab.ideas': 'Ideas',
@@ -9322,72 +9326,15 @@ function openChoiceDialog(poll, optionId) {
 
 /** Who is being asked. */
 function openPollPeopleDialog(poll) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getPoll(poll.id) || poll;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('polls.peopleHint'))}</p>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
-                </div>`,
-            )
-            .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    const field = dialog.querySelector('#person-new');
-    const add = () => {
-      replacePoll(addPollPerson(getPoll(poll.id) || poll, field.value), { redraw: false });
-      draw();
-      dialog.querySelector('#person-new').focus();
-    };
-    dialog.querySelector('#person-add').addEventListener('click', add);
-    field.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      add();
-    });
-
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replacePoll(renamePollPerson(getPoll(poll.id) || poll, input.dataset.person, input.value), { redraw: false });
-      });
-    });
-
-    dialog.querySelectorAll('[data-remove]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (!(await ask(t('polls.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replacePoll(removePollPerson(getPoll(poll.id) || poll, button.dataset.remove), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
-  };
-
-  dialog.addEventListener('close', () => render());
-  draw();
-  dialog.showModal();
+  const held = () => getPoll(poll.id) || poll;
+  openPeopleEditor({
+    hint: t('polls.peopleHint'),
+    confirmRemove: t('polls.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replacePoll(addPollPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replacePoll(renamePollPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replacePoll(removePollPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openPollNameDialog(poll) {
@@ -10250,34 +10197,47 @@ function openLineDialog(list, itemId) {
 }
 
 /** Who this list concerns: add, rename, remove. */
-function openPeopleDialog(list) {
+/**
+ * The people of a list, a poll or an account — one dialog for all three, so it
+ * works the same everywhere. Every change has its own button and happens at
+ * once, a removal after asking; nothing is left pending, so « Fermer » — or
+ * Escape — never saves a half-typed name behind one's back.
+ *
+ * `people()` reads the current people; `add`, `rename` and `remove` write.
+ * `blocked(id)` may say why someone cannot go — said before asking anything.
+ */
+function openPeopleEditor({ hint = '', confirmRemove, people, add, rename, remove, blocked = () => null }) {
   const dialog = makeDialog();
 
   const draw = () => {
-    const current = getList(list.id) || list;
+    const current = people();
     dialog.innerHTML = `
       <div class="stack">
         <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('lists.peopleHint'))}</p>
+        ${hint ? `<p class="muted small">${escapeHtml(hint)}</p>` : ''}
         <div class="stack stack--tight">
-          ${current.people
+          ${current
             .map(
               (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('lists.dropPerson'))}
+                    </button>
+                  </div>
                 </div>`,
             )
             .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+          ${current.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
         </div>
         <div class="row row--tight">
           <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button button--primary" id="person-add" aria-label="${escapeHtml(t('lists.addPerson'))}">+</button>
         </div>
         <div class="row">
           <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
@@ -10285,29 +10245,45 @@ function openPeopleDialog(list) {
       </div>`;
 
     const field = dialog.querySelector('#person-new');
-    const add = () => {
-      const next = addListPerson(getList(list.id) || list, field.value);
-      replaceList(next, { redraw: false });
+    const addOne = () => {
+      if (!field.value.trim()) return;
+      add(field.value);
       draw();
       dialog.querySelector('#person-new').focus();
     };
-    dialog.querySelector('#person-add').addEventListener('click', add);
+    dialog.querySelector('#person-add').addEventListener('click', addOne);
     field.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      add();
+      addOne();
     });
 
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replaceList(renameListPerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const person = people().find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('people.renameHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null || !name.trim()) return;
+        rename(person.id, name);
+        draw();
       });
     });
 
     dialog.querySelectorAll('[data-remove]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replaceList(removeListPerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        const refused = blocked(button.dataset.remove);
+        if (refused) {
+          flash(refused, 'error');
+          dialog.close();
+          return;
+        }
+        if (!(await ask(confirmRemove, { confirmLabel: t('lists.dropPerson'), danger: true }))) return;
+        remove(button.dataset.remove);
         draw();
       });
     });
@@ -10319,6 +10295,18 @@ function openPeopleDialog(list) {
   dialog.addEventListener('close', () => render());
   draw();
   dialog.showModal();
+}
+
+function openPeopleDialog(list) {
+  const held = () => getList(list.id) || list;
+  openPeopleEditor({
+    hint: t('lists.peopleHint'),
+    confirmRemove: t('lists.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceList(addListPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceList(renameListPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceList(removeListPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openListNameDialog(list) {
@@ -11363,90 +11351,21 @@ function openRepayDialog(spend, { move = null, line = null }) {
 
 /** Qui ce compte concerne : ajouter, renommer, retirer — quand c'est possible. */
 function openSpendPeopleDialog(spend) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getSpend(spend.id) || spend;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="knock">
-                  <strong>${escapeHtml(person.name)}</strong>
-                  <div class="row">
-                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.rename'))}
-                    </button>
-                    <button type="button" class="button button--small button--ghost" data-drop="${escapeHtml(person.id)}">
-                      ${escapeHtml(t('action.delete'))}
-                    </button>
-                  </div>
-                </div>`,
-            )
-            .join('')}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="spend-person" placeholder="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
-          <button type="button" class="button" id="spend-person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    dialog.querySelector('#spend-person-add').addEventListener('click', () => {
-      const field = dialog.querySelector('#spend-person');
-      const next = addSpendPerson(getSpend(spend.id) || spend, field.value);
-      field.value = '';
-      replaceSpend(next, { redraw: false });
-      draw();
-    });
-
-    dialog.querySelectorAll('[data-rename]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const held = getSpend(spend.id) || spend;
-        const person = held.people.find((one) => one.id === button.dataset.rename);
-        if (!person) return;
-        const name = await askForText({
-          title: t('action.rename'),
-          hint: t('spends.renamePersonHint'),
-          value: person.name,
-          confirmLabel: t('action.save'),
-        });
-        if (name === null) return;
-        replaceSpend(renameSpendPerson(held, person.id, name), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelectorAll('[data-drop]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const held = getSpend(spend.id) || spend;
-        const why = canRemovePerson(held, button.dataset.drop);
-        if (why !== 'ok') {
-          // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux
-          // vaut refuser en expliquant que rendre un remboursement faux.
-          flash(t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone'), 'error');
-          dialog.close();
-          render();
-          return;
-        }
-        replaceSpend(removeSpendPerson(held, button.dataset.drop), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => {
-      dialog.close();
-      render();
-    });
-  };
-
-  draw();
-  dialog.showModal();
+  const held = () => getSpend(spend.id) || spend;
+  openPeopleEditor({
+    hint: t('spends.peopleHint'),
+    confirmRemove: t('spends.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceSpend(addSpendPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceSpend(renameSpendPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceSpend(removeSpendPerson(held(), id), { redraw: false }),
+    // Retirer un payeur déséquilibrerait le compte sans rien dire : mieux vaut
+    // refuser en expliquant que rendre un remboursement faux.
+    blocked: (id) => {
+      const why = canRemovePerson(held(), id);
+      return why === 'ok' ? null : t(why === 'paid' ? 'spends.cannotDropPaid' : 'spends.cannotDropAlone');
+    },
+  });
 }
 
   // ---- src/view-ideas.js -----------------------------------------------
@@ -11599,7 +11518,8 @@ function strokeSvg(stroke) {
 function ideaCardHtml(card) {
   if (card.type === 'sketch') {
     return `
-      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}">
+      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}"
+              aria-label="${escapeHtml(card.text || t('ideas.sketchTitle'))}">
         ${card.strokes.length ? sketchSvg(card.strokes) : `<span class="muted small">${escapeHtml(t('ideas.emptySketch'))}</span>`}
         ${card.text ? `<span class="idea-card__caption">${escapeHtml(card.text)}</span>` : ''}
       </button>`;
@@ -12155,6 +12075,7 @@ function newGameView() {
                  placeholder="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}"
                  aria-label="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}" />
           <button type="button" class="button button--small button--ghost" data-remove-name="${index}"
+                  aria-label="${escapeHtml(t('lists.dropPerson'))}" title="${escapeHtml(t('lists.dropPerson'))}"
                   ${names.length <= min ? 'disabled' : ''}>✕</button>
         </div>`,
     )

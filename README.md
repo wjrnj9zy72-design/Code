@@ -476,6 +476,20 @@ tests/sql/verifier.sh                 # le SQL du guide sur un vrai PostgreSQL
 tests/sql/verifier.sh --depuis <commit>   # la mise à jour d'une base plus ancienne
 ```
 
+Parmi les suites du navigateur, **`audit`** fait le tour de tous les écrans
+avec les règles que chacun doit suivre, pour que les incohérences se trouvent
+là plutôt qu'à l'usage : aucune erreur ni texte cassé (clé de traduction brute,
+« undefined »), rien qui déborde sur un petit téléphone, aucun mot français
+dans l'app en anglais, un titre et un « Retour » hors des onglets, « Retour »
+qui ramène d'où l'on vient ; chaque formulaire avec le choix du groupe juste
+avant son bouton et mon prénom en premier ; chaque document avec un bouton
+pour partager, son groupe dit, et « Plus d'actions » de *Renommer* à
+*Supprimer* ; chaque carte d'onglet supprimable d'un glissement ; et chaque
+fenêtre qu'un bouton ouvre, avec une façon visible d'en sortir — et en sortir
+sans valider (Échap) ne doit rien avoir enregistré. Un écran ou une fenêtre
+ajouté plus tard est vérifié de la même façon, en ajoutant sa route à
+`routesOf`.
+
 La première installe Playwright hors du projet si besoin et utilise le Chromium
 de l'environnement (`/opt/pw-browsers/chromium`) ; la seconde demande
 PostgreSQL (`apt-get install -y postgresql`) et lance un serveur jetable.

@@ -12,7 +12,7 @@ import {
   isBusy, isHidden, kindsHtml, navigate, pollHome, render, route, signature, state, stopWatching,
   view, whenText,
 } from './app.js';
-import { archivedHtml, getGame, getList, listCardHtml, listTitle, persistList } from './view-lists.js';
+import { archivedHtml, getGame, getList, listCardHtml, listTitle, openPeopleEditor, persistList } from './view-lists.js';
 import { spendCardHtml, spendTitle } from './view-spends.js';
 import { boardTitle, getBoard } from './view-ideas.js';
 import { ask, download, fileName, makeDialog, showCopyDialog } from './view-games.js';
@@ -1029,72 +1029,15 @@ function openChoiceDialog(poll, optionId) {
 
 /** Who is being asked. */
 function openPollPeopleDialog(poll) {
-  const dialog = makeDialog();
-
-  const draw = () => {
-    const current = getPoll(poll.id) || poll;
-    dialog.innerHTML = `
-      <div class="stack">
-        <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('polls.peopleHint'))}</p>
-        <div class="stack stack--tight">
-          ${current.people
-            .map(
-              (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
-                </div>`,
-            )
-            .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
-        </div>
-        <div class="row row--tight">
-          <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
-        </div>
-        <div class="row">
-          <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
-        </div>
-      </div>`;
-
-    const field = dialog.querySelector('#person-new');
-    const add = () => {
-      replacePoll(addPollPerson(getPoll(poll.id) || poll, field.value), { redraw: false });
-      draw();
-      dialog.querySelector('#person-new').focus();
-    };
-    dialog.querySelector('#person-add').addEventListener('click', add);
-    field.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      add();
-    });
-
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replacePoll(renamePollPerson(getPoll(poll.id) || poll, input.dataset.person, input.value), { redraw: false });
-      });
-    });
-
-    dialog.querySelectorAll('[data-remove]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (!(await ask(t('polls.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replacePoll(removePollPerson(getPoll(poll.id) || poll, button.dataset.remove), { redraw: false });
-        draw();
-      });
-    });
-
-    dialog.querySelector('#people-close').addEventListener('click', () => dialog.close());
-  };
-
-  dialog.addEventListener('close', () => render());
-  draw();
-  dialog.showModal();
+  const held = () => getPoll(poll.id) || poll;
+  openPeopleEditor({
+    hint: t('polls.peopleHint'),
+    confirmRemove: t('polls.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replacePoll(addPollPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replacePoll(renamePollPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replacePoll(removePollPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openPollNameDialog(poll) {

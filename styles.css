@@ -572,6 +572,8 @@ table.scores .meta-cell { color: var(--muted); }
 
 .score-row__name { font-weight: 600; overflow-wrap: anywhere; }
 .score-row input { text-align: right; font-variant-numeric: tabular-nums; }
+/* A name is read from the left, like every other name field in the app. */
+.score-row input[data-name-index] { text-align: left; font-variant-numeric: normal; }
 
 .sum-line {
   display: flex;

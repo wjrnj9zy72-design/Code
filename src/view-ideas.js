@@ -158,7 +158,8 @@ function strokeSvg(stroke) {
 function ideaCardHtml(card) {
   if (card.type === 'sketch') {
     return `
-      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}">
+      <button type="button" class="idea-card idea-card--sketch" data-card="${escapeHtml(card.id)}"
+              aria-label="${escapeHtml(card.text || t('ideas.sketchTitle'))}">
         ${card.strokes.length ? sketchSvg(card.strokes) : `<span class="muted small">${escapeHtml(t('ideas.emptySketch'))}</span>`}
         ${card.text ? `<span class="idea-card__caption">${escapeHtml(card.text)}</span>` : ''}
       </button>`;

@@ -67,6 +67,7 @@ export function newGameView() {
                  placeholder="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}"
                  aria-label="${escapeHtml(t(isTeam ? 'new.teamName' : 'new.playerName', { n: index + 1 }))}" />
           <button type="button" class="button button--small button--ghost" data-remove-name="${index}"
+                  aria-label="${escapeHtml(t('lists.dropPerson'))}" title="${escapeHtml(t('lists.dropPerson'))}"
                   ${names.length <= min ? 'disabled' : ''}>✕</button>
         </div>`,
     )

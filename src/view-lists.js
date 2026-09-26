@@ -6,7 +6,7 @@
  */
 
 import {
-  escapeHtml, flash, flashHtml, formatDate, formatDay, groupChipsHtml, kindsHtml, navigate, render,
+  askForText, escapeHtml, flash, flashHtml, formatDate, formatDay, groupChipsHtml, kindsHtml, navigate, render,
   state, view,
 } from './app.js';
 import {
@@ -674,34 +674,47 @@ function openLineDialog(list, itemId) {
 }
 
 /** Who this list concerns: add, rename, remove. */
-function openPeopleDialog(list) {
+/**
+ * The people of a list, a poll or an account — one dialog for all three, so it
+ * works the same everywhere. Every change has its own button and happens at
+ * once, a removal after asking; nothing is left pending, so « Fermer » — or
+ * Escape — never saves a half-typed name behind one's back.
+ *
+ * `people()` reads the current people; `add`, `rename` and `remove` write.
+ * `blocked(id)` may say why someone cannot go — said before asking anything.
+ */
+export function openPeopleEditor({ hint = '', confirmRemove, people, add, rename, remove, blocked = () => null }) {
   const dialog = makeDialog();
 
   const draw = () => {
-    const current = getList(list.id) || list;
+    const current = people();
     dialog.innerHTML = `
       <div class="stack">
         <h2>${escapeHtml(t('lists.people'))}</h2>
-        <p class="muted small">${escapeHtml(t('lists.peopleHint'))}</p>
+        ${hint ? `<p class="muted small">${escapeHtml(hint)}</p>` : ''}
         <div class="stack stack--tight">
-          ${current.people
+          ${current
             .map(
               (person) => `
-                <div class="row row--tight">
-                  <input type="text" data-person="${escapeHtml(person.id)}" value="${escapeHtml(person.name)}"
-                         aria-label="${escapeHtml(person.name)}" />
-                  <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
-                    ${escapeHtml(t('action.delete'))}
-                  </button>
+                <div class="knock">
+                  <strong>${escapeHtml(person.name)}</strong>
+                  <div class="row">
+                    <button type="button" class="button button--small" data-rename="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('action.rename'))}
+                    </button>
+                    <button type="button" class="button button--small button--ghost" data-remove="${escapeHtml(person.id)}">
+                      ${escapeHtml(t('lists.dropPerson'))}
+                    </button>
+                  </div>
                 </div>`,
             )
             .join('')}
-          ${current.people.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
+          ${current.length ? '' : `<p class="muted small">${escapeHtml(t('lists.nobodyYet'))}</p>`}
         </div>
         <div class="row row--tight">
           <input type="text" id="person-new" placeholder="${escapeHtml(t('lists.addPerson'))}"
-                 aria-label="${escapeHtml(t('lists.addPerson'))}" />
-          <button type="button" class="button button--primary" id="person-add">+</button>
+                 aria-label="${escapeHtml(t('lists.addPerson'))}" autocomplete="off" />
+          <button type="button" class="button button--primary" id="person-add" aria-label="${escapeHtml(t('lists.addPerson'))}">+</button>
         </div>
         <div class="row">
           <button type="button" class="button" id="people-close">${escapeHtml(t('action.close'))}</button>
@@ -709,29 +722,45 @@ function openPeopleDialog(list) {
       </div>`;
 
     const field = dialog.querySelector('#person-new');
-    const add = () => {
-      const next = addListPerson(getList(list.id) || list, field.value);
-      replaceList(next, { redraw: false });
+    const addOne = () => {
+      if (!field.value.trim()) return;
+      add(field.value);
       draw();
       dialog.querySelector('#person-new').focus();
     };
-    dialog.querySelector('#person-add').addEventListener('click', add);
+    dialog.querySelector('#person-add').addEventListener('click', addOne);
     field.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      add();
+      addOne();
     });
 
-    dialog.querySelectorAll('[data-person]').forEach((input) => {
-      input.addEventListener('change', () => {
-        replaceList(renameListPerson(getList(list.id) || list, input.dataset.person, input.value), { redraw: false });
+    dialog.querySelectorAll('[data-rename]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const person = people().find((one) => one.id === button.dataset.rename);
+        if (!person) return;
+        const name = await askForText({
+          title: t('action.rename'),
+          hint: t('people.renameHint'),
+          value: person.name,
+          confirmLabel: t('action.save'),
+        });
+        if (name === null || !name.trim()) return;
+        rename(person.id, name);
+        draw();
       });
     });
 
     dialog.querySelectorAll('[data-remove]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (!(await ask(t('lists.confirmRemovePerson'), { confirmLabel: t('action.delete'), danger: true }))) return;
-        replaceList(removeListPerson(getList(list.id) || list, button.dataset.remove), { redraw: false });
+        const refused = blocked(button.dataset.remove);
+        if (refused) {
+          flash(refused, 'error');
+          dialog.close();
+          return;
+        }
+        if (!(await ask(confirmRemove, { confirmLabel: t('lists.dropPerson'), danger: true }))) return;
+        remove(button.dataset.remove);
         draw();
       });
     });
@@ -743,6 +772,18 @@ function openPeopleDialog(list) {
   dialog.addEventListener('close', () => render());
   draw();
   dialog.showModal();
+}
+
+function openPeopleDialog(list) {
+  const held = () => getList(list.id) || list;
+  openPeopleEditor({
+    hint: t('lists.peopleHint'),
+    confirmRemove: t('lists.confirmRemovePerson'),
+    people: () => held().people,
+    add: (name) => replaceList(addListPerson(held(), name), { redraw: false }),
+    rename: (id, name) => replaceList(renameListPerson(held(), id, name), { redraw: false }),
+    remove: (id) => replaceList(removeListPerson(held(), id), { redraw: false }),
+  });
 }
 
 function openListNameDialog(list) {
