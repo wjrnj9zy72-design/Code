@@ -46,6 +46,12 @@ function documents(where) {
   board = editCardText(made.board, made.cardId, 'Une lampe');
   made = addCard(board, 'sketch');
   board = addStrokes(made.board, made.cardId, [{ ink: 'ink', pen: 4, points: [100, 100, 600, 400] }]);
+  made = addCard(board, 'note');
+  board = editCardText(made.board, made.cardId, 'Guirlande lumineuse pour le balcon du salon, la grande');
+  // Des liens : la liste va avec les idées et le compte, et a une ligne
+  // cochée — les propositions et les pastilles de liens sont à l'écran.
+  list.links = [{ id: board.id, kind: 'with' }, { id: spend.id, kind: 'with' }];
+  list.items = list.items.map((item, index) => (index === 0 ? { ...item, done: true } : item));
   return { list, poll, event, spend, game, board };
 }
 
@@ -160,6 +166,7 @@ for (const lang of ['fr', 'en']) {
           newButton: (document.querySelector('#view [data-goto$="/new"], #view [data-goto="#/new"]')?.textContent || '').trim(),
           cards: document.querySelectorAll('#view .game-list > .game-card, #view .game-list > .swipe').length,
           swipes: document.querySelectorAll('#view .game-list > .swipe').length,
+          loose: [...document.querySelectorAll('#view .game-list > .game-card')].map((c) => c.textContent.trim().slice(0, 40)).join(' / '),
           french: (text.match(/\b(Retour|Partager|Supprimer|Annuler|Enregistrer|Renommer|Nouveau|Nouvelle|personnes|Fermer|Ranger|groupe)\b/g) || []),
         };
       }, KEYS);
@@ -199,7 +206,7 @@ for (const lang of ['fr', 'en']) {
       }
       if (isKindTab && width === 390) {
         if (!/^\+/.test(facts.newButton)) note('onglet sans « + Nouveau… » en tête', where);
-        if (facts.cards && facts.swipes !== facts.cards) note('des cartes qui ne se suppriment pas d’un glissement', `${where} : ${facts.swipes}/${facts.cards}`);
+        if (facts.cards && facts.swipes !== facts.cards) note('des cartes qui ne se suppriment pas d’un glissement', `${where} : ${facts.swipes}/${facts.cards} ${facts.loose}`);
       }
       if (page.errors.length) note('erreur JavaScript', `${where} : ${page.errors.splice(0).join(' | ')}`);
       if (facts.raw.length) note('clé de traduction affichée telle quelle', `${where} : ${facts.raw.join(', ')}`);

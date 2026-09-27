@@ -31,7 +31,7 @@ import { isValidBoard } from './ideas.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import {
   inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent, upcomingEvents,
-  allDocuments, ancestorsOf, childrenOf, isEventDoc, kindOf,
+  allDocuments, ancestorsOf, childrenOf, isEventDoc, kindOf, attachTargets, parentId,
 } from './dashboard.js';
 import {
   loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadBoards, loadPrefs,
@@ -654,9 +654,12 @@ export function attachedHtml(document_) {
 
 /** The buttons of « Plus d'actions » for the chain and the links: attach, detach, link. */
 export function chainButtonsHtml(document_) {
-  const attach = isEventDoc(document_)
+  // An event goes under another event only, as one of its activities; one
+  // with activities of its own stays on top.
+  const all = everything();
+  const attach = isEventDoc(document_) && !attachTargets(document_, all).length && !parentId(document_)
     ? ''
-    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t('chain.attach'))}</button>`;
+    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach'))}</button>`;
   return `${attach}<button type="button" class="button button--small button--ghost" data-relate-doc="${escapeHtml(document_.id)}">${escapeHtml(t('relate.button'))}</button>`;
 }
 

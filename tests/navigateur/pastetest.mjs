@@ -63,7 +63,7 @@ await b.click('#import-paste');
 await b.fill('#paste-text', exported);
 await b.click('#paste-import');
 await b.waitForTimeout(300);
-// L'Accueil mêle toutes les sortes : compter dans « Parties ».
+// L'Accueil mêle toutes les sortes : compter dans « Jeux ».
 const gamesOfB = async () => {
   await b.evaluate(() => { location.hash = '#/games'; });
   await b.waitForSelector('[data-goto="#/new"]');

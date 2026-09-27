@@ -113,14 +113,14 @@ const liables = await page.locator('dialog[open] [data-relate-to]').allTextConte
 check('on peut lier la liste à ce qui est hors de sa chaîne, même l’événement',
   liables.some((s) => /Raclette/.test(s)) && !liables.some((s) => /copains/.test(s)), liables.join(' | '));
 await page.locator('dialog[open] [data-relate-to]', { hasText: 'Raclette' }).click();
-await page.waitForFunction(() => /Liens/.test(document.querySelector('#view .chain-map')?.textContent || ''));
+await page.waitForFunction(() => /Lié, hors de la chaîne/.test(document.querySelector('#view .chain-map')?.textContent || ''));
 check('le lien est gardé sur la liste', JSON.stringify((await stored('lists', courses.id)).links) === JSON.stringify([{ id: raclette.id, kind: 'after' }]));
-check('le plan dit ce qu’elle attend', /Attend.*Raclette/.test(await text('#view .chain-map__links')), await text('#view .chain-map__links'));
+check('le plan dit ce qu’elle attend', /Raclette.*Attend/.test(await text('#view .chain-map__links')), await text('#view .chain-map__links'));
 check('et, dans l’arbre, la liste porte ⏳', (await page.locator('#view .chain-map__tree [aria-current="page"] .chain-map__wait').count()) === 1);
 check('et que ce n’est pas encore fait', /pas encore fait/.test(await text('#view .chain-map__links')));
 await page.goto(`${B}#/poll/${raclette.id}`);
 await page.waitForSelector('#event-parts');
-check('l’événement voit ce qu’il débloque', /Débloque.*Courses/.test(await text('#view .chain-map__links')), await text('#view .chain-map'));
+check('l’événement voit ce qu’il débloque', /Courses.*Débloque/.test(await text('#view .chain-map__links')), await text('#view .chain-map'));
 await more();
 check('un événement se lie aussi', (await page.locator('#view [data-relate-doc]').count()) === 1);
 await page.click('#view [data-relate-doc]');

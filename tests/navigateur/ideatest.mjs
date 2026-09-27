@@ -241,10 +241,10 @@ check('toucher « Supprimer » retire la carte', !/À jeter/.test(await page.loc
 
 // Un tableau, dans la liste des tableaux, se glisse aussi — mais on demande.
 await page.click('[data-goto="#/ideas"]');
-await page.waitForSelector('.swipe');
-await swipe(page.locator('.swipe').first().locator('.swipe__body'));
+await page.waitForSelector('[data-swipe-kind="doc"]');
+await swipe(page.locator('[data-swipe-kind="doc"]').first().locator('.swipe__body'));
 await page.waitForTimeout(250);
-await page.locator('.swipe').first().locator('.swipe__delete').click();
+await page.locator('[data-swipe-kind="doc"]').first().locator('.swipe__delete').click();
 await page.waitForSelector('.dialog--ask');
 await page.click('.dialog--ask [data-answer="no"]');
 await page.waitForTimeout(250);

@@ -282,8 +282,6 @@ export function listView(list) {
       </div>
     </form>
 
-    ${listFlowsHtml(list)}
-
     ${
       list.people.length
         ? `<div class="row">
@@ -301,6 +299,8 @@ export function listView(list) {
         ? `<ul class="lines">${shown.map((item) => listItemHtml(list, item)).join('')}</ul>`
         : `<p class="muted small">${escapeHtml(list.items.length ? t('lists.nothingHere') : t('lists.addFirst'))}</p>`
     }
+
+    ${listFlowsHtml(list)}
 
     ${attachedHtml(list)}
 

@@ -69,7 +69,7 @@ check('l’app s’ouvre sur l’Accueil, allumé',
 
 const kinds = (await page.locator('.segmented--kinds .segmented__option').allTextContents()).map((s) => s.trim());
 check('une rangée de sortes en haut de l’Accueil',
-  kinds.join(' / ') === 'Tout / Listes / Sondages / Parties / Comptes / Idées', kinds.join(' / '));
+  kinds.join(' / ') === 'Tout / Listes / Sondages / Jeux / Comptes / Idées', kinds.join(' / '));
 check('« Tout » y est choisi',
   (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Tout');
 const forYou = await page.locator('#for-you').textContent();

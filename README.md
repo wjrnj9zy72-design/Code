@@ -2,7 +2,7 @@
 
 Quatre onglets et un « + », une seule app. **Accueil** : les événements qui
 viennent, ce qui vous attend, ce qui est en cours — et, d'une rangée *Tout · Listes · Sondages
-· Parties · Comptes · Idées*, chaque sorte en entier : des **listes** à cocher
+· Jeux · Comptes · Idées*, chaque sorte en entier : des **listes** à cocher
 et à répartir, des **sondages** pour trancher une date ou un choix, un compteur
 de points pour Papayoo et une vingtaine d'autres **parties**, des **comptes** de
 dépenses (qui a payé quoi, qui rembourse qui), des tableaux d'**idées** (notes
@@ -250,9 +250,11 @@ déjà faits, chacun avec **Défaire**.
   fait avant vient d'abord (le sondage, puis la liste qui l'attend, puis le
   compte qui attend la liste). Un élément qui attend quelque chose de pas
   encore fait porte ⏳.
-- **Sous l'arbre**, la partie **Liens** dit, pour la page où l'on est : ce qui
-  va avec, ce qu'elle **attend** (fait ou pas encore fait) et ce qu'elle
-  **débloque** — chacun ouvre sa page. Sur les cartes : « ⏳ Attend « … » ».
+- **Dans l'arbre même**, à côté de chaque élément lié à la page où l'on est,
+  une pastille dit comment : **Va avec**, **Attend** (suivie de « fait » ou
+  « pas encore fait »), **Débloque**. Ce qui est lié hors de la chaîne se range
+  sous l'arbre, dans **Lié, hors de la chaîne** (ou **Liens** quand la page
+  n'a pas de chaîne). Sur les cartes : « ⏳ Attend « … » ».
 - **Fait**, c'est : un sondage clos ou tranché, un événement passé, une liste
   toute cochée, un compte soldé, une partie finie. Un tableau d'idées n'a rien
   à finir.
@@ -260,6 +262,33 @@ déjà faits, chacun avec **Défaire**.
 Un seul côté garde le lien (`links` : `{ id, kind }`, `kind` valant `with`,
 `after` ou `before`) ; l'autre le retrouve, comme un parent retrouve ses
 enfants. Le plus récent l'emporte à la fusion. Rien ne change dans la base.
+
+### Les activités : un événement dans un événement
+
+Une activité, c'est un événement rattaché à un autre : la rando du week-end,
+le karaoké de la raclette. Pas de nouvelle sorte d'élément : un nom, un jour
+(ou « à caler »), une heure facultative, ses personnes — par défaut celles qui
+viennent à l'événement — et sa propre chaîne (la liste du matériel de la rando).
+
+- **Programme**, sur la page de l'événement : ses activités par jour et par
+  heure, celles à caler à la fin, et **+ Activité** (quoi, l'un des jours de
+  l'événement ou « à caler », l'heure). La carte de l'événement, sur
+  l'Accueil et dans l'Agenda, en dit les premières ; une activité ne s'y
+  ajoute pas comme un événement de plus.
+- **Sur la page d'une activité** : de quel événement elle est ; à caler, les
+  jours de l'événement à toucher, ou **Faire un sondage : quel jour ?** — un
+  sondage dont les choix sont ces jours, et qui, tranché, donne son jour à
+  l'activité (`whenFor`) au lieu de devenir lui-même un événement. Un jour
+  hors de l'événement est signalé, pas interdit.
+- **Des idées** : un tableau d'idées de l'événement offre **En faire des
+  activités…** ; chaque idée touchée s'ajoute au programme, à caler.
+- **D'un sondage clos** de l'événement (« Quelle activité ? ») : **L'organiser
+  pendant « … »** ouvre la fenêtre d'une activité, le nom déjà écrit.
+- **Un événement existant** devient l'activité d'un autre par **En faire une
+  activité de…** (Plus d'actions ou appui long). Un seul niveau : une activité
+  n'a pas d'activités, et un événement qui en a reste en haut.
+- Dans l'arbre, les activités se rangent comme au programme.
+- Dans les agendas abonnés, une activité datée est un rendez-vous à elle.
 
 ### Ce que les éléments liés font l'un pour l'autre
 
@@ -289,11 +318,14 @@ vient), pour ne jamais être proposée deux fois. Logique pure dans
 
 ### L'appui long
 
-Tenir un demi-seconde n'importe quoi qui ouvre un élément — une carte, une
-ligne de l'Accueil, un élément du plan de la chaîne — ouvre son menu :
-**Ouvrir**, **Rattacher…**, **Lier à…**, **Ranger**, **Supprimer**. Un clic
-droit fait de même sur ordinateur. Bouger le doigt (défiler, glisser pour
-supprimer) l'annule.
+Tenir une demi-seconde n'importe quoi qui ouvre un élément — une carte, une
+ligne de l'Accueil, un élément du plan de la chaîne, celui de la page où l'on
+est compris — ouvre son menu : **Ouvrir** (sauf si l'on y est déjà),
+**Rattacher…**, **Lier à…**, **Archiver**, **Supprimer**, sous le titre, la
+sorte et la chaîne de l'élément. Un clic droit fait de même sur ordinateur.
+Bouger le doigt (défiler, glisser pour supprimer) l'annule. Le menu n'écoute
+qu'une fois le doigt levé : le toucher qui termine l'appui ne tombe pas sur
+le bouton apparu dessous. Suite `appui` : de vrais touchers, pas une souris.
 
 Quand le jour est déjà connu, pas besoin de sondage : **+ Événement**, dans
 l'onglet Agenda, demande un nom, le jour, l'heure si on veut, et qui vient. Il

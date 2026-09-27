@@ -55,7 +55,7 @@ await ctx.setOffline(true);
 await page.goto('http://localhost:8099/').catch(() => null);
 const opened = await page.locator('.app-bar').count().catch(() => 0);
 check('l’app s’ouvre sans réseau', opened === 1);
-// L'Accueil mêle toutes les sortes : compter dans « Parties ».
+// L'Accueil mêle toutes les sortes : compter dans « Jeux ».
 await page.evaluate(() => { location.hash = '#/games'; });
 await page.waitForSelector('[data-goto="#/new"]');
 check('les parties sont toujours là', (await page.locator('.game-card').count()) === 1);
