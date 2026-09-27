@@ -46,6 +46,28 @@ const polls = () => page.evaluate(() => JSON.parse(localStorage.getItem('marque-
 const byTitle = async (title) => (await polls()).find((p) => p.title === title || p.question === title);
 const more = () => page.evaluate(() => document.querySelectorAll('#view details').forEach((d) => { d.open = true; }));
 
+/* --- 0. « + → Activité » ------------------------------------------------- */
+
+await page.goto(`${B}#/`);
+await page.waitForSelector('#create');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create-activity]');
+await page.click('dialog[open] [data-create-activity]');
+await page.waitForSelector('dialog[open] [data-activity-for]');
+check('« + → Activité » demande pour quel événement', (await page.locator('dialog[open] [data-activity-for]').count()) === 2);
+await page.click(`dialog[open] [data-activity-for="${annecy.id}"]`);
+await page.waitForSelector('dialog[open] #activity-name');
+check('puis ouvre l’activité de cet événement', /pendant « Annecy »/.test(await text('dialog[open] h2')));
+await page.click('dialog[open] [data-activity-cancel]');
+await page.goto(`${B}#/poll/${annecy.id}`);
+await page.waitForSelector('.programme');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create-activity]');
+await page.click('dialog[open] [data-create-activity]');
+await page.waitForSelector('dialog[open] #activity-name');
+check('sur l’événement, « + → Activité » va droit à lui', /pendant « Annecy »/.test(await text('dialog[open] h2')));
+await page.click('dialog[open] [data-activity-cancel]');
+
 /* --- 1. le programme de l'événement -------------------------------------- */
 
 await page.goto(`${B}#/poll/${annecy.id}`);

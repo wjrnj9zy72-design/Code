@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="6916b455" />
+    <meta name="app-build" content="b15f73e3" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1829,6 +1829,10 @@ const STRINGS = {
     'flows.unblocked': 'Débloqué',
     'flows.freedBy': 'Fait : {names}',
     'activity.title': 'L’activité',
+    'activity.new': 'Activité',
+    'activity.forWhich': 'Une activité pour quel événement ?',
+    'activity.noEvent': 'Une activité se passe pendant un événement : il en faut d’abord un.',
+    'count.activities': '{count} {count|activité|activités}',
     'activity.programme': 'Programme',
     'activity.none': 'Pas encore d’activité. Une rando, un resto, un karaoké ?',
     'activity.add': 'Activité',
@@ -2815,6 +2819,10 @@ const STRINGS = {
     'flows.unblocked': 'Unblocked',
     'flows.freedBy': 'Done: {names}',
     'activity.title': 'The activity',
+    'activity.new': 'Activity',
+    'activity.forWhich': 'An activity for which event?',
+    'activity.noEvent': 'An activity happens during an event: there has to be one first.',
+    'count.activities': '{count} {count|activity|activities}',
     'activity.programme': 'Programme',
     'activity.none': 'No activity yet. A hike, a restaurant, karaoke?',
     'activity.add': 'Activity',
@@ -16609,6 +16617,48 @@ function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' }
     </div>`;
 }
 
+/**
+ * « + → Activité », away from any event: which event it is for — the coming
+ * ones, soonest first —, straight to it when there is only one.
+ */
+function openActivityPicker() {
+  const all = everything();
+  const events = upcomingEvents(shownDocs(state.polls));
+  if (events.length === 1) {
+    openActivityDialog(events[0]);
+    return;
+  }
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('activity.forWhich'))}</h2>
+      ${
+        events.length
+          ? `<div class="game-list">${events.map((one) => `
+              <button type="button" class="game-card" data-activity-for="${escapeHtml(one.id)}">
+                <span class="game-card__title">${escapeHtml(documentTitle(one))}</span>
+                <span class="game-card__meta">${escapeHtml([whenText(one, { long: true }), t('count.activities', { count: programmeOf(one, all).length })].join(' · '))}</span>
+              </button>`).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('activity.noEvent'))}</p>
+             <div class="row"><button type="button" class="button button--primary" data-activity-new-event>+ ${escapeHtml(t('events.new'))}</button></div>`
+      }
+      <div class="row"><button type="button" class="button button--ghost" data-activity-pick-close>${escapeHtml(t('action.cancel'))}</button></div>
+    </div>`;
+  dialog.querySelector('[data-activity-pick-close]').addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-activity-new-event]')?.addEventListener('click', () => {
+    dialog.close();
+    navigate('#/agenda/new');
+  });
+  dialog.querySelectorAll('[data-activity-for]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = byId(node.dataset.activityFor);
+      dialog.close();
+      if (event) openActivityDialog(event);
+    });
+  });
+  dialog.showModal();
+}
+
 /** A new activity: what, which day of the event — or later —, and when. */
 function openActivityDialog(event, { name = '', from = null } = {}) {
   let day = '';
@@ -18127,6 +18177,7 @@ function openPlainMenu() {
         ${choice('#/lists/new', t('lists.new'))}
         ${choice('#/polls/new', t('polls.new'))}
         ${choice('#/agenda/new', t('events.new'))}
+        <button type="button" class="button button--block" data-create-activity>+ ${escapeHtml(t('activity.new'))}</button>
         ${choice('#/new', t('action.newGame'))}
         ${choice('#/spends/new', t('spends.new'))}
         ${choice('#/ideas/new', t('ideas.new'))}
@@ -18153,6 +18204,10 @@ function openPlainMenu() {
       navigate(node.dataset.create);
     });
   });
+  dialog.querySelector('[data-create-activity]').addEventListener('click', () => {
+    dialog.close();
+    openActivityPicker();
+  });
   dialog.querySelector('[data-create-close]').addEventListener('click', () => dialog.close());
   dialog.showModal();
 }
@@ -18172,6 +18227,7 @@ function openEventMenu(poll) {
       <h2>${escapeHtml(t('event.addTo', { name }))}</h2>
       <p class="muted small">${escapeHtml(t('event.addToHint'))}</p>
       <div class="create-menu">
+        <button type="button" class="button button--block" data-create-activity>+ ${escapeHtml(t('activity.new'))}</button>
         ${choice('#/lists/new', t('lists.new'))}
         ${choice('#/polls/new', t('polls.new'))}
         ${choice('#/new', t('action.newGame'))}
@@ -18186,6 +18242,11 @@ function openEventMenu(poll) {
   dialog.querySelector('[data-create-plain]').addEventListener('click', () => {
     dialog.close();
     openPlainMenu();
+  });
+  // On an activity's page, a new activity is its event's: one level only.
+  dialog.querySelector('[data-create-activity]').addEventListener('click', () => {
+    dialog.close();
+    openActivityDialog(topEventOf(poll, everything()) || poll);
   });
   dialog.querySelectorAll('[data-create]').forEach((node) => {
     node.addEventListener('click', () => {

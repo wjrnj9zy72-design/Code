@@ -270,6 +270,9 @@ le karaoké de la raclette. Pas de nouvelle sorte d'élément : un nom, un jour
 (ou « à caler »), une heure facultative, ses personnes — par défaut celles qui
 viennent à l'événement — et sa propre chaîne (la liste du matériel de la rando).
 
+- **+ → Activité** : depuis n'importe où, demande pour quel événement (tout
+  droit s'il n'y en a qu'un à venir) ; sur la page d'un événement ou d'une de
+  ses activités, va droit à cet événement.
 - **Programme**, sur la page de l'événement : ses activités par jour et par
   heure, celles à caler à la fin, et **+ Activité** (quoi, l'un des jours de
   l'événement ou « à caler », l'heure). La carte de l'événement, sur

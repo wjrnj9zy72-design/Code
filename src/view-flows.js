@@ -26,7 +26,8 @@ import { archiveSpend } from './spends.js';
 import { archiveBoard } from './ideas.js';
 import { archiveGame } from './model.js';
 import {
-  isEventDoc, kindOf, isActivity, parentId, programmeOf, eventDays, outsideEvent, attachTargets,
+  isEventDoc, kindOf, isActivity, parentId, programmeOf, eventDays, outsideEvent, attachTargets, upcomingEvents,
+  topEventOf,
 } from './dashboard.js';
 import { getLanguage } from './i18n.js';
 import {
@@ -256,8 +257,50 @@ function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' }
     </div>`;
 }
 
+/**
+ * « + → Activité », away from any event: which event it is for — the coming
+ * ones, soonest first —, straight to it when there is only one.
+ */
+export function openActivityPicker() {
+  const all = everything();
+  const events = upcomingEvents(shownDocs(state.polls));
+  if (events.length === 1) {
+    openActivityDialog(events[0]);
+    return;
+  }
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('activity.forWhich'))}</h2>
+      ${
+        events.length
+          ? `<div class="game-list">${events.map((one) => `
+              <button type="button" class="game-card" data-activity-for="${escapeHtml(one.id)}">
+                <span class="game-card__title">${escapeHtml(documentTitle(one))}</span>
+                <span class="game-card__meta">${escapeHtml([whenText(one, { long: true }), t('count.activities', { count: programmeOf(one, all).length })].join(' · '))}</span>
+              </button>`).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('activity.noEvent'))}</p>
+             <div class="row"><button type="button" class="button button--primary" data-activity-new-event>+ ${escapeHtml(t('events.new'))}</button></div>`
+      }
+      <div class="row"><button type="button" class="button button--ghost" data-activity-pick-close>${escapeHtml(t('action.cancel'))}</button></div>
+    </div>`;
+  dialog.querySelector('[data-activity-pick-close]').addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-activity-new-event]')?.addEventListener('click', () => {
+    dialog.close();
+    navigate('#/agenda/new');
+  });
+  dialog.querySelectorAll('[data-activity-for]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = byId(node.dataset.activityFor);
+      dialog.close();
+      if (event) openActivityDialog(event);
+    });
+  });
+  dialog.showModal();
+}
+
 /** A new activity: what, which day of the event — or later —, and when. */
-function openActivityDialog(event, { name = '', from = null } = {}) {
+export function openActivityDialog(event, { name = '', from = null } = {}) {
   let day = '';
   const dialog = makeDialog();
   const draw = () => {
