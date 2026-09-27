@@ -5,7 +5,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="03272c06" />
+    <meta name="app-build" content="a65b30ed" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -35,10 +35,10 @@
       </a>
       <div class="app-bar__actions">
         <button type="button" class="icon-button" id="sync" data-i18n-title="sync.title" hidden>
-          <span aria-hidden="true">⟳</span>
+          <svg class="icon-button__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
         </button>
         <button type="button" class="icon-button" id="theme-toggle" data-i18n-title="theme.toggle">
-          <span aria-hidden="true">◐</span>
+          <svg class="icon-button__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" class="icon-button__fill"/></svg>
         </button>
         <button type="button" class="icon-button icon-button--text" id="lang-toggle" data-i18n="lang.switch"></button>
       </div>

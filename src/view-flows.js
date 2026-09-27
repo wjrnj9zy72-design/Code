@@ -590,6 +590,23 @@ export function bindLongPress(root) {
     if (!pressedDocument(node) || node.dataset.pressBound) return;
     node.dataset.pressBound = '1';
     node.classList.add('pressable');
+    // For a mouse: a « ⋯ » that says there is a menu, and opens it. Inside
+    // the thing it stands for, so a card's layout does not move; hidden from
+    // screen readers, who have the context-menu key.
+    if (node.matches('.game-card, .chain-map__node, .programme__item')) {
+      const more = document.createElement('span');
+      more.className = 'press-more';
+      more.setAttribute('aria-hidden', 'true');
+      more.title = t('menu.more');
+      more.textContent = '⋯';
+      more.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const document_ = pressedDocument(node);
+        if (document_) openDocumentMenu(document_);
+      });
+      node.append(more);
+    }
     let timer = null;
     let start = null;
     let fired = false;

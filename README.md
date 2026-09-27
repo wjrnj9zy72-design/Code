@@ -330,7 +330,8 @@ Tenir une demi-seconde n'importe quoi qui ouvre un élément — une carte, une
 ligne de l'Accueil, un élément du plan de la chaîne, celui de la page où l'on
 est compris — ouvre son menu : **Ouvrir** (sauf si l'on y est déjà),
 **Rattacher…**, **Lier à…**, **Archiver**, **Supprimer**, sous le titre, la
-sorte et la chaîne de l'élément. Un clic droit fait de même sur ordinateur.
+sorte et la chaîne de l'élément. Un clic droit fait de même sur ordinateur, et, à la souris, un « ⋯ » sur
+chaque carte et chaque élément du plan le montre et l'ouvre (caché au doigt).
 Bouger le doigt (défiler, glisser pour supprimer) l'annule. Le menu n'écoute
 qu'une fois le doigt levé : le toucher qui termine l'appui ne tombe pas sur
 le bouton apparu dessous. Suite `appui` : de vrais touchers, pas une souris.

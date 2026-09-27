@@ -125,6 +125,30 @@ const revenu = await page.evaluate((id) => JSON.parse(localStorage.getItem('marq
 check('supprimer la page où l’on est : elle ne revient pas de la base', !revenu, await page.evaluate(() => location.hash));
 check('et l’on quitte sa page', !(await page.evaluate(() => location.hash)).includes(autre.id), await page.evaluate(() => location.hash));
 
+check('au doigt, pas de « ⋯ »', await page.evaluate(() => [...document.querySelectorAll('.press-more')].every((n) => getComputedStyle(n).display === 'none')));
+
+/* --- à la souris : ce qui est invisible au doigt se voit ------------------ */
+
+const bureau = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' });
+const souris = await bureau.newPage();
+souris.on('pageerror', (e) => errors.push(String(e.message)));
+await souris.addInitScript((data) => {
+  if (localStorage.getItem('marque-points:prefs:v1')) return;
+  for (const [key, value] of Object.entries(data)) localStorage.setItem(key, JSON.stringify(value));
+}, seed);
+await souris.goto(`${B}#/poll/${raclette.id}`);
+await souris.waitForSelector('#event-parts');
+const icone = await souris.locator('#theme-toggle svg').boundingBox();
+check('l’icône du thème se voit (dessinée, pas une police)', icone && icone.width >= 16 && icone.height >= 16, JSON.stringify(icone));
+const plus = souris.locator('#event-parts .game-card .press-more').first();
+check('chaque carte a son « ⋯ »', await plus.isVisible());
+await plus.click();
+await souris.waitForSelector('dialog[open] [data-menu-delete]');
+check('« ⋯ » ouvre le menu, sans ouvrir la page', (await souris.evaluate(() => location.hash)) === `#/poll/${raclette.id}`);
+await souris.click('dialog[open] [data-menu-cancel]');
+check('les éléments de l’arbre aussi', await souris.locator('#view .chain-map .press-more').first().isVisible());
+await bureau.close();
+
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();
 const bad = results.filter((r) => !r.ok);
