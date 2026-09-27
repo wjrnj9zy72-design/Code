@@ -21,7 +21,9 @@ import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
   organise, organiserSecret, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
 } from './view-groups.js';
-import { eventFlowsHtml, pollFlowsHtml } from './view-flows.js';
+import {
+  eventFlowsHtml, pollFlowsHtml, programmeHtml, activityHeadHtml, pollActivitiesHtml,
+} from './view-flows.js';
 import { recentNames } from './model.js';
 import { sameName } from './stats.js';
 import { icsFor, pollEvent, eventName } from './ics.js';
@@ -35,6 +37,7 @@ import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
 import {
   isLive, eventParts, forEvent, partsCount, chainTree, treeSize, isEventDoc, kindOf, relationsOf, isDone, waitingOn,
+  isActivity,
 } from './dashboard.js';
 import { saveGames, saveLists, savePolls, saveSpends, saveBoards, savePrefs } from './storage.js';
 import { pollLink, wasDeleted } from './remote.js';
@@ -280,7 +283,11 @@ export function pollView(poll, { solo = false } = {}) {
 
     ${guest ? '' : eventLinkHtml(poll)}
 
+    ${solo ? '' : activityHeadHtml(poll)}
+
     ${guest ? '' : pollFlowsHtml(poll)}
+
+    ${guest ? '' : pollActivitiesHtml(poll)}
 
     ${guest ? '' : inGroupHtml(poll)}
 
@@ -376,7 +383,7 @@ export function pollView(poll, { solo = false } = {}) {
            </form>`
     }
 
-    ${guest || poll.date || fixed ? '' : `<details class="details" id="poll-date-by-hand">
+    ${guest || poll.date || fixed || poll.whenFor ? '' : `<details class="details" id="poll-date-by-hand">
       <summary>${escapeHtml(t('polls.dateByHand'))}</summary>
       ${dateCardHtml(poll, fixed)}
     </details>`}
@@ -503,7 +510,10 @@ function retainHtml(poll) {
  * A guest sees what is there and nothing to press.
  */
 function eventHtml(poll, { guest }) {
-  if (!poll.date) return '';
+  // An activity with no day yet is already an event of sorts: what it needs
+  // can be made for it before its day is known.
+  const activity = isActivity(poll, everything());
+  if (!poll.date && !activity) return '';
   const parts = eventParts(poll, state);
   const { list, spend } = parts;
   if (guest && !partsCount(parts)) return '';
@@ -515,7 +525,8 @@ function eventHtml(poll, { guest }) {
       : '';
   return `
     <section class="section stack stack--tight" id="event-parts">
-      <div class="section__head"><h2>${escapeHtml(t('event.title'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t(activity ? 'activity.title' : 'event.title'))}</h2></div>
+      ${activity ? '' : programmeHtml(poll, { guest })}
       ${kind(t('tab.lists'), parts.lists, listCardHtml)}
       ${kind(t('tab.polls'), parts.polls, pollCardHtml)}
       ${kind(t('tab.games'), parts.games, gameCardHtml)}
@@ -525,7 +536,7 @@ function eventHtml(poll, { guest }) {
       ${
         guest
           ? ''
-          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
+          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) || !poll.date ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
              <div class="row">
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
@@ -985,6 +996,15 @@ export function bindPoll(poll) {
       const option = poll.options.find((one) => one.id === button.dataset.retain);
       const day = option && dayOfOption(poll, option);
       if (!day) return;
+      // A poll asking when an activity is gives the activity its day, and
+      // closes: it is not itself the event.
+      const activity = poll.whenFor && getPoll(poll.whenFor);
+      if (activity) {
+        flash(t('activity.dayKept', { day: formatDayLong(day.date) }));
+        replacePoll(setPollDate(activity, day.date, day.at || activity.at || null, null), { redraw: false });
+        replacePoll(setClosed(poll, true));
+        return;
+      }
       const next = setClosed(setPollDate(poll, day.date, day.at), true);
       flash(t('polls.dateKept', { day: whenText(next) }));
       replacePoll(next);

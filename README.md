@@ -263,6 +263,33 @@ Un seul côté garde le lien (`links` : `{ id, kind }`, `kind` valant `with`,
 `after` ou `before`) ; l'autre le retrouve, comme un parent retrouve ses
 enfants. Le plus récent l'emporte à la fusion. Rien ne change dans la base.
 
+### Les activités : un événement dans un événement
+
+Une activité, c'est un événement rattaché à un autre : la rando du week-end,
+le karaoké de la raclette. Pas de nouvelle sorte d'élément : un nom, un jour
+(ou « à caler »), une heure facultative, ses personnes — par défaut celles qui
+viennent à l'événement — et sa propre chaîne (la liste du matériel de la rando).
+
+- **Programme**, sur la page de l'événement : ses activités par jour et par
+  heure, celles à caler à la fin, et **+ Activité** (quoi, l'un des jours de
+  l'événement ou « à caler », l'heure). La carte de l'événement, sur
+  l'Accueil et dans l'Agenda, en dit les premières ; une activité ne s'y
+  ajoute pas comme un événement de plus.
+- **Sur la page d'une activité** : de quel événement elle est ; à caler, les
+  jours de l'événement à toucher, ou **Faire un sondage : quel jour ?** — un
+  sondage dont les choix sont ces jours, et qui, tranché, donne son jour à
+  l'activité (`whenFor`) au lieu de devenir lui-même un événement. Un jour
+  hors de l'événement est signalé, pas interdit.
+- **Des idées** : un tableau d'idées de l'événement offre **En faire des
+  activités…** ; chaque idée touchée s'ajoute au programme, à caler.
+- **D'un sondage clos** de l'événement (« Quelle activité ? ») : **L'organiser
+  pendant « … »** ouvre la fenêtre d'une activité, le nom déjà écrit.
+- **Un événement existant** devient l'activité d'un autre par **En faire une
+  activité de…** (Plus d'actions ou appui long). Un seul niveau : une activité
+  n'a pas d'activités, et un événement qui en a reste en haut.
+- Dans l'arbre, les activités se rangent comme au programme.
+- Dans les agendas abonnés, une activité datée est un rendez-vous à elle.
+
 ### Ce que les éléments liés font l'un pour l'autre
 
 Un lien ne fait pas que renvoyer ailleurs : deux éléments liés se servent,

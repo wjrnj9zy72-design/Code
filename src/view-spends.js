@@ -173,8 +173,8 @@ export function spendsView() {
  * games were made for it.
  */
 export function eventCardHtml(poll) {
-  const { list, spend, polls, boards, games } = eventParts(poll, state);
-  const when = whenText(poll, { long: true });
+  const { list, spend, polls, boards, games, activities } = eventParts(poll, state);
+  const when = poll.date ? whenText(poll, { long: true }) : t('activity.unscheduled');
   const parts = [];
   if (list) {
     const { done, total } = progress(list);
@@ -185,6 +185,9 @@ export function eventCardHtml(poll) {
   if (boards.length) parts.push(t('count.boards', { count: boards.length }));
   if (games.length) parts.push(t('count.games', { count: games.length }));
   const people = poll.people.map((person) => person.name).join(' · ');
+  // What is on the programme, first things first: a card says what is coming.
+  const programme = activities.slice(0, 3).map((one) => [one.date ? whenText(one) : '', eventName(one) || pollTitle(one)].filter(Boolean).join(' '));
+  if (activities.length > 3) programme.push('…');
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
       <span class="game-card__title">
@@ -193,6 +196,7 @@ export function eventCardHtml(poll) {
       </span>
       ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
       ${parts.length ? `<span class="game-card__meta">${escapeHtml(parts.join(' · '))}</span>` : ''}
+      ${programme.length ? `<span class="game-card__meta">${escapeHtml(t('activity.onProgramme', { items: programme.join(' · ') }))}</span>` : ''}
     </button>`;
 }
 

@@ -10,9 +10,10 @@
  */
 
 import {
-  askForText, chainLabel, chainOf, documentHref, documentTitle, escapeHtml, everything, flash, navigate, render, state,
+  askForText, chainLabel, chainOf, documentHref, documentTitle, escapeHtml, everything, flash, formatDayLong, navigate,
+  render, state, whenText,
 } from './app.js';
-import { persistPoll, signed } from './view-polls.js';
+import { persistPoll, replacePoll, signed } from './view-polls.js';
 import { makeDialog } from './view-games.js';
 import {
   deleteDocument, myName, openAttachDialog, openRelateDialog, organise, replaceAny, shownDocs,
@@ -20,14 +21,17 @@ import {
 import { t } from './i18n.js';
 import { readAmount } from './spends.js';
 import { archiveList } from './lists.js';
-import { archivePoll } from './polls.js';
+import { archivePoll, setPollDate } from './polls.js';
 import { archiveSpend } from './spends.js';
 import { archiveBoard } from './ideas.js';
 import { archiveGame } from './model.js';
-import { isEventDoc, kindOf } from './dashboard.js';
+import {
+  isEventDoc, kindOf, isActivity, parentId, programmeOf, eventDays, outsideEvent, attachTargets,
+} from './dashboard.js';
+import { getLanguage } from './i18n.js';
 import {
   related, ideasFor, addIdea, pollFromIdeas, winnersOf, winnerOffers, addWinner, spentItems, spendFromLine,
-  unblockedNow, missingGoers, addGoers,
+  unblockedNow, missingGoers, addGoers, activityFor, ideaActivities, choiceActivities, whenPoll,
 } from './flows.js';
 
 /** One document by id, whatever its kind. */
@@ -209,6 +213,191 @@ export function unblockedHtml() {
     </section>`;
 }
 
+/* ------------------------------------------------------------ activities --- */
+
+/** An activity's day and hour, or « à caler ». */
+function activityWhen(activity) {
+  return activity.date ? whenText(activity) : t('activity.unscheduled');
+}
+
+/**
+ * On an event, its programme: the activities in the order they happen, each
+ * a way to its page, and the way to add one.
+ */
+export function programmeHtml(event, { guest = false } = {}) {
+  const activities = programmeOf(event, everything());
+  if (guest && !activities.length) return '';
+  return `
+    <div class="stack stack--tight programme" data-flows-for="${escapeHtml(event.id)}">
+      <span class="muted small">${escapeHtml(t('activity.programme'))}</span>
+      ${
+        activities.length
+          ? `<ul class="programme__list">${activities.map((one) => `
+              <li>
+                <button type="button" class="programme__item" data-goto="${escapeHtml(documentHref(one))}">
+                  <span class="programme__when">${escapeHtml(activityWhen(one))}</span>
+                  <span class="programme__what">${escapeHtml(documentTitle(one))}</span>
+                  ${outsideEvent(one, event) ? `<span class="pill pill--late">${escapeHtml(t('activity.outsideShort'))}</span>` : ''}
+                </button>
+              </li>`).join('')}</ul>`
+          : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
+      }
+      ${guest ? '' : `<div class="row"><button type="button" class="button button--small" data-flow-activity="${escapeHtml(event.id)}">+ ${escapeHtml(t('activity.add'))}</button></div>`}
+    </div>`;
+}
+
+/** Day chips for an event's days, one picked; `none` offers « à caler ». */
+function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' } = {}) {
+  const chip = (value, label) => `<button type="button" class="chip ${value === picked ? 'chip--on' : ''}" ${attr}="${escapeHtml(value)}"
+      aria-pressed="${value === picked ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `<div class="row row--chips" role="group">
+      ${eventDays(event).map((day) => chip(day, formatDayLong(day))).join('')}
+      ${none ? chip('', t('activity.unscheduled')) : ''}
+    </div>`;
+}
+
+/** A new activity: what, which day of the event — or later —, and when. */
+function openActivityDialog(event, { name = '', from = null } = {}) {
+  let day = '';
+  const dialog = makeDialog();
+  const draw = () => {
+    const typed = dialog.querySelector('#activity-name')?.value ?? name;
+    const hour = dialog.querySelector('#activity-at')?.value ?? '';
+    dialog.innerHTML = `
+      <form class="stack" method="dialog">
+        <h2>${escapeHtml(t('activity.newTitle', { name: documentTitle(event) }))}</h2>
+        <label class="stack stack--tight">
+          <span class="small">${escapeHtml(t('activity.name'))}</span>
+          <input type="text" id="activity-name" maxlength="80" autocomplete="off" placeholder="${escapeHtml(t('activity.namePlaceholder'))}" />
+        </label>
+        <span class="small">${escapeHtml(t('activity.day'))}</span>
+        ${dayChipsHtml(event, day)}
+        <label class="stack stack--tight">
+          <span class="small">${escapeHtml(t('activity.at'))}</span>
+          <input type="time" id="activity-at" ${day ? '' : 'disabled'} />
+        </label>
+        <p class="muted small">${escapeHtml(t('activity.newHint'))}</p>
+        <div class="row">
+          <button type="submit" class="button button--primary" id="activity-ok">${escapeHtml(t('activity.create'))}</button>
+          <button type="button" class="button" data-activity-cancel>${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </form>`;
+    dialog.querySelector('#activity-name').value = typed;
+    dialog.querySelector('#activity-at').value = day ? hour : '';
+    dialog.querySelector('[data-activity-cancel]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-activity-day]').forEach((node) => {
+      node.addEventListener('click', () => {
+        day = node.dataset.activityDay;
+        draw();
+      });
+    });
+    dialog.querySelector('form').addEventListener('submit', (submitted) => {
+      submitted.preventDefault();
+      const what = dialog.querySelector('#activity-name').value.trim();
+      if (!what) {
+        dialog.querySelector('#activity-name').focus();
+        return;
+      }
+      const at = dialog.querySelector('#activity-at').value || null;
+      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from })));
+      dialog.close();
+      state.polls = [...state.polls, made];
+      persistPoll(made);
+      flash(t('activity.made', { name: what, event: documentTitle(event) }));
+      render();
+    });
+  };
+  draw();
+  dialog.showModal();
+  dialog.querySelector('#activity-name').focus();
+}
+
+/**
+ * On an activity's page: whose activity it is and when that is; with no day
+ * yet, the days of the event to pick from, or a poll to ask; a word when its
+ * day falls outside the event.
+ */
+export function activityHeadHtml(activity) {
+  const all = everything();
+  if (!isActivity(activity, all)) return '';
+  const event = all.find((one) => one.id === parentId(activity));
+  const asking = all.find((one) => one.whenFor === activity.id && !one.closedAt && !one.archivedAt);
+  return `
+    <section class="card stack stack--tight activity-head" data-flows-for="${escapeHtml(activity.id)}">
+      <p class="small">${escapeHtml(t('activity.of', { name: documentTitle(event), when: whenText(event, { long: true }) }))}</p>
+      ${outsideEvent(activity, event) ? `<p class="small late">${escapeHtml(t('activity.outside'))}</p>` : ''}
+      ${
+        activity.date
+          ? ''
+          : `<span class="small">${escapeHtml(t('activity.pickDay'))}</span>
+             ${dayChipsHtml(event, '', { none: false, attr: 'data-activity-set-day' })}
+             <div class="row">
+               ${
+                 asking
+                   ? `<button type="button" class="button button--small" data-goto="${escapeHtml(documentHref(asking))}">🗳️ ${escapeHtml(t('activity.seeWhen'))}</button>`
+                   : `<button type="button" class="button button--small" data-flow-when="${escapeHtml(activity.id)}">🗳️ ${escapeHtml(t('activity.askWhen'))}</button>`
+               }
+             </div>`
+      }
+    </section>`;
+}
+
+/** On a board that is part of an event, the way to make activities of its ideas. */
+export function boardActivitiesHtml(board) {
+  const { event, ideas } = ideaActivities(board, everything());
+  if (!event || !ideas.length) return '';
+  return `<button type="button" class="button button--small" data-flow-idea-activities="${escapeHtml(board.id)}">🎯 ${escapeHtml(t('activity.fromIdeas'))}</button>`;
+}
+
+/** Pick the ideas that become activities: one tap each, the dialog stays. */
+function openIdeaActivitiesDialog(board) {
+  const dialog = makeDialog();
+  const draw = () => {
+    const { event, ideas } = ideaActivities(byId(board.id) || board, everything());
+    if (!event) {
+      dialog.close();
+      return;
+    }
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('activity.fromIdeasTitle', { name: documentTitle(event) }))}</h2>
+        <p class="muted small">${escapeHtml(t('activity.fromIdeasHint'))}</p>
+        <div class="row row--chips">${ideas.map((one) => (one.made
+          ? `<span class="chip chip--on">✓ ${escapeHtml(one.text)}</span>`
+          : `<button type="button" class="chip" data-idea-activity="${escapeHtml(one.card.id)}">+ ${escapeHtml(one.text)}</button>`)).join('')}
+        </div>
+        <div class="row"><button type="button" class="button button--ghost" data-idea-activities-close>${escapeHtml(t('action.close'))}</button></div>
+      </div>`;
+    dialog.querySelector('[data-idea-activities-close]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-idea-activity]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const one = ideas.find((idea) => idea.card.id === node.dataset.ideaActivity);
+        if (!one) return;
+        const made = organise(signed(activityFor(event, { name: one.text, from: { doc: board.id, part: one.card.id } })));
+        state.polls = [...state.polls, made];
+        persistPoll(made);
+        flash(t('activity.made', { name: one.text, event: documentTitle(event) }));
+        render();
+        draw();
+      });
+    });
+  };
+  draw();
+  dialog.showModal();
+}
+
+/** On a closed poll that is part of an event, its choice to organise. */
+export function pollActivitiesHtml(poll) {
+  const { event, choices } = choiceActivities(poll, everything());
+  const open = choices.filter((one) => !one.made);
+  if (!event || !open.length) return '';
+  return `
+    <section class="card stack stack--tight flows" data-flows-for="${escapeHtml(poll.id)}">
+      ${offersHtml(t('activity.organise', { name: documentTitle(event) }),
+        open.map((one) => offerButton('data-flow-choice-activity', one.option.id, one.option.text)))}
+    </section>`;
+}
+
 /* ------------------------------------------------------------ the binder --- */
 
 /** Every offer on the page, bound. Called after each render. */
@@ -260,6 +449,49 @@ export function bindFlows(root) {
       const missing = missingGoers(event, everything());
       flash(t('flows.peopleDone', { count: missing.length }));
       for (const one of missing) replaceAny(addGoers(one.document, one.names));
+    });
+  });
+  root.querySelectorAll('[data-flow-activity]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = current(node.dataset.flowActivity);
+      if (event) openActivityDialog(event);
+    });
+  });
+  root.querySelectorAll('[data-activity-set-day]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const activity = owner(node);
+      if (!activity) return;
+      flash(t('activity.dayKept', { day: formatDayLong(node.dataset.activitySetDay) }));
+      replacePoll(setPollDate(activity, node.dataset.activitySetDay, activity.at || null, null));
+    });
+  });
+  root.querySelectorAll('[data-flow-when]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const activity = current(node.dataset.flowWhen);
+      const event = activity && current(parentId(activity));
+      if (!activity || !event) return;
+      const poll = signed(organise(whenPoll(activity, event, {
+        question: t('activity.whenQuestion', { name: documentTitle(activity) }),
+        language: getLanguage(),
+      })));
+      state.polls = [...state.polls, poll];
+      persistPoll(poll);
+      flash(t('activity.whenMade'));
+      navigate(`#/poll/${poll.id}`);
+    });
+  });
+  root.querySelectorAll('[data-flow-idea-activities]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const board = current(node.dataset.flowIdeaActivities);
+      if (board) openIdeaActivitiesDialog(board);
+    });
+  });
+  root.querySelectorAll('[data-flow-choice-activity]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const poll = owner(node);
+      const { event, choices } = poll ? choiceActivities(poll, everything()) : { event: null, choices: [] };
+      const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
+      if (event && one) openActivityDialog(event, { name: one.option.text, from: { doc: poll.id, part: one.option.id } });
     });
   });
   bindLongPress(root);
@@ -372,7 +604,7 @@ export function openDocumentMenu(document_, { underFinger = false } = {}) {
       </div>
       <div class="stack stack--tight doc-menu">
         ${location.hash === documentHref(document_) ? '' : button('data-menu-open', t('menu.open'), 'button--primary')}
-        ${isEventDoc(document_) ? '' : button('data-menu-attach', t('chain.attach'))}
+        ${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
         ${button('data-menu-relate', t('relate.button'))}
         ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
         ${button('data-menu-delete', t('action.delete'), 'button--danger')}

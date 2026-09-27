@@ -84,7 +84,7 @@ export function openAttachDialog(document_) {
         current
           ? `<p class="small">${escapeHtml(t('chain.now', { chain: chain.map(chainLabel).join(' › ') }))}</p>
              <div class="row"><button type="button" class="button" data-detach>${escapeHtml(t('chain.detach'))}</button></div>`
-          : `<p class="muted small">${escapeHtml(t('chain.attachHint'))}</p>`
+          : `<p class="muted small">${escapeHtml(t(isEventDoc(document_) ? 'activity.attachHint' : 'chain.attachHint'))}</p>`
       }
       ${targets.length ? candidatesHtml(targets, { on: current?.id, attr: 'data-attach-to' }) : `<p class="muted small">${escapeHtml(t('chain.nothing'))}</p>`}
       <div class="row">

@@ -314,12 +314,16 @@ export function chainTree(document_, all) {
   const order = ['poll', 'list', 'game', 'spend', 'board'];
   const rank = (one) => (isEventDoc(one) ? -1 : order.indexOf(kindOf(one)));
   const title = (one) => String(one.title || one.name || one.question || '');
+  // Activities in the order they happen, as on the programme; those to
+  // schedule after.
+  const when = (one) => (isEventDoc(one) ? (one.date ? `${one.date} ${one.at || ''}` : '~') : '');
+  const byWhen = (a, b) => (when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0);
   const seen = new Set();
   const grow = (node) => {
     seen.add(node.id);
     const children = childrenOf(node, all)
       .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
-      .sort((a, b) => stepOf(a, all) - stepOf(b, all) || rank(a) - rank(b) || title(a).localeCompare(title(b)));
+      .sort((a, b) => stepOf(a, all) - stepOf(b, all) || rank(a) - rank(b) || byWhen(a, b) || title(a).localeCompare(title(b)));
     return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
   };
   return grow(top);
@@ -333,16 +337,71 @@ export function treeSize(tree) {
 /**
  * What a document may be attached to: anything live in the same group — or
  * kept to oneself like it — except itself and what already hangs below it,
- * which would close the chain on itself. An event is never attached: it stays
+ * which would close the chain on itself.
+ *
+ * An event goes only under another event, and becomes one of its activities:
+ * the rando of the weekend, the karaoke of the raclette. One level only — an
+ * activity holds no activity, and an event with activities of its own stays
  * on top.
  */
 export function attachTargets(document_, all) {
-  if (isEventDoc(document_)) return [];
   const below = new Set(descendantsOf(document_, all).map((one) => one.id));
   const group = document_.groupId || null;
-  return all.filter(
-    (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group,
-  );
+  const fits = (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group;
+  if (isEventDoc(document_)) {
+    if (childrenOf(document_, all).some(isEventDoc)) return [];
+    return all.filter((one) => fits(one) && isEventDoc(one) && !isActivity(one, all));
+  }
+  return all.filter(fits);
+}
+
+/* ------------------------------------------------------------ activities --- */
+
+/** An activity: an event attached to another event. */
+export function isActivity(document_, all) {
+  if (!isEventDoc(document_)) return false;
+  const above = all.find((one) => one.id === parentId(document_));
+  return Boolean(above && isEventDoc(above));
+}
+
+/** The event a document belongs to, above its activity if it is in one. */
+export function topEventOf(document_, all) {
+  const event = isEventDoc(document_) ? document_ : eventOf(document_, all);
+  if (!event) return null;
+  return isActivity(event, all) ? all.find((one) => one.id === parentId(event)) || event : event;
+}
+
+/** The days an event takes up, first to last — two weeks at most. */
+export function eventDays(event) {
+  if (!event?.date) return [];
+  const days = [];
+  const [year, month, day] = event.date.split('-').map(Number);
+  const last = lastDay(event);
+  for (let i = 0; i < 14; i += 1) {
+    const date = new Date(year, month - 1, day + i);
+    const text = dayNow(date.getTime());
+    if (text > last) break;
+    days.push(text);
+  }
+  return days;
+}
+
+/**
+ * An event's activities, in the order they happen: by day and hour, those
+ * with no day yet last — « à caler ».
+ */
+export function programmeOf(event, all) {
+  // Compared as plain text, not by locale: a collation puts « ~ » before digits.
+  const key = (one) => (one.date ? `${one.date} ${one.at || ''}` : `~${String(one.createdAt || 0).padStart(15, '0')}`);
+  return childrenOf(event, all)
+    .filter((one) => isEventDoc(one) && isLive(one))
+    .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+/** Whether an activity's day falls outside its event's. */
+export function outsideEvent(activity, event) {
+  if (!activity?.date || !event?.date) return false;
+  return activity.date < event.date || activity.date > lastDay(event);
 }
 
 /**
@@ -360,16 +419,21 @@ export function attach(document_, targetId) {
  * to bring and the account of what was spent, when there is one.
  */
 export function eventParts(poll, state = {}) {
-  const below = descendantsOf(poll, allDocuments(state));
+  const all = allDocuments(state);
+  const below = descendantsOf(poll, all);
   const recent = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
-  const of = (kind) => below.filter((one) => kindOf(one) === kind).sort(recent);
-  const parts = { lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game') };
+  const of = (kind) => below.filter((one) => kindOf(one) === kind && !isEventDoc(one)).sort(recent);
+  const parts = {
+    lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game'),
+    activities: programmeOf(poll, all),
+  };
   return { ...parts, list: parts.lists[0] || null, spend: parts.spends[0] || null };
 }
 
 /** How many documents hang off an event, all kinds together. */
 export function partsCount(parts) {
-  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length;
+  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length
+    + (parts.activities || []).length;
 }
 
 /**
@@ -377,8 +441,9 @@ export function partsCount(parts) {
  * Saturday — soonest first.
  */
 export function upcomingEvents(polls = [], today = dayNow()) {
+  // An activity shows inside its event, not as one more event beside it.
   return polls
-    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today)
+    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today && !isActivity(poll, polls))
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || '')));
 }
 

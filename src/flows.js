@@ -16,14 +16,14 @@
  */
 
 import { addItems } from './lists.js';
-import { createPoll, addOptions, tally, goers } from './polls.js';
+import { createPoll, createEvent, addOptions, tally, goers, choiceOfDay } from './polls.js';
 import { addSpend } from './spends.js';
 import { cardsInOrder } from './ideas.js';
 import { addPerson } from './people.js';
 import { sameName } from './stats.js';
 import { touch } from './stamp.js';
 import {
-  relationsOf, kindOf, isEventDoc, isLive, isDone, parentId, descendantsOf, dayNow,
+  relationsOf, kindOf, isEventDoc, isLive, isDone, parentId, descendantsOf, dayNow, topEventOf, programmeOf, eventDays,
 } from './dashboard.js';
 
 /** The things of one kind a document is linked to, whichever way. */
@@ -175,4 +175,75 @@ export function addGoers(document_, names) {
   return names.reduce((next, name) => (
     next.people.some((person) => sameName(person.name) === sameName(name)) ? next : addPerson(next, name)
   ), document_);
+}
+
+/* ----------------------------------------------------------- activities --- */
+
+/**
+ * A new activity of an event: an event of its own, under it, in its group,
+ * between the people coming to it unless told otherwise. No day means « à
+ * caler ».
+ */
+export function activityFor(event, { name = '', date = null, at = null, names = null, from = null } = {}) {
+  const made = createEvent({ name, names: names || goers(event), date, at });
+  return {
+    ...made,
+    parent: event.id,
+    shared: Boolean(event.shared),
+    groupId: event.groupId || null,
+    ...(event.linkOnly ? { linkOnly: true } : {}),
+    ...(from ? { from } : {}),
+  };
+}
+
+/** Whether an event already has an activity made from that part of that document. */
+function madeFrom(event, all, docId, partId) {
+  return programmeOf(event, all).some((one) => one.from?.doc === docId && one.from?.part === partId);
+}
+
+/**
+ * A board's ideas, as activities of the event it is part of: those with
+ * words, and whether one was made already. Nothing when it is part of none.
+ */
+export function ideaActivities(board, all) {
+  const event = topEventOf(board, all);
+  if (!event) return { event: null, ideas: [] };
+  return {
+    event,
+    ideas: cardsInOrder(board)
+      .map((card) => ({ card, text: oneLine(card.text), made: madeFrom(event, all, board.id, card.id) }))
+      .filter((one) => one.text),
+  };
+}
+
+/**
+ * What a closed poll chose, as activities of the event it is part of — « Quelle
+ * activité ? » settled on karaoke: organise it. Not a poll that asks when.
+ */
+export function choiceActivities(poll, all) {
+  const event = topEventOf(poll, all);
+  if (!event || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
+  return {
+    event,
+    choices: winnersOf(poll).map((option) => ({ option, made: madeFrom(event, all, poll.id, option.id) })),
+  };
+}
+
+/**
+ * A poll asking when an activity takes place, whose choices are the days of
+ * its event and nothing else. Settled, it gives the activity its day, not
+ * itself (`whenFor`).
+ */
+export function whenPoll(activity, event, { question = '', language = 'fr' } = {}) {
+  const days = eventDays(event);
+  const poll = addOptions(
+    createPoll({
+      question: question || activity.title || activity.question || '',
+      names: (activity.people || []).map((person) => person.name),
+      shared: Boolean(activity.shared),
+      groupId: activity.groupId || null,
+    }),
+    days.map((day) => choiceOfDay(day, language)).join('\n'),
+  );
+  return { ...poll, parent: activity.id, whenFor: activity.id, ...(activity.linkOnly ? { linkOnly: true } : {}) };
 }

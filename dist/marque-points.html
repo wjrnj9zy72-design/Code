@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="56165627" />
+    <meta name="app-build" content="6916b455" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1497,6 +1497,16 @@ body:not(.solo) .view {
 .doc-menu .button { width: 100%; justify-content: center; }
 /* A menu opened under a finger still down hears nothing until it is lifted. */
 .dialog--deaf { pointer-events: none; }
+
+/* An event's programme: when on the left, what on the right, in order. */
+.programme__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.programme__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.programme__when { flex: none; min-width: 6.5em; color: var(--muted); font-size: 0.85rem; }
+.programme__what { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
     </style>
   </head>
   <body>
@@ -1818,6 +1828,35 @@ const STRINGS = {
     'flows.peopleDone': '{count} {count|élément mis à jour|éléments mis à jour}.',
     'flows.unblocked': 'Débloqué',
     'flows.freedBy': 'Fait : {names}',
+    'activity.title': 'L’activité',
+    'activity.programme': 'Programme',
+    'activity.none': 'Pas encore d’activité. Une rando, un resto, un karaoké ?',
+    'activity.add': 'Activité',
+    'activity.unscheduled': 'à caler',
+    'activity.outsideShort': 'hors des jours',
+    'activity.outside': 'Ce jour tombe en dehors de l’événement.',
+    'activity.newTitle': 'Une activité pendant « {name} »',
+    'activity.name': 'Quoi ?',
+    'activity.namePlaceholder': 'Rando, resto, karaoké…',
+    'activity.day': 'Quel jour ?',
+    'activity.at': 'À quelle heure ? (facultatif)',
+    'activity.newHint': 'Avec les personnes de l’événement ; on peut en retirer ensuite. Sans jour, elle reste « à caler ».',
+    'activity.create': 'Créer l’activité',
+    'activity.made': '« {name} » ajouté au programme de « {event} ».',
+    'activity.of': 'Une activité de « {name} » ({when}).',
+    'activity.pickDay': 'Quel jour ?',
+    'activity.askWhen': 'Faire un sondage : quel jour ?',
+    'activity.seeWhen': 'Voir le sondage : quel jour ?',
+    'activity.whenQuestion': 'Quel jour pour « {name} » ?',
+    'activity.whenMade': 'Sondage créé avec les jours de l’événement.',
+    'activity.dayKept': 'Activité calée le {day}.',
+    'activity.fromIdeas': 'En faire des activités…',
+    'activity.fromIdeasTitle': 'Des activités pour « {name} »',
+    'activity.fromIdeasHint': 'Touchez une idée : elle s’ajoute au programme, à caler.',
+    'activity.organise': 'L’organiser pendant « {name} »',
+    'activity.onProgramme': 'Programme : {items}',
+    'activity.attach': 'En faire une activité de…',
+    'activity.attachHint': 'Sous un autre événement, il en devient une activité : au programme, avec sa propre chaîne.',
     'menu.open': 'Ouvrir',
     'menu.archived': '« {name} » archivé.',
     'menu.unarchived': '« {name} » sorti de l’archive.',
@@ -2775,6 +2814,35 @@ const STRINGS = {
     'flows.peopleDone': '{count} {count|thing updated|things updated}.',
     'flows.unblocked': 'Unblocked',
     'flows.freedBy': 'Done: {names}',
+    'activity.title': 'The activity',
+    'activity.programme': 'Programme',
+    'activity.none': 'No activity yet. A hike, a restaurant, karaoke?',
+    'activity.add': 'Activity',
+    'activity.unscheduled': 'to schedule',
+    'activity.outsideShort': 'outside the days',
+    'activity.outside': 'This day falls outside the event.',
+    'activity.newTitle': 'An activity during “{name}”',
+    'activity.name': 'What?',
+    'activity.namePlaceholder': 'Hike, restaurant, karaoke…',
+    'activity.day': 'Which day?',
+    'activity.at': 'What time? (optional)',
+    'activity.newHint': 'With the event’s people; some can be taken off later. With no day, it stays “to schedule”.',
+    'activity.create': 'Create the activity',
+    'activity.made': '“{name}” added to the programme of “{event}”.',
+    'activity.of': 'An activity of “{name}” ({when}).',
+    'activity.pickDay': 'Which day?',
+    'activity.askWhen': 'Make a poll: which day?',
+    'activity.seeWhen': 'See the poll: which day?',
+    'activity.whenQuestion': 'Which day for “{name}”?',
+    'activity.whenMade': 'Poll created with the event’s days.',
+    'activity.dayKept': 'Activity set for {day}.',
+    'activity.fromIdeas': 'Make activities of them…',
+    'activity.fromIdeasTitle': 'Activities for “{name}”',
+    'activity.fromIdeasHint': 'Tap an idea: it goes on the programme, to schedule.',
+    'activity.organise': 'Organise it during “{name}”',
+    'activity.onProgramme': 'Programme: {items}',
+    'activity.attach': 'Make it an activity of…',
+    'activity.attachHint': 'Under another event, it becomes one of its activities: on the programme, with its own chain.',
     'menu.open': 'Open',
     'menu.archived': '“{name}” archived.',
     'menu.unarchived': '“{name}” taken out of the archive.',
@@ -6946,12 +7014,16 @@ function chainTree(document_, all) {
   const order = ['poll', 'list', 'game', 'spend', 'board'];
   const rank = (one) => (isEventDoc(one) ? -1 : order.indexOf(kindOf(one)));
   const title = (one) => String(one.title || one.name || one.question || '');
+  // Activities in the order they happen, as on the programme; those to
+  // schedule after.
+  const when = (one) => (isEventDoc(one) ? (one.date ? `${one.date} ${one.at || ''}` : '~') : '');
+  const byWhen = (a, b) => (when(a) < when(b) ? -1 : when(a) > when(b) ? 1 : 0);
   const seen = new Set();
   const grow = (node) => {
     seen.add(node.id);
     const children = childrenOf(node, all)
       .filter((one) => !seen.has(one.id) && (isLive(one) || one.id === document_.id))
-      .sort((a, b) => stepOf(a, all) - stepOf(b, all) || rank(a) - rank(b) || title(a).localeCompare(title(b)));
+      .sort((a, b) => stepOf(a, all) - stepOf(b, all) || rank(a) - rank(b) || byWhen(a, b) || title(a).localeCompare(title(b)));
     return { document: node, children: children.map((child) => (seen.has(child.id) ? null : grow(child))).filter(Boolean) };
   };
   return grow(top);
@@ -6965,16 +7037,71 @@ function treeSize(tree) {
 /**
  * What a document may be attached to: anything live in the same group — or
  * kept to oneself like it — except itself and what already hangs below it,
- * which would close the chain on itself. An event is never attached: it stays
+ * which would close the chain on itself.
+ *
+ * An event goes only under another event, and becomes one of its activities:
+ * the rando of the weekend, the karaoke of the raclette. One level only — an
+ * activity holds no activity, and an event with activities of its own stays
  * on top.
  */
 function attachTargets(document_, all) {
-  if (isEventDoc(document_)) return [];
   const below = new Set(descendantsOf(document_, all).map((one) => one.id));
   const group = document_.groupId || null;
-  return all.filter(
-    (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group,
-  );
+  const fits = (one) => one.id !== document_.id && !below.has(one.id) && isLive(one) && (one.groupId || null) === group;
+  if (isEventDoc(document_)) {
+    if (childrenOf(document_, all).some(isEventDoc)) return [];
+    return all.filter((one) => fits(one) && isEventDoc(one) && !isActivity(one, all));
+  }
+  return all.filter(fits);
+}
+
+/* ------------------------------------------------------------ activities --- */
+
+/** An activity: an event attached to another event. */
+function isActivity(document_, all) {
+  if (!isEventDoc(document_)) return false;
+  const above = all.find((one) => one.id === parentId(document_));
+  return Boolean(above && isEventDoc(above));
+}
+
+/** The event a document belongs to, above its activity if it is in one. */
+function topEventOf(document_, all) {
+  const event = isEventDoc(document_) ? document_ : eventOf(document_, all);
+  if (!event) return null;
+  return isActivity(event, all) ? all.find((one) => one.id === parentId(event)) || event : event;
+}
+
+/** The days an event takes up, first to last — two weeks at most. */
+function eventDays(event) {
+  if (!event?.date) return [];
+  const days = [];
+  const [year, month, day] = event.date.split('-').map(Number);
+  const last = lastDay(event);
+  for (let i = 0; i < 14; i += 1) {
+    const date = new Date(year, month - 1, day + i);
+    const text = dayNow(date.getTime());
+    if (text > last) break;
+    days.push(text);
+  }
+  return days;
+}
+
+/**
+ * An event's activities, in the order they happen: by day and hour, those
+ * with no day yet last — « à caler ».
+ */
+function programmeOf(event, all) {
+  // Compared as plain text, not by locale: a collation puts « ~ » before digits.
+  const key = (one) => (one.date ? `${one.date} ${one.at || ''}` : `~${String(one.createdAt || 0).padStart(15, '0')}`);
+  return childrenOf(event, all)
+    .filter((one) => isEventDoc(one) && isLive(one))
+    .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+}
+
+/** Whether an activity's day falls outside its event's. */
+function outsideEvent(activity, event) {
+  if (!activity?.date || !event?.date) return false;
+  return activity.date < event.date || activity.date > lastDay(event);
 }
 
 /**
@@ -6992,16 +7119,21 @@ function attach(document_, targetId) {
  * to bring and the account of what was spent, when there is one.
  */
 function eventParts(poll, state = {}) {
-  const below = descendantsOf(poll, allDocuments(state));
+  const all = allDocuments(state);
+  const below = descendantsOf(poll, all);
   const recent = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
-  const of = (kind) => below.filter((one) => kindOf(one) === kind).sort(recent);
-  const parts = { lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game') };
+  const of = (kind) => below.filter((one) => kindOf(one) === kind && !isEventDoc(one)).sort(recent);
+  const parts = {
+    lists: of('list'), spends: of('spend'), polls: of('poll'), boards: of('board'), games: of('game'),
+    activities: programmeOf(poll, all),
+  };
   return { ...parts, list: parts.lists[0] || null, spend: parts.spends[0] || null };
 }
 
 /** How many documents hang off an event, all kinds together. */
 function partsCount(parts) {
-  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length;
+  return parts.lists.length + parts.spends.length + parts.polls.length + parts.boards.length + parts.games.length
+    + (parts.activities || []).length;
 }
 
 /**
@@ -7009,8 +7141,9 @@ function partsCount(parts) {
  * Saturday — soonest first.
  */
 function upcomingEvents(polls = [], today = dayNow()) {
+  // An activity shows inside its event, not as one more event beside it.
   return polls
-    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today)
+    .filter((poll) => isLive(poll) && poll.date && lastDay(poll) >= today && !isActivity(poll, polls))
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.at || '').localeCompare(String(b.at || '')));
 }
 
@@ -7344,6 +7477,77 @@ function addGoers(document_, names) {
   return names.reduce((next, name) => (
     next.people.some((person) => sameName(person.name) === sameName(name)) ? next : addPerson(next, name)
   ), document_);
+}
+
+/* ----------------------------------------------------------- activities --- */
+
+/**
+ * A new activity of an event: an event of its own, under it, in its group,
+ * between the people coming to it unless told otherwise. No day means « à
+ * caler ».
+ */
+function activityFor(event, { name = '', date = null, at = null, names = null, from = null } = {}) {
+  const made = createEvent({ name, names: names || goers(event), date, at });
+  return {
+    ...made,
+    parent: event.id,
+    shared: Boolean(event.shared),
+    groupId: event.groupId || null,
+    ...(event.linkOnly ? { linkOnly: true } : {}),
+    ...(from ? { from } : {}),
+  };
+}
+
+/** Whether an event already has an activity made from that part of that document. */
+function madeFrom(event, all, docId, partId) {
+  return programmeOf(event, all).some((one) => one.from?.doc === docId && one.from?.part === partId);
+}
+
+/**
+ * A board's ideas, as activities of the event it is part of: those with
+ * words, and whether one was made already. Nothing when it is part of none.
+ */
+function ideaActivities(board, all) {
+  const event = topEventOf(board, all);
+  if (!event) return { event: null, ideas: [] };
+  return {
+    event,
+    ideas: cardsInOrder(board)
+      .map((card) => ({ card, text: oneLine(card.text), made: madeFrom(event, all, board.id, card.id) }))
+      .filter((one) => one.text),
+  };
+}
+
+/**
+ * What a closed poll chose, as activities of the event it is part of — « Quelle
+ * activité ? » settled on karaoke: organise it. Not a poll that asks when.
+ */
+function choiceActivities(poll, all) {
+  const event = topEventOf(poll, all);
+  if (!event || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
+  return {
+    event,
+    choices: winnersOf(poll).map((option) => ({ option, made: madeFrom(event, all, poll.id, option.id) })),
+  };
+}
+
+/**
+ * A poll asking when an activity takes place, whose choices are the days of
+ * its event and nothing else. Settled, it gives the activity its day, not
+ * itself (`whenFor`).
+ */
+function whenPoll(activity, event, { question = '', language = 'fr' } = {}) {
+  const days = eventDays(event);
+  const poll = addOptions(
+    createPoll({
+      question: question || activity.title || activity.question || '',
+      names: (activity.people || []).map((person) => person.name),
+      shared: Boolean(activity.shared),
+      groupId: activity.groupId || null,
+    }),
+    days.map((day) => choiceOfDay(day, language)).join('\n'),
+  );
+  return { ...poll, parent: activity.id, whenFor: activity.id, ...(activity.linkOnly ? { linkOnly: true } : {}) };
 }
 
   // ---- src/ics.js ------------------------------------------------------
@@ -9247,7 +9451,11 @@ function pollView(poll, { solo = false } = {}) {
 
     ${guest ? '' : eventLinkHtml(poll)}
 
+    ${solo ? '' : activityHeadHtml(poll)}
+
     ${guest ? '' : pollFlowsHtml(poll)}
+
+    ${guest ? '' : pollActivitiesHtml(poll)}
 
     ${guest ? '' : inGroupHtml(poll)}
 
@@ -9343,7 +9551,7 @@ function pollView(poll, { solo = false } = {}) {
            </form>`
     }
 
-    ${guest || poll.date || fixed ? '' : `<details class="details" id="poll-date-by-hand">
+    ${guest || poll.date || fixed || poll.whenFor ? '' : `<details class="details" id="poll-date-by-hand">
       <summary>${escapeHtml(t('polls.dateByHand'))}</summary>
       ${dateCardHtml(poll, fixed)}
     </details>`}
@@ -9470,7 +9678,10 @@ function retainHtml(poll) {
  * A guest sees what is there and nothing to press.
  */
 function eventHtml(poll, { guest }) {
-  if (!poll.date) return '';
+  // An activity with no day yet is already an event of sorts: what it needs
+  // can be made for it before its day is known.
+  const activity = isActivity(poll, everything());
+  if (!poll.date && !activity) return '';
   const parts = eventParts(poll, state);
   const { list, spend } = parts;
   if (guest && !partsCount(parts)) return '';
@@ -9482,7 +9693,8 @@ function eventHtml(poll, { guest }) {
       : '';
   return `
     <section class="section stack stack--tight" id="event-parts">
-      <div class="section__head"><h2>${escapeHtml(t('event.title'))}</h2></div>
+      <div class="section__head"><h2>${escapeHtml(t(activity ? 'activity.title' : 'event.title'))}</h2></div>
+      ${activity ? '' : programmeHtml(poll, { guest })}
       ${kind(t('tab.lists'), parts.lists, listCardHtml)}
       ${kind(t('tab.polls'), parts.polls, pollCardHtml)}
       ${kind(t('tab.games'), parts.games, gameCardHtml)}
@@ -9492,7 +9704,7 @@ function eventHtml(poll, { guest }) {
       ${
         guest
           ? ''
-          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
+          : `${list && spend ? '' : `<p class="muted small">${escapeHtml(t(isEvent(poll) || !poll.date ? 'event.hintFixed' : 'event.hint', { day }))}</p>`}
              <div class="row">
                ${list ? '' : `<button type="button" class="button button--small" id="event-list">${escapeHtml(t('event.addList'))}</button>`}
                ${spend ? '' : `<button type="button" class="button button--small" id="event-spend">${escapeHtml(t('event.addSpend'))}</button>`}
@@ -9952,6 +10164,15 @@ function bindPoll(poll) {
       const option = poll.options.find((one) => one.id === button.dataset.retain);
       const day = option && dayOfOption(poll, option);
       if (!day) return;
+      // A poll asking when an activity is gives the activity its day, and
+      // closes: it is not itself the event.
+      const activity = poll.whenFor && getPoll(poll.whenFor);
+      if (activity) {
+        flash(t('activity.dayKept', { day: formatDayLong(day.date) }));
+        replacePoll(setPollDate(activity, day.date, day.at || activity.at || null, null), { redraw: false });
+        replacePoll(setClosed(poll, true));
+        return;
+      }
       const next = setClosed(setPollDate(poll, day.date, day.at), true);
       flash(t('polls.dateKept', { day: whenText(next) }));
       replacePoll(next);
@@ -11319,8 +11540,8 @@ function spendsView() {
  * games were made for it.
  */
 function eventCardHtml(poll) {
-  const { list, spend, polls, boards, games } = eventParts(poll, state);
-  const when = whenText(poll, { long: true });
+  const { list, spend, polls, boards, games, activities } = eventParts(poll, state);
+  const when = poll.date ? whenText(poll, { long: true }) : t('activity.unscheduled');
   const parts = [];
   if (list) {
     const { done, total } = progress(list);
@@ -11331,6 +11552,9 @@ function eventCardHtml(poll) {
   if (boards.length) parts.push(t('count.boards', { count: boards.length }));
   if (games.length) parts.push(t('count.games', { count: games.length }));
   const people = poll.people.map((person) => person.name).join(' · ');
+  // What is on the programme, first things first: a card says what is coming.
+  const programme = activities.slice(0, 3).map((one) => [one.date ? whenText(one) : '', eventName(one) || pollTitle(one)].filter(Boolean).join(' '));
+  if (activities.length > 3) programme.push('…');
   return `
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
       <span class="game-card__title">
@@ -11339,6 +11563,7 @@ function eventCardHtml(poll) {
       </span>
       ${people ? `<span class="game-card__meta">${escapeHtml(people)}</span>` : ''}
       ${parts.length ? `<span class="game-card__meta">${escapeHtml(parts.join(' · '))}</span>` : ''}
+      ${programme.length ? `<span class="game-card__meta">${escapeHtml(t('activity.onProgramme', { items: programme.join(' · ') }))}</span>` : ''}
     </button>`;
 }
 
@@ -12356,7 +12581,7 @@ function boardView(board) {
 
     ${attachedHtml(board)}
 
-    ${actionsHtml(boardFlowsHtml(board), `
+    ${actionsHtml(`${boardFlowsHtml(board)}${boardActivitiesHtml(board)}`, `
         <button type="button" class="button button--small button--ghost" id="board-rename">${escapeHtml(t('ideas.rename'))}</button>
         ${chainButtonsHtml(board)}
         <button type="button" class="button button--small button--ghost" id="board-archive">
@@ -14490,7 +14715,7 @@ function openAttachDialog(document_) {
         current
           ? `<p class="small">${escapeHtml(t('chain.now', { chain: chain.map(chainLabel).join(' › ') }))}</p>
              <div class="row"><button type="button" class="button" data-detach>${escapeHtml(t('chain.detach'))}</button></div>`
-          : `<p class="muted small">${escapeHtml(t('chain.attachHint'))}</p>`
+          : `<p class="muted small">${escapeHtml(t(isEventDoc(document_) ? 'activity.attachHint' : 'chain.attachHint'))}</p>`
       }
       ${targets.length ? candidatesHtml(targets, { on: current?.id, attr: 'data-attach-to' }) : `<p class="muted small">${escapeHtml(t('chain.nothing'))}</p>`}
       <div class="row">
@@ -16161,6 +16386,7 @@ function bindData() {
 
 
 
+
 /** One document by id, whatever its kind. */
 function byId(id) {
   return everything().find((one) => one.id === id) || null;
@@ -16340,6 +16566,191 @@ function unblockedHtml() {
     </section>`;
 }
 
+/* ------------------------------------------------------------ activities --- */
+
+/** An activity's day and hour, or « à caler ». */
+function activityWhen(activity) {
+  return activity.date ? whenText(activity) : t('activity.unscheduled');
+}
+
+/**
+ * On an event, its programme: the activities in the order they happen, each
+ * a way to its page, and the way to add one.
+ */
+function programmeHtml(event, { guest = false } = {}) {
+  const activities = programmeOf(event, everything());
+  if (guest && !activities.length) return '';
+  return `
+    <div class="stack stack--tight programme" data-flows-for="${escapeHtml(event.id)}">
+      <span class="muted small">${escapeHtml(t('activity.programme'))}</span>
+      ${
+        activities.length
+          ? `<ul class="programme__list">${activities.map((one) => `
+              <li>
+                <button type="button" class="programme__item" data-goto="${escapeHtml(documentHref(one))}">
+                  <span class="programme__when">${escapeHtml(activityWhen(one))}</span>
+                  <span class="programme__what">${escapeHtml(documentTitle(one))}</span>
+                  ${outsideEvent(one, event) ? `<span class="pill pill--late">${escapeHtml(t('activity.outsideShort'))}</span>` : ''}
+                </button>
+              </li>`).join('')}</ul>`
+          : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
+      }
+      ${guest ? '' : `<div class="row"><button type="button" class="button button--small" data-flow-activity="${escapeHtml(event.id)}">+ ${escapeHtml(t('activity.add'))}</button></div>`}
+    </div>`;
+}
+
+/** Day chips for an event's days, one picked; `none` offers « à caler ». */
+function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' } = {}) {
+  const chip = (value, label) => `<button type="button" class="chip ${value === picked ? 'chip--on' : ''}" ${attr}="${escapeHtml(value)}"
+      aria-pressed="${value === picked ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `<div class="row row--chips" role="group">
+      ${eventDays(event).map((day) => chip(day, formatDayLong(day))).join('')}
+      ${none ? chip('', t('activity.unscheduled')) : ''}
+    </div>`;
+}
+
+/** A new activity: what, which day of the event — or later —, and when. */
+function openActivityDialog(event, { name = '', from = null } = {}) {
+  let day = '';
+  const dialog = makeDialog();
+  const draw = () => {
+    const typed = dialog.querySelector('#activity-name')?.value ?? name;
+    const hour = dialog.querySelector('#activity-at')?.value ?? '';
+    dialog.innerHTML = `
+      <form class="stack" method="dialog">
+        <h2>${escapeHtml(t('activity.newTitle', { name: documentTitle(event) }))}</h2>
+        <label class="stack stack--tight">
+          <span class="small">${escapeHtml(t('activity.name'))}</span>
+          <input type="text" id="activity-name" maxlength="80" autocomplete="off" placeholder="${escapeHtml(t('activity.namePlaceholder'))}" />
+        </label>
+        <span class="small">${escapeHtml(t('activity.day'))}</span>
+        ${dayChipsHtml(event, day)}
+        <label class="stack stack--tight">
+          <span class="small">${escapeHtml(t('activity.at'))}</span>
+          <input type="time" id="activity-at" ${day ? '' : 'disabled'} />
+        </label>
+        <p class="muted small">${escapeHtml(t('activity.newHint'))}</p>
+        <div class="row">
+          <button type="submit" class="button button--primary" id="activity-ok">${escapeHtml(t('activity.create'))}</button>
+          <button type="button" class="button" data-activity-cancel>${escapeHtml(t('action.cancel'))}</button>
+        </div>
+      </form>`;
+    dialog.querySelector('#activity-name').value = typed;
+    dialog.querySelector('#activity-at').value = day ? hour : '';
+    dialog.querySelector('[data-activity-cancel]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-activity-day]').forEach((node) => {
+      node.addEventListener('click', () => {
+        day = node.dataset.activityDay;
+        draw();
+      });
+    });
+    dialog.querySelector('form').addEventListener('submit', (submitted) => {
+      submitted.preventDefault();
+      const what = dialog.querySelector('#activity-name').value.trim();
+      if (!what) {
+        dialog.querySelector('#activity-name').focus();
+        return;
+      }
+      const at = dialog.querySelector('#activity-at').value || null;
+      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from })));
+      dialog.close();
+      state.polls = [...state.polls, made];
+      persistPoll(made);
+      flash(t('activity.made', { name: what, event: documentTitle(event) }));
+      render();
+    });
+  };
+  draw();
+  dialog.showModal();
+  dialog.querySelector('#activity-name').focus();
+}
+
+/**
+ * On an activity's page: whose activity it is and when that is; with no day
+ * yet, the days of the event to pick from, or a poll to ask; a word when its
+ * day falls outside the event.
+ */
+function activityHeadHtml(activity) {
+  const all = everything();
+  if (!isActivity(activity, all)) return '';
+  const event = all.find((one) => one.id === parentId(activity));
+  const asking = all.find((one) => one.whenFor === activity.id && !one.closedAt && !one.archivedAt);
+  return `
+    <section class="card stack stack--tight activity-head" data-flows-for="${escapeHtml(activity.id)}">
+      <p class="small">${escapeHtml(t('activity.of', { name: documentTitle(event), when: whenText(event, { long: true }) }))}</p>
+      ${outsideEvent(activity, event) ? `<p class="small late">${escapeHtml(t('activity.outside'))}</p>` : ''}
+      ${
+        activity.date
+          ? ''
+          : `<span class="small">${escapeHtml(t('activity.pickDay'))}</span>
+             ${dayChipsHtml(event, '', { none: false, attr: 'data-activity-set-day' })}
+             <div class="row">
+               ${
+                 asking
+                   ? `<button type="button" class="button button--small" data-goto="${escapeHtml(documentHref(asking))}">🗳️ ${escapeHtml(t('activity.seeWhen'))}</button>`
+                   : `<button type="button" class="button button--small" data-flow-when="${escapeHtml(activity.id)}">🗳️ ${escapeHtml(t('activity.askWhen'))}</button>`
+               }
+             </div>`
+      }
+    </section>`;
+}
+
+/** On a board that is part of an event, the way to make activities of its ideas. */
+function boardActivitiesHtml(board) {
+  const { event, ideas } = ideaActivities(board, everything());
+  if (!event || !ideas.length) return '';
+  return `<button type="button" class="button button--small" data-flow-idea-activities="${escapeHtml(board.id)}">🎯 ${escapeHtml(t('activity.fromIdeas'))}</button>`;
+}
+
+/** Pick the ideas that become activities: one tap each, the dialog stays. */
+function openIdeaActivitiesDialog(board) {
+  const dialog = makeDialog();
+  const draw = () => {
+    const { event, ideas } = ideaActivities(byId(board.id) || board, everything());
+    if (!event) {
+      dialog.close();
+      return;
+    }
+    dialog.innerHTML = `
+      <div class="stack">
+        <h2>${escapeHtml(t('activity.fromIdeasTitle', { name: documentTitle(event) }))}</h2>
+        <p class="muted small">${escapeHtml(t('activity.fromIdeasHint'))}</p>
+        <div class="row row--chips">${ideas.map((one) => (one.made
+          ? `<span class="chip chip--on">✓ ${escapeHtml(one.text)}</span>`
+          : `<button type="button" class="chip" data-idea-activity="${escapeHtml(one.card.id)}">+ ${escapeHtml(one.text)}</button>`)).join('')}
+        </div>
+        <div class="row"><button type="button" class="button button--ghost" data-idea-activities-close>${escapeHtml(t('action.close'))}</button></div>
+      </div>`;
+    dialog.querySelector('[data-idea-activities-close]').addEventListener('click', () => dialog.close());
+    dialog.querySelectorAll('[data-idea-activity]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const one = ideas.find((idea) => idea.card.id === node.dataset.ideaActivity);
+        if (!one) return;
+        const made = organise(signed(activityFor(event, { name: one.text, from: { doc: board.id, part: one.card.id } })));
+        state.polls = [...state.polls, made];
+        persistPoll(made);
+        flash(t('activity.made', { name: one.text, event: documentTitle(event) }));
+        render();
+        draw();
+      });
+    });
+  };
+  draw();
+  dialog.showModal();
+}
+
+/** On a closed poll that is part of an event, its choice to organise. */
+function pollActivitiesHtml(poll) {
+  const { event, choices } = choiceActivities(poll, everything());
+  const open = choices.filter((one) => !one.made);
+  if (!event || !open.length) return '';
+  return `
+    <section class="card stack stack--tight flows" data-flows-for="${escapeHtml(poll.id)}">
+      ${offersHtml(t('activity.organise', { name: documentTitle(event) }),
+        open.map((one) => offerButton('data-flow-choice-activity', one.option.id, one.option.text)))}
+    </section>`;
+}
+
 /* ------------------------------------------------------------ the binder --- */
 
 /** Every offer on the page, bound. Called after each render. */
@@ -16391,6 +16802,49 @@ function bindFlows(root) {
       const missing = missingGoers(event, everything());
       flash(t('flows.peopleDone', { count: missing.length }));
       for (const one of missing) replaceAny(addGoers(one.document, one.names));
+    });
+  });
+  root.querySelectorAll('[data-flow-activity]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = current(node.dataset.flowActivity);
+      if (event) openActivityDialog(event);
+    });
+  });
+  root.querySelectorAll('[data-activity-set-day]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const activity = owner(node);
+      if (!activity) return;
+      flash(t('activity.dayKept', { day: formatDayLong(node.dataset.activitySetDay) }));
+      replacePoll(setPollDate(activity, node.dataset.activitySetDay, activity.at || null, null));
+    });
+  });
+  root.querySelectorAll('[data-flow-when]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const activity = current(node.dataset.flowWhen);
+      const event = activity && current(parentId(activity));
+      if (!activity || !event) return;
+      const poll = signed(organise(whenPoll(activity, event, {
+        question: t('activity.whenQuestion', { name: documentTitle(activity) }),
+        language: getLanguage(),
+      })));
+      state.polls = [...state.polls, poll];
+      persistPoll(poll);
+      flash(t('activity.whenMade'));
+      navigate(`#/poll/${poll.id}`);
+    });
+  });
+  root.querySelectorAll('[data-flow-idea-activities]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const board = current(node.dataset.flowIdeaActivities);
+      if (board) openIdeaActivitiesDialog(board);
+    });
+  });
+  root.querySelectorAll('[data-flow-choice-activity]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const poll = owner(node);
+      const { event, choices } = poll ? choiceActivities(poll, everything()) : { event: null, choices: [] };
+      const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
+      if (event && one) openActivityDialog(event, { name: one.option.text, from: { doc: poll.id, part: one.option.id } });
     });
   });
   bindLongPress(root);
@@ -16503,7 +16957,7 @@ function openDocumentMenu(document_, { underFinger = false } = {}) {
       </div>
       <div class="stack stack--tight doc-menu">
         ${location.hash === documentHref(document_) ? '' : button('data-menu-open', t('menu.open'), 'button--primary')}
-        ${isEventDoc(document_) ? '' : button('data-menu-attach', t('chain.attach'))}
+        ${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
         ${button('data-menu-relate', t('relate.button'))}
         ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
         ${button('data-menu-delete', t('action.delete'), 'button--danger')}
@@ -17141,9 +17595,12 @@ function attachedHtml(document_) {
 
 /** The buttons of « Plus d'actions » for the chain and the links: attach, detach, link. */
 function chainButtonsHtml(document_) {
-  const attach = isEventDoc(document_)
+  // An event goes under another event only, as one of its activities; one
+  // with activities of its own stays on top.
+  const all = everything();
+  const attach = isEventDoc(document_) && !attachTargets(document_, all).length && !parentId(document_)
     ? ''
-    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t('chain.attach'))}</button>`;
+    : `<button type="button" class="button button--small button--ghost" data-attach-doc="${escapeHtml(document_.id)}">${escapeHtml(t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach'))}</button>`;
   return `${attach}<button type="button" class="button button--small button--ghost" data-relate-doc="${escapeHtml(document_.id)}">${escapeHtml(t('relate.button'))}</button>`;
 }
 
