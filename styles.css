@@ -127,6 +127,14 @@ a { color: inherit; }
 }
 
 .icon-button:hover { background: var(--surface-alt); }
+/* Drawn, not a character: a glyph like ◐ or ⟳ depends on the fonts a
+   computer has, and shows as a dot, or nothing, on many of them. */
+.icon-button { display: inline-flex; align-items: center; justify-content: center; }
+.icon-button__icon {
+  width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-button__fill { fill: currentColor; stroke: none; }
 
 /* ----------------------------------------------------------------- views --- */
 .view {
@@ -1488,3 +1496,20 @@ body:not(.solo) .view {
 .programme__what { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .pill--activity { background: var(--accent-soft); color: var(--accent); }
 .programme__item--vote { border-style: dashed; background: none; }
+
+/* With a mouse, a long press is nobody's habit and a right click nobody's
+   guess: a « ⋯ » on each thing says there is a menu, and opens it. Not on a
+   touch screen, where the press is the way. */
+.press-more { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .game-card.pressable { position: relative; padding-right: 44px; }
+  .press-more {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 999px; flex: none;
+    color: var(--muted); font-weight: 700; letter-spacing: 1px; line-height: 1;
+    opacity: 0.6; cursor: pointer;
+  }
+  .game-card .press-more { position: absolute; top: 10px; right: 10px; }
+  .pressable:hover .press-more, .pressable:focus-visible .press-more { opacity: 1; }
+  .press-more:hover { background: var(--surface-alt); color: var(--text); }
+}
