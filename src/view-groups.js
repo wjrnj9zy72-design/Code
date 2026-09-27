@@ -169,7 +169,7 @@ export function openRelateDialog(document_) {
             : ''
         }
         <span class="muted small">${escapeHtml(t('relate.how'))}</span>
-        <div class="row row--tight" role="group" aria-label="${escapeHtml(t('relate.how'))}">${['with', 'after', 'before'].map((one) => `
+        <div class="row row--chips" role="group" aria-label="${escapeHtml(t('relate.how'))}">${['with', 'after', 'before'].map((one) => `
           <button type="button" class="chip ${one === kind ? 'chip--on' : ''}" data-relate-kind="${one}"
                   aria-pressed="${one === kind ? 'true' : 'false'}">${escapeHtml(t(`relate.kind.${one}`))}</button>`).join('')}
         </div>
@@ -432,7 +432,7 @@ function groupChoiceHtml() {
   return `
     <div class="stack stack--tight">
       <span class="muted small">${escapeHtml(t('groups.willGoIn'))}</span>
-      <div class="row row--tight" role="group" aria-label="${escapeHtml(t('groups.willGoIn'))}">
+      <div class="row row--chips" role="group" aria-label="${escapeHtml(t('groups.willGoIn'))}">
         ${groupsByName().map((item) => chip(item.id, item.name)).join('')}
         ${chip(LINK_ONLY, t('groups.linkOnly'))}
         ${chip('', t('groups.keepToMyself'))}
@@ -455,7 +455,7 @@ function eventChoiceHtml() {
   return `
     <div class="stack stack--tight">
       <span class="muted small">${escapeHtml(t('event.forWhich'))}</span>
-      <div class="row row--tight" role="group" aria-label="${escapeHtml(t('event.forWhich'))}">
+      <div class="row row--chips" role="group" aria-label="${escapeHtml(t('event.forWhich'))}">
         ${chip('', t('event.none'))}
         ${coming.map((poll) => chip(poll.id, `${eventName(poll) || poll.question} · ${formatDay(poll.date)}`)).join('')}
       </div>

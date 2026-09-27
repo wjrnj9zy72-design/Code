@@ -10,7 +10,7 @@
  */
 
 import {
-  askForText, chainLabel, documentHref, documentTitle, escapeHtml, everything, flash, navigate, render, state,
+  askForText, chainLabel, chainOf, documentHref, documentTitle, escapeHtml, everything, flash, navigate, render, state,
 } from './app.js';
 import { persistPoll, signed } from './view-polls.js';
 import { makeDialog } from './view-games.js';
@@ -40,7 +40,7 @@ function offersHtml(title, buttons) {
   return buttons.length
     ? `<div class="stack stack--tight">
          <span class="muted small">${escapeHtml(title)}</span>
-         <div class="row row--tight">${buttons.join('')}</div>
+         <div class="row row--chips">${buttons.join('')}</div>
        </div>`
     : '';
 }
@@ -94,12 +94,12 @@ function openSpendDialog(spend, list, item) {
         <h2>${escapeHtml(t('flows.spendTitle', { name: item.text }))}</h2>
         <label class="stack stack--tight">
           <span class="small">${escapeHtml(t('flows.amount'))}</span>
-          <input type="text" inputmode="decimal" id="flow-amount" autocomplete="off" />
+          <input type="text" inputmode="decimal" id="flow-amount" autocomplete="off" placeholder="0,00" />
         </label>
         ${
           names.length
             ? `<span class="small">${escapeHtml(t('flows.paidBy'))}</span>
-               <div class="row row--tight" role="group">${names.map((name) => `
+               <div class="row row--chips" role="group">${names.map((name) => `
                  <button type="button" class="chip ${name === payer ? 'chip--on' : ''}" data-flow-payer="${escapeHtml(name)}"
                          aria-pressed="${name === payer ? 'true' : 'false'}">${escapeHtml(name)}</button>`).join('')}
                </div>`
@@ -280,8 +280,13 @@ function addFrom(list, sourceId, make) {
 const PRESS_MS = 500;
 const PRESS_SLOP = 10;
 
-/** Whatever opens a document's page, as the id of that document. */
+/**
+ * Whatever opens a document's page, as that document — or what says which
+ * document it stands for without opening it: the tree's node for the page
+ * one is on (`data-press`).
+ */
 function pressedDocument(node) {
+  if (node.dataset.press) return byId(node.dataset.press);
   const match = /^#\/(list|poll|spend|game|idea)\/([^/]+)$/.exec(node.dataset.goto || '');
   return match ? byId(match[2]) : null;
 }
@@ -291,10 +296,11 @@ function pressedDocument(node) {
  * chain's tree — for its menu: open, attach, link, put away, delete. A right
  * click does the same on a computer. Moving the finger, as a scroll or a
  * swipe does, cancels it; once the menu is out, the tap that ends the press
- * opens nothing.
+ * opens nothing — neither the page under the finger nor the menu's button
+ * that has just appeared there.
  */
 export function bindLongPress(root) {
-  root.querySelectorAll('[data-goto]').forEach((node) => {
+  root.querySelectorAll('[data-goto], [data-press]').forEach((node) => {
     if (!pressedDocument(node) || node.dataset.pressBound) return;
     node.dataset.pressBound = '1';
     node.classList.add('pressable');
@@ -316,7 +322,9 @@ export function bindLongPress(root) {
         fired = true;
         node.classList.remove('pressable--held');
         const document_ = pressedDocument(node);
-        if (document_) openDocumentMenu(document_);
+        if (!document_) return;
+        navigator.vibrate?.(12);
+        openDocumentMenu(document_, { underFinger: true });
       }, PRESS_MS);
     });
     node.addEventListener('pointermove', (event) => {
@@ -343,15 +351,27 @@ export function bindLongPress(root) {
 const ARCHIVERS = { list: archiveList, poll: archivePoll, spend: archiveSpend, board: archiveBoard, game: archiveGame };
 
 /** What can be done to a document, from wherever it shows. */
-export function openDocumentMenu(document_) {
+export function openDocumentMenu(document_, { underFinger = false } = {}) {
   const kind = kindOf(document_) || 'game';
-  const dialog = makeDialog('dialog dialog--ask');
+  const dialog = makeDialog('dialog dialog--ask doc-menu-dialog');
+  // Opened under a finger still down: the tap that lifts it would land on
+  // whichever button appeared there. The menu listens once the finger is up.
+  if (underFinger) {
+    dialog.classList.add('dialog--deaf');
+    const listen = () => setTimeout(() => dialog.classList.remove('dialog--deaf'), 350);
+    document.addEventListener('pointerup', listen, { once: true });
+    document.addEventListener('touchend', listen, { once: true });
+    setTimeout(listen, 1500);
+  }
   const button = (attr, label, extra = '') => `<button type="button" class="button ${extra}" ${attr}>${escapeHtml(label)}</button>`;
   dialog.innerHTML = `
     <div class="stack">
-      <h2>${escapeHtml(chainLabel(document_))}</h2>
+      <div>
+        <h2>${escapeHtml(chainLabel(document_))}</h2>
+        <p class="muted small">${escapeHtml([t(isEventDoc(document_) ? 'chain.kind.event' : `chain.kind.${kind}`), ...chainOf(document_).map(chainLabel)].join(' · '))}</p>
+      </div>
       <div class="stack stack--tight doc-menu">
-        ${button('data-menu-open', t('menu.open'), 'button--primary')}
+        ${location.hash === documentHref(document_) ? '' : button('data-menu-open', t('menu.open'), 'button--primary')}
         ${isEventDoc(document_) ? '' : button('data-menu-attach', t('chain.attach'))}
         ${button('data-menu-relate', t('relate.button'))}
         ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}

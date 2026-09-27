@@ -179,8 +179,8 @@ await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data
 await page.waitForSelector('[data-goto="#/lists/new"]');
 await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/games"]');
 await page.waitForSelector('[data-goto="#/new"]');
-check('les onglets Parties et Listes fonctionnent toujours',
-  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Parties');
+check('les onglets Jeux et Listes fonctionnent toujours',
+  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Jeux');
 
 const bad = results.filter((r) => !r.ok);
 console.log(results.length, 'vérifications |', results.length - bad.length, 'ok |', bad.length, 'échecs');

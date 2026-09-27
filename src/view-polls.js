@@ -567,54 +567,50 @@ export function eventLinkHtml(document_) {
   const all = everything();
   const tree = chainTree(document_, all);
   const relations = relationsOf(document_, all);
-  if (treeSize(tree) < 2 && !relations.length) return '';
+  const hasTree = treeSize(tree) > 1;
+  if (!hasTree && !relations.length) return '';
   const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
-  const node = ({ document: one, children }) => {
-    const here = one.id === document_.id;
+  const kindTitle = (one) => t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`);
+  const byRelation = new Map(relations.map((one) => [one.document.id, one]));
+  // How this page and another are linked, said beside the other one.
+  const badge = (one) => {
+    const relation = byRelation.get(one.id);
+    if (!relation) return '';
+    const done = relation.kind === 'waits' ? isDone(one) : null;
+    return `<span class="pill chain-map__link">${escapeHtml(t(`relate.${relation.kind}`))}</span>${
+      done === null ? '' : `<span class="pill ${done ? 'pill--done' : 'pill--late'}">${escapeHtml(t(done ? 'relate.isDone' : 'relate.notDone'))}</span>`
+    }`;
+  };
+  const label = (one) => {
     const waits = waitingOn(one, all);
-    const label = `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
+    return `<span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
       <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>
       ${waits.length ? `<span class="chain-map__wait" title="${escapeHtml(t('relate.waiting', { name: waits.map(chainLabel).join(', ') }))}">⏳</span>` : ''}`;
+  };
+  const nodeHtml = (one) => (one.id === document_.id
+    ? `<span class="chain-map__node chain-map__node--here" aria-current="page" data-press="${escapeHtml(one.id)}">${label(one)}
+         <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
+    : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}" title="${escapeHtml(kindTitle(one))}">${label(one)}</button>`);
+  const inTree = new Set();
+  const node = ({ document: one, children }) => {
+    inTree.add(one.id);
     return `
       <li>
-        ${
-          here
-            ? `<span class="chain-map__node chain-map__node--here" aria-current="page">${label}
-                 <span class="pill">${escapeHtml(t('chain.youAreHere'))}</span></span>`
-            : `<button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
-                       title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">${label}</button>`
-        }
+        <div class="chain-map__row">${nodeHtml(one)}${badge(one)}</div>
         ${children.length ? `<ul>${children.map(node).join('')}</ul>` : ''}
       </li>`;
   };
-  const relation = ({ document: one, kind }) => {
-    const done = kind === 'waits' ? isDone(one) : null;
-    const status = done === null ? '' : `<span class="pill ${done ? 'pill--done' : 'pill--late'}">${escapeHtml(t(done ? 'relate.isDone' : 'relate.notDone'))}</span>`;
-    return `
-      <li>
-        <span class="pill">${escapeHtml(t(`relate.${kind}`))}</span>
-        <button type="button" class="chain-map__node" data-goto="${escapeHtml(documentHref(one))}"
-                title="${escapeHtml(t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`))}">
-          <span class="chain-map__icon" aria-hidden="true">${icon(one)}</span>
-          <span class="chain-map__title">${escapeHtml(chainLabel(one))}</span>
-        </button>
-        ${status}
-      </li>`;
-  };
-  const waits = waitingOn(document_, all);
+  const treeHtml = hasTree ? node(tree) : '';
+  // What the page is linked to outside its chain: the tree cannot show it.
+  const outside = relations.filter((one) => !inTree.has(one.document.id));
   return `
     <nav class="chain-map card" aria-label="${escapeHtml(t('chain.map'))}">
+      ${hasTree ? `<span class="muted small">${escapeHtml(t('chain.map'))}</span><ul class="chain-map__tree">${treeHtml}</ul>` : ''}
       ${
-        treeSize(tree) > 1
-          ? `<span class="muted small">${escapeHtml(t('chain.map'))}</span>
-             <ul class="chain-map__tree">${node(tree)}</ul>`
-          : ''
-      }
-      ${
-        relations.length
-          ? `<span class="muted small">${escapeHtml(t('relate.map'))}</span>
-             ${waits.length ? `<span class="chain-map__waiting small">${escapeHtml(t('relate.waiting', { name: waits.map(chainLabel).join(', ') }))}</span>` : ''}
-             <ul class="chain-map__links">${relations.map(relation).join('')}</ul>`
+        outside.length
+          ? `<span class="muted small">${escapeHtml(t(hasTree ? 'relate.outside' : 'relate.map'))}</span>
+             <ul class="chain-map__links">${outside.map(({ document: one }) => `
+               <li><div class="chain-map__row">${nodeHtml(one)}${badge(one)}</div></li>`).join('')}</ul>`
           : ''
       }
     </nav>`;

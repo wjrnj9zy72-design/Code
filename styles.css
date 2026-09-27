@@ -741,6 +741,9 @@ table.scores .meta-cell { color: var(--muted); }
 
 .row--tight { flex-wrap: nowrap; gap: 8px; }
 .row--tight input { flex: 1; }
+/* A row of chips wraps: a long name or a sixth group goes to the next line
+   rather than past the edge of the screen. */
+.row--chips { gap: 6px; }
 
 /* ------------------------------------------------------------- segmented --- */
 /*
@@ -1457,16 +1460,21 @@ body:not(.solo) .view {
 /* The links across the chain, under its tree: each says how it binds this
    page to another — goes with, waits for, unblocks. */
 .chain-map__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.chain-map__links li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.chain-map__links .pill { flex: none; }
-.chain-map__waiting { font-weight: 600; }
+.chain-map__row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chain-map__row .pill { flex: none; }
+.chain-map__row .chain-map__node { min-width: 0; }
 .relate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .relate-list__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chain-map__wait { flex: none; }
 
 /* What linked things bring: offers as chips, one tap each. */
 .flows .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A grid track grows to its widest word unless told not to: a long idea
+   would push the page past the edge instead of ending in « … ». */
+.flows > *, .flows .stack > * { min-width: 0; }
 /* Held for its menu: no callout, no selection, a hint that it is held. */
 .pressable { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .pressable--held { transition: transform .5s ease; transform: scale(.97); }
 .doc-menu .button { width: 100%; justify-content: center; }
+/* A menu opened under a finger still down hears nothing until it is lifted. */
+.dialog--deaf { pointer-events: none; }

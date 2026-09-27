@@ -141,7 +141,7 @@ check('et le sondage de Mifa y est',
 
 await openTab('games');
 const gameCards = await page.locator('.game-card__title').allTextContents();
-check('dans Parties, Mifa n’en a aucune', gameCards.length === 0, gameCards.join(' | '));
+check('dans Jeux, Mifa n’en a aucune', gameCards.length === 0, gameCards.join(' | '));
 
 await page.locator('.chip', { hasText: 'Copains du mardi' }).first().click();
 await page.waitForFunction(() => document.querySelectorAll('.game-card').length > 0);

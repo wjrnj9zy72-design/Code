@@ -113,7 +113,7 @@ await other.fill('#lot-code', code);
 await other.click('#lot-open');
 await other.waitForSelector('.game-card', { timeout: 20000 });
 check('et on revient à la liste', (await other.evaluate(() => location.hash)) === '#/');
-// L'Accueil mêle toutes les sortes : les parties se comptent sous « Parties ».
+// L'Accueil mêle toutes les sortes : les parties se comptent sous « Jeux ».
 const gamesOf = async (device) => {
   await device.evaluate(() => { location.hash = '#/games'; });
   await device.waitForSelector('[data-goto="#/new"]');

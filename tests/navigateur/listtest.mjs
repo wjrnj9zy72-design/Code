@@ -139,8 +139,8 @@ check('et les deux listes sont là', (await page.locator('.game-card').count()) 
 // les parties n'ont pas bougé
 await page.click('[data-tab="home"]'); await page.click('.segmented--kinds [data-goto="#/games"]');
 await page.waitForSelector('[data-goto="#/new"]');
-check('l’onglet Parties fonctionne toujours',
-  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Parties');
+check('l’onglet Jeux fonctionne toujours',
+  (await page.locator('.segmented--kinds [aria-current="true"]').textContent()).trim() === 'Jeux');
 
 const bad = results.filter((r) => !r.ok);
 console.log(results.length, 'vérifications |', results.length - bad.length, 'ok |', bad.length, 'échecs');
