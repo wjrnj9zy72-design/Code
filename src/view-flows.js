@@ -641,13 +641,19 @@ export function openDocumentMenu(document_, { underFinger = false } = {}) {
   const kind = kindOf(document_) || 'game';
   const dialog = makeDialog('dialog dialog--ask doc-menu-dialog');
   // Opened under a finger still down: the tap that lifts it would land on
-  // whichever button appeared there. The menu listens once the finger is up.
+  // whichever button appeared there. So a click counts only when its press
+  // began inside the menu — the lifting one began before the menu was there.
+  // No timer: a phone that ends a long press by cancelling the touch rather
+  // than lifting it (iOS does) must not leave the menu deaf to the next tap.
+  // A click from the keyboard (detail 0) always counts.
   if (underFinger) {
-    dialog.classList.add('dialog--deaf');
-    const listen = () => setTimeout(() => dialog.classList.remove('dialog--deaf'), 350);
-    document.addEventListener('pointerup', listen, { once: true });
-    document.addEventListener('touchend', listen, { once: true });
-    setTimeout(listen, 1500);
+    let pressed = false;
+    dialog.addEventListener('pointerdown', () => { pressed = true; }, true);
+    dialog.addEventListener('click', (event) => {
+      if (pressed || event.detail === 0) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
   }
   const button = (attr, label, extra = '') => `<button type="button" class="button ${extra}" ${attr}>${escapeHtml(label)}</button>`;
   dialog.innerHTML = `

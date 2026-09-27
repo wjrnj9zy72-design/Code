@@ -35,13 +35,13 @@ await page.addInitScript((data) => {
 }, seed);
 
 /** Hold a finger on an element for `ms`, then lift it. */
-async function hold(locator, ms = 700) {
+async function hold(locator, ms = 700, end = 'touchEnd') {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
   const point = { x: box.x + Math.min(30, box.width / 2), y: box.y + box.height / 2 };
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
   await page.waitForTimeout(ms);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.send('Input.dispatchTouchEvent', { type: end, touchPoints: [] });
   await page.waitForTimeout(150);
 }
 const menuFor = async () => ((await page.locator('dialog[open] h2').first().textContent().catch(() => '')) || '').trim();
@@ -76,6 +76,54 @@ await page.waitForSelector(`[data-goto="#/list/${courses.id}"]`);
 await page.locator(`[data-goto="#/list/${courses.id}"]`).first().tap();
 await page.waitForFunction((id) => location.hash === `#/list/${id}`, courses.id);
 check('un toucher bref ouvre toujours la page', true);
+
+/* --- supprimer depuis l'arbre, au doigt, du premier coup ------------------- */
+
+await page.goto(`${B}#/poll/${vin.id}`);
+await page.waitForSelector('#view .chain-map');
+// Comme sur iPhone : l'appui long finit en toucher annulé, et l'on touche
+// « Supprimer » aussitôt.
+await hold(page.locator(`#view .chain-map [data-goto="#/list/${courses.id}"]`).first(), 700, 'touchCancel');
+await page.waitForSelector('dialog[open] [data-menu-delete]');
+{
+  // Un toucher brut, tout de suite : sans attendre que le bouton « accepte ».
+  const box = await page.locator('dialog[open] [data-menu-delete]').boundingBox();
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+await page.waitForSelector('.dialog--ask [data-answer="yes"]', { timeout: 1500 }).catch(() => {});
+const asked = await page.locator('.dialog--ask [data-answer="yes"]').count();
+check('Supprimer demande confirmation du premier coup', asked === 1, `dialogs=${await page.locator('dialog[open]').count()}`);
+if (asked) await page.locator('.dialog--ask [data-answer="yes"]').tap();
+await page.waitForTimeout(600);
+const left = await page.evaluate((id) => JSON.parse(localStorage.getItem('marque-points:lists:v1') || '[]').some((d) => d.id === id), courses.id);
+check('confirmé : supprimé du premier coup', !left);
+check('et l’arbre ne le montre plus', (await page.locator(`#view .chain-map [data-goto="#/list/${courses.id}"]`).count()) === 0);
+
+/* --- supprimer la page où l'on est, déjà dans la base --------------------- */
+
+const autre = { ...addItems(createList({ name: 'Bricolage', names: ['Gui'] }), 'Vis'), ...g, parent: raclette.id };
+await page.evaluate((doc) => {
+  const lists = JSON.parse(localStorage.getItem('marque-points:lists:v1') || '[]');
+  localStorage.setItem('marque-points:lists:v1', JSON.stringify([...lists, doc]));
+}, autre);
+await page.goto(`${B}#/list/${autre.id}`);
+await page.reload();
+await page.waitForSelector('#new-line');
+await page.fill('#new-line', 'Clous');
+await page.press('#new-line', 'Enter');
+await page.waitForTimeout(1500);
+await hold(page.locator('#view .chain-map [aria-current="page"]').first());
+await page.waitForSelector('dialog[open] [data-menu-delete]');
+await page.waitForTimeout(400);
+await page.locator('dialog[open] [data-menu-delete]').tap();
+await page.waitForSelector('.dialog--ask [data-answer="yes"]');
+await page.locator('.dialog--ask [data-answer="yes"]').tap();
+await page.waitForTimeout(7000);
+const revenu = await page.evaluate((id) => JSON.parse(localStorage.getItem('marque-points:lists:v1') || '[]').some((d) => d.id === id), autre.id);
+check('supprimer la page où l’on est : elle ne revient pas de la base', !revenu, await page.evaluate(() => location.hash));
+check('et l’on quitte sa page', !(await page.evaluate(() => location.hash)).includes(autre.id), await page.evaluate(() => location.hash));
 
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();
