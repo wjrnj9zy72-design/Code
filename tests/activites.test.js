@@ -5,7 +5,9 @@ import {
   attach, attachTargets, isActivity, topEventOf, eventDays, programmeOf, outsideEvent, eventParts, upcomingEvents,
   partsCount,
 } from '../src/dashboard.js';
-import { activityFor, ideaActivities, choiceActivities, whenPoll } from '../src/flows.js';
+import {
+  activityFor, ideaActivities, choiceActivities, whenPoll, markForActivity, activityOnClose, activityFromChoice, activityVotes,
+} from '../src/flows.js';
 import { createEvent, createPoll, addOptions, setVote, setClosed, dayOfChoice, setPollDate } from '../src/polls.js';
 import { createList } from '../src/lists.js';
 import { createBoard, addCard, editCardText } from '../src/ideas.js';
@@ -69,6 +71,8 @@ test('des idées et d’un sondage clos, des activités ; « quand ? » parmi le
   let quoi = attach({ ...addOptions(createPoll({ question: 'Quelle activité ?', names: ['Gui'] }), 'Karaoké\nBowling'), ...g }, annecy.id);
   assert.deepEqual(choiceActivities(quoi, [annecy, quoi]).choices, [], 'ouvert, rien');
   quoi = setClosed(setVote(quoi, quoi.people[0].id, quoi.options[0].id, 'yes'), true);
+  assert.deepEqual(choiceActivities(quoi, [annecy, quoi]).choices, [], 'sans l’étiquette 🎯, un sondage ne propose rien');
+  quoi = markForActivity(quoi, true);
   assert.deepEqual(choiceActivities(quoi, [annecy, quoi]).choices.map((c) => c.option.text), ['Karaoké']);
 
   const lac = activityFor(annecy, { name: 'Lac' });
@@ -91,4 +95,29 @@ test('dans l’arbre, les activités se rangent comme au programme', async () =>
   const karaoke = activityFor(annecy, { name: 'Karaoké', date: '2026-10-09' });
   const tree = chainTree(annecy, [annecy, lac, resto, rando, karaoke]);
   assert.deepEqual(tree.children.map((c) => c.document.title), ['Karaoké', 'Resto', 'Rando', 'Lac']);
+});
+
+test('l’étiquette 🎯 : clos avec un gagnant net, le sondage devient une activité', () => {
+  const annecy = weekend();
+  let quoi = markForActivity(attach({ ...addOptions(createPoll({ question: 'Quoi samedi ?', names: ['Gui', 'Alice', 'Paul'] }), 'Karaoké\nBowling'), ...g }, annecy.id));
+  const [gui, alice, paul] = quoi.people;
+  const [karaoke, bowling] = quoi.options;
+  assert.deepEqual(activityVotes(annecy, [annecy, quoi]).map((p) => p.id), [quoi.id], 'en vote, au programme');
+  quoi = setVote(setVote(quoi, gui.id, karaoke.id, 'yes'), alice.id, karaoke.id, 'yes');
+  quoi = setVote(quoi, paul.id, bowling.id, 'yes');
+  assert.equal(activityOnClose(quoi, [annecy, quoi]), null, 'ouvert, rien');
+  quoi = setClosed(quoi, true);
+  assert.deepEqual(activityVotes(annecy, [annecy, quoi]), [], 'clos, il n’est plus en vote');
+  const made = activityOnClose(quoi, [annecy, quoi]);
+  assert.equal(made.title, 'Karaoké');
+  assert.equal(made.parent, annecy.id);
+  assert.deepEqual(made.people.map((p) => p.name), ['Gui', 'Alice'], 'avec ceux qui l’ont voulu');
+  assert.deepEqual(made.from, { doc: quoi.id, part: karaoke.id });
+  assert.equal(activityOnClose(quoi, [annecy, quoi, made]), null, 'jamais deux fois');
+
+  let egal = markForActivity(attach({ ...addOptions(createPoll({ question: 'Et dimanche ?', names: ['Gui', 'Alice'] }), 'Lac\nMarché'), ...g }, annecy.id));
+  egal = setClosed(setVote(setVote(egal, egal.people[0].id, egal.options[0].id, 'yes'), egal.people[1].id, egal.options[1].id, 'yes'), true);
+  assert.equal(activityOnClose(egal, [annecy, egal]), null, 'une égalité ne crée rien d’office');
+  assert.equal(choiceActivities(egal, [annecy, egal]).choices.length, 2, 'les deux restent proposés');
+  assert.deepEqual(activityFromChoice(annecy, egal, egal.options[1]).people.map((p) => p.name), ['Alice']);
 });

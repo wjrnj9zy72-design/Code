@@ -24,6 +24,7 @@ const made = addCard(idees, 'note');
 idees = editCardText(made.board, made.cardId, 'Paddle');
 let quoi = attach({ ...addOptions(createPoll({ question: 'Quelle activité ?', names: ['Gui'] }), 'Karaoké\nBowling'), ...g }, annecy.id);
 quoi = setClosed(setVote(quoi, quoi.people[0].id, quoi.options[0].id, 'yes'), true);
+quoi = { ...quoi, forActivity: true };
 
 const seed = {
   'marque-points:prefs:v1': { me: 'Gui', groups: [{ id: 'grp_famille', name: 'Mifa', key: 'la-cle-famille', admits: true }],
@@ -45,6 +46,28 @@ const text = async (selector) => ((await page.locator(selector).first().textCont
 const polls = () => page.evaluate(() => JSON.parse(localStorage.getItem('marque-points:polls:v1')));
 const byTitle = async (title) => (await polls()).find((p) => p.title === title || p.question === title);
 const more = () => page.evaluate(() => document.querySelectorAll('#view details').forEach((d) => { d.open = true; }));
+
+/* --- 0. « + → Activité » ------------------------------------------------- */
+
+await page.goto(`${B}#/`);
+await page.waitForSelector('#create');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create-activity]');
+await page.click('dialog[open] [data-create-activity]');
+await page.waitForSelector('dialog[open] [data-activity-for]');
+check('« + → Activité » demande pour quel événement', (await page.locator('dialog[open] [data-activity-for]').count()) === 2);
+await page.click(`dialog[open] [data-activity-for="${annecy.id}"]`);
+await page.waitForSelector('dialog[open] #activity-name');
+check('puis ouvre l’activité de cet événement', /pendant « Annecy »/.test(await text('dialog[open] h2')));
+await page.click('dialog[open] [data-activity-cancel]');
+await page.goto(`${B}#/poll/${annecy.id}`);
+await page.waitForSelector('.programme');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create-activity]');
+await page.click('dialog[open] [data-create-activity]');
+await page.waitForSelector('dialog[open] #activity-name');
+check('sur l’événement, « + → Activité » va droit à lui', /pendant « Annecy »/.test(await text('dialog[open] h2')));
+await page.click('dialog[open] [data-activity-cancel]');
 
 /* --- 1. le programme de l'événement -------------------------------------- */
 
@@ -137,6 +160,39 @@ await page.waitForSelector('#view h2');
 const home = await text('#view');
 check('l’Accueil montre l’événement et son programme', /Annecy.*Programme :.*Resto/.test(home), home.slice(0, 400));
 check('sans ajouter ses activités comme des événements', (await page.locator(`#view [data-goto="#/poll/${resto.id}"].game-card`).count()) === 0);
+
+/* --- 7. l'étiquette 🎯 : un sondage qui choisit une activité ------------- */
+
+await page.goto(`${B}#/poll/${annecy.id}`);
+await page.waitForSelector('.programme');
+await page.click('#create');
+await page.waitForSelector('dialog[open] [data-create="#/polls/new"]');
+await page.click('dialog[open] [data-create="#/polls/new"]');
+await page.waitForSelector('#poll-for-activity');
+await page.fill('#poll-question', 'Ciné ou piscine ?');
+await page.fill('#poll-choices', 'Ciné\nPiscine');
+await page.check('#poll-for-activity');
+await page.click('#new-poll button[type=submit]');
+await page.waitForFunction(() => /^#\/poll\//.test(location.hash) && document.querySelector('.votes'));
+const cine = await byTitle('Ciné ou piscine ?');
+check('le sondage porte l’étiquette', cine?.forActivity === true && cine.parent === annecy.id, JSON.stringify({ f: cine?.forActivity, p: cine?.parent }));
+await page.goto(`${B}#/poll/${annecy.id}`);
+await page.waitForSelector('.programme');
+check('au programme, « en vote »', /en vote Ciné ou piscine/.test(await text('.programme')), await text('.programme'));
+check('et 🎯 dans l’arbre', /🎯 Ciné ou piscine/.test(await text('.chain-map')));
+await page.goto(`${B}#/poll/${cine.id}`);
+await page.waitForSelector('.votes');
+const moi = cine.people.find((p) => p.name === 'Gui') || cine.people[0];
+await page.click(`[data-vote="${moi.id}|${cine.options[0].id}"]`);
+await page.waitForSelector('#poll-close');
+await page.click('#poll-close');
+await page.waitForFunction(() => JSON.parse(localStorage.getItem('marque-points:polls:v1')).some((p) => p.title === 'Ciné'));
+const cineActivite = await byTitle('Ciné');
+check('clos : le gagnant est au programme, d’office', cineActivite.parent === annecy.id && cineActivite.from?.doc === cine.id && !cineActivite.date);
+check('le sondage ne propose plus rien', (await page.locator('[data-flow-choice-activity]').count()) === 0);
+await page.goto(`${B}#/poll/${annecy.id}`);
+await page.waitForSelector('.programme');
+check('le programme a l’activité, plus le vote', /à caler Ciné/.test(await text('.programme')) && !/en vote/.test(await text('.programme')), await text('.programme'));
 
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();

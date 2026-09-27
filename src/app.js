@@ -31,7 +31,7 @@ import { isValidBoard } from './ideas.js';
 import { recentPeople, withMeFirst, withoutMe } from './people.js';
 import {
   inGroup, groupCounts, peopleIn, personFile, isLive, isLate, dayNow, eventParts, forEvent, upcomingEvents,
-  allDocuments, ancestorsOf, childrenOf, isEventDoc, kindOf, attachTargets, parentId,
+  allDocuments, ancestorsOf, childrenOf, isEventDoc, kindOf, attachTargets, parentId, topEventOf,
 } from './dashboard.js';
 import {
   loadGames, saveGames, loadLists, saveLists, loadPolls, savePolls, loadSpends, saveSpends, loadBoards, loadPrefs,
@@ -73,7 +73,7 @@ import {
   setGroupFilter, setMyName, shownDocs, verifyGroups, bindDocSwipes, bindEventChips, chooseEvent,
   openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
-import { bindFlows, unblockedHtml } from './view-flows.js';
+import { bindFlows, unblockedHtml, openActivityPicker, openActivityDialog } from './view-flows.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
@@ -1186,6 +1186,7 @@ function openPlainMenu() {
         ${choice('#/lists/new', t('lists.new'))}
         ${choice('#/polls/new', t('polls.new'))}
         ${choice('#/agenda/new', t('events.new'))}
+        <button type="button" class="button button--block" data-create-activity>+ ${escapeHtml(t('activity.new'))}</button>
         ${choice('#/new', t('action.newGame'))}
         ${choice('#/spends/new', t('spends.new'))}
         ${choice('#/ideas/new', t('ideas.new'))}
@@ -1212,6 +1213,10 @@ function openPlainMenu() {
       navigate(node.dataset.create);
     });
   });
+  dialog.querySelector('[data-create-activity]').addEventListener('click', () => {
+    dialog.close();
+    openActivityPicker();
+  });
   dialog.querySelector('[data-create-close]').addEventListener('click', () => dialog.close());
   dialog.showModal();
 }
@@ -1231,6 +1236,7 @@ export function openEventMenu(poll) {
       <h2>${escapeHtml(t('event.addTo', { name }))}</h2>
       <p class="muted small">${escapeHtml(t('event.addToHint'))}</p>
       <div class="create-menu">
+        <button type="button" class="button button--block" data-create-activity>+ ${escapeHtml(t('activity.new'))}</button>
         ${choice('#/lists/new', t('lists.new'))}
         ${choice('#/polls/new', t('polls.new'))}
         ${choice('#/new', t('action.newGame'))}
@@ -1245,6 +1251,11 @@ export function openEventMenu(poll) {
   dialog.querySelector('[data-create-plain]').addEventListener('click', () => {
     dialog.close();
     openPlainMenu();
+  });
+  // On an activity's page, a new activity is its event's: one level only.
+  dialog.querySelector('[data-create-activity]').addEventListener('click', () => {
+    dialog.close();
+    openActivityDialog(topEventOf(poll, everything()) || poll);
   });
   dialog.querySelectorAll('[data-create]').forEach((node) => {
     node.addEventListener('click', () => {

@@ -1488,3 +1488,5 @@ body:not(.solo) .view {
 }
 .programme__when { flex: none; min-width: 6.5em; color: var(--muted); font-size: 0.85rem; }
 .programme__what { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.pill--activity { background: var(--accent-soft); color: var(--accent); }
+.programme__item--vote { border-style: dashed; background: none; }

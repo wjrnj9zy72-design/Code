@@ -16,7 +16,7 @@
  */
 
 import { addItems } from './lists.js';
-import { createPoll, createEvent, addOptions, tally, goers, choiceOfDay } from './polls.js';
+import { createPoll, createEvent, addOptions, tally, goers, choiceOfDay, voteOf } from './polls.js';
 import { addSpend } from './spends.js';
 import { cardsInOrder } from './ideas.js';
 import { addPerson } from './people.js';
@@ -218,11 +218,12 @@ export function ideaActivities(board, all) {
 
 /**
  * What a closed poll chose, as activities of the event it is part of — « Quelle
- * activité ? » settled on karaoke: organise it. Not a poll that asks when.
+ * activité ? » settled on karaoke: organise it. Only a poll marked as choosing
+ * an activity (`forActivity`); never one that asks when.
  */
 export function choiceActivities(poll, all) {
   const event = topEventOf(poll, all);
-  if (!event || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
+  if (!event || !poll.forActivity || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
   return {
     event,
     choices: winnersOf(poll).map((option) => ({ option, made: madeFrom(event, all, poll.id, option.id) })),
@@ -246,4 +247,36 @@ export function whenPoll(activity, event, { question = '', language = 'fr' } = {
     days.map((day) => choiceOfDay(day, language)).join('\n'),
   );
   return { ...poll, parent: activity.id, whenFor: activity.id, ...(activity.linkOnly ? { linkOnly: true } : {}) };
+}
+
+/** Mark a poll as choosing an activity, or not. */
+export function markForActivity(poll, yes = true) {
+  return touch(poll, { forActivity: Boolean(yes) });
+}
+
+/**
+ * The activity a choice becomes: named after it, between those who wanted it
+ * — or everyone coming, when nobody said so.
+ */
+export function activityFromChoice(event, poll, option) {
+  const keen = (poll.people || []).filter((person) => voteOf(poll, person.id, option.id) === 'yes').map((person) => person.name);
+  return activityFor(event, { name: oneLine(option.text), names: keen.length ? keen : null, from: { doc: poll.id, part: option.id } });
+}
+
+/**
+ * What closing a poll marked for an activity makes at once: its one clear
+ * winner, when the event has no activity from it yet. A tie makes nothing —
+ * the choices stay offered, for someone to pick.
+ */
+export function activityOnClose(poll, all) {
+  const { event, choices } = choiceActivities(poll, all);
+  if (!event || choices.length !== 1 || choices[0].made) return null;
+  return activityFromChoice(event, poll, choices[0].option);
+}
+
+/** The polls of an event still choosing an activity: open, marked. */
+export function activityVotes(event, all) {
+  return descendantsOf(event, all).filter(
+    (one) => kindOf(one) === 'poll' && one.forActivity && !one.closedAt && !isEventDoc(one) && isLive(one),
+  );
 }

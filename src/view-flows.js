@@ -26,12 +26,14 @@ import { archiveSpend } from './spends.js';
 import { archiveBoard } from './ideas.js';
 import { archiveGame } from './model.js';
 import {
-  isEventDoc, kindOf, isActivity, parentId, programmeOf, eventDays, outsideEvent, attachTargets,
+  isEventDoc, kindOf, isActivity, parentId, programmeOf, eventDays, outsideEvent, attachTargets, upcomingEvents,
+  topEventOf,
 } from './dashboard.js';
 import { getLanguage } from './i18n.js';
 import {
   related, ideasFor, addIdea, pollFromIdeas, winnersOf, winnerOffers, addWinner, spentItems, spendFromLine,
-  unblockedNow, missingGoers, addGoers, activityFor, ideaActivities, choiceActivities, whenPoll,
+  unblockedNow, missingGoers, addGoers, activityFor, ideaActivities, choiceActivities, whenPoll, activityFromChoice,
+  activityVotes,
 } from './flows.js';
 
 /** One document by id, whatever its kind. */
@@ -226,7 +228,8 @@ function activityWhen(activity) {
  */
 export function programmeHtml(event, { guest = false } = {}) {
   const activities = programmeOf(event, everything());
-  if (guest && !activities.length) return '';
+  const votes = activityVotes(event, everything());
+  if (guest && !activities.length && !votes.length) return '';
   return `
     <div class="stack stack--tight programme" data-flows-for="${escapeHtml(event.id)}">
       <span class="muted small">${escapeHtml(t('activity.programme'))}</span>
@@ -240,8 +243,15 @@ export function programmeHtml(event, { guest = false } = {}) {
                   ${outsideEvent(one, event) ? `<span class="pill pill--late">${escapeHtml(t('activity.outsideShort'))}</span>` : ''}
                 </button>
               </li>`).join('')}</ul>`
-          : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
+          : votes.length ? '' : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
       }
+      ${votes.length ? `<ul class="programme__list">${votes.map((one) => `
+        <li>
+          <button type="button" class="programme__item programme__item--vote" data-goto="${escapeHtml(documentHref(one))}">
+            <span class="programme__when">🎯 ${escapeHtml(t('activity.voting'))}</span>
+            <span class="programme__what">${escapeHtml(documentTitle(one))}</span>
+          </button>
+        </li>`).join('')}</ul>` : ''}
       ${guest ? '' : `<div class="row"><button type="button" class="button button--small" data-flow-activity="${escapeHtml(event.id)}">+ ${escapeHtml(t('activity.add'))}</button></div>`}
     </div>`;
 }
@@ -256,8 +266,50 @@ function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' }
     </div>`;
 }
 
+/**
+ * « + → Activité », away from any event: which event it is for — the coming
+ * ones, soonest first —, straight to it when there is only one.
+ */
+export function openActivityPicker() {
+  const all = everything();
+  const events = upcomingEvents(shownDocs(state.polls));
+  if (events.length === 1) {
+    openActivityDialog(events[0]);
+    return;
+  }
+  const dialog = makeDialog();
+  dialog.innerHTML = `
+    <div class="stack">
+      <h2>${escapeHtml(t('activity.forWhich'))}</h2>
+      ${
+        events.length
+          ? `<div class="game-list">${events.map((one) => `
+              <button type="button" class="game-card" data-activity-for="${escapeHtml(one.id)}">
+                <span class="game-card__title">${escapeHtml(documentTitle(one))}</span>
+                <span class="game-card__meta">${escapeHtml([whenText(one, { long: true }), t('count.activities', { count: programmeOf(one, all).length })].join(' · '))}</span>
+              </button>`).join('')}</div>`
+          : `<p class="muted small">${escapeHtml(t('activity.noEvent'))}</p>
+             <div class="row"><button type="button" class="button button--primary" data-activity-new-event>+ ${escapeHtml(t('events.new'))}</button></div>`
+      }
+      <div class="row"><button type="button" class="button button--ghost" data-activity-pick-close>${escapeHtml(t('action.cancel'))}</button></div>
+    </div>`;
+  dialog.querySelector('[data-activity-pick-close]').addEventListener('click', () => dialog.close());
+  dialog.querySelector('[data-activity-new-event]')?.addEventListener('click', () => {
+    dialog.close();
+    navigate('#/agenda/new');
+  });
+  dialog.querySelectorAll('[data-activity-for]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const event = byId(node.dataset.activityFor);
+      dialog.close();
+      if (event) openActivityDialog(event);
+    });
+  });
+  dialog.showModal();
+}
+
 /** A new activity: what, which day of the event — or later —, and when. */
-function openActivityDialog(event, { name = '', from = null } = {}) {
+export function openActivityDialog(event, { name = '', from = null, names = null } = {}) {
   let day = '';
   const dialog = makeDialog();
   const draw = () => {
@@ -299,7 +351,7 @@ function openActivityDialog(event, { name = '', from = null } = {}) {
         return;
       }
       const at = dialog.querySelector('#activity-at').value || null;
-      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from })));
+      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from, names })));
       dialog.close();
       state.polls = [...state.polls, made];
       persistPoll(made);
@@ -491,7 +543,9 @@ export function bindFlows(root) {
       const poll = owner(node);
       const { event, choices } = poll ? choiceActivities(poll, everything()) : { event: null, choices: [] };
       const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
-      if (event && one) openActivityDialog(event, { name: one.option.text, from: { doc: poll.id, part: one.option.id } });
+      if (!event || !one) return;
+      const keen = activityFromChoice(event, poll, one.option);
+      openActivityDialog(event, { name: one.option.text, from: keen.from, names: keen.people.map((person) => person.name) });
     });
   });
   bindLongPress(root);
