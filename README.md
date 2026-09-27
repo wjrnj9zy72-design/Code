@@ -285,8 +285,13 @@ viennent à l'événement — et sa propre chaîne (la liste du matériel de la 
   hors de l'événement est signalé, pas interdit.
 - **Des idées** : un tableau d'idées de l'événement offre **En faire des
   activités…** ; chaque idée touchée s'ajoute au programme, à caler.
-- **D'un sondage clos** de l'événement (« Quelle activité ? ») : **L'organiser
-  pendant « … »** ouvre la fenêtre d'une activité, le nom déjà écrit.
+- **L'étiquette 🎯 « Ce sondage choisit une activité »** (à la création, ou
+  Plus d'actions) : le sondage porte 🎯 sur sa carte et dans l'arbre, et
+  figure au programme de son événement, « en vote ». Clos avec un gagnant net,
+  le gagnant entre au programme d'office, à caler, avec ceux qui l'ont voulu —
+  sur l'appareil qui le clôt seulement, pour ne jamais le faire deux fois. En
+  cas d'égalité, rien d'office : **L'organiser pendant « … »** propose chaque
+  choix à égalité. Un sondage sans l'étiquette ne propose pas d'activité.
 - **Un événement existant** devient l'activité d'un autre par **En faire une
   activité de…** (Plus d'actions ou appui long). Un seul niveau : une activité
   n'a pas d'activités, et un événement qui en a reste en haut.

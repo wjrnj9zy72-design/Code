@@ -8,7 +8,7 @@
  */
 
 import {
-  chainLabel, chainOf, documentHref, escapeHtml, everything, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
+  chainLabel, chainLabelShort, chainOf, documentHref, escapeHtml, everything, flash, flashHtml, formatDate, formatDay, formatDayLong, gameCardHtml, gameTitle, groupChipsHtml,
   isBusy, isHidden, kindsHtml, navigate, openEventMenu, pollHome, render, route, signature, state, stopWatching,
   view, whenText,
   attachedHtml, chainButtonsHtml,
@@ -21,6 +21,7 @@ import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
   organise, organiserSecret, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
 } from './view-groups.js';
+import { markForActivity, activityOnClose } from './flows.js';
 import {
   eventFlowsHtml, pollFlowsHtml, programmeHtml, activityHeadHtml, pollActivitiesHtml,
 } from './view-flows.js';
@@ -67,6 +68,7 @@ export function pollCardHtml(poll) {
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
       <span class="game-card__title">
         ${escapeHtml(pollTitle(poll))}
+        ${poll.forActivity ? `<span class="pill pill--activity">🎯 ${escapeHtml(t('activity.pollPill'))}</span>` : ''}
         <span class="pill ${poll.closedAt ? 'pill--done' : ''}">
           ${escapeHtml(poll.closedAt ? t('polls.closed') : t('polls.answered', { count: answered, total: poll.people.length }))}
         </span>
@@ -177,6 +179,11 @@ export function newPollView() {
             : ''
         }
       </div>
+
+      <label class="checkbox">
+        <input type="checkbox" id="poll-for-activity" ${state.newPollForActivity ? 'checked' : ''} />
+        <span>🎯 ${escapeHtml(t('activity.pollMark'))}</span>
+      </label>
 
       ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('polls.create'))}</button>
@@ -402,6 +409,7 @@ export function pollView(poll, { solo = false } = {}) {
         }
 `, `
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
+        ${fixed || poll.whenFor ? '' : `<button type="button" class="button button--small button--ghost" id="poll-for-activity-toggle">🎯 ${escapeHtml(t(poll.forActivity ? 'activity.pollUnmark' : 'activity.pollMark'))}</button>`}
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         ${chainButtonsHtml(poll)}
         <button type="button" class="button button--small button--ghost" id="poll-archive">
@@ -580,7 +588,7 @@ export function eventLinkHtml(document_) {
   const relations = relationsOf(document_, all);
   const hasTree = treeSize(tree) > 1;
   if (!hasTree && !relations.length) return '';
-  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const icon = (one) => (isEventDoc(one) ? '📅' : one.forActivity ? '🎯' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
   const kindTitle = (one) => t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`);
   const byRelation = new Map(relations.map((one) => [one.document.id, one]));
   // How this page and another are linked, said beside the other one.
@@ -805,6 +813,7 @@ export function bindNewPoll() {
   if (!form) return;
 
   const snapshot = () => {
+    state.newPollForActivity = Boolean(view.querySelector('#poll-for-activity')?.checked);
     state.newPollQuestion = view.querySelector('#poll-question').value;
     state.newPollChoices = view.querySelector('#poll-choices').value;
     view.querySelectorAll('[data-person-index]').forEach((input) => {
@@ -862,12 +871,14 @@ export function bindNewPoll() {
     snapshot();
     let poll = signed(organise(landing(createPoll({ question: state.newPollQuestion, names: state.newPollPeople }))));
     poll = addOptions(poll, state.newPollChoices);
+    if (state.newPollForActivity) poll = markForActivity(poll, true);
 
     state.polls = [...state.polls, poll];
     persistPoll(poll);
     resetGroupChoice();
     state.newPollQuestion = '';
     state.newPollChoices = '';
+    state.newPollForActivity = false;
     state.newPollPeople = withMeFirst(['', ''], myName());
     navigate(`#/poll/${poll.id}`);
   });
@@ -988,7 +999,22 @@ export function bindPoll(poll) {
   });
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
-    replacePoll(setClosed(poll, !poll.closedAt));
+    const next = setClosed(poll, !poll.closedAt);
+    // Closing a poll that chooses an activity puts its clear winner on the
+    // event's programme — here only, on the device that closes it, so that
+    // two phones never make it twice.
+    const activity = next.closedAt ? activityOnClose(next, everything().map((one) => (one.id === next.id ? next : one))) : null;
+    if (activity) {
+      const made = organise(signed(activity));
+      state.polls = [...state.polls, made];
+      persistPoll(made);
+      flash(t('activity.made', { name: pollTitle(made), event: chainLabelShort(getPoll(made.parent) || made) }));
+    }
+    replacePoll(next);
+  });
+  view.querySelector('#poll-for-activity-toggle')?.addEventListener('click', () => {
+    flash(t(poll.forActivity ? 'activity.pollUnmarked' : 'activity.pollMarked'));
+    replacePoll(markForActivity(poll, !poll.forActivity));
   });
 
   view.querySelectorAll('[data-retain]').forEach((button) => {

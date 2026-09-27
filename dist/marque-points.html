@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="b15f73e3" />
+    <meta name="app-build" content="19cae050" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1507,6 +1507,8 @@ body:not(.solo) .view {
 }
 .programme__when { flex: none; min-width: 6.5em; color: var(--muted); font-size: 0.85rem; }
 .programme__what { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.pill--activity { background: var(--accent-soft); color: var(--accent); }
+.programme__item--vote { border-style: dashed; background: none; }
     </style>
   </head>
   <body>
@@ -1830,6 +1832,12 @@ const STRINGS = {
     'flows.freedBy': 'Fait : {names}',
     'activity.title': 'L’activité',
     'activity.new': 'Activité',
+    'activity.pollMark': 'Ce sondage choisit une activité',
+    'activity.pollUnmark': 'Ne choisit plus d’activité',
+    'activity.pollMarked': 'Une fois clos, son choix ira au programme de l’événement.',
+    'activity.pollUnmarked': 'Ce sondage ne choisit plus d’activité.',
+    'activity.pollPill': 'activité',
+    'activity.voting': 'en vote',
     'activity.forWhich': 'Une activité pour quel événement ?',
     'activity.noEvent': 'Une activité se passe pendant un événement : il en faut d’abord un.',
     'count.activities': '{count} {count|activité|activités}',
@@ -2820,6 +2828,12 @@ const STRINGS = {
     'flows.freedBy': 'Done: {names}',
     'activity.title': 'The activity',
     'activity.new': 'Activity',
+    'activity.pollMark': 'This poll chooses an activity',
+    'activity.pollUnmark': 'No longer chooses an activity',
+    'activity.pollMarked': 'Once closed, its choice goes on the event’s programme.',
+    'activity.pollUnmarked': 'This poll no longer chooses an activity.',
+    'activity.pollPill': 'activity',
+    'activity.voting': 'voting',
     'activity.forWhich': 'An activity for which event?',
     'activity.noEvent': 'An activity happens during an event: there has to be one first.',
     'count.activities': '{count} {count|activity|activities}',
@@ -7528,11 +7542,12 @@ function ideaActivities(board, all) {
 
 /**
  * What a closed poll chose, as activities of the event it is part of — « Quelle
- * activité ? » settled on karaoke: organise it. Not a poll that asks when.
+ * activité ? » settled on karaoke: organise it. Only a poll marked as choosing
+ * an activity (`forActivity`); never one that asks when.
  */
 function choiceActivities(poll, all) {
   const event = topEventOf(poll, all);
-  if (!event || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
+  if (!event || !poll.forActivity || poll.whenFor || isEventDoc(poll)) return { event: null, choices: [] };
   return {
     event,
     choices: winnersOf(poll).map((option) => ({ option, made: madeFrom(event, all, poll.id, option.id) })),
@@ -7556,6 +7571,38 @@ function whenPoll(activity, event, { question = '', language = 'fr' } = {}) {
     days.map((day) => choiceOfDay(day, language)).join('\n'),
   );
   return { ...poll, parent: activity.id, whenFor: activity.id, ...(activity.linkOnly ? { linkOnly: true } : {}) };
+}
+
+/** Mark a poll as choosing an activity, or not. */
+function markForActivity(poll, yes = true) {
+  return touch(poll, { forActivity: Boolean(yes) });
+}
+
+/**
+ * The activity a choice becomes: named after it, between those who wanted it
+ * — or everyone coming, when nobody said so.
+ */
+function activityFromChoice(event, poll, option) {
+  const keen = (poll.people || []).filter((person) => voteOf(poll, person.id, option.id) === 'yes').map((person) => person.name);
+  return activityFor(event, { name: oneLine(option.text), names: keen.length ? keen : null, from: { doc: poll.id, part: option.id } });
+}
+
+/**
+ * What closing a poll marked for an activity makes at once: its one clear
+ * winner, when the event has no activity from it yet. A tie makes nothing —
+ * the choices stay offered, for someone to pick.
+ */
+function activityOnClose(poll, all) {
+  const { event, choices } = choiceActivities(poll, all);
+  if (!event || choices.length !== 1 || choices[0].made) return null;
+  return activityFromChoice(event, poll, choices[0].option);
+}
+
+/** The polls of an event still choosing an activity: open, marked. */
+function activityVotes(event, all) {
+  return descendantsOf(event, all).filter(
+    (one) => kindOf(one) === 'poll' && one.forActivity && !one.closedAt && !isEventDoc(one) && isLive(one),
+  );
 }
 
   // ---- src/ics.js ------------------------------------------------------
@@ -9220,6 +9267,7 @@ function bindSwipes(kind, onDelete) {
 
 
 
+
 /* ------------------------------------------------------------------ polls --- */
 
 /**
@@ -9243,6 +9291,7 @@ function pollCardHtml(poll) {
     <button type="button" class="game-card" data-goto="#/poll/${escapeHtml(poll.id)}">
       <span class="game-card__title">
         ${escapeHtml(pollTitle(poll))}
+        ${poll.forActivity ? `<span class="pill pill--activity">🎯 ${escapeHtml(t('activity.pollPill'))}</span>` : ''}
         <span class="pill ${poll.closedAt ? 'pill--done' : ''}">
           ${escapeHtml(poll.closedAt ? t('polls.closed') : t('polls.answered', { count: answered, total: poll.people.length }))}
         </span>
@@ -9353,6 +9402,11 @@ function newPollView() {
             : ''
         }
       </div>
+
+      <label class="checkbox">
+        <input type="checkbox" id="poll-for-activity" ${state.newPollForActivity ? 'checked' : ''} />
+        <span>🎯 ${escapeHtml(t('activity.pollMark'))}</span>
+      </label>
 
       ${willBeInHtml()}
       <button type="submit" class="button button--primary button--block">${escapeHtml(t('polls.create'))}</button>
@@ -9578,6 +9632,7 @@ function pollView(poll, { solo = false } = {}) {
         }
 `, `
         <button type="button" class="button button--small button--ghost" id="poll-rename">${escapeHtml(t(fixed ? 'events.rename' : 'polls.rename'))}</button>
+        ${fixed || poll.whenFor ? '' : `<button type="button" class="button button--small button--ghost" id="poll-for-activity-toggle">🎯 ${escapeHtml(t(poll.forActivity ? 'activity.pollUnmark' : 'activity.pollMark'))}</button>`}
         <button type="button" class="button button--small button--ghost" id="poll-sign">${escapeHtml(t('sign.edit'))}</button>
         ${chainButtonsHtml(poll)}
         <button type="button" class="button button--small button--ghost" id="poll-archive">
@@ -9756,7 +9811,7 @@ function eventLinkHtml(document_) {
   const relations = relationsOf(document_, all);
   const hasTree = treeSize(tree) > 1;
   if (!hasTree && !relations.length) return '';
-  const icon = (one) => (isEventDoc(one) ? '📅' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
+  const icon = (one) => (isEventDoc(one) ? '📅' : one.forActivity ? '🎯' : { list: '☑️', poll: '🗳️', spend: '💶', board: '💡', game: '🃏' }[kindOf(one)] || '•');
   const kindTitle = (one) => t(isEventDoc(one) ? 'chain.kind.event' : `chain.kind.${kindOf(one) || 'game'}`);
   const byRelation = new Map(relations.map((one) => [one.document.id, one]));
   // How this page and another are linked, said beside the other one.
@@ -9981,6 +10036,7 @@ function bindNewPoll() {
   if (!form) return;
 
   const snapshot = () => {
+    state.newPollForActivity = Boolean(view.querySelector('#poll-for-activity')?.checked);
     state.newPollQuestion = view.querySelector('#poll-question').value;
     state.newPollChoices = view.querySelector('#poll-choices').value;
     view.querySelectorAll('[data-person-index]').forEach((input) => {
@@ -10038,12 +10094,14 @@ function bindNewPoll() {
     snapshot();
     let poll = signed(organise(landing(createPoll({ question: state.newPollQuestion, names: state.newPollPeople }))));
     poll = addOptions(poll, state.newPollChoices);
+    if (state.newPollForActivity) poll = markForActivity(poll, true);
 
     state.polls = [...state.polls, poll];
     persistPoll(poll);
     resetGroupChoice();
     state.newPollQuestion = '';
     state.newPollChoices = '';
+    state.newPollForActivity = false;
     state.newPollPeople = withMeFirst(['', ''], myName());
     navigate(`#/poll/${poll.id}`);
   });
@@ -10164,7 +10222,22 @@ function bindPoll(poll) {
   });
 
   view.querySelector('#poll-close')?.addEventListener('click', () => {
-    replacePoll(setClosed(poll, !poll.closedAt));
+    const next = setClosed(poll, !poll.closedAt);
+    // Closing a poll that chooses an activity puts its clear winner on the
+    // event's programme — here only, on the device that closes it, so that
+    // two phones never make it twice.
+    const activity = next.closedAt ? activityOnClose(next, everything().map((one) => (one.id === next.id ? next : one))) : null;
+    if (activity) {
+      const made = organise(signed(activity));
+      state.polls = [...state.polls, made];
+      persistPoll(made);
+      flash(t('activity.made', { name: pollTitle(made), event: chainLabelShort(getPoll(made.parent) || made) }));
+    }
+    replacePoll(next);
+  });
+  view.querySelector('#poll-for-activity-toggle')?.addEventListener('click', () => {
+    flash(t(poll.forActivity ? 'activity.pollUnmarked' : 'activity.pollMarked'));
+    replacePoll(markForActivity(poll, !poll.forActivity));
   });
 
   view.querySelectorAll('[data-retain]').forEach((button) => {
@@ -16587,7 +16660,8 @@ function activityWhen(activity) {
  */
 function programmeHtml(event, { guest = false } = {}) {
   const activities = programmeOf(event, everything());
-  if (guest && !activities.length) return '';
+  const votes = activityVotes(event, everything());
+  if (guest && !activities.length && !votes.length) return '';
   return `
     <div class="stack stack--tight programme" data-flows-for="${escapeHtml(event.id)}">
       <span class="muted small">${escapeHtml(t('activity.programme'))}</span>
@@ -16601,8 +16675,15 @@ function programmeHtml(event, { guest = false } = {}) {
                   ${outsideEvent(one, event) ? `<span class="pill pill--late">${escapeHtml(t('activity.outsideShort'))}</span>` : ''}
                 </button>
               </li>`).join('')}</ul>`
-          : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
+          : votes.length ? '' : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
       }
+      ${votes.length ? `<ul class="programme__list">${votes.map((one) => `
+        <li>
+          <button type="button" class="programme__item programme__item--vote" data-goto="${escapeHtml(documentHref(one))}">
+            <span class="programme__when">🎯 ${escapeHtml(t('activity.voting'))}</span>
+            <span class="programme__what">${escapeHtml(documentTitle(one))}</span>
+          </button>
+        </li>`).join('')}</ul>` : ''}
       ${guest ? '' : `<div class="row"><button type="button" class="button button--small" data-flow-activity="${escapeHtml(event.id)}">+ ${escapeHtml(t('activity.add'))}</button></div>`}
     </div>`;
 }
@@ -16660,7 +16741,7 @@ function openActivityPicker() {
 }
 
 /** A new activity: what, which day of the event — or later —, and when. */
-function openActivityDialog(event, { name = '', from = null } = {}) {
+function openActivityDialog(event, { name = '', from = null, names = null } = {}) {
   let day = '';
   const dialog = makeDialog();
   const draw = () => {
@@ -16702,7 +16783,7 @@ function openActivityDialog(event, { name = '', from = null } = {}) {
         return;
       }
       const at = dialog.querySelector('#activity-at').value || null;
-      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from })));
+      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from, names })));
       dialog.close();
       state.polls = [...state.polls, made];
       persistPoll(made);
@@ -16894,7 +16975,9 @@ function bindFlows(root) {
       const poll = owner(node);
       const { event, choices } = poll ? choiceActivities(poll, everything()) : { event: null, choices: [] };
       const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
-      if (event && one) openActivityDialog(event, { name: one.option.text, from: { doc: poll.id, part: one.option.id } });
+      if (!event || !one) return;
+      const keen = activityFromChoice(event, poll, one.option);
+      openActivityDialog(event, { name: one.option.text, from: keen.from, names: keen.people.map((person) => person.name) });
     });
   });
   bindLongPress(root);

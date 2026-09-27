@@ -32,7 +32,8 @@ import {
 import { getLanguage } from './i18n.js';
 import {
   related, ideasFor, addIdea, pollFromIdeas, winnersOf, winnerOffers, addWinner, spentItems, spendFromLine,
-  unblockedNow, missingGoers, addGoers, activityFor, ideaActivities, choiceActivities, whenPoll,
+  unblockedNow, missingGoers, addGoers, activityFor, ideaActivities, choiceActivities, whenPoll, activityFromChoice,
+  activityVotes,
 } from './flows.js';
 
 /** One document by id, whatever its kind. */
@@ -227,7 +228,8 @@ function activityWhen(activity) {
  */
 export function programmeHtml(event, { guest = false } = {}) {
   const activities = programmeOf(event, everything());
-  if (guest && !activities.length) return '';
+  const votes = activityVotes(event, everything());
+  if (guest && !activities.length && !votes.length) return '';
   return `
     <div class="stack stack--tight programme" data-flows-for="${escapeHtml(event.id)}">
       <span class="muted small">${escapeHtml(t('activity.programme'))}</span>
@@ -241,8 +243,15 @@ export function programmeHtml(event, { guest = false } = {}) {
                   ${outsideEvent(one, event) ? `<span class="pill pill--late">${escapeHtml(t('activity.outsideShort'))}</span>` : ''}
                 </button>
               </li>`).join('')}</ul>`
-          : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
+          : votes.length ? '' : `<p class="muted small">${escapeHtml(t('activity.none'))}</p>`
       }
+      ${votes.length ? `<ul class="programme__list">${votes.map((one) => `
+        <li>
+          <button type="button" class="programme__item programme__item--vote" data-goto="${escapeHtml(documentHref(one))}">
+            <span class="programme__when">🎯 ${escapeHtml(t('activity.voting'))}</span>
+            <span class="programme__what">${escapeHtml(documentTitle(one))}</span>
+          </button>
+        </li>`).join('')}</ul>` : ''}
       ${guest ? '' : `<div class="row"><button type="button" class="button button--small" data-flow-activity="${escapeHtml(event.id)}">+ ${escapeHtml(t('activity.add'))}</button></div>`}
     </div>`;
 }
@@ -300,7 +309,7 @@ export function openActivityPicker() {
 }
 
 /** A new activity: what, which day of the event — or later —, and when. */
-export function openActivityDialog(event, { name = '', from = null } = {}) {
+export function openActivityDialog(event, { name = '', from = null, names = null } = {}) {
   let day = '';
   const dialog = makeDialog();
   const draw = () => {
@@ -342,7 +351,7 @@ export function openActivityDialog(event, { name = '', from = null } = {}) {
         return;
       }
       const at = dialog.querySelector('#activity-at').value || null;
-      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from })));
+      const made = organise(signed(activityFor(event, { name: what, date: day || null, at: day ? at : null, from, names })));
       dialog.close();
       state.polls = [...state.polls, made];
       persistPoll(made);
@@ -534,7 +543,9 @@ export function bindFlows(root) {
       const poll = owner(node);
       const { event, choices } = poll ? choiceActivities(poll, everything()) : { event: null, choices: [] };
       const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
-      if (event && one) openActivityDialog(event, { name: one.option.text, from: { doc: poll.id, part: one.option.id } });
+      if (!event || !one) return;
+      const keen = activityFromChoice(event, poll, one.option);
+      openActivityDialog(event, { name: one.option.text, from: keen.from, names: keen.people.map((person) => person.name) });
     });
   });
   bindLongPress(root);
