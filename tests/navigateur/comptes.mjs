@@ -92,6 +92,8 @@ check('le groupe revient, avec une clé neuve', groupe.id === 'grp_famille' && g
 check('qui fait entrer, comme celle de Gui', groupe.admits === true);
 check('le prénom revient', neufPrefs.me === 'Gui', neufPrefs.me);
 check('le droit d’organisateur revient', Boolean(neufPrefs.organiser?.[poll]), JSON.stringify(neufPrefs.organiser));
+// Comme on le ferait : une fois ce que le groupe partage arrivé sur l'appareil.
+await neuf.waitForFunction((i) => JSON.parse(localStorage.getItem('marque-points:polls:v1') || '[]').some((p) => p.id === i), poll, { timeout: 15000 });
 await neuf.goto(`${B}#/poll/${poll}`);
 await neuf.waitForFunction(() => /Quel week-end/.test(document.querySelector('#view h1')?.textContent || ''), null, { timeout: 15000 });
 await neuf.waitForSelector('#poll-close', { state: 'attached', timeout: 10000 }).catch(() => {});
@@ -110,7 +112,7 @@ check('déconnecté, le groupe reste sur l’appareil', ((await prefsOf(neuf)).g
 
 await gui.goto(`${B}#/settings`);
 await gui.waitForSelector('#account-delete');
-await gui.click('#account a[href="#/confidentialite"]');
+await gui.click('#account [data-goto="#/confidentialite"]');
 await gui.waitForFunction(() => /Confidentialité/.test(document.querySelector('#view h1')?.textContent || ''));
 const page = await gui.locator('#view').textContent();
 check('la page de confidentialité dit ce qui est gardé et comment l’effacer',

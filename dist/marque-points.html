@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="2bd9186c" />
+    <meta name="app-build" content="ccc16181" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -17545,7 +17545,7 @@ function accountHtml() {
           <button type="button" class="button button--small button--ghost" id="account-out">${escapeHtml(t('account.signOut'))}</button>
           <button type="button" class="button button--small button--ghost button--danger" id="account-delete">${escapeHtml(t('account.delete'))}</button>
         </div>
-        <p class="small"><a href="#/confidentialite">${escapeHtml(t('privacy.title'))}</a></p>
+        <div class="row"><button type="button" class="button button--small button--ghost" data-goto="#/confidentialite">${escapeHtml(t('privacy.title'))}</button></div>
       </section>`;
   }
   return `
@@ -17572,7 +17572,8 @@ function accountHtml() {
                         placeholder="${escapeHtml(t('account.emailPlaceholder'))}" />
                </label>
                <div class="row"><button type="submit" class="button button--primary">${escapeHtml(t('account.sendCode'))}</button></div>
-               <p class="muted small">${escapeHtml(t('account.privacy'))} <a href="#/confidentialite">${escapeHtml(t('privacy.title'))}</a></p>
+               <p class="muted small">${escapeHtml(t('account.privacy'))}</p>
+               <div class="row"><button type="button" class="button button--small button--ghost" data-goto="#/confidentialite">${escapeHtml(t('privacy.title'))}</button></div>
              </form>`
       }
     </section>`;
