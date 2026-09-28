@@ -1875,6 +1875,27 @@ const STRINGS = {
     'activity.onProgramme': 'Programme : {items}',
     'activity.attach': 'En faire une activité de…',
     'activity.attachHint': 'Sous un autre événement, il en devient une activité : au programme, avec sa propre chaîne.',
+    'account.title': 'Compte',
+    'account.why': 'Facultatif. Connecté, vous retrouvez vos groupes et vos droits d’organisateur sur tout appareil — même si ce navigateur efface ses données. Sans mot de passe : un code arrive par e-mail.',
+    'account.email': 'Votre adresse e-mail',
+    'account.emailPlaceholder': 'prenom@exemple.fr',
+    'account.sendCode': 'Recevoir un code',
+    'account.privacy': 'L’adresse sert seulement à vous connecter. Elle n’est montrée à personne.',
+    'account.codeSent': 'Code envoyé à {email}. Tapez-le ici (regardez aussi les indésirables).',
+    'account.codePlaceholder': '123456',
+    'account.signIn': 'Se connecter',
+    'account.otherEmail': 'Autre adresse',
+    'account.badCode': 'Ce code ne marche pas, ou a expiré. Vérifiez-le, ou demandez-en un autre.',
+    'account.sendFailed': 'Le code n’a pas pu être envoyé. Vérifiez l’adresse et réessayez.',
+    'account.tooMany': 'Trop de codes demandés d’un coup : réessayez dans quelques minutes.',
+    'account.welcome': 'Connecté. Vos groupes et vos sondages sont gardés sur votre compte.',
+    'account.signedIn': 'Connecté : {email}',
+    'account.keeps': 'Votre compte garde vos groupes et vos droits d’organisateur. Sur un autre appareil, connectez-vous avec la même adresse pour tout retrouver.',
+    'account.sync': 'Synchroniser',
+    'account.synced': 'Groupes ou sondages retrouvés depuis votre compte.',
+    'account.upToDate': 'Tout est à jour.',
+    'account.signOut': 'Se déconnecter',
+    'account.signedOut': 'Déconnecté. Ce qui est sur cet appareil y reste.',
     'menu.open': 'Ouvrir',
     'menu.notOrganiser': 'Seul l’organisateur de ce sondage peut le déplacer, l’archiver ou le supprimer.',
     'delete.notOrganiser': 'Pas supprimé : seul l’organisateur de ce sondage peut le supprimer.',
@@ -2876,6 +2897,27 @@ const STRINGS = {
     'activity.onProgramme': 'Programme: {items}',
     'activity.attach': 'Make it an activity of…',
     'activity.attachHint': 'Under another event, it becomes one of its activities: on the programme, with its own chain.',
+    'account.title': 'Account',
+    'account.why': 'Optional. Signed in, you get your groups and your organiser rights back on any device — even if this browser clears its data. No password: a code arrives by e-mail.',
+    'account.email': 'Your e-mail address',
+    'account.emailPlaceholder': 'name@example.com',
+    'account.sendCode': 'Get a code',
+    'account.privacy': 'The address is only used to sign you in. Nobody is shown it.',
+    'account.codeSent': 'Code sent to {email}. Type it here (check the spam folder too).',
+    'account.codePlaceholder': '123456',
+    'account.signIn': 'Sign in',
+    'account.otherEmail': 'Another address',
+    'account.badCode': 'This code does not work, or has expired. Check it, or ask for another.',
+    'account.sendFailed': 'The code could not be sent. Check the address and try again.',
+    'account.tooMany': 'Too many codes asked for at once: try again in a few minutes.',
+    'account.welcome': 'Signed in. Your groups and polls are kept on your account.',
+    'account.signedIn': 'Signed in: {email}',
+    'account.keeps': 'Your account keeps your groups and your organiser rights. On another device, sign in with the same address to get everything back.',
+    'account.sync': 'Sync',
+    'account.synced': 'Groups or polls brought back from your account.',
+    'account.upToDate': 'Everything is up to date.',
+    'account.signOut': 'Sign out',
+    'account.signedOut': 'Signed out. What is on this device stays here.',
     'menu.open': 'Open',
     'menu.notOrganiser': 'Only this poll’s organiser can move, archive or delete it.',
     'delete.notOrganiser': 'Not deleted: only this poll’s organiser can delete it.',
@@ -8320,6 +8362,27 @@ function savePrefs(prefs) {
   return write(PREFS_KEY, { ...stored, ...prefs });
 }
 
+/**
+ * The signed-in account's session, apart from the preferences: nothing that
+ * copies or exports those should ever carry it.
+ */
+const ACCOUNT_KEY = 'marque-points:account:v1';
+
+function loadAccount() {
+  const value = read(ACCOUNT_KEY, null);
+  return value && typeof value === 'object' && value.refresh ? value : null;
+}
+
+function saveAccount(session) {
+  if (session) return write(ACCOUNT_KEY, session);
+  try {
+    localStorage.removeItem(ACCOUNT_KEY);
+  } catch {
+    // Nothing to forget where nothing could be kept.
+  }
+  return true;
+}
+
   // ---- src/config.js ---------------------------------------------------
 /**
  * Where the shared games live, for a copy of the app that has one.
@@ -8586,17 +8649,21 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     }
   }
 
-  async function call(fn, body) {
+  /**
+   * `token` is a signed-in account's: the functions of accounts read who is
+   * calling from it. Every other call goes with the page's public key.
+   */
+  async function call(fn, body, token = null, path = `${PATH}${fn}`) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await fetchImpl(`${base}${PATH}${fn}`, {
+      const response = await fetchImpl(`${base}${path}`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
           apikey: config.key,
-          authorization: `Bearer ${config.key}`,
+          authorization: `Bearer ${token || config.key}`,
         },
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -8886,6 +8953,48 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     async remove(id, key = null, owner = null) {
       await withOwner('marque_points_delete', { p_id: id, p_key: key }, owner);
     },
+
+    /* ------------------------------------------------------- accounts --- */
+
+    /**
+     * Send a sign-in code to an address: Supabase's own accounts, by e-mail,
+     * no password. A new address makes a new account.
+     */
+    async sendCode(email) {
+      await call('otp', { email: String(email || '').trim(), create_user: true }, null, '/auth/v1/otp');
+    },
+
+    /** The code from the e-mail, for a session: { access, refresh, expires, email, id }. */
+    async verifyCode(email, code) {
+      const answer = await call('verify', { type: 'email', email: String(email || '').trim(), token: String(code || '').trim() }, null, '/auth/v1/verify');
+      return sessionOf(answer);
+    },
+
+    /** A new session from the refresh token of an old one. */
+    async refreshSession(refresh) {
+      const answer = await call('token', { refresh_token: refresh }, null, '/auth/v1/token?grant_type=refresh_token');
+      return sessionOf(answer);
+    },
+
+    /** Mark this device's key of a group as the account's. */
+    async accountLink(token, key, name = '') {
+      return call('marque_points_account_link', { p_key: key, p_name: name }, token);
+    },
+
+    /** Keep a poll's organiser secret with the account. */
+    async accountOwner(token, id, secret) {
+      return call('marque_points_account_owner_put', { p_id: id, p_secret: secret }, token);
+    },
+
+    /** A fresh key for each of the account's groups not here yet, and its secrets. */
+    async accountRestore(token, have = [], label = '') {
+      return call('marque_points_account_restore', { p_have: have, p_label: label }, token);
+    },
+
+    /** Leave a group for good: the account is no longer in it, anywhere. */
+    async accountLeave(token, key) {
+      return call('marque_points_account_leave', { p_key: key }, token);
+    },
   };
 }
 
@@ -8907,6 +9016,18 @@ function unknownParameter(error) {
  * a trace of what was, so a phone still holding a copy cannot bring it back —
  * in its old group, or in another.
  */
+/** A session, as the app keeps it, from what Supabase's accounts answer. */
+function sessionOf(answer, now = Date.now()) {
+  if (!answer?.access_token || !answer?.refresh_token) return null;
+  return {
+    access: answer.access_token,
+    refresh: answer.refresh_token,
+    expires: now + Math.max(60, Number(answer.expires_in) || 3600) * 1000,
+    email: answer.user?.email || '',
+    id: answer.user?.id || '',
+  };
+}
+
 function wasDeleted(error) {
   return /document supprime/.test(error?.detail || error?.message || '');
 }
@@ -14790,6 +14911,7 @@ function bindGame(game) {
 
 
 
+
 /* ------------------------------------------------------------- the chain --- */
 
 /** Write a document back, whatever its kind. */
@@ -14989,9 +15111,12 @@ function groups() {
 }
 
 function rememberGroup(group) {
+  const known = groups().some((held) => held.id === group.id && held.key === group.key);
   const others = groups().filter((held) => held.id !== group.id);
   state.prefs = { ...state.prefs, groups: [...others, group] };
   savePrefs(state.prefs);
+  // A group joined here, while signed in: the account learns it at once.
+  if (!known) void syncAccount({ restore: false, force: true });
 }
 
 function forgetGroup(id) {
@@ -17213,8 +17338,232 @@ function openDocumentMenu(document_, { underFinger = false } = {}) {
   dialog.showModal();
 }
 
+  // ---- src/view-account.js ---------------------------------------------
+/**
+ * Accounts, optional: sign in with an e-mail address and a code, no password.
+ *
+ * What an account keeps is what a device alone would lose: which groups it is
+ * in — by marking the device's own keys as the account's, never a key in
+ * clear — and the organiser's secrets of its polls. On a new device, or in a
+ * browser that forgot everything, signing in gives a fresh key for each group
+ * and the secrets back.
+ *
+ * Nobody has to: without an account, the app works as it always has. A poll's
+ * visitor from a link never sees any of this.
+ *
+ * Calls back into app.js and the other views only from inside functions.
+ */
+
+
+
+
+
+/** The address a code was sent to, while the code is awaited. */
+let awaiting = '';
+/** When this device last told the account what it holds. */
+let lastSync = 0;
+/** One sync at a time. */
+let syncing = null;
+
+const RESYNC_MS = 10 * 60 * 1000;
+
+/** The session of the signed-in account on this device, or null. */
+function account() {
+  return loadAccount();
+}
+
+/**
+ * A token that is still good: refreshed when it is about to end. Null when
+ * signed out — or when the account can no longer be refreshed, which signs
+ * this device out rather than fail at every call.
+ */
+async function accountToken() {
+  const session = account();
+  if (!session || !state.remote) return null;
+  if (session.expires - Date.now() > 60 * 1000) return session.access;
+  try {
+    const fresh = await state.remote.refreshSession(session.refresh);
+    if (!fresh) throw new Error('no session');
+    saveAccount({ ...fresh, email: fresh.email || session.email });
+    return fresh.access;
+  } catch (error) {
+    // Refused (the account was removed, the refresh token spent): out. No
+    // answer at all (offline): keep the session, and try again later.
+    if (error?.status >= 400 && error?.status < 500) saveAccount(null);
+    return null;
+  }
+}
+
+/**
+ * Tell the account what this device holds, and take what it holds that this
+ * device does not. `restore` asks for the groups and secrets; without it, only
+ * what is here goes up. Quiet: a failure is tried again at the next sync.
+ */
+function syncAccount({ restore = true, force = false } = {}) {
+  if (!account() || !state.remote) return Promise.resolve(false);
+  if (!force && Date.now() - lastSync < RESYNC_MS) return Promise.resolve(false);
+  if (syncing) return syncing;
+  syncing = (async () => {
+    let learnt = false;
+    try {
+      const token = await accountToken();
+      if (!token) return false;
+      if (restore) {
+        const answer = await state.remote.accountRestore(token, groups().map((group) => group.id), deviceLabel());
+        for (const group of answer?.groups || []) {
+          if (!group?.id || !group?.key) continue;
+          rememberGroup({ id: group.id, name: group.name, key: group.key, admits: Boolean(group.admits) });
+          learnt = true;
+        }
+        const secrets = answer?.owners && typeof answer.owners === 'object' ? answer.owners : {};
+        const held = state.prefs.organiser || {};
+        const missing = Object.entries(secrets).filter(([id, secret]) => typeof secret === 'string' && !held[id]);
+        if (missing.length) {
+          state.prefs = { ...state.prefs, organiser: { ...held, ...Object.fromEntries(missing) } };
+          savePrefs(state.prefs);
+          learnt = true;
+        }
+        if (!myName() && answer?.name) setMyName(answer.name);
+      }
+      for (const group of groups()) {
+        await state.remote.accountLink(token, group.key, myName()).catch(() => null);
+      }
+      for (const [id, secret] of Object.entries(state.prefs.organiser || {})) {
+        await state.remote.accountOwner(token, id, secret).catch(() => null);
+      }
+      lastSync = Date.now();
+    } catch {
+      return false;
+    } finally {
+      syncing = null;
+    }
+    if (learnt) {
+      await catchUpQuietly();
+      render();
+    }
+    return learnt;
+  })();
+  return syncing;
+}
+
+/** Leave a group for good while signed in: no device of the account keeps it. */
+async function leaveWithAccount(group) {
+  const token = await accountToken();
+  if (!token || !group?.key) return;
+  await state.remote.accountLeave(token, group.key).catch(() => null);
+}
+
+/* ---------------------------------------------------------------- screen --- */
+
+/** The account section of the settings. */
+function accountHtml() {
+  if (!state.remote) return '';
+  const session = account();
+  if (session) {
+    return `
+      <section class="section" id="account">
+        <div class="section__head"><h2>${escapeHtml(t('account.title'))}</h2></div>
+        <p class="small">${escapeHtml(t('account.signedIn', { email: session.email }))}</p>
+        <p class="muted small">${escapeHtml(t('account.keeps'))}</p>
+        <div class="row">
+          <button type="button" class="button button--small" id="account-sync">${escapeHtml(t('account.sync'))}</button>
+          <button type="button" class="button button--small button--ghost" id="account-out">${escapeHtml(t('account.signOut'))}</button>
+        </div>
+      </section>`;
+  }
+  return `
+    <section class="section" id="account">
+      <div class="section__head"><h2>${escapeHtml(t('account.title'))}</h2></div>
+      <p class="muted small">${escapeHtml(t('account.why'))}</p>
+      ${
+        awaiting
+          ? `<form id="account-code-form" class="card stack stack--tight">
+               <label class="stack stack--tight">
+                 <span class="small">${escapeHtml(t('account.codeSent', { email: awaiting }))}</span>
+                 <input type="text" id="account-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"
+                        placeholder="${escapeHtml(t('account.codePlaceholder'))}" />
+               </label>
+               <div class="row">
+                 <button type="submit" class="button button--primary">${escapeHtml(t('account.signIn'))}</button>
+                 <button type="button" class="button button--ghost" id="account-other">${escapeHtml(t('account.otherEmail'))}</button>
+               </div>
+             </form>`
+          : `<form id="account-email-form" class="card stack stack--tight">
+               <label class="stack stack--tight">
+                 <span class="small">${escapeHtml(t('account.email'))}</span>
+                 <input type="email" id="account-email" autocomplete="email" inputmode="email"
+                        placeholder="${escapeHtml(t('account.emailPlaceholder'))}" />
+               </label>
+               <div class="row"><button type="submit" class="button button--primary">${escapeHtml(t('account.sendCode'))}</button></div>
+               <p class="muted small">${escapeHtml(t('account.privacy'))}</p>
+             </form>`
+      }
+    </section>`;
+}
+
+function bindAccount() {
+  view.querySelector('#account-email-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const field = view.querySelector('#account-email');
+    const email = field.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      field.focus();
+      return;
+    }
+    const button = event.currentTarget.querySelector('button[type=submit]');
+    button.disabled = true;
+    try {
+      await state.remote.sendCode(email);
+      awaiting = email;
+    } catch (error) {
+      flash(t(error?.status === 429 ? 'account.tooMany' : 'account.sendFailed'), 'error');
+    }
+    render();
+  });
+  view.querySelector('#account-code-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const code = view.querySelector('#account-code').value.replace(/\s+/g, '');
+    if (!code) return;
+    const button = event.currentTarget.querySelector('button[type=submit]');
+    button.disabled = true;
+    let session = null;
+    try {
+      session = await state.remote.verifyCode(awaiting, code);
+    } catch {
+      session = null;
+    }
+    if (!session) {
+      flash(t('account.badCode'), 'error');
+      render();
+      return;
+    }
+    saveAccount({ ...session, email: session.email || awaiting });
+    awaiting = '';
+    flash(t('account.welcome'));
+    render();
+    await syncAccount({ force: true });
+    render();
+  });
+  view.querySelector('#account-other')?.addEventListener('click', () => {
+    awaiting = '';
+    render();
+  });
+  view.querySelector('#account-sync')?.addEventListener('click', async (event) => {
+    event.currentTarget.disabled = true;
+    const learnt = await syncAccount({ force: true });
+    flash(t(learnt ? 'account.synced' : 'account.upToDate'));
+    render();
+  });
+  view.querySelector('#account-out')?.addEventListener('click', () => {
+    saveAccount(null);
+    flash(t('account.signedOut'));
+    render();
+  });
+}
+
   // ---- src/app.js ------------------------------------------------------
 /** UI layer: hash router, views, event wiring. */
+
 
 
 
@@ -18675,6 +19024,7 @@ function settingsView() {
   return `
     ${flashHtml()}
     ${meHtml()}
+    ${accountHtml()}
     ${dataHtml()}`;
 }
 
@@ -19139,6 +19489,7 @@ function bindOverview() {
   view.querySelectorAll('[data-leave]').forEach((button) => {
     button.addEventListener('click', async () => {
       if (!(await ask(t('groups.confirmLeave'), { confirmLabel: t('groups.leave'), danger: true }))) return;
+      await leaveWithAccount(groups().find((group) => group.id === button.dataset.leave));
       forgetGroup(button.dataset.leave);
       render();
     });
@@ -20384,6 +20735,7 @@ function render() {
     stopWatching();
     view.innerHTML = settingsView();
     bindOverview();
+    bindAccount();
   } else if (current.name === 'groups') {
     view.innerHTML = groupsView();
     bindOverview();
@@ -20769,6 +21121,9 @@ if (state.remote) {
     const answered = pendings().length ? await checkAllPendings() : false;
     const changed = await verifyGroups();
     if ((answered || changed) && !isBusy()) render();
+    // Signed in: what the account holds that this device does not — a group
+    // joined on the phone, a poll organised on the computer — and the other way.
+    await syncAccount({ force: true });
     // And what the others pushed meanwhile, without being asked for it.
     await catchUpQuietly();
   })();

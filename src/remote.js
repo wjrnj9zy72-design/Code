@@ -75,17 +75,21 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     }
   }
 
-  async function call(fn, body) {
+  /**
+   * `token` is a signed-in account's: the functions of accounts read who is
+   * calling from it. Every other call goes with the page's public key.
+   */
+  async function call(fn, body, token = null, path = `${PATH}${fn}`) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await fetchImpl(`${base}${PATH}${fn}`, {
+      const response = await fetchImpl(`${base}${path}`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
           apikey: config.key,
-          authorization: `Bearer ${config.key}`,
+          authorization: `Bearer ${token || config.key}`,
         },
         body: JSON.stringify(body),
         signal: controller.signal,
@@ -375,6 +379,48 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
     async remove(id, key = null, owner = null) {
       await withOwner('marque_points_delete', { p_id: id, p_key: key }, owner);
     },
+
+    /* ------------------------------------------------------- accounts --- */
+
+    /**
+     * Send a sign-in code to an address: Supabase's own accounts, by e-mail,
+     * no password. A new address makes a new account.
+     */
+    async sendCode(email) {
+      await call('otp', { email: String(email || '').trim(), create_user: true }, null, '/auth/v1/otp');
+    },
+
+    /** The code from the e-mail, for a session: { access, refresh, expires, email, id }. */
+    async verifyCode(email, code) {
+      const answer = await call('verify', { type: 'email', email: String(email || '').trim(), token: String(code || '').trim() }, null, '/auth/v1/verify');
+      return sessionOf(answer);
+    },
+
+    /** A new session from the refresh token of an old one. */
+    async refreshSession(refresh) {
+      const answer = await call('token', { refresh_token: refresh }, null, '/auth/v1/token?grant_type=refresh_token');
+      return sessionOf(answer);
+    },
+
+    /** Mark this device's key of a group as the account's. */
+    async accountLink(token, key, name = '') {
+      return call('marque_points_account_link', { p_key: key, p_name: name }, token);
+    },
+
+    /** Keep a poll's organiser secret with the account. */
+    async accountOwner(token, id, secret) {
+      return call('marque_points_account_owner_put', { p_id: id, p_secret: secret }, token);
+    },
+
+    /** A fresh key for each of the account's groups not here yet, and its secrets. */
+    async accountRestore(token, have = [], label = '') {
+      return call('marque_points_account_restore', { p_have: have, p_label: label }, token);
+    },
+
+    /** Leave a group for good: the account is no longer in it, anywhere. */
+    async accountLeave(token, key) {
+      return call('marque_points_account_leave', { p_key: key }, token);
+    },
   };
 }
 
@@ -396,6 +442,18 @@ function unknownParameter(error) {
  * a trace of what was, so a phone still holding a copy cannot bring it back —
  * in its old group, or in another.
  */
+/** A session, as the app keeps it, from what Supabase's accounts answer. */
+export function sessionOf(answer, now = Date.now()) {
+  if (!answer?.access_token || !answer?.refresh_token) return null;
+  return {
+    access: answer.access_token,
+    refresh: answer.refresh_token,
+    expires: now + Math.max(60, Number(answer.expires_in) || 3600) * 1000,
+    email: answer.user?.email || '',
+    id: answer.user?.id || '',
+  };
+}
+
 export function wasDeleted(error) {
   return /document supprime/.test(error?.detail || error?.message || '');
 }

@@ -75,6 +75,7 @@ import {
   openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
 import { bindFlows, unblockedHtml, openActivityPicker, openActivityDialog } from './view-flows.js';
+import { accountHtml, bindAccount, syncAccount, leaveWithAccount } from './view-account.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
@@ -1504,6 +1505,7 @@ function settingsView() {
   return `
     ${flashHtml()}
     ${meHtml()}
+    ${accountHtml()}
     ${dataHtml()}`;
 }
 
@@ -1968,6 +1970,7 @@ function bindOverview() {
   view.querySelectorAll('[data-leave]').forEach((button) => {
     button.addEventListener('click', async () => {
       if (!(await ask(t('groups.confirmLeave'), { confirmLabel: t('groups.leave'), danger: true }))) return;
+      await leaveWithAccount(groups().find((group) => group.id === button.dataset.leave));
       forgetGroup(button.dataset.leave);
       render();
     });
@@ -3213,6 +3216,7 @@ export function render() {
     stopWatching();
     view.innerHTML = settingsView();
     bindOverview();
+    bindAccount();
   } else if (current.name === 'groups') {
     view.innerHTML = groupsView();
     bindOverview();
@@ -3598,6 +3602,9 @@ if (state.remote) {
     const answered = pendings().length ? await checkAllPendings() : false;
     const changed = await verifyGroups();
     if ((answered || changed) && !isBusy()) render();
+    // Signed in: what the account holds that this device does not — a group
+    // joined on the phone, a poll organised on the computer — and the other way.
+    await syncAccount({ force: true });
     // And what the others pushed meanwhile, without being asked for it.
     await catchUpQuietly();
   })();

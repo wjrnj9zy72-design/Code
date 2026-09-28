@@ -25,6 +25,8 @@ def revoke(name):
     m = re.search(r'(revoke all on function public\.' + name + r'\([^)]*\) from [^;]*;)', bis); assert m, name; return m.group(1)
 def table(name):
     m = re.search(r"(create table if not exists public\." + name + r" \(.*?\n\);\nalter table public\." + name + r" enable row level security;\n)", bis, flags=re.S); assert m, name; return m.group(1)
+def accounts_column():
+    m = re.search(r"(alter table public\.marque_points_group_key\n  add column if not exists user_id uuid;\ncreate index if not exists marque_points_group_key_user[^;]*;\n)", bis); assert m; return m.group(1)
 def alter(column):
     m = re.search(r"(alter table public\.marque_points_games\n  add column if not exists " + column + r"[^;]*;\n)", bis); assert m, column; return m.group(1)
 out = "\n".join([
@@ -46,7 +48,9 @@ out = "\n".join([
 --      en retard n'efface plus les votes arrivés entre-temps ;
 --   5. ce qui est supprimé ne revient plus : un téléphone qui gardait un
 --      sondage supprimé ne peut plus le recréer, ni le ranger dans un autre
---      groupe ; et un sondage clos ne prend plus de votes.
+--      groupe ; et un sondage clos ne prend plus de votes ;
+--   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
+--      groupes et ses droits d'organisateur sur tout nouvel appareil.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -69,6 +73,15 @@ function('marque_points_agenda'),
 "-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;\n-- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.\n" + "\n".join(
     [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda']]
     + [revoke('marque_points_merge_votes')]) + "\n",
+"-- 6. Les comptes : quelles clés sont à quel compte, et les secrets d'organisateur.\n"
++ accounts_column() + "\n" + table('marque_points_account') + "\n" + table('marque_points_account_owner'),
+function('marque_points_account_link'),
+function('marque_points_account_owner_put'),
+function('marque_points_account_restore'),
+function('marque_points_account_leave'),
+"-- Pour les comptes connectés seulement, pas pour la clé publique de la page.\n" + "\n".join(
+    [revoke(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave']]
+    + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave']]) + "\n",
 ])
 (root / 'supabase/mise-a-jour.sql').write_text(out)
 import sys

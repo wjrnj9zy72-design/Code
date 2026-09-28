@@ -1467,6 +1467,157 @@ begin
 end;
 $$;
 
+-- Les comptes, facultatifs : une connexion par e-mail (Supabase → Authentication).
+-- Un compte retient de quels groupes il est — par les clés de ses appareils,
+-- marquées à son nom, jamais une clé en clair — et les secrets d'organisateur
+-- de ses sondages. Sur un nouvel appareil, il reçoit une clé neuve par groupe,
+-- comme par un lien de retour. Couper toutes ses clés d'un groupe l'en sort.
+alter table public.marque_points_group_key
+  add column if not exists user_id uuid;
+create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
+
+create table if not exists public.marque_points_account (
+  user_id uuid primary key,
+  name text not null default '',
+  updated_at timestamptz not null default now()
+);
+alter table public.marque_points_account enable row level security;
+
+create table if not exists public.marque_points_account_owner (
+  user_id uuid not null,
+  doc_id text not null,
+  secret text not null,
+  primary key (user_id, doc_id)
+);
+alter table public.marque_points_account_owner enable row level security;
+
+-- Marquer la clé de cet appareil au nom du compte connecté (et retenir son prénom).
+create or replace function public.marque_points_account_link(p_key text, p_name text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_group text;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  update public.marque_points_group_key k
+     set user_id = v_user
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+  returning k.group_id into v_group;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  if btrim(coalesce(p_name, '')) <> '' then
+    insert into public.marque_points_account (user_id, name)
+    values (v_user, left(btrim(p_name), 40))
+    on conflict (user_id) do update set name = excluded.name, updated_at = now();
+  end if;
+  return jsonb_build_object('status', 'ok', 'id', v_group);
+end;
+$$;
+
+-- Garder le secret d'organisateur d'un sondage, s'il est bien le sien.
+create or replace function public.marque_points_account_owner_put(p_id text, p_secret text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  if not exists (select 1 from public.marque_points_games
+                  where id = p_id and owner_hash = md5(coalesce(p_secret, '') || p_id)) then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  insert into public.marque_points_account_owner (user_id, doc_id, secret)
+  values (v_user, p_id, p_secret)
+  on conflict (user_id, doc_id) do update set secret = excluded.secret;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Un appareil qui se connecte : une clé neuve pour chaque groupe du compte
+-- qu'il n'a pas encore (p_have), et les secrets d'organisateur du compte.
+create or replace function public.marque_points_account_restore(p_have jsonb default '[]'::jsonb, p_label text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_name text;
+  v_groups jsonb := '[]'::jsonb;
+  v_row record;
+  v_key text;
+  v_salt text;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  select name into v_name from public.marque_points_account where user_id = v_user;
+  for v_row in
+    select k.group_id, g.name as group_name, bool_or(k.admits) as admits, max(k.person_id) as person_id
+      from public.marque_points_group_key k
+      join public.marque_points_group g on g.id = k.group_id
+     where k.user_id = v_user
+       and not (to_jsonb(k.group_id) <@ coalesce(p_have, '[]'::jsonb))
+     group by k.group_id, g.name
+  loop
+    v_key := replace(gen_random_uuid()::text, '-', '');
+    v_salt := md5(gen_random_uuid()::text);
+    insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits, person_id, user_id)
+    values (replace(gen_random_uuid()::text, '-', ''), v_row.group_id,
+            left(btrim(coalesce(v_name, '') || ' · ' || coalesce(btrim(p_label), '')), 80),
+            md5(v_key || v_salt), v_salt, v_row.admits, v_row.person_id, v_user);
+    v_groups := v_groups || jsonb_build_object('id', v_row.group_id, 'name', v_row.group_name,
+                                               'key', v_key, 'admits', v_row.admits);
+  end loop;
+  return jsonb_build_object(
+    'status', 'ok',
+    'name', coalesce(v_name, ''),
+    'groups', v_groups,
+    'owners', coalesce((select jsonb_object_agg(o.doc_id, o.secret)
+                          from public.marque_points_account_owner o
+                          join public.marque_points_games d on d.id = o.doc_id
+                         where o.user_id = v_user), '{}'::jsonb));
+end;
+$$;
+
+-- Quitter un groupe, connecté : le compte n'en est plus, sur aucun appareil.
+create or replace function public.marque_points_account_leave(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_group text;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  select k.group_id into v_group from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  update public.marque_points_group_key set user_id = null
+   where group_id = v_group and user_id = v_user;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- PostgreSQL accorde l'exécution à tout le monde par défaut : ce qui ne doit
 -- s'exécuter que d'ici, depuis l'éditeur SQL, doit être retiré explicitement.
 -- Sans cette ligne, quiconque a la clé publique de la page — elle est dans le
@@ -1494,6 +1645,14 @@ grant execute on function public.marque_points_put(text, jsonb, text, text) to a
 grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
 grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
+revoke all on function public.marque_points_account_link(text, text) from public, anon;
+revoke all on function public.marque_points_account_owner_put(text, text) from public, anon;
+revoke all on function public.marque_points_account_restore(jsonb, text) from public, anon;
+revoke all on function public.marque_points_account_leave(text) from public, anon;
+grant execute on function public.marque_points_account_link(text, text) to authenticated;
+grant execute on function public.marque_points_account_owner_put(text, text) to authenticated;
+grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
+grant execute on function public.marque_points_account_leave(text) to authenticated;
 ```
 
 Attendu : **Success. No rows returned.**
@@ -2334,6 +2493,70 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
 > réel. La fonction et son SQL sont vérifiés ici — sur PostgreSQL 16 pour la
 > base, et sur le fichier produit pour la fonction — mais ni Supabase, ni iOS,
 > ni FamilyWall ne sont joignables depuis là où je travaille.
+
+## Étape 9 — Les comptes (facultatif)
+
+Sans compte, un appareil garde seul sa clé de groupe et ses droits
+d'organisateur : un navigateur qui efface ses données (Safari, après quelques
+semaines sans ouvrir le site) les perd. Avec un compte, on se connecte par
+e-mail — **sans mot de passe, un code à six chiffres** — et on retrouve ses
+groupes et ses sondages sur n'importe quel appareil. C'est facultatif pour
+chacun, et les visiteurs d'un lien de sondage n'en voient rien.
+
+Ce que la base garde : l'adresse e-mail (dans Supabase → Authentication →
+Users), quelles clés d'appareil sont à quel compte — **jamais une clé en
+clair** : un nouvel appareil en reçoit une neuve, comme par un lien de
+retour —, et les secrets d'organisateur du compte. Couper toutes les clés d'un
+compte dans un groupe (étape 2 bis, 4) le sort du groupe : il ne pourra pas
+y revenir en se reconnectant.
+
+### 1. Le SQL
+
+Déjà dans le bloc de l'étape 2 bis (base neuve), et dans
+`supabase/mise-a-jour.sql` (base existante) : rien d'autre à passer.
+
+### 2. Faire envoyer un code, pas seulement un lien
+
+Par défaut, Supabase envoie un **lien** de connexion. Un lien s'ouvre dans le
+navigateur, jamais dans l'app de l'écran d'accueil : il faut le **code**.
+
+1. Supabase → **Authentication** → **Emails** (ou **Email Templates**).
+2. Ouvrez le modèle **Magic Link**. Remplacez le sujet par
+   `Votre code Together` et le contenu par :
+
+   ```html
+   <h2>Votre code Together</h2>
+   <p>Tapez ce code dans l'app : <strong style="font-size:24px">{{ .Token }}</strong></p>
+   <p>Il ne sert qu'une fois, et pendant une heure.</p>
+   ```
+
+   **Save**.
+3. Faites **la même chose** pour le modèle **Confirm signup** : c'est lui qui
+   part à une adresse qui se connecte pour la première fois.
+
+### 3. Vérifier que la connexion par e-mail est active
+
+Supabase → **Authentication** → **Sign In / Providers** → **Email** : activé
+(c'est le réglage par défaut). Rien d'autre à changer.
+
+### 4. L'envoi des e-mails : la limite de Supabase
+
+Le service d'envoi fourni par Supabase est fait pour essayer : il n'envoie
+**que quelques e-mails par heure**, pour tout le projet. Pour un groupe entier
+qui se connecte le même soir, il faut votre propre service d'envoi :
+
+1. Créez un compte gratuit chez un service d'envoi d'e-mails (Brevo, Resend…)
+   et demandez-lui des **identifiants SMTP**.
+2. Supabase → **Authentication** → **Emails** → **SMTP Settings** →
+   **Enable custom SMTP** : collez l'hôte, le port, l'identifiant et le mot de
+   passe donnés par ce service, et une adresse d'expéditeur.
+3. **Save**.
+
+### 5. Essayer
+
+Dans l'app : **Réglages → Compte** → votre adresse → **Recevoir un code** → le
+code reçu → **Se connecter**. Puis, sur un autre appareil (ou une fenêtre
+privée), la même chose : vos groupes et vos sondages y apparaissent.
 
 ## Ce que ce montage implique
 

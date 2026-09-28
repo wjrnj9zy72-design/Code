@@ -485,6 +485,28 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
 - Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
   schémas (boîtes et flèches) ni de photos.
 
+## Les comptes (facultatifs)
+
+**Réglages → Compte** : son adresse e-mail, un code à six chiffres reçu par
+e-mail, et l'on est connecté — sans mot de passe. Le compte garde ce qu'un
+appareil seul perdrait : de quels groupes il est, et ses droits d'organisateur.
+Sur un autre appareil, ou dans un navigateur qui a tout effacé, la même
+connexion rend tout : une clé neuve pour chaque groupe (qui fait entrer si
+l'ancienne le faisait), les secrets d'organisateur, le prénom.
+
+- La base ne garde **aucune clé en clair** : elle marque les clés des appareils
+  au nom du compte (`group_key.user_id`), et en fabrique une neuve pour un
+  nouvel appareil, comme le lien de retour. Couper toutes ses clés dans un
+  groupe l'en sort ; **Quitter** un groupe, connecté, l'en sort partout.
+- La session vit à part des préférences (`marque-points:account:v1`) : rien
+  ne l'emporte dans un export.
+- Synchronisé à l'ouverture de l'app, en rejoignant un groupe, et par
+  **Synchroniser**. Se déconnecter laisse tout sur l'appareil.
+- Les visiteurs d'un lien de sondage n'ont besoin de rien.
+- Côté Supabase : le modèle d'e-mail doit porter le code (`{{ .Token }}`) et,
+  pour plus que quelques e-mails par heure, un service d'envoi (SMTP) — voir
+  docs/DEPLOIEMENT.md, étape 9.
+
 ## Supprimer d'un glissement
 
 Ce qui se supprime dans une liste de choses se glisse vers la gauche, au doigt
