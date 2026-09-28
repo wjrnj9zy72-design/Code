@@ -503,6 +503,14 @@ l'ancienne le faisait), les secrets d'organisateur, le prénom.
 - Synchronisé à l'ouverture de l'app, en rejoignant un groupe, et par
   **Synchroniser**. Se déconnecter laisse tout sur l'appareil.
 - Les visiteurs d'un lien de sondage n'ont besoin de rien.
+- **Supprimer mon compte** (Réglages → Compte) efface l'adresse (dans
+  Supabase Auth), le prénom, les secrets gardés et les marques sur les clés ;
+  l'appareil reste dans ses groupes, sans compte. C'est le droit à
+  l'effacement.
+- **Confidentialité** (`#/confidentialite`, depuis Réglages → Compte) : ce que
+  l'app garde, où, qui le voit, combien de temps, et comment le faire
+  effacer. L'adresse de contact se règle dans `src/config.js` (`CONTACT`) ;
+  vide, la page renvoie à l'organisateur du groupe.
 - Côté Supabase : le modèle d'e-mail doit porter le code (`{{ .Token }}`) et,
   pour plus que quelques e-mails par heure, un service d'envoi (SMTP) — voir
   docs/DEPLOIEMENT.md, étape 9.

@@ -1618,6 +1618,29 @@ begin
 end;
 $$;
 
+-- Supprimer son compte : l'adresse e-mail, le prénom, les secrets gardés, et
+-- la marque sur les clés. Les appareils gardent leurs clés : ils restent dans
+-- leurs groupes, sans compte. C'est le droit à l'effacement.
+create or replace function public.marque_points_account_delete()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  update public.marque_points_group_key set user_id = null where user_id = v_user;
+  delete from public.marque_points_account_owner where user_id = v_user;
+  delete from public.marque_points_account where user_id = v_user;
+  delete from auth.users where id = v_user;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- PostgreSQL accorde l'exécution à tout le monde par défaut : ce qui ne doit
 -- s'exécuter que d'ici, depuis l'éditeur SQL, doit être retiré explicitement.
 -- Sans cette ligne, quiconque a la clé publique de la page — elle est dans le
@@ -1653,6 +1676,8 @@ grant execute on function public.marque_points_account_link(text, text) to authe
 grant execute on function public.marque_points_account_owner_put(text, text) to authenticated;
 grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
 grant execute on function public.marque_points_account_leave(text) to authenticated;
+revoke all on function public.marque_points_account_delete() from public, anon;
+grant execute on function public.marque_points_account_delete() to authenticated;
 ```
 
 Attendu : **Success. No rows returned.**

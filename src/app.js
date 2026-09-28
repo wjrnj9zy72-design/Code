@@ -75,7 +75,7 @@ import {
   openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
 import { bindFlows, unblockedHtml, openActivityPicker, openActivityDialog } from './view-flows.js';
-import { accountHtml, bindAccount, syncAccount, leaveWithAccount } from './view-account.js';
+import { accountHtml, bindAccount, syncAccount, leaveWithAccount, privacyView } from './view-account.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
@@ -348,6 +348,7 @@ function routeOf(address) {
   if (name === 'group' && param) return { name: 'group', id: decodeSegment(param) };
   if (name === 'groups') return { name: 'groups' };
   if (name === 'settings' || name === 'reglages') return { name: 'settings' };
+  if (name === 'privacy' || name === 'confidentialite') return { name: 'privacy' };
   if (name === 'new') return { name: 'new' };
   if (name === 'stats') return { name: 'stats' };
   if (name === 'game' && param) return { name: 'game', id: param };
@@ -3212,6 +3213,10 @@ export function render() {
     stopWatching();
     view.innerHTML = spendsView();
     bindDocSwipes();
+  } else if (current.name === 'privacy') {
+    stopWatching();
+    view.innerHTML = privacyView();
+    bindOverview();
   } else if (current.name === 'settings') {
     stopWatching();
     view.innerHTML = settingsView();

@@ -129,6 +129,13 @@ createServer(async (req, res) => {
       }
       return send(200, { status: 'ok', name: ACCOUNTS.get(user) ?? '', groups, owners });
     }
+    if (fn === 'marque_points_account_delete') {
+      for (const one of KEYS) if (one.user === user) one.user = null;
+      for (const pair of [...OWNED.keys()]) if (pair.startsWith(`${user}|`)) OWNED.delete(pair);
+      ACCOUNTS.delete(user);
+      for (const [email, id] of [...USERS]) if (id === user) USERS.delete(email);
+      return send(200, { status: 'ok' });
+    }
     if (fn === 'marque_points_account_leave') {
       const row = KEYS.find((one) => one.key === at.p_key);
       if (!row) return send(200, { status: 'unknown' });

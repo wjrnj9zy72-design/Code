@@ -67,5 +67,20 @@ begin
   if v_out->>'status' = 'ok' and jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'x'))->'groups') = 0 then
     raise notice 'OK 11 : quitter sort le compte du groupe';
   else raise notice 'ÉCHEC 11 : %', v_out; end if;
+
+  -- 12. supprimer son compte : l'adresse, le prénom, les secrets, les marques
+  insert into auth.users (id, email) values (v_gui, 'gui@exemple.fr');
+  v_other := public.marque_points_new_group_key('Mifa');
+  perform public.marque_points_account_link(v_other, 'Gui');
+  perform public.marque_points_account_owner_put(v_id, v_secret);
+  v_out := public.marque_points_account_delete();
+  if v_out->>'status' = 'ok'
+     and not exists (select 1 from auth.users where id = v_gui)
+     and not exists (select 1 from public.marque_points_account where user_id = v_gui)
+     and not exists (select 1 from public.marque_points_account_owner where user_id = v_gui)
+     and not exists (select 1 from public.marque_points_group_key where user_id = v_gui)
+     and (public.marque_points_group_of(v_other))->>'id' = v_group then
+    raise notice 'OK 12 : le compte et son adresse sont effacés, l''appareil reste dans le groupe';
+  else raise notice 'ÉCHEC 12 : %', v_out; end if;
 end;
 $$;

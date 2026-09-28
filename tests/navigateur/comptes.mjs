@@ -94,8 +94,9 @@ check('le prénom revient', neufPrefs.me === 'Gui', neufPrefs.me);
 check('le droit d’organisateur revient', Boolean(neufPrefs.organiser?.[poll]), JSON.stringify(neufPrefs.organiser));
 await neuf.goto(`${B}#/poll/${poll}`);
 await neuf.waitForFunction(() => /Quel week-end/.test(document.querySelector('#view h1')?.textContent || ''), null, { timeout: 15000 });
+await neuf.waitForSelector('#poll-close', { state: 'attached', timeout: 10000 }).catch(() => {});
 await neuf.evaluate(() => document.querySelectorAll('#view details').forEach((d) => { d.open = true; }));
-check('et il y règle le sondage en organisateur', (await neuf.locator('#poll-close').count()) === 1 && (await neuf.locator('#poll-delete').count()) === 1);
+check('et il y règle le sondage en organisateur', (await neuf.locator('#poll-close').count()) === 1 && (await neuf.locator('#poll-delete').count()) === 1, JSON.stringify({ close: await neuf.locator('#poll-close').count(), del: await neuf.locator('#poll-delete').count(), org: (await prefsOf(neuf)).organiser, owned: await neuf.evaluate((i) => JSON.parse(localStorage.getItem('marque-points:polls:v1') || '[]').find((p) => p.id === i)?.owned, poll) }));
 
 /* --- 3. se déconnecter garde ce qui est là -------------------------------- */
 
@@ -104,6 +105,27 @@ await neuf.waitForSelector('#account-out');
 await neuf.click('#account-out');
 await neuf.waitForSelector('#account-email');
 check('déconnecté, le groupe reste sur l’appareil', ((await prefsOf(neuf)).groups || []).length === 1);
+
+/* --- 4. la confidentialité, et supprimer son compte ---------------------- */
+
+await gui.goto(`${B}#/settings`);
+await gui.waitForSelector('#account-delete');
+await gui.click('#account a[href="#/confidentialite"]');
+await gui.waitForFunction(() => /Confidentialité/.test(document.querySelector('#view h1')?.textContent || ''));
+const page = await gui.locator('#view').textContent();
+check('la page de confidentialité dit ce qui est gardé et comment l’effacer',
+  /Sur votre appareil/.test(page) && /Si vous créez un compte/.test(page) && /Supprimer mon compte/.test(page) && /CNIL/.test(page));
+await gui.goto(`${B}#/settings`);
+await gui.waitForSelector('#account-delete');
+await gui.click('#account-delete');
+await gui.click('.dialog--ask [data-answer="yes"]');
+await gui.waitForSelector('#account-email');
+check('compte supprimé : déconnecté', (await gui.evaluate(() => localStorage.getItem('marque-points:account:v1'))) === null);
+check('et l’appareil reste dans son groupe', ((await prefsOf(gui)).groups || []).length === 1);
+const autre = await device('Autre', {});
+await signIn(autre);
+await autre.waitForTimeout(2000);
+check('la même adresse, reconnectée, ne retrouve plus rien : tout a été effacé', ((await prefsOf(autre)).groups || []).length === 0);
 
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();

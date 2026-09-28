@@ -13,7 +13,9 @@
  * Calls back into app.js and the other views only from inside functions.
  */
 
-import { escapeHtml, flash, render, state, view } from './app.js';
+import { escapeHtml, flash, flashHtml, render, state, view } from './app.js';
+import { ask } from './view-games.js';
+import { CONTACT } from './config.js';
 import {
   catchUpQuietly, deviceLabel, groups, myName, rememberGroup, setMyName,
 } from './view-groups.js';
@@ -130,7 +132,9 @@ export function accountHtml() {
         <div class="row">
           <button type="button" class="button button--small" id="account-sync">${escapeHtml(t('account.sync'))}</button>
           <button type="button" class="button button--small button--ghost" id="account-out">${escapeHtml(t('account.signOut'))}</button>
+          <button type="button" class="button button--small button--ghost button--danger" id="account-delete">${escapeHtml(t('account.delete'))}</button>
         </div>
+        <p class="small"><a href="#/confidentialite">${escapeHtml(t('privacy.title'))}</a></p>
       </section>`;
   }
   return `
@@ -157,7 +161,7 @@ export function accountHtml() {
                         placeholder="${escapeHtml(t('account.emailPlaceholder'))}" />
                </label>
                <div class="row"><button type="submit" class="button button--primary">${escapeHtml(t('account.sendCode'))}</button></div>
-               <p class="muted small">${escapeHtml(t('account.privacy'))}</p>
+               <p class="muted small">${escapeHtml(t('account.privacy'))} <a href="#/confidentialite">${escapeHtml(t('privacy.title'))}</a></p>
              </form>`
       }
     </section>`;
@@ -216,9 +220,58 @@ export function bindAccount() {
     flash(t(learnt ? 'account.synced' : 'account.upToDate'));
     render();
   });
+  view.querySelector('#account-delete')?.addEventListener('click', async () => {
+    if (!(await ask(t('account.deleteConfirm'), { confirmLabel: t('account.delete'), danger: true }))) return;
+    const token = await accountToken();
+    try {
+      if (!token) throw new Error('no token');
+      await state.remote.accountDelete(token);
+    } catch {
+      flash(t('account.deleteFailed'), 'error');
+      render();
+      return;
+    }
+    saveAccount(null);
+    flash(t('account.deleted'));
+    render();
+  });
   view.querySelector('#account-out')?.addEventListener('click', () => {
     saveAccount(null);
     flash(t('account.signedOut'));
     render();
   });
+}
+
+/* --------------------------------------------------------------- privacy --- */
+
+/** What the app keeps, where, who sees it, and how to have it erased. */
+export function privacyView() {
+  const block = (title, text) => `
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t(title))}</h2></div>
+      <p class="small">${escapeHtml(t(text))}</p>
+    </section>`;
+  const contact = String(CONTACT || '').trim();
+  return `
+    ${flashHtml()}
+    <div class="spread">
+      <h1>${escapeHtml(t('privacy.title'))}</h1>
+      <button type="button" class="button button--small button--ghost" data-goto="#/settings" data-back>${escapeHtml(t('action.back'))}</button>
+    </div>
+    <p class="lead">${escapeHtml(t('privacy.intro'))}</p>
+    ${block('privacy.deviceTitle', 'privacy.device')}
+    ${block('privacy.sharedTitle', 'privacy.shared')}
+    ${block('privacy.accountTitle', 'privacy.account')}
+    ${block('privacy.noneTitle', 'privacy.none')}
+    ${block('privacy.keepTitle', 'privacy.keep')}
+    ${block('privacy.whoTitle', 'privacy.processors')}
+    <section class="section">
+      <div class="section__head"><h2>${escapeHtml(t('privacy.rightsTitle'))}</h2></div>
+      <p class="small">${escapeHtml(t('privacy.rights'))}</p>
+      <p class="small">${
+        contact
+          ? `${escapeHtml(t('privacy.contact'))} <a href="mailto:${escapeHtml(contact)}">${escapeHtml(contact)}</a>`
+          : escapeHtml(t('privacy.noContact'))
+      }</p>
+    </section>`;
 }

@@ -417,6 +417,11 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return call('marque_points_account_restore', { p_have: have, p_label: label }, token);
     },
 
+    /** Delete the account: its address, its name, its secrets, its marks. */
+    async accountDelete(token) {
+      return call('marque_points_account_delete', {}, token);
+    },
+
     /** Leave a group for good: the account is no longer in it, anywhere. */
     async accountLeave(token, key) {
       return call('marque_points_account_leave', { p_key: key }, token);

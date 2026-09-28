@@ -36,6 +36,7 @@ create extension if not exists pgcrypto;
 -- Et l'identité du compte connecté, que Supabase tire du jeton ; ici, d'un
 -- réglage que les contrôles posent eux-mêmes (set request.jwt.claim.sub).
 create schema if not exists auth;
+create table if not exists auth.users (id uuid primary key, email text);
 create or replace function auth.uid() returns uuid language sql stable as
   $f$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
 SQL

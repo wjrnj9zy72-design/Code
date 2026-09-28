@@ -50,7 +50,8 @@ out = "\n".join([
 --      sondage supprimé ne peut plus le recréer, ni le ranger dans un autre
 --      groupe ; et un sondage clos ne prend plus de votes ;
 --   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
---      groupes et ses droits d'organisateur sur tout nouvel appareil.
+--      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
+--      chacun peut supprimer son compte et son adresse.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -79,9 +80,10 @@ function('marque_points_account_link'),
 function('marque_points_account_owner_put'),
 function('marque_points_account_restore'),
 function('marque_points_account_leave'),
+function('marque_points_account_delete'),
 "-- Pour les comptes connectés seulement, pas pour la clé publique de la page.\n" + "\n".join(
-    [revoke(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave']]
-    + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave']]) + "\n",
+    [revoke(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]
+    + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]) + "\n",
 ])
 (root / 'supabase/mise-a-jour.sql').write_text(out)
 import sys

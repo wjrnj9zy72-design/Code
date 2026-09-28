@@ -18,7 +18,8 @@
 --      sondage supprimé ne peut plus le recréer, ni le ranger dans un autre
 --      groupe ; et un sondage clos ne prend plus de votes ;
 --   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
---      groupes et ses droits d'organisateur sur tout nouvel appareil.
+--      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
+--      chacun peut supprimer son compte et son adresse.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -459,12 +460,34 @@ begin
 end;
 $$;
 
+create or replace function public.marque_points_account_delete()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  update public.marque_points_group_key set user_id = null where user_id = v_user;
+  delete from public.marque_points_account_owner where user_id = v_user;
+  delete from public.marque_points_account where user_id = v_user;
+  delete from auth.users where id = v_user;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- Pour les comptes connectés seulement, pas pour la clé publique de la page.
 revoke all on function public.marque_points_account_link(text, text) from public, anon;
 revoke all on function public.marque_points_account_owner_put(text, text) from public, anon;
 revoke all on function public.marque_points_account_restore(jsonb, text) from public, anon;
 revoke all on function public.marque_points_account_leave(text) from public, anon;
+revoke all on function public.marque_points_account_delete() from public, anon;
 grant execute on function public.marque_points_account_link(text, text) to authenticated;
 grant execute on function public.marque_points_account_owner_put(text, text) to authenticated;
 grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
 grant execute on function public.marque_points_account_leave(text) to authenticated;
+grant execute on function public.marque_points_account_delete() to authenticated;
