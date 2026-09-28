@@ -11,12 +11,13 @@ import {
   navigate, render, state, stopWatching, view,
   attachedHtml, chainButtonsHtml,
 } from './app.js';
-import { actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, pushFailed, shareBarHtml } from './view-polls.js';
+import { actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, pushFailed, shareBarHtml, whenAbsent } from './view-polls.js';
 import { archivedHtml } from './view-lists.js';
 import { ask, makeDialog } from './view-games.js';
 import {
   askGroup, bindData, hiddenByGroupHtml, inGroupHtml, keyFor, landing, organiserSecret, resetGroupChoice,
   shownDocs, willBeInHtml,
+  removeEverywhere,
 } from './view-groups.js';
 import { boardFlowsHtml, boardActivitiesHtml } from './view-flows.js';
 import {
@@ -59,10 +60,10 @@ async function deleteBoard(board, { then = null } = {}) {
     render();
     return;
   }
+  if (!(await removeEverywhere(board))) return;
   state.boards = state.boards.filter((item) => item.id !== board.id);
   saveBoards(state.boards);
   if (state.store) void state.store.remove(board.id);
-  if (state.remote && board.shared) state.remote.remove(board.id, keyFor(board), organiserSecret(board.id)).catch(() => {});
   flash(t('ideas.deleted', { name: boardTitle(board) }));
   if (then) navigate(then);
   else render();
@@ -637,6 +638,7 @@ export async function pullBoard(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidBoard(stored) ? adoptBoard(stored) : false;
 }
 

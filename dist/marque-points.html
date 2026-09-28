@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="a65b30ed" />
+    <meta name="app-build" content="a4fefa03" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1893,6 +1893,10 @@ const STRINGS = {
     'activity.attach': 'En faire une activité de…',
     'activity.attachHint': 'Sous un autre événement, il en devient une activité : au programme, avec sa propre chaîne.',
     'menu.open': 'Ouvrir',
+    'menu.notOrganiser': 'Seul l’organisateur de ce sondage peut le déplacer, l’archiver ou le supprimer.',
+    'delete.notOrganiser': 'Pas supprimé : seul l’organisateur de ce sondage peut le supprimer.',
+    'delete.noKey': 'Pas supprimé : cet appareil n’a pas la clé du groupe de cet élément.',
+    'delete.offline': 'Pas supprimé : la base partagée n’a pas répondu. Réessayez une fois connecté.',
     'menu.more': 'Plus d’actions',
     'menu.archived': '« {name} » archivé.',
     'menu.unarchived': '« {name} » sorti de l’archive.',
@@ -2890,6 +2894,10 @@ const STRINGS = {
     'activity.attach': 'Make it an activity of…',
     'activity.attachHint': 'Under another event, it becomes one of its activities: on the programme, with its own chain.',
     'menu.open': 'Open',
+    'menu.notOrganiser': 'Only this poll’s organiser can move, archive or delete it.',
+    'delete.notOrganiser': 'Not deleted: only this poll’s organiser can delete it.',
+    'delete.noKey': 'Not deleted: this device does not hold the key of this thing’s group.',
+    'delete.offline': 'Not deleted: the shared database did not answer. Try again once online.',
     'menu.more': 'More actions',
     'menu.archived': '“{name}” archived.',
     'menu.unarchived': '“{name}” taken out of the archive.',
@@ -9960,6 +9968,31 @@ function pushFailed(changed) {
   };
 }
 
+/**
+ * The database has nothing under an id this device holds as shared. Reading
+ * cannot tell « deleted » from « never arrived » — only a write is answered
+ * « document supprimé ». So: a poll someone else organises came from the
+ * database and nowhere else, and gone from it, it is gone; anything else is
+ * sent again — refused as deleted, it leaves this device; accepted, it was a
+ * share that never arrived, and now has. True when it left.
+ */
+async function whenAbsent(id) {
+  const held = everything().find((one) => one.id === id);
+  if (!held?.shared || !state.remote) return false;
+  if (held.kind === 'poll' && !isOrganiser(held)) {
+    dropDeleted(id);
+    return true;
+  }
+  try {
+    await state.remote.put(held, keyFor(held), organiserSecret(id));
+    return false;
+  } catch (error) {
+    if (!wasDeleted(error)) return false;
+    dropDeleted(id);
+    return true;
+  }
+}
+
 function dropDeleted(id) {
   const poll = getPoll(id);
   const list = getList(id);
@@ -10333,10 +10366,10 @@ function bindPoll(poll) {
 
   view.querySelector('#poll-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('polls.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(poll))) return;
     state.polls = state.polls.filter((item) => item.id !== poll.id);
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
-    if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
     navigate(pollHome(poll));
   });
 
@@ -10559,6 +10592,7 @@ async function pullPoll(id) {
   } catch {
     return null;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidPoll(stored) ? adoptPoll(stored) : false;
 }
 
@@ -10603,6 +10637,7 @@ async function pullSpend(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidSpend(stored) ? adoptSpend(stored) : false;
 }
 
@@ -11178,10 +11213,10 @@ function bindList(list) {
 
   view.querySelector('#list-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('lists.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(list))) return;
     state.lists = state.lists.filter((item) => item.id !== list.id);
     saveLists(state.lists);
     if (state.store) void state.store.remove(list.id);
-    if (state.remote) state.remote.remove(list.id, keyFor(list), organiserSecret(list.id)).catch(() => {});
     navigate('#/lists');
   });
 
@@ -11468,6 +11503,7 @@ async function pullList(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidList(stored) ? adoptList(stored) : false;
 }
 
@@ -12289,10 +12325,10 @@ function bindSpend(spend) {
 
   view.querySelector('#spend-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('spends.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(spend))) return;
     state.spends = state.spends.filter((item) => item.id !== spend.id);
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
-    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
     navigate('#/spends');
   });
 }
@@ -12536,10 +12572,10 @@ async function deleteBoard(board, { then = null } = {}) {
     render();
     return;
   }
+  if (!(await removeEverywhere(board))) return;
   state.boards = state.boards.filter((item) => item.id !== board.id);
   saveBoards(state.boards);
   if (state.store) void state.store.remove(board.id);
-  if (state.remote && board.shared) state.remote.remove(board.id, keyFor(board), organiserSecret(board.id)).catch(() => {});
   flash(t('ideas.deleted', { name: boardTitle(board) }));
   if (then) navigate(then);
   else render();
@@ -13114,6 +13150,7 @@ async function pullBoard(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidBoard(stored) ? adoptBoard(stored) : false;
 }
 
@@ -15308,6 +15345,27 @@ async function putInGroup(id) {
  * its card left leads to. Asked first, as on its own page: a list or an
  * account is usually everyone's, and deleting it deletes it for them too.
  */
+/**
+ * Delete a document from the database before this device lets go of it. The
+ * database may refuse — a poll someone else organises, a group whose key this
+ * device does not hold, no connection —, and a copy dropped here while the
+ * database keeps it would still open from its link. So: refused, nothing is
+ * dropped, and the reason is said. True when it is gone (or never was there).
+ */
+async function removeEverywhere(document_) {
+  // Never shared, never in the database: nothing to ask it.
+  if (!state.remote || !document_.shared) return true;
+  try {
+    await state.remote.remove(document_.id, keyFor(document_), organiserSecret(document_.id));
+    return true;
+  } catch (error) {
+    const said = String(error?.detail || error?.message || '');
+    flash(t(/organisateur/.test(said) ? 'delete.notOrganiser' : /cle de groupe/.test(said) ? 'delete.noKey' : 'delete.offline'), 'error');
+    render();
+    return false;
+  }
+}
+
 async function deleteDocument(id) {
   const poll = getPoll(id);
   const list = getList(id);
@@ -15329,6 +15387,7 @@ async function deleteDocument(id) {
     render();
     return;
   }
+  if (!(await removeEverywhere(document_))) return;
 
   if (poll) {
     state.polls = state.polls.filter((item) => item.id !== id);
@@ -15347,9 +15406,10 @@ async function deleteDocument(id) {
     saveGames(state.games);
   }
   if (state.store) void state.store.remove(id);
-  if (state.remote) state.remote.remove(id, keyFor(document_), organiserSecret(id)).catch(() => {});
   flash(t('swipe.deleted', { name: documentTitle(document_) }));
-  render();
+  // On the page of what was just deleted, there is nothing left to show.
+  if (location.hash.endsWith(`/${id}`)) navigate('#/');
+  else render();
 }
 
 /** The cards of a tab slide left to be deleted. */
@@ -17113,6 +17173,9 @@ const ARCHIVERS = { list: archiveList, poll: archivePoll, spend: archiveSpend, b
 /** What can be done to a document, from wherever it shows. */
 function openDocumentMenu(document_, { underFinger = false } = {}) {
   const kind = kindOf(document_) || 'game';
+  // A poll is its organiser's to move, put away or delete: the database
+  // refuses anyone else, so the menu does not offer it.
+  const mine = kind !== 'poll' || isOrganiser(document_);
   const dialog = makeDialog('dialog dialog--ask doc-menu-dialog');
   // Opened under a finger still down: the tap that lifts it would land on
   // whichever button appeared there. So a click counts only when its press
@@ -17138,10 +17201,14 @@ function openDocumentMenu(document_, { underFinger = false } = {}) {
       </div>
       <div class="stack stack--tight doc-menu">
         ${location.hash === documentHref(document_) ? '' : button('data-menu-open', t('menu.open'), 'button--primary')}
-        ${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
-        ${button('data-menu-relate', t('relate.button'))}
-        ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
-        ${button('data-menu-delete', t('action.delete'), 'button--danger')}
+        ${
+          mine
+            ? `${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
+               ${button('data-menu-relate', t('relate.button'))}
+               ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
+               ${button('data-menu-delete', t('action.delete'), 'button--danger')}`
+            : `<p class="muted small">${escapeHtml(t('menu.notOrganiser'))}</p>`
+        }
         ${button('data-menu-cancel', t('action.cancel'), 'button--ghost')}
       </div>
     </div>`;
@@ -20424,6 +20491,7 @@ async function pullGame(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidGame(stored) ? adoptGame(stored) : false;
 }
 
@@ -20491,6 +20559,7 @@ async function pullAny(id) {
   if (isValidPoll(stored)) return adoptPoll(stored);
   if (isValidSpend(stored)) return adoptSpend(stored);
   if (isValidBoard(stored)) return adoptBoard(stored);
+  if (stored === null) return whenAbsent(id);
   return false;
 }
 
