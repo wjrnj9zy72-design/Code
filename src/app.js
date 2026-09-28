@@ -47,6 +47,7 @@ import {
   adoptPoll, adoptSpend, bindNewPoll, bindPoll, getPoll, getSpend, heldCounts, newPollView,
   persistPoll, pollCardHtml, pollTitle, pollView, pollsView, pullPoll, pullSpend, watchPoll,
   watchSpend, eventTagHtml,
+  whenAbsent,
 } from './view-polls.js';
 import {
   adoptList, archivedHtml, bindList, bindNewList, forget, getGame, getList, listCardHtml,
@@ -3302,6 +3303,7 @@ export async function pullGame(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidGame(stored) ? adoptGame(stored) : false;
 }
 
@@ -3369,6 +3371,7 @@ export async function pullAny(id) {
   if (isValidPoll(stored)) return adoptPoll(stored);
   if (isValidSpend(stored)) return adoptSpend(stored);
   if (isValidBoard(stored)) return adoptBoard(stored);
+  if (stored === null) return whenAbsent(id);
   return false;
 }
 

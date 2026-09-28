@@ -571,6 +571,27 @@ export async function putInGroup(id) {
  * its card left leads to. Asked first, as on its own page: a list or an
  * account is usually everyone's, and deleting it deletes it for them too.
  */
+/**
+ * Delete a document from the database before this device lets go of it. The
+ * database may refuse — a poll someone else organises, a group whose key this
+ * device does not hold, no connection —, and a copy dropped here while the
+ * database keeps it would still open from its link. So: refused, nothing is
+ * dropped, and the reason is said. True when it is gone (or never was there).
+ */
+export async function removeEverywhere(document_) {
+  // Never shared, never in the database: nothing to ask it.
+  if (!state.remote || !document_.shared) return true;
+  try {
+    await state.remote.remove(document_.id, keyFor(document_), organiserSecret(document_.id));
+    return true;
+  } catch (error) {
+    const said = String(error?.detail || error?.message || '');
+    flash(t(/organisateur/.test(said) ? 'delete.notOrganiser' : /cle de groupe/.test(said) ? 'delete.noKey' : 'delete.offline'), 'error');
+    render();
+    return false;
+  }
+}
+
 export async function deleteDocument(id) {
   const poll = getPoll(id);
   const list = getList(id);
@@ -592,6 +613,7 @@ export async function deleteDocument(id) {
     render();
     return;
   }
+  if (!(await removeEverywhere(document_))) return;
 
   if (poll) {
     state.polls = state.polls.filter((item) => item.id !== id);
@@ -610,9 +632,10 @@ export async function deleteDocument(id) {
     saveGames(state.games);
   }
   if (state.store) void state.store.remove(id);
-  if (state.remote) state.remote.remove(id, keyFor(document_), organiserSecret(id)).catch(() => {});
   flash(t('swipe.deleted', { name: documentTitle(document_) }));
-  render();
+  // On the page of what was just deleted, there is nothing left to show.
+  if (location.hash.endsWith(`/${id}`)) navigate('#/');
+  else render();
 }
 
 /** The cards of a tab slide left to be deleted. */

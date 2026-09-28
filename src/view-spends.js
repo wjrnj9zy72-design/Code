@@ -19,6 +19,7 @@ import { ask, makeDialog } from './view-games.js';
 import {
   askGroup, bindData, groups, hiddenByGroupHtml, inGroupHtml, keyFor, landing, myName, organise,
   organiserSecret, resetGroupChoice, shownDocs, willBeInHtml, isOrganiser,
+  removeEverywhere,
 } from './view-groups.js';
 import { recentNames } from './model.js';
 import { sameName } from './stats.js';
@@ -816,10 +817,10 @@ export function bindSpend(spend) {
 
   view.querySelector('#spend-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('spends.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(spend))) return;
     state.spends = state.spends.filter((item) => item.id !== spend.id);
     saveSpends(state.spends);
     if (state.store) void state.store.remove(spend.id);
-    if (state.remote && spend.shared) state.remote.remove(spend.id, keyFor(spend), organiserSecret(spend.id)).catch(() => {});
     navigate('#/spends');
   });
 }

@@ -20,6 +20,7 @@ import { ask, download, fileName, makeDialog, showCopyDialog } from './view-game
 import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
   organise, organiserSecret, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
+  removeEverywhere,
 } from './view-groups.js';
 import { markForActivity, activityOnClose } from './flows.js';
 import {
@@ -712,6 +713,31 @@ export function pushFailed(changed) {
   };
 }
 
+/**
+ * The database has nothing under an id this device holds as shared. Reading
+ * cannot tell « deleted » from « never arrived » — only a write is answered
+ * « document supprimé ». So: a poll someone else organises came from the
+ * database and nowhere else, and gone from it, it is gone; anything else is
+ * sent again — refused as deleted, it leaves this device; accepted, it was a
+ * share that never arrived, and now has. True when it left.
+ */
+export async function whenAbsent(id) {
+  const held = everything().find((one) => one.id === id);
+  if (!held?.shared || !state.remote) return false;
+  if (held.kind === 'poll' && !isOrganiser(held)) {
+    dropDeleted(id);
+    return true;
+  }
+  try {
+    await state.remote.put(held, keyFor(held), organiserSecret(id));
+    return false;
+  } catch (error) {
+    if (!wasDeleted(error)) return false;
+    dropDeleted(id);
+    return true;
+  }
+}
+
 export function dropDeleted(id) {
   const poll = getPoll(id);
   const list = getList(id);
@@ -1085,10 +1111,10 @@ export function bindPoll(poll) {
 
   view.querySelector('#poll-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('polls.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(poll))) return;
     state.polls = state.polls.filter((item) => item.id !== poll.id);
     savePolls(state.polls);
     if (state.store) void state.store.remove(poll.id);
-    if (state.remote) state.remote.remove(poll.id, keyFor(poll), organiserSecret(poll.id)).catch(() => {});
     navigate(pollHome(poll));
   });
 
@@ -1311,6 +1337,7 @@ export async function pullPoll(id) {
   } catch {
     return null;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidPoll(stored) ? adoptPoll(stored) : false;
 }
 
@@ -1355,6 +1382,7 @@ export async function pullSpend(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidSpend(stored) ? adoptSpend(stored) : false;
 }
 

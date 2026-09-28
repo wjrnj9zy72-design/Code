@@ -13,11 +13,13 @@ import {
 import {
   actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
   signedByHtml,
+  whenAbsent,
 } from './view-polls.js';
 import { ask, makeDialog, showCopyDialog } from './view-games.js';
 import {
   hiddenByGroupHtml, inGroupHtml, keyFor, landing, myName, organiserSecret, resetGroupChoice,
   shownDocs, startSharing, willBeInHtml,
+  removeEverywhere,
 } from './view-groups.js';
 import { listFlowsHtml } from './view-flows.js';
 import { recentNames } from './model.js';
@@ -560,10 +562,10 @@ export function bindList(list) {
 
   view.querySelector('#list-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('lists.confirmDelete'), { confirmLabel: t('action.delete'), danger: true }))) return;
+    if (!(await removeEverywhere(list))) return;
     state.lists = state.lists.filter((item) => item.id !== list.id);
     saveLists(state.lists);
     if (state.store) void state.store.remove(list.id);
-    if (state.remote) state.remote.remove(list.id, keyFor(list), organiserSecret(list.id)).catch(() => {});
     navigate('#/lists');
   });
 
@@ -850,6 +852,7 @@ export async function pullList(id) {
   } catch {
     return false;
   }
+  if (stored === null) return whenAbsent(id);
   return isValidList(stored) ? adoptList(stored) : false;
 }
 

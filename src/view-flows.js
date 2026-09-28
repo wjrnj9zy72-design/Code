@@ -16,7 +16,7 @@ import {
 import { persistPoll, replacePoll, signed } from './view-polls.js';
 import { makeDialog } from './view-games.js';
 import {
-  deleteDocument, myName, openAttachDialog, openRelateDialog, organise, replaceAny, shownDocs,
+  deleteDocument, myName, openAttachDialog, openRelateDialog, organise, replaceAny, shownDocs, isOrganiser,
 } from './view-groups.js';
 import { t } from './i18n.js';
 import { readAmount } from './spends.js';
@@ -656,6 +656,9 @@ const ARCHIVERS = { list: archiveList, poll: archivePoll, spend: archiveSpend, b
 /** What can be done to a document, from wherever it shows. */
 export function openDocumentMenu(document_, { underFinger = false } = {}) {
   const kind = kindOf(document_) || 'game';
+  // A poll is its organiser's to move, put away or delete: the database
+  // refuses anyone else, so the menu does not offer it.
+  const mine = kind !== 'poll' || isOrganiser(document_);
   const dialog = makeDialog('dialog dialog--ask doc-menu-dialog');
   // Opened under a finger still down: the tap that lifts it would land on
   // whichever button appeared there. So a click counts only when its press
@@ -681,10 +684,14 @@ export function openDocumentMenu(document_, { underFinger = false } = {}) {
       </div>
       <div class="stack stack--tight doc-menu">
         ${location.hash === documentHref(document_) ? '' : button('data-menu-open', t('menu.open'), 'button--primary')}
-        ${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
-        ${button('data-menu-relate', t('relate.button'))}
-        ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
-        ${button('data-menu-delete', t('action.delete'), 'button--danger')}
+        ${
+          mine
+            ? `${attachTargets(document_, everything()).length || parentId(document_) ? button('data-menu-attach', t(isEventDoc(document_) ? 'activity.attach' : 'chain.attach')) : ''}
+               ${button('data-menu-relate', t('relate.button'))}
+               ${button('data-menu-archive', t(document_.archivedAt ? 'archive.back' : 'archive.put'))}
+               ${button('data-menu-delete', t('action.delete'), 'button--danger')}`
+            : `<p class="muted small">${escapeHtml(t('menu.notOrganiser'))}</p>`
+        }
         ${button('data-menu-cancel', t('action.cancel'), 'button--ghost')}
       </div>
     </div>`;

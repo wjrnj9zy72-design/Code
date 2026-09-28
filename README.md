@@ -498,7 +498,16 @@ la referme.
   compte ou un tableau d'idées, depuis son onglet ou l'agenda — il est souvent
   à tout le groupe.
 - Un sondage organisé par quelqu'un d'autre ne se glisse pas : lui seul peut le
-  supprimer.
+  supprimer. Son menu (appui long, « ⋯ ») ne le propose pas non plus.
+- **Dans la base d'abord** : ce qui est partagé est supprimé de la base avant
+  de quitter l'appareil. Si elle refuse (pas l'organisateur, pas la clé du
+  groupe, pas de réponse), rien n'est retiré et l'app dit pourquoi — sinon le
+  lien l'ouvrirait encore.
+- **Chez les autres** : quand la base n'a plus rien sous un élément partagé
+  qu'un appareil garde, un sondage organisé par un autre quitte l'appareil (il
+  ne pouvait venir que de la base) ; le reste y est renvoyé, et s'en va si la
+  base répond « document supprimé » (sinon c'était un partage jamais arrivé,
+  qui arrive).
 
 ## Jeux fournis
 
