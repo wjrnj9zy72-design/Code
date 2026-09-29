@@ -1491,6 +1491,38 @@ create table if not exists public.marque_points_account_owner (
 );
 alter table public.marque_points_account_owner enable row level security;
 
+-- Une clé d'un compte coupée — un téléphone perdu, quelqu'un qu'on sort — sort
+-- ce compte du groupe : il ne s'y redonne plus de clé en se connectant, même
+-- depuis le téléphone coupé. Seul un appareil admis de nouveau l'y ramène.
+create table if not exists public.marque_points_account_cut (
+  user_id uuid not null,
+  group_id text not null,
+  cut_at timestamptz not null default now(),
+  primary key (user_id, group_id)
+);
+alter table public.marque_points_account_cut enable row level security;
+
+create or replace function public.marque_points_account_cut_mark()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.user_id is not null then
+    insert into public.marque_points_account_cut (user_id, group_id)
+    values (old.user_id, old.group_id)
+    on conflict (user_id, group_id) do update set cut_at = now();
+  end if;
+  return old;
+end;
+$$;
+
+drop trigger if exists marque_points_account_cut_mark on public.marque_points_group_key;
+create trigger marque_points_account_cut_mark
+  after delete on public.marque_points_group_key
+  for each row execute function public.marque_points_account_cut_mark();
+
 -- Marquer la clé de cet appareil au nom du compte connecté (et retenir son prénom).
 create or replace function public.marque_points_account_link(p_key text, p_name text default '')
 returns jsonb
@@ -1501,6 +1533,7 @@ as $$
 declare
   v_user uuid := auth.uid();
   v_group text;
+  v_since timestamptz;
 begin
   if v_user is null then
     raise exception 'connexion requise';
@@ -1508,10 +1541,13 @@ begin
   update public.marque_points_group_key k
      set user_id = v_user
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
-  returning k.group_id into v_group;
+  returning k.group_id, k.created_at into v_group, v_since;
   if not found then
     return jsonb_build_object('status', 'unknown');
   end if;
+  -- Une clé admise après la coupure ramène le compte ; une clé d'avant, non.
+  delete from public.marque_points_account_cut
+   where user_id = v_user and group_id = v_group and cut_at < v_since;
   if btrim(coalesce(p_name, '')) <> '' then
     insert into public.marque_points_account (user_id, name)
     values (v_user, left(btrim(p_name), 40))
@@ -1571,6 +1607,8 @@ begin
       join public.marque_points_group g on g.id = k.group_id
      where k.user_id = v_user
        and not (to_jsonb(k.group_id) <@ coalesce(p_have, '[]'::jsonb))
+       and not exists (select 1 from public.marque_points_account_cut c
+                        where c.user_id = v_user and c.group_id = k.group_id)
      group by k.group_id, g.name
   loop
     v_key := replace(gen_random_uuid()::text, '-', '');
@@ -1635,8 +1673,15 @@ begin
   end if;
   update public.marque_points_group_key set user_id = null where user_id = v_user;
   delete from public.marque_points_account_owner where user_id = v_user;
+  delete from public.marque_points_account_cut where user_id = v_user;
   delete from public.marque_points_account where user_id = v_user;
-  delete from auth.users where id = v_user;
+  -- L'adresse elle-même vit chez Supabase Auth. Si la base refusait d'y
+  -- toucher, le reste est effacé quand même, et l'app le dit.
+  begin
+    delete from auth.users where id = v_user;
+  exception when insufficient_privilege then
+    return jsonb_build_object('status', 'partial');
+  end;
   return jsonb_build_object('status', 'ok');
 end;
 $$;
@@ -1677,6 +1722,7 @@ grant execute on function public.marque_points_account_owner_put(text, text) to 
 grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
 grant execute on function public.marque_points_account_leave(text) to authenticated;
 revoke all on function public.marque_points_account_delete() from public, anon;
+revoke all on function public.marque_points_account_cut_mark() from public, anon, authenticated;
 grant execute on function public.marque_points_account_delete() to authenticated;
 ```
 
@@ -2561,14 +2607,22 @@ navigateur, jamais dans l'app de l'écran d'accueil : il faut le **code**.
 
 ### 3. Vérifier que la connexion par e-mail est active
 
-Supabase → **Authentication** → **Sign In / Providers** → **Email** : activé
-(c'est le réglage par défaut). Rien d'autre à changer.
+Supabase → **Authentication** → **Sign In / Providers** :
+
+- **Allow new users to sign up** : activé — sinon personne ne peut créer de
+  compte ;
+- **Email** : activé (c'est le réglage par défaut). Dedans, **Confirm email**
+  peut rester activé (le code vaut confirmation), **Email OTP Expiration** à
+  `3600` (une heure), et **Email OTP Length** à `6` — l'app en accepte jusqu'à
+  dix, mais six se tapent mieux. **Save**.
 
 ### 4. L'envoi des e-mails : la limite de Supabase
 
 Le service d'envoi fourni par Supabase est fait pour essayer : il n'envoie
-**que quelques e-mails par heure**, pour tout le projet. Pour un groupe entier
-qui se connecte le même soir, il faut votre propre service d'envoi :
+**que quelques e-mails par heure**, pour tout le projet, et — d'après sa
+documentation — **seulement aux adresses des membres de l'équipe du projet**
+(la vôtre). Pour que vos proches reçoivent leur code, il faut votre propre
+service d'envoi :
 
 1. Créez un compte gratuit chez un service d'envoi d'e-mails (Brevo, Resend…)
    et demandez-lui des **identifiants SMTP**.
@@ -2582,6 +2636,18 @@ qui se connecte le même soir, il faut votre propre service d'envoi :
 Dans l'app : **Réglages → Compte** → votre adresse → **Recevoir un code** → le
 code reçu → **Se connecter**. Puis, sur un autre appareil (ou une fenêtre
 privée), la même chose : vos groupes et vos sondages y apparaissent.
+
+### 6. Un téléphone perdu, quelqu'un qu'on sort
+
+- **Couper l'appareil** dans le groupe (**Groupes** → **Qui est dans le
+  groupe** → **Couper** en face de l'appareil, ou l'étape 2 bis, 4) : si cet appareil était à un
+  compte, **ce compte est sorti du groupe** — ni le téléphone coupé ni un
+  nouvel appareil ne s'y redonnent de clé en se connectant. Les autres
+  appareils de la personne, eux, restent dans le groupe. Pour qu'un nouvel
+  appareil y revienne : une invitation, comme au premier jour.
+- **La personne elle-même** : **Réglages → Compte → Se déconnecter de tous
+  les appareils**, depuis n'importe lequel de ses appareils. Le téléphone
+  perdu n'a plus de compte au plus tard une heure après.
 
 ## Ce que ce montage implique
 

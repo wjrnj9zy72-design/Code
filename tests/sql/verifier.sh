@@ -60,7 +60,9 @@ for controle in "$ICI"/*.sql; do
     done
   fi
   sortie="$(psql_ "-d essai_$nom -f $TMP/$nom.sql" 2>&1)"
-  if [ $? -eq 0 ]; then
+  # Un contrôle dit « ÉCHEC » dans un NOTICE, sans erreur SQL : c'est un échec
+  # quand même, et il ne doit pas passer pour un contrôle de moins.
+  if [ $? -eq 0 ] && ! echo "$sortie" | grep -q 'ÉCHEC'; then
     echo "$nom : $(echo "$sortie" | grep -c 'OK [0-9]') contrôle(s) OK"
   else
     ECHECS=$((ECHECS + 1)); echo "$nom : ÉCHEC"; echo "$sortie" | grep -E 'ÉCHEC|ERROR' | head -3

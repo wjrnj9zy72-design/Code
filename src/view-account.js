@@ -48,7 +48,7 @@ export async function accountToken() {
   try {
     const fresh = await state.remote.refreshSession(session.refresh);
     if (!fresh) throw new Error('no session');
-    saveAccount({ ...fresh, email: fresh.email || session.email });
+    saveAccount({ ...fresh, email: fresh.email || session.email, sent: session.sent });
     return fresh.access;
   } catch (error) {
     // Refused (the account was removed, the refresh token spent): out. No
@@ -89,12 +89,25 @@ export function syncAccount({ restore = true, force = false } = {}) {
         }
         if (!myName() && answer?.name) setMyName(answer.name);
       }
+      // What went up already does not go up again: one call per new key or
+      // new secret, not one per thing held, at every opening.
+      const sent = account()?.sent || { keys: [], owners: [] };
+      const keys = new Set(sent.keys);
+      const owners = new Set(sent.owners);
+      const name = myName();
       for (const group of groups()) {
-        await state.remote.accountLink(token, group.key, myName()).catch(() => null);
+        const mark = `${group.id}|${group.key.slice(0, 8)}|${name}`;
+        if (keys.has(mark)) continue;
+        const answer = await state.remote.accountLink(token, group.key, name).catch(() => null);
+        if (answer?.status === 'ok') keys.add(mark);
       }
       for (const [id, secret] of Object.entries(state.prefs.organiser || {})) {
-        await state.remote.accountOwner(token, id, secret).catch(() => null);
+        if (owners.has(id)) continue;
+        const answer = await state.remote.accountOwner(token, id, secret).catch(() => null);
+        if (answer?.status === 'ok') owners.add(id);
       }
+      const now = account();
+      if (now) saveAccount({ ...now, sent: { keys: [...keys], owners: [...owners] } });
       lastSync = Date.now();
     } catch {
       return false;
@@ -132,6 +145,7 @@ export function accountHtml() {
         <div class="row">
           <button type="button" class="button button--small" id="account-sync">${escapeHtml(t('account.sync'))}</button>
           <button type="button" class="button button--small button--ghost" id="account-out">${escapeHtml(t('account.signOut'))}</button>
+          <button type="button" class="button button--small button--ghost" id="account-out-all">${escapeHtml(t('account.signOutAll'))}</button>
           <button type="button" class="button button--small button--ghost button--danger" id="account-delete">${escapeHtml(t('account.delete'))}</button>
         </div>
         <div class="row"><button type="button" class="button button--small button--ghost" data-goto="#/confidentialite">${escapeHtml(t('privacy.title'))}</button></div>
@@ -224,22 +238,32 @@ export function bindAccount() {
   view.querySelector('#account-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('account.deleteConfirm'), { confirmLabel: t('account.delete'), danger: true }))) return;
     const token = await accountToken();
+    let answer = null;
     try {
       if (!token) throw new Error('no token');
-      await state.remote.accountDelete(token);
+      answer = await state.remote.accountDelete(token);
     } catch {
       flash(t('account.deleteFailed'), 'error');
       render();
       return;
     }
     saveAccount(null);
-    flash(t('account.deleted'));
+    // Everything of ours is gone; only the address, kept by Supabase itself,
+    // may have been out of reach — then it is said, not hidden.
+    flash(t(answer?.status === 'partial' ? 'account.deletedPartly' : 'account.deleted'), answer?.status === 'partial' ? 'error' : 'info');
     render();
   });
-  view.querySelector('#account-out')?.addEventListener('click', () => {
+  const signOut = async (everywhere) => {
+    const session = account();
+    if (session?.access) await state.remote.signOut(session.access, everywhere).catch(() => null);
     saveAccount(null);
-    flash(t('account.signedOut'));
+    flash(t(everywhere ? 'account.signedOutAll' : 'account.signedOut'));
     render();
+  };
+  view.querySelector('#account-out')?.addEventListener('click', () => void signOut(false));
+  view.querySelector('#account-out-all')?.addEventListener('click', async () => {
+    if (!(await ask(t('account.signOutAllConfirm'), { confirmLabel: t('account.signOutAll') }))) return;
+    await signOut(true);
   });
 }
 

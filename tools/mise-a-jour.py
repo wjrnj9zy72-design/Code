@@ -27,6 +27,8 @@ def table(name):
     m = re.search(r"(create table if not exists public\." + name + r" \(.*?\n\);\nalter table public\." + name + r" enable row level security;\n)", bis, flags=re.S); assert m, name; return m.group(1)
 def accounts_column():
     m = re.search(r"(alter table public\.marque_points_group_key\n  add column if not exists user_id uuid;\ncreate index if not exists marque_points_group_key_user[^;]*;\n)", bis); assert m; return m.group(1)
+def trigger(name):
+    m = re.search(r"(drop trigger if exists " + name + r" on [^;]*;\ncreate trigger " + name + r"\n[^;]*;\n)", bis); assert m, name; return m.group(1)
 def alter(column):
     m = re.search(r"(alter table public\.marque_points_games\n  add column if not exists " + column + r"[^;]*;\n)", bis); assert m, column; return m.group(1)
 out = "\n".join([
@@ -75,7 +77,10 @@ function('marque_points_agenda'),
     [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda']]
     + [revoke('marque_points_merge_votes')]) + "\n",
 "-- 6. Les comptes : quelles clés sont à quel compte, et les secrets d'organisateur.\n"
-+ accounts_column() + "\n" + table('marque_points_account') + "\n" + table('marque_points_account_owner'),
++ accounts_column() + "\n" + table('marque_points_account') + "\n" + table('marque_points_account_owner')
++ "\n" + table('marque_points_account_cut'),
+function('marque_points_account_cut_mark'),
+trigger('marque_points_account_cut_mark'),
 function('marque_points_account_link'),
 function('marque_points_account_owner_put'),
 function('marque_points_account_restore'),
@@ -83,7 +88,8 @@ function('marque_points_account_leave'),
 function('marque_points_account_delete'),
 "-- Pour les comptes connectés seulement, pas pour la clé publique de la page.\n" + "\n".join(
     [revoke(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]
-    + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]) + "\n",
+    + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]
+    + [revoke('marque_points_account_cut_mark')]) + "\n",
 ])
 (root / 'supabase/mise-a-jour.sql').write_text(out)
 import sys

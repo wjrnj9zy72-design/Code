@@ -60,18 +60,60 @@ begin
   if jsonb_array_length(v_out->'groups') = 0 then raise notice 'OK 10 : toutes ses clés coupées, le compte est sorti du groupe';
   else raise notice 'ÉCHEC 10 : %', v_out; end if;
 
+  -- Un appareil de plus, sans rien effacer : une clé posée à la main.
+  -- (marque_points_new_group_key refait la clé du groupe : tout le monde dehors.)
+
   -- 11. quitter : plus aucune clé du compte dans le groupe
-  v_other := public.marque_points_new_group_key('Mifa');
-  perform public.marque_points_account_link(v_other, 'Gui');
-  v_out := public.marque_points_account_leave(v_other);
-  if v_out->>'status' = 'ok' and jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'x'))->'groups') = 0 then
-    raise notice 'OK 11 : quitter sort le compte du groupe';
+  delete from public.marque_points_account_cut where user_id = v_gui;
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values ('k_q1', v_group, 'essai', md5('cle-q1' || 'sel'), 'sel', false),
+         ('k_q2', v_group, 'essai', md5('cle-q2' || 'sel'), 'sel', false);
+  perform public.marque_points_account_link('cle-q1', 'Gui');
+  perform public.marque_points_account_link('cle-q2', 'Gui');
+  v_out := public.marque_points_account_leave('cle-q1');
+  if v_out->>'status' = 'ok'
+     and not exists (select 1 from public.marque_points_group_key where user_id = v_gui)
+     and jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'x'))->'groups') = 0 then
+    raise notice 'OK 11 : quitter sort le compte du groupe, sur tous ses appareils';
   else raise notice 'ÉCHEC 11 : %', v_out; end if;
+
+  -- 13. le téléphone perdu : Gui a deux appareils ; on coupe l'un
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values ('k_admin', v_group, 'la clé de qui fait entrer', md5('cle-admin' || 'sel'), 'sel', true),
+         ('k_tel', v_group, 'téléphone', md5('cle-tel' || 'sel'), 'sel', false),
+         ('k_ordi', v_group, 'ordinateur', md5('cle-ordi' || 'sel'), 'sel', false);
+  perform public.marque_points_account_link('cle-tel', 'Gui');
+  perform public.marque_points_account_link('cle-ordi', 'Gui');
+  if jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'avant'))->'groups') <> 1 then
+    raise notice 'ÉCHEC 13 : avant la coupure, le compte devait ramener le groupe';
+  end if;
+  perform public.marque_points_cut_key('cle-admin', 'k_tel');
+  if exists (select 1 from public.marque_points_group_key where id = 'k_tel') then
+    raise notice 'ÉCHEC 13 : la clé n''a pas été coupée';
+  end if;
+  v_out := public.marque_points_account_restore('[]'::jsonb, 'le téléphone coupé');
+  if jsonb_array_length(v_out->'groups') = 0 then
+    raise notice 'OK 13 : un appareil coupé ne se redonne pas de clé par le compte, même si un autre appareil reste';
+  else raise notice 'ÉCHEC 13 : %', v_out; end if;
+  if (public.marque_points_group_of('cle-ordi'))->>'id' = v_group then
+    raise notice 'OK 14 : l''autre appareil, lui, reste dans le groupe';
+  else raise notice 'ÉCHEC 14'; end if;
+  perform public.marque_points_account_link('cle-ordi', 'Gui');
+  if jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'x'))->'groups') = 0 then
+    raise notice 'OK 15 : en se resynchronisant, il ne rouvre pas la porte au téléphone coupé';
+  else raise notice 'ÉCHEC 15'; end if;
+
+  -- 16. un appareil admis après la coupure ramène le compte
+  update public.marque_points_account_cut set cut_at = now() - interval '1 minute' where user_id = v_gui;
+  insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits)
+  values ('k_neuf', v_group, 'admis de nouveau', md5('cle-neuf' || 'sel'), 'sel', false);
+  perform public.marque_points_account_link('cle-neuf', 'Gui');
+  if jsonb_array_length((public.marque_points_account_restore('[]'::jsonb, 'x'))->'groups') = 1 then
+    raise notice 'OK 16 : un appareil admis de nouveau ramène le compte dans le groupe';
+  else raise notice 'ÉCHEC 16'; end if;
 
   -- 12. supprimer son compte : l'adresse, le prénom, les secrets, les marques
   insert into auth.users (id, email) values (v_gui, 'gui@exemple.fr');
-  v_other := public.marque_points_new_group_key('Mifa');
-  perform public.marque_points_account_link(v_other, 'Gui');
   perform public.marque_points_account_owner_put(v_id, v_secret);
   v_out := public.marque_points_account_delete();
   if v_out->>'status' = 'ok'
@@ -79,7 +121,8 @@ begin
      and not exists (select 1 from public.marque_points_account where user_id = v_gui)
      and not exists (select 1 from public.marque_points_account_owner where user_id = v_gui)
      and not exists (select 1 from public.marque_points_group_key where user_id = v_gui)
-     and (public.marque_points_group_of(v_other))->>'id' = v_group then
+     and not exists (select 1 from public.marque_points_account_cut where user_id = v_gui)
+     and (public.marque_points_group_of('cle-neuf'))->>'id' = v_group then
     raise notice 'OK 12 : le compte et son adresse sont effacés, l''appareil reste dans le groupe';
   else raise notice 'ÉCHEC 12 : %', v_out; end if;
 end;

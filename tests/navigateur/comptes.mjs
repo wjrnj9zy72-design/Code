@@ -30,6 +30,7 @@ const codeFor = async (email) => (await (await fetch(`${BASE}/__code?email=${enc
 
 async function signIn(page) {
   await page.goto(`${B}#/settings`);
+  await page.reload();
   await page.waitForSelector('#account-email');
   await page.fill('#account-email', EMAIL);
   await page.click('#account-email-form button[type=submit]');
@@ -100,15 +101,41 @@ await neuf.waitForSelector('#poll-close', { state: 'attached', timeout: 10000 })
 await neuf.evaluate(() => document.querySelectorAll('#view details').forEach((d) => { d.open = true; }));
 check('et il y règle le sondage en organisateur', (await neuf.locator('#poll-close').count()) === 1 && (await neuf.locator('#poll-delete').count()) === 1, JSON.stringify({ close: await neuf.locator('#poll-close').count(), del: await neuf.locator('#poll-delete').count(), org: (await prefsOf(neuf)).organiser, owned: await neuf.evaluate((i) => JSON.parse(localStorage.getItem('marque-points:polls:v1') || '[]').find((p) => p.id === i)?.owned, poll) }));
 
-/* --- 3. se déconnecter garde ce qui est là -------------------------------- */
+/* --- 2 bis. le téléphone perdu : coupé, il ne revient pas par le compte ---- */
 
+const rpc = (fn, body) => fetch(`${BASE}/rest/v1/rpc/${fn}`, {
+  method: 'POST', headers: { 'content-type': 'application/json', apikey: 'test-anon-key' }, body: JSON.stringify(body),
+}).then((r) => r.json());
+const keys = await rpc('marque_points_group_keys', { p_key: 'la-cle-famille' });
+const perdu = (Array.isArray(keys) ? keys : []).find((one) => /Gui · /.test(one.label || ''));
+check('le nouvel appareil figure dans la liste des appareils, à son prénom', Boolean(perdu), JSON.stringify(keys).slice(0, 300));
+await rpc('marque_points_cut_key', { p_key: 'la-cle-famille', p_id: perdu?.id });
+await neuf.reload();
+await neuf.waitForTimeout(3000);
+check('coupé, il sort du groupe — et le compte ne l’y ramène pas', ((await prefsOf(neuf)).groups || []).length === 0,
+  JSON.stringify((await prefsOf(neuf)).groups));
+
+/* --- 3. se déconnecter partout ------------------------------------------- */
+
+const session = await neuf.evaluate(() => JSON.parse(localStorage.getItem('marque-points:account:v1') || 'null'));
 await neuf.goto(`${B}#/settings`);
-await neuf.waitForSelector('#account-out');
-await neuf.click('#account-out');
+await neuf.waitForSelector('#account-out-all');
+await neuf.click('#account-out-all');
+await neuf.click('.dialog--ask [data-answer="yes"]');
 await neuf.waitForSelector('#account-email');
-check('déconnecté, le groupe reste sur l’appareil', ((await prefsOf(neuf)).groups || []).length === 1);
+check('déconnecté partout : ce qui est sur l’appareil y reste', (await prefsOf(neuf)).me === 'Gui');
+const refused = await fetch(`${BASE}/auth/v1/token?grant_type=refresh_token`, {
+  method: 'POST', headers: { 'content-type': 'application/json', apikey: 'test-anon-key' },
+  body: JSON.stringify({ refresh_token: session?.refresh }),
+});
+check('et les sessions du compte ne se renouvellent plus, ailleurs non plus', refused.status === 400);
 
 /* --- 4. la confidentialité, et supprimer son compte ---------------------- */
+
+// Déconnecté partout, l'appareil de Gui le serait à l'expiration de son jeton ;
+// on n'attend pas l'heure : il se reconnecte.
+await gui.evaluate(() => localStorage.removeItem('marque-points:account:v1'));
+await signIn(gui);
 
 await gui.goto(`${B}#/settings`);
 await gui.waitForSelector('#account-delete');

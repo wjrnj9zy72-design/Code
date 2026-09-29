@@ -402,6 +402,14 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return sessionOf(answer);
     },
 
+    /**
+     * End a session at Supabase, so its refresh token no longer works —
+     * `everywhere`, every session of the account: a lost phone included.
+     */
+    async signOut(token, everywhere = false) {
+      await call('logout', {}, token, `/auth/v1/logout?scope=${everywhere ? 'global' : 'local'}`);
+    },
+
     /** Mark this device's key of a group as the account's. */
     async accountLink(token, key, name = '') {
       return call('marque_points_account_link', { p_key: key, p_name: name }, token);

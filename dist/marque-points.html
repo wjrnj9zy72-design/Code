@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="ccc16181" />
+    <meta name="app-build" content="d824df54" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1896,6 +1896,7 @@ const STRINGS = {
     'account.deleteConfirm': 'Supprimer votre compte ? Votre adresse, votre prénom et vos droits gardés sur le compte sont effacés. Cet appareil reste dans ses groupes, sans compte.',
     'account.deleteFailed': 'Le compte n’a pas pu être supprimé : la base n’a pas répondu. Réessayez une fois connecté.',
     'account.deleted': 'Compte supprimé. Votre adresse n’est plus gardée nulle part.',
+    'account.deletedPartly': 'Compte supprimé, mais votre adresse est restée chez Supabase : demandez à l’organisateur de l’app de l’effacer (Authentication → Users).',
     'privacy.title': 'Confidentialité',
     'privacy.intro': 'Together est une petite app, sans publicité, pour organiser des choses entre proches. Voici ce qu’elle garde, où, et comment le faire effacer.',
     'privacy.deviceTitle': 'Sur votre appareil',
@@ -1934,6 +1935,9 @@ const STRINGS = {
     'account.synced': 'Groupes ou sondages retrouvés depuis votre compte.',
     'account.upToDate': 'Tout est à jour.',
     'account.signOut': 'Se déconnecter',
+    'account.signOutAll': 'Se déconnecter de tous les appareils',
+    'account.signOutAllConfirm': 'Déconnecter votre compte de tous les appareils, celui-ci compris ? Utile pour un téléphone perdu : faites aussi couper cet appareil dans le groupe (Groupes → Qui est dans le groupe → Couper). Ce qui est sur chaque appareil y reste.',
+    'account.signedOutAll': 'Déconnecté de tous les appareils (d’ici une heure au plus pour ceux qui sont ouverts).',
     'account.signedOut': 'Déconnecté. Ce qui est sur cet appareil y reste.',
     'menu.open': 'Ouvrir',
     'menu.notOrganiser': 'Seul l’organisateur de ce sondage peut le déplacer, l’archiver ou le supprimer.',
@@ -2940,6 +2944,7 @@ const STRINGS = {
     'account.deleteConfirm': 'Delete your account? Your address, your name and the rights kept on the account are erased. This device stays in its groups, without an account.',
     'account.deleteFailed': 'The account could not be deleted: the database did not answer. Try again once online.',
     'account.deleted': 'Account deleted. Your address is no longer kept anywhere.',
+    'account.deletedPartly': 'Account deleted, but your address stayed with Supabase: ask whoever runs the app to erase it (Authentication → Users).',
     'privacy.title': 'Privacy',
     'privacy.intro': 'Together is a small app, with no ads, for organising things between people who know each other. Here is what it keeps, where, and how to have it erased.',
     'privacy.deviceTitle': 'On your device',
@@ -2978,6 +2983,9 @@ const STRINGS = {
     'account.synced': 'Groups or polls brought back from your account.',
     'account.upToDate': 'Everything is up to date.',
     'account.signOut': 'Sign out',
+    'account.signOutAll': 'Sign out of every device',
+    'account.signOutAllConfirm': 'Sign your account out of every device, this one included? Useful for a lost phone: have that device cut from the group too (Groups → Who is in the group → Cut off). What is on each device stays there.',
+    'account.signedOutAll': 'Signed out of every device (within an hour at most for those open right now).',
     'account.signedOut': 'Signed out. What is on this device stays here.',
     'menu.open': 'Open',
     'menu.notOrganiser': 'Only this poll’s organiser can move, archive or delete it.',
@@ -9042,6 +9050,14 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     async refreshSession(refresh) {
       const answer = await call('token', { refresh_token: refresh }, null, '/auth/v1/token?grant_type=refresh_token');
       return sessionOf(answer);
+    },
+
+    /**
+     * End a session at Supabase, so its refresh token no longer works —
+     * `everywhere`, every session of the account: a lost phone included.
+     */
+    async signOut(token, everywhere = false) {
+      await call('logout', {}, token, `/auth/v1/logout?scope=${everywhere ? 'global' : 'local'}`);
     },
 
     /** Mark this device's key of a group as the account's. */
@@ -17459,7 +17475,7 @@ async function accountToken() {
   try {
     const fresh = await state.remote.refreshSession(session.refresh);
     if (!fresh) throw new Error('no session');
-    saveAccount({ ...fresh, email: fresh.email || session.email });
+    saveAccount({ ...fresh, email: fresh.email || session.email, sent: session.sent });
     return fresh.access;
   } catch (error) {
     // Refused (the account was removed, the refresh token spent): out. No
@@ -17500,12 +17516,25 @@ function syncAccount({ restore = true, force = false } = {}) {
         }
         if (!myName() && answer?.name) setMyName(answer.name);
       }
+      // What went up already does not go up again: one call per new key or
+      // new secret, not one per thing held, at every opening.
+      const sent = account()?.sent || { keys: [], owners: [] };
+      const keys = new Set(sent.keys);
+      const owners = new Set(sent.owners);
+      const name = myName();
       for (const group of groups()) {
-        await state.remote.accountLink(token, group.key, myName()).catch(() => null);
+        const mark = `${group.id}|${group.key.slice(0, 8)}|${name}`;
+        if (keys.has(mark)) continue;
+        const answer = await state.remote.accountLink(token, group.key, name).catch(() => null);
+        if (answer?.status === 'ok') keys.add(mark);
       }
       for (const [id, secret] of Object.entries(state.prefs.organiser || {})) {
-        await state.remote.accountOwner(token, id, secret).catch(() => null);
+        if (owners.has(id)) continue;
+        const answer = await state.remote.accountOwner(token, id, secret).catch(() => null);
+        if (answer?.status === 'ok') owners.add(id);
       }
+      const now = account();
+      if (now) saveAccount({ ...now, sent: { keys: [...keys], owners: [...owners] } });
       lastSync = Date.now();
     } catch {
       return false;
@@ -17543,6 +17572,7 @@ function accountHtml() {
         <div class="row">
           <button type="button" class="button button--small" id="account-sync">${escapeHtml(t('account.sync'))}</button>
           <button type="button" class="button button--small button--ghost" id="account-out">${escapeHtml(t('account.signOut'))}</button>
+          <button type="button" class="button button--small button--ghost" id="account-out-all">${escapeHtml(t('account.signOutAll'))}</button>
           <button type="button" class="button button--small button--ghost button--danger" id="account-delete">${escapeHtml(t('account.delete'))}</button>
         </div>
         <div class="row"><button type="button" class="button button--small button--ghost" data-goto="#/confidentialite">${escapeHtml(t('privacy.title'))}</button></div>
@@ -17635,22 +17665,32 @@ function bindAccount() {
   view.querySelector('#account-delete')?.addEventListener('click', async () => {
     if (!(await ask(t('account.deleteConfirm'), { confirmLabel: t('account.delete'), danger: true }))) return;
     const token = await accountToken();
+    let answer = null;
     try {
       if (!token) throw new Error('no token');
-      await state.remote.accountDelete(token);
+      answer = await state.remote.accountDelete(token);
     } catch {
       flash(t('account.deleteFailed'), 'error');
       render();
       return;
     }
     saveAccount(null);
-    flash(t('account.deleted'));
+    // Everything of ours is gone; only the address, kept by Supabase itself,
+    // may have been out of reach — then it is said, not hidden.
+    flash(t(answer?.status === 'partial' ? 'account.deletedPartly' : 'account.deleted'), answer?.status === 'partial' ? 'error' : 'info');
     render();
   });
-  view.querySelector('#account-out')?.addEventListener('click', () => {
+  const signOut = async (everywhere) => {
+    const session = account();
+    if (session?.access) await state.remote.signOut(session.access, everywhere).catch(() => null);
     saveAccount(null);
-    flash(t('account.signedOut'));
+    flash(t(everywhere ? 'account.signedOutAll' : 'account.signedOut'));
     render();
+  };
+  view.querySelector('#account-out')?.addEventListener('click', () => void signOut(false));
+  view.querySelector('#account-out-all')?.addEventListener('click', async () => {
+    if (!(await ask(t('account.signOutAllConfirm'), { confirmLabel: t('account.signOutAll') }))) return;
+    await signOut(true);
   });
 }
 

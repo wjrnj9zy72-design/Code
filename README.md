@@ -496,12 +496,20 @@ l'ancienne le faisait), les secrets d'organisateur, le prénom.
 
 - La base ne garde **aucune clé en clair** : elle marque les clés des appareils
   au nom du compte (`group_key.user_id`), et en fabrique une neuve pour un
-  nouvel appareil, comme le lien de retour. Couper toutes ses clés dans un
-  groupe l'en sort ; **Quitter** un groupe, connecté, l'en sort partout.
+  nouvel appareil, comme le lien de retour. **Quitter** un groupe, connecté,
+  l'en sort partout.
+- **Couper un appareil** qui était à un compte sort ce compte du groupe
+  (`marque_points_account_cut`, posé par un déclencheur sur la suppression
+  d'une clé) : le téléphone perdu ne se redonne pas de clé en se connectant,
+  même si un autre appareil de la personne reste. Seul un appareil admis de
+  nouveau (clé plus récente que la coupure) ramène le compte.
+- **Se déconnecter** met fin à la session chez Supabase ; **Se déconnecter de
+  tous les appareils** à toutes (le téléphone perdu, d'ici une heure).
 - La session vit à part des préférences (`marque-points:account:v1`) : rien
   ne l'emporte dans un export.
 - Synchronisé à l'ouverture de l'app, en rejoignant un groupe, et par
-  **Synchroniser**. Se déconnecter laisse tout sur l'appareil.
+  **Synchroniser** — seulement ce qui est nouveau (une clé, un secret), pas
+  tout à chaque fois. Se déconnecter laisse tout sur l'appareil.
 - Les visiteurs d'un lien de sondage n'ont besoin de rien.
 - **Supprimer mon compte** (Réglages → Compte) efface l'adresse (dans
   Supabase Auth), le prénom, les secrets gardés et les marques sur les clés ;
