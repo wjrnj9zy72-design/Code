@@ -76,6 +76,9 @@ import {
 } from './view-groups.js';
 import { bindFlows, unblockedHtml, openActivityPicker, openActivityDialog } from './view-flows.js';
 import { accountHtml, bindAccount, syncAccount, leaveWithAccount, privacyView } from './view-account.js';
+import {
+  bindInstall, installFirstHtml, installOfferHtml, installReminderHtml, phoneToInstall, startInstall,
+} from './view-install.js';
 import { swipeable } from './swipe.js';
 export const view = document.getElementById('view');
 
@@ -1363,6 +1366,8 @@ function overviewView() {
     ${groupChipsHtml()}
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
+    ${installReminderHtml()}
+
     ${eventsHtml()}
 
     ${unblockedHtml()}
@@ -2122,7 +2127,7 @@ function joinView(invitation) {
   if (waiting) return waitingView(waiting);
 
   const already = invitation.group ? groupNamed(invitation.group) : null;
-  return `
+  const head = `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
@@ -2131,7 +2136,14 @@ function joinView(invitation) {
       </button>
     </div>
 
-    ${inAppWarningHtml()}
+    ${inAppWarningHtml()}`;
+  // On an iPhone, in Safari: install first, and join from the app — a group
+  // joined here would not be in the app on the home screen.
+  if (!already && phoneToInstall() === 'ios' && !state.joinHere) return `${head}${installFirstHtml(invitation)}`;
+  return `
+    ${head}
+
+    ${installOfferHtml()}
 
     <form id="join-form" class="card stack">
       <p class="muted small">${escapeHtml(already ? t('join.already', { name: already.name }) : t('join.hint'))}</p>
@@ -3202,6 +3214,7 @@ export function render() {
   } else if (current.name === 'join') {
     view.innerHTML = joinView(current);
     bindJoin();
+    bindInstall();
     if (pendingFor(current.group)) watchPending();
     else stopWatching();
   } else if (current.name === 'home') {
@@ -3242,6 +3255,7 @@ export function render() {
   });
   bindEventChips(view);
   bindFlows(view);
+  bindInstall(view);
   view.querySelectorAll('[data-attach-doc]').forEach((node) => {
     node.addEventListener('click', () => {
       const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
@@ -3599,6 +3613,7 @@ export async function lookForUpdate() {
 
 adoptOlderGames();
 offerMeInForms();
+startInstall();
 render();
 // What happened while the app was closed, learnt on opening it rather than left
 // waiting for someone to press a button: a knock answered, a key cut off.

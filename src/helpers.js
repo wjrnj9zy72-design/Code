@@ -113,3 +113,16 @@ export function inAppBrowser(userAgent) {
   }
   return null;
 }
+
+/**
+ * Which phone this is, as far as installing goes: 'ios' (an iPad reports
+ * itself as a Mac, but has a touch screen), 'android', or null — a computer,
+ * where nothing needs to be installed first.
+ */
+export function phoneKind(userAgent, touchPoints = 0) {
+  const text = String(userAgent || '');
+  if (/iPhone|iPad|iPod/.test(text)) return 'ios';
+  if (/Macintosh/.test(text) && touchPoints > 1) return 'ios';
+  if (/Android/.test(text)) return 'android';
+  return null;
+}

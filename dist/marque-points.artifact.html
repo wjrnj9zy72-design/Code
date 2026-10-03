@@ -1922,6 +1922,26 @@ const STRINGS = {
     'account.signOutAllConfirm': 'Déconnecter votre compte de tous les appareils, celui-ci compris ? Utile pour un téléphone perdu : faites aussi couper cet appareil dans le groupe (Groupes → Qui est dans le groupe → Couper). Ce qui est sur chaque appareil y reste.',
     'account.signedOutAll': 'Déconnecté de tous les appareils (d’ici une heure au plus pour ceux qui sont ouverts).',
     'account.signedOut': 'Déconnecté. Ce qui est sur cet appareil y reste.',
+    'install.firstTitle': 'D’abord, installez l’app',
+    'install.firstWhy': 'Sur iPhone, l’app posée sur l’écran d’accueil ne voit pas ce qui se fait dans Safari, et Safari peut tout effacer après quelques semaines sans ouvrir la page. Entrer dans le groupe depuis l’app installée, c’est ne pas le perdre.',
+    'install.ios1': 'Dans Safari, touchez le bouton Partager (le carré avec une flèche ; sur les iPhone récents, il est dans le menu « ⋯ »).',
+    'install.ios2': 'Choisissez « Sur l’écran d’accueil », puis « Ajouter ».',
+    'install.ios3': 'Ouvrez Together depuis l’écran d’accueil.',
+    'install.thenJoin': 'Puis, dans l’app : Groupes → « Entrer dans un groupe », et recopiez le nom et le code.',
+    'install.account': 'Vous avez déjà un compte ? Dans l’app installée, Réglages → Compte : vos groupes reviennent tout seuls.',
+    'install.joinHere': 'Entrer quand même ici, dans Safari (déconseillé)',
+    'install.button': 'Installer l’app',
+    'install.android1': 'Dans Chrome, touchez le menu ⋮ en haut à droite.',
+    'install.android2': 'Choisissez « Installer l’application » (ou « Ajouter à l’écran d’accueil »).',
+    'install.androidWhy': 'Conseillé : installez l’app sur votre écran d’accueil. Vous pouvez entrer dans le groupe ici, avant ou après : l’app installée le retrouvera.',
+    'install.reminderIos': 'Sur iPhone, Safari peut effacer cette page après quelques semaines sans l’ouvrir — et vos groupes avec. Le plus sûr : connectez-vous (un code par e-mail, sans mot de passe). Installez ensuite l’app et connectez-vous-y : vos groupes y reviendront.',
+    'install.reminderAndroid': 'Pour ne pas perdre vos groupes si le navigateur efface ses données : installez l’app sur l’écran d’accueil, ou connectez-vous (un code par e-mail, sans mot de passe).',
+    'install.how': 'Comment installer',
+    'install.signIn': 'Se connecter',
+    'install.later': 'Plus tard',
+    'install.howTitle': 'Installer l’app',
+    'install.howIosAfter': 'L’app installée s’ouvre vide : connectez-vous-y avec le même compte (Réglages → Compte) pour retrouver vos groupes. Sans compte, il faudra une nouvelle invitation.',
+    'install.howAndroidAfter': 'L’app installée retrouve ce qui est déjà dans Chrome : rien d’autre à faire.',
     'menu.open': 'Ouvrir',
     'menu.notOrganiser': 'Seul l’organisateur de ce sondage peut le déplacer, l’archiver ou le supprimer.',
     'delete.notOrganiser': 'Pas supprimé : seul l’organisateur de ce sondage peut le supprimer.',
@@ -2970,6 +2990,26 @@ const STRINGS = {
     'account.signOutAllConfirm': 'Sign your account out of every device, this one included? Useful for a lost phone: have that device cut from the group too (Groups → Who is in the group → Cut off). What is on each device stays there.',
     'account.signedOutAll': 'Signed out of every device (within an hour at most for those open right now).',
     'account.signedOut': 'Signed out. What is on this device stays here.',
+    'install.firstTitle': 'First, install the app',
+    'install.firstWhy': 'On an iPhone, the app on the home screen does not see what happens in Safari, and Safari may wipe it all after a few weeks without opening the page. Joining the group from the installed app is how you keep it.',
+    'install.ios1': 'In Safari, tap the Share button (the square with an arrow; on recent iPhones, it is in the “⋯” menu).',
+    'install.ios2': 'Choose “Add to Home Screen”, then “Add”.',
+    'install.ios3': 'Open Together from the home screen.',
+    'install.thenJoin': 'Then, in the app: Groups → “Join a group”, and type the name and code.',
+    'install.account': 'Already have an account? In the installed app, Settings → Account: your groups come back by themselves.',
+    'install.joinHere': 'Join here in Safari anyway (not recommended)',
+    'install.button': 'Install the app',
+    'install.android1': 'In Chrome, tap the ⋮ menu at the top right.',
+    'install.android2': 'Choose “Install app” (or “Add to Home screen”).',
+    'install.androidWhy': 'Recommended: install the app on your home screen. You can join the group here, before or after: the installed app will find it.',
+    'install.reminderIos': 'On an iPhone, Safari may wipe this page after a few weeks without opening it — and your groups with it. Safest: sign in (a code by e-mail, no password). Then install the app and sign in there: your groups will come back.',
+    'install.reminderAndroid': 'So as not to lose your groups if the browser clears its data: install the app on the home screen, or sign in (a code by e-mail, no password).',
+    'install.how': 'How to install',
+    'install.signIn': 'Sign in',
+    'install.later': 'Later',
+    'install.howTitle': 'Install the app',
+    'install.howIosAfter': 'The installed app opens empty: sign in there with the same account (Settings → Account) to get your groups back. Without an account, a new invitation will be needed.',
+    'install.howAndroidAfter': 'The installed app finds what is already in Chrome: nothing else to do.',
     'menu.open': 'Open',
     'menu.notOrganiser': 'Only this poll’s organiser can move, archive or delete it.',
     'delete.notOrganiser': 'Not deleted: only this poll’s organiser can delete it.',
@@ -4631,6 +4671,19 @@ function inAppBrowser(userAgent) {
   for (const [needle, name] of IN_APP_BROWSERS) {
     if (text.includes(needle)) return name;
   }
+  return null;
+}
+
+/**
+ * Which phone this is, as far as installing goes: 'ios' (an iPad reports
+ * itself as a Mac, but has a touch screen), 'android', or null — a computer,
+ * where nothing needs to be installed first.
+ */
+function phoneKind(userAgent, touchPoints = 0) {
+  const text = String(userAgent || '');
+  if (/iPhone|iPad|iPod/.test(text)) return 'ios';
+  if (/Macintosh/.test(text) && touchPoints > 1) return 'ios';
+  if (/Android/.test(text)) return 'android';
   return null;
 }
 
@@ -14984,6 +15037,7 @@ function bindGame(game) {
 
 
 
+
 /* ------------------------------------------------------------- the chain --- */
 
 /** Write a document back, whatever its kind. */
@@ -15187,8 +15241,12 @@ function rememberGroup(group) {
   const others = groups().filter((held) => held.id !== group.id);
   state.prefs = { ...state.prefs, groups: [...others, group] };
   savePrefs(state.prefs);
-  // A group joined here, while signed in: the account learns it at once.
-  if (!known) void syncAccount({ restore: false, force: true });
+  // A group joined here, while signed in: the account learns it at once. And
+  // now there is something worth asking the browser to keep.
+  if (!known) {
+    void syncAccount({ restore: false, force: true });
+    void keepData();
+  }
 }
 
 function forgetGroup(id) {
@@ -17711,8 +17769,192 @@ function privacyView() {
     </section>`;
 }
 
+  // ---- src/view-install.js ---------------------------------------------
+/**
+ * Installing first, on a phone.
+ *
+ * On an iPhone, the app on the home screen and Safari keep separate data: a
+ * group joined in Safari is not in the installed app, and Safari may wipe a
+ * site not opened for weeks. So on an iPhone the invitation page leads with
+ * installing — the steps, then the group's name and code to type in the app —
+ * and joining in the browser is still there, below, not recommended.
+ *
+ * On Android, the installed app shares Chrome's data: joining here is safe,
+ * and installing is one button when Chrome offers it.
+ *
+ * Wherever it runs, the app asks the browser to keep its data (a request
+ * browsers grant or not, without asking anyone most of the time), and Home
+ * reminds someone in a group, in a phone's browser and without an account,
+ * how not to lose it.
+ *
+ * Calls back into app.js and the other views only from inside functions.
+ */
+
+
+
+
+
+
+
+
+/** Chrome's offer to install, kept for when someone asks for it. */
+let installOffer = null;
+
+/** How long « Plus tard » quiets the reminder. */
+const QUIET_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** This phone, if it is one — and not already the installed app, nor a messaging app's browser. */
+function phoneToInstall() {
+  if (onHomeScreen() || inAppBrowser(navigator.userAgent)) return null;
+  return phoneKind(navigator.userAgent, navigator.maxTouchPoints || 0);
+}
+
+/**
+ * Once, on opening: listen for Chrome's offer to install, and ask the browser
+ * to keep this app's data when there is something worth keeping.
+ */
+function startInstall() {
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    installOffer = event;
+    if (view.querySelector('[data-install-slot]')) render();
+  });
+  window.addEventListener('appinstalled', () => {
+    installOffer = null;
+  });
+  void keepData();
+}
+
+/**
+ * Ask the browser not to clear this app's data on its own. Only once there is
+ * something to lose — a group, an account — and only if not granted already:
+ * some browsers ask the person, and a question about nothing is noise.
+ */
+async function keepData() {
+  try {
+    if (!navigator.storage?.persist || !(groups().length || account())) return false;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+/** The steps that put the app on this phone's home screen. */
+function stepsHtml(kind) {
+  if (kind === 'android') {
+    return installOffer
+      ? `<div class="row"><button type="button" class="button button--primary" data-install-now>${escapeHtml(t('install.button'))}</button></div>`
+      : `<ol class="steps small"><li>${escapeHtml(t('install.android1'))}</li><li>${escapeHtml(t('install.android2'))}</li></ol>`;
+  }
+  return `<ol class="steps small">
+      <li>${escapeHtml(t('install.ios1'))}</li>
+      <li>${escapeHtml(t('install.ios2'))}</li>
+      <li>${escapeHtml(t('install.ios3'))}</li>
+    </ol>`;
+}
+
+/**
+ * The invitation page on an iPhone, in Safari: install, then join from the
+ * app — with the group's name and code to type there.
+ */
+function installFirstHtml(invitation) {
+  const name = String(invitation.group || '').trim();
+  const code = String(invitation.code || '').trim();
+  return `
+    <section class="card stack install-first" data-install-slot>
+      <h2>${escapeHtml(t('install.firstTitle'))}</h2>
+      <p class="small">${escapeHtml(t('install.firstWhy'))}</p>
+      ${stepsHtml('ios')}
+      <p class="small">${escapeHtml(t('install.thenJoin'))}</p>
+      ${
+        name && code
+          ? `<p class="small"><strong>${escapeHtml(t('join.toHomeScreenWhat'))}</strong>
+               ${escapeHtml(name)} · <span class="code-shown">${escapeHtml(code)}</span></p>
+             <div class="row"><button type="button" class="button button--small" id="join-copy-code">${escapeHtml(t('join.toHomeScreenCopy'))}</button></div>`
+          : ''
+      }
+      <p class="muted small">${escapeHtml(t('install.account'))}</p>
+    </section>
+    <div class="row">
+      <button type="button" class="button button--small button--ghost" data-join-here>${escapeHtml(t('install.joinHere'))}</button>
+    </div>`;
+}
+
+/** On Android, above the invitation's form: install, if Chrome offers it. */
+function installOfferHtml() {
+  if (phoneToInstall() !== 'android' || !installOffer) return '<div data-install-slot></div>';
+  return `
+    <div class="card stack stack--tight" data-install-slot>
+      <p class="small">${escapeHtml(t('install.androidWhy'))}</p>
+      ${stepsHtml('android')}
+    </div>`;
+}
+
+/**
+ * On Home: someone in a group, in a phone's browser, with no account, can lose
+ * the group when the browser clears its data. Said once a month at most.
+ */
+function installReminderHtml() {
+  const kind = phoneToInstall();
+  if (!kind || !groups().length || account()) return '';
+  if (Date.now() - (state.prefs.installQuietAt || 0) < QUIET_MS) return '';
+  return `
+    <section class="banner banner--warn stack stack--tight install-reminder" data-install-slot>
+      <p class="small">${escapeHtml(t(kind === 'ios' ? 'install.reminderIos' : 'install.reminderAndroid'))}</p>
+      <div class="row">
+        <button type="button" class="button button--small" data-install-how="${kind}">${escapeHtml(t('install.how'))}</button>
+        <button type="button" class="button button--small button--ghost" data-goto="#/settings">${escapeHtml(t('install.signIn'))}</button>
+        <button type="button" class="button button--small button--ghost" data-install-later>${escapeHtml(t('install.later'))}</button>
+      </div>
+    </section>`;
+}
+
+/** Every install button on the page, bound. */
+function bindInstall(root = view) {
+  root.querySelectorAll('[data-install-now]').forEach((node) => {
+    node.addEventListener('click', async () => {
+      if (!installOffer) return;
+      const offer = installOffer;
+      installOffer = null;
+      offer.prompt();
+      await offer.userChoice.catch(() => null);
+      render();
+    });
+  });
+  root.querySelectorAll('[data-join-here]').forEach((node) => {
+    node.addEventListener('click', () => {
+      state.joinHere = true;
+      render();
+    });
+  });
+  root.querySelectorAll('[data-install-later]').forEach((node) => {
+    node.addEventListener('click', () => {
+      state.prefs = { ...state.prefs, installQuietAt: Date.now() };
+      savePrefs(state.prefs);
+      render();
+    });
+  });
+  root.querySelectorAll('[data-install-how]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const dialog = makeDialog();
+      dialog.innerHTML = `
+        <div class="stack" data-install-slot>
+          <h2>${escapeHtml(t('install.howTitle'))}</h2>
+          ${stepsHtml(node.dataset.installHow)}
+          <p class="muted small">${escapeHtml(t(node.dataset.installHow === 'ios' ? 'install.howIosAfter' : 'install.howAndroidAfter'))}</p>
+          <div class="row"><button type="button" class="button button--ghost" data-install-close>${escapeHtml(t('action.close'))}</button></div>
+        </div>`;
+      dialog.querySelector('[data-install-close]').addEventListener('click', () => dialog.close());
+      bindInstall(dialog);
+      dialog.showModal();
+    });
+  });
+}
+
   // ---- src/app.js ------------------------------------------------------
 /** UI layer: hash router, views, event wiring. */
+
 
 
 
@@ -19032,6 +19274,8 @@ function overviewView() {
     ${groupChipsHtml()}
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
+    ${installReminderHtml()}
+
     ${eventsHtml()}
 
     ${unblockedHtml()}
@@ -19791,7 +20035,7 @@ function joinView(invitation) {
   if (waiting) return waitingView(waiting);
 
   const already = invitation.group ? groupNamed(invitation.group) : null;
-  return `
+  const head = `
     ${flashHtml()}
     <div class="spread">
       <h1>${escapeHtml(invitation.group ? t('join.title', { name: invitation.group }) : t('join.titlePlain'))}</h1>
@@ -19800,7 +20044,14 @@ function joinView(invitation) {
       </button>
     </div>
 
-    ${inAppWarningHtml()}
+    ${inAppWarningHtml()}`;
+  // On an iPhone, in Safari: install first, and join from the app — a group
+  // joined here would not be in the app on the home screen.
+  if (!already && phoneToInstall() === 'ios' && !state.joinHere) return `${head}${installFirstHtml(invitation)}`;
+  return `
+    ${head}
+
+    ${installOfferHtml()}
 
     <form id="join-form" class="card stack">
       <p class="muted small">${escapeHtml(already ? t('join.already', { name: already.name }) : t('join.hint'))}</p>
@@ -20871,6 +21122,7 @@ function render() {
   } else if (current.name === 'join') {
     view.innerHTML = joinView(current);
     bindJoin();
+    bindInstall();
     if (pendingFor(current.group)) watchPending();
     else stopWatching();
   } else if (current.name === 'home') {
@@ -20911,6 +21163,7 @@ function render() {
   });
   bindEventChips(view);
   bindFlows(view);
+  bindInstall(view);
   view.querySelectorAll('[data-attach-doc]').forEach((node) => {
     node.addEventListener('click', () => {
       const document_ = everything().find((one) => one.id === node.dataset.attachDoc);
@@ -21268,6 +21521,7 @@ async function lookForUpdate() {
 
 adoptOlderGames();
 offerMeInForms();
+startInstall();
 render();
 // What happened while the app was closed, learnt on opening it rather than left
 // waiting for someone to press a button: a knock answered, a key cut off.

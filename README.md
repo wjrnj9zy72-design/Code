@@ -485,6 +485,27 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
 - Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
   schémas (boîtes et flèches) ni de photos.
 
+## Installer d'abord, sur téléphone
+
+Sur iPhone, l'app posée sur l'écran d'accueil et Safari ne partagent rien, et
+Safari peut effacer un site non ouvert depuis des semaines.
+
+- **L'invitation, sur iPhone dans Safari**, mène d'abord à l'installation :
+  les gestes (Partager → Sur l'écran d'accueil), puis le nom et le code du
+  groupe à recopier dans l'app (un bouton les copie). **Entrer quand même
+  ici** reste possible, en petit. Dans l'app posée, ou sur ordinateur, on
+  entre directement.
+- **Sur Android**, l'app installée partage les données de Chrome : on entre
+  ici sans risque, et un vrai bouton **Installer l'app** paraît quand Chrome
+  le propose (`beforeinstallprompt`).
+- **Sur l'Accueil**, un rappel pour qui est dans un groupe, dans le navigateur
+  d'un téléphone, sans compte : se connecter, ou installer — **Plus tard** le
+  fait taire un mois.
+- **L'app demande au navigateur de garder ses données**
+  (`navigator.storage.persist()`), dès qu'il y a quelque chose à garder (un
+  groupe, un compte), et pas avant : certains navigateurs posent la question.
+- `src/view-install.js` ; suite `installer`.
+
 ## Les comptes (facultatifs)
 
 **Réglages → Compte** : son adresse e-mail, un code à six chiffres reçu par
