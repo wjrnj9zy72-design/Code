@@ -168,3 +168,12 @@ test('an app’s own browser is recognised, and a real one is left alone', async
   assert.equal(inAppBrowser(''), null);
   assert.equal(inAppBrowser(undefined), null);
 });
+
+test('which phone: iPhone, iPad passing for a Mac, Android — or a computer', async () => {
+  const { phoneKind } = await import('../src/helpers.js');
+  assert.equal(phoneKind('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15'), 'ios');
+  assert.equal(phoneKind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 5), 'ios');
+  assert.equal(phoneKind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 0), null);
+  assert.equal(phoneKind('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/128 Mobile'), 'android');
+  assert.equal(phoneKind('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128'), null);
+});
