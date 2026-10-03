@@ -99,7 +99,17 @@ export function syncAccount({ restore = true, force = false } = {}) {
         const mark = `${group.id}|${group.key.slice(0, 8)}|${name}`;
         if (keys.has(mark)) continue;
         const answer = await state.remote.accountLink(token, group.key, name).catch(() => null);
-        if (answer?.status === 'ok') keys.add(mark);
+        if (answer?.status === 'ok') {
+          keys.add(mark);
+          // Its key is the account's now: a group that requires one opens.
+          if (!group.linked) {
+            state.prefs = { ...state.prefs, groups: groups().map((one) => (one.id === group.id ? { ...one, linked: true } : one)) };
+            savePrefs(state.prefs);
+            // What it shares comes now, not at the next round of catching up.
+            state.syncedAt = 0;
+            learnt = true;
+          }
+        }
       }
       for (const [id, secret] of Object.entries(state.prefs.organiser || {})) {
         if (owners.has(id)) continue;
@@ -265,6 +275,29 @@ export function bindAccount() {
     if (!(await ask(t('account.signOutAllConfirm'), { confirmLabel: t('account.signOutAll') }))) return;
     await signOut(true);
   });
+}
+
+/* ------------------------------------------------- groups needing one --- */
+
+/**
+ * The groups that require an account and whose key here is no account's: they
+ * show nothing of what they share until this device signs in.
+ */
+export function groupsNeedingAccount() {
+  return groups().filter((group) => group.accounts && !group.linked);
+}
+
+/** On Home and on Groups: sign in, or the group stays closed. */
+export function accountNeededHtml() {
+  const closed = groupsNeedingAccount();
+  if (!closed.length || !state.remote) return '';
+  return `
+    <section class="banner banner--warn stack stack--tight account-needed">
+      <p class="small">${escapeHtml(t('account.needed', { names: closed.map((group) => group.name).join(', '), count: closed.length }))}</p>
+      <div class="row">
+        <button type="button" class="button button--small button--primary" data-goto="#/settings">${escapeHtml(t(account() ? 'account.sync' : 'install.signIn'))}</button>
+      </div>
+    </section>`;
 }
 
 /* --------------------------------------------------------------- privacy --- */

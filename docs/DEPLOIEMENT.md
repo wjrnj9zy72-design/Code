@@ -235,6 +235,12 @@ create table if not exists public.marque_points_group (
 
 alter table public.marque_points_group enable row level security;
 
+-- Un groupe peut exiger un compte : un appareil sans compte n'y voit plus ce
+-- qui est partagé, n'y partage plus et n'y invite plus. Il vote encore par un
+-- lien, comme un visiteur. C'est la personne qui fait entrer qui le décide.
+alter table public.marque_points_group
+  add column if not exists accounts_required boolean not null default false;
+
 -- Deux groupes du même nom seraient indiscernables : on entre dans un groupe en
 -- disant son nom, et un lien d'invitation ne porte que ce nom. Sur une base qui
 -- en aurait déjà deux, l'index n'est pas créé et un message le dit — renommez-en
@@ -266,6 +272,12 @@ create table if not exists public.marque_points_group_key (
 
 alter table public.marque_points_group_key enable row level security;
 create index if not exists marque_points_group_key_group on public.marque_points_group_key (group_id);
+
+-- Le compte auquel une clé est rattachée, quand son appareil est connecté
+-- (voir « Les comptes », plus bas). Jamais la clé elle-même.
+alter table public.marque_points_group_key
+  add column if not exists user_id uuid;
+create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
 
 -- Toutes les clés voient et partagent ; seules certaines **font entrer**. La clé
 -- affichée à la création du groupe admet ; celles distribuées ensuite non. C'est
@@ -515,7 +527,8 @@ language sql
 security definer
 set search_path = public
 as $$
-  select jsonb_build_object('id', g.id, 'name', g.name, 'admits', k.admits)
+  select jsonb_build_object('id', g.id, 'name', g.name, 'admits', k.admits,
+                            'accounts', g.accounts_required, 'linked', k.user_id is not null)
     from public.marque_points_group_key k
     join public.marque_points_group g on g.id = k.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
@@ -533,7 +546,9 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'updatedAt', g.data->'updatedAt')), '[]'::jsonb)
     from public.marque_points_games g
     join public.marque_points_group_key k on k.group_id = g.group_id
+    join public.marque_points_group grp on grp.id = k.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null)
      and g.code_hash is null
      and g.listed;
 $$;
@@ -608,8 +623,11 @@ begin
 
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
-    select group_id into v_group from public.marque_points_group_key
-     where key_hash = md5(coalesce(p_key, '') || key_salt);
+    select k.group_id into v_group
+      from public.marque_points_group_key k
+      join public.marque_points_group grp on grp.id = k.group_id
+     where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+       and (not grp.accounts_required or k.user_id is not null);
     if v_group is null then
       raise exception 'cle de groupe invalide';
     end if;
@@ -861,7 +879,8 @@ begin
   select g.id, g.name into v_group, v_name
     from public.marque_points_group_key k
     join public.marque_points_group g on g.id = k.group_id
-   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not g.accounts_required or k.user_id is not null);
   if v_group is null then
     raise exception 'cle de groupe invalide';
   end if;
@@ -1360,6 +1379,7 @@ begin
              'person', k.person_id,
              'who', (select p.name from public.marque_points_person p where p.id = k.person_id),
              'link', (select p.token_hash is not null from public.marque_points_person p where p.id = k.person_id),
+             'account', k.user_id is not null,
              'at', (extract(epoch from k.created_at) * 1000)::bigint)
            order by k.created_at)
       from public.marque_points_group_key k
@@ -1472,9 +1492,6 @@ $$;
 -- marquées à son nom, jamais une clé en clair — et les secrets d'organisateur
 -- de ses sondages. Sur un nouvel appareil, il reçoit une clé neuve par groupe,
 -- comme par un lien de retour. Couper toutes ses clés d'un groupe l'en sort.
-alter table public.marque_points_group_key
-  add column if not exists user_id uuid;
-create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
 
 create table if not exists public.marque_points_account (
   user_id uuid primary key,
@@ -1554,6 +1571,34 @@ begin
     on conflict (user_id) do update set name = excluded.name, updated_at = now();
   end if;
   return jsonb_build_object('status', 'ok', 'id', v_group);
+end;
+$$;
+
+-- Exiger un compte dans un groupe, ou ne plus l'exiger : une clé qui fait
+-- entrer. Pour l'exiger, il faut être soi-même connecté, avec cette clé à son
+-- compte — sinon on s'enfermerait dehors.
+create or replace function public.marque_points_set_accounts(p_key text, p_on boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_user uuid;
+begin
+  select k.group_id, k.user_id into v_group, v_user
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if not found then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+  if coalesce(p_on, false) and (auth.uid() is null or v_user is distinct from auth.uid()) then
+    return jsonb_build_object('status', 'account');
+  end if;
+  update public.marque_points_group set accounts_required = coalesce(p_on, false) where id = v_group;
+  return jsonb_build_object('status', 'ok');
 end;
 $$;
 
@@ -1722,6 +1767,7 @@ grant execute on function public.marque_points_account_owner_put(text, text) to 
 grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
 grant execute on function public.marque_points_account_leave(text) to authenticated;
 revoke all on function public.marque_points_account_delete() from public, anon;
+grant execute on function public.marque_points_set_accounts(text, boolean) to anon, authenticated;
 revoke all on function public.marque_points_account_cut_mark() from public, anon, authenticated;
 grant execute on function public.marque_points_account_delete() to authenticated;
 ```

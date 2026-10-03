@@ -532,6 +532,14 @@ l'ancienne le faisait), les secrets d'organisateur, le prénom.
   **Synchroniser** — seulement ce qui est nouveau (une clé, un secret), pas
   tout à chaque fois. Se déconnecter laisse tout sur l'appareil.
 - Les visiteurs d'un lien de sondage n'ont besoin de rien.
+- **Exiger un compte**, groupe par groupe (Groupes → le groupe → Appareils,
+  pour une clé qui fait entrer) : la liste dit combien d'appareils ont un
+  compte et lesquels ; quand tout le monde a basculé, l'interrupteur ferme le
+  groupe aux clés sans compte (`marque_points_group.accounts_required` :
+  `group_docs`, `invite` et la création par `put` refusent). Il faut être
+  connecté soi-même pour l'actionner, sinon on s'enfermerait dehors. Un
+  appareil sans compte voit « … demande un compte » sur l'accueil ; connecté,
+  sa clé est marquée et tout revient. Réversible.
 - **Supprimer mon compte** (Réglages → Compte) efface l'adresse (dans
   Supabase Auth), le prénom, les secrets gardés et les marques sur les clés ;
   l'appareil reste dans ses groupes, sans compte. C'est le droit à

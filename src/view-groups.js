@@ -979,7 +979,10 @@ export async function joinGroup(key) {
   if (!clean || !state.remote) return null;
   const group = await state.remote.groupOf(clean);
   if (!group) return null;
-  rememberGroup({ id: group.id, name: group.name, key: clean, admits: Boolean(group.admits) });
+  rememberGroup({
+    id: group.id, name: group.name, key: clean, admits: Boolean(group.admits),
+    accounts: Boolean(group.accounts), linked: Boolean(group.linked),
+  });
   return group;
 }
 
@@ -1006,8 +1009,12 @@ export async function verifyGroups() {
       learnt = true;
       continue;
     }
-    if (found.name !== group.name || Boolean(found.admits) !== group.admits) {
-      rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+    if (found.name !== group.name || Boolean(found.admits) !== group.admits
+        || Boolean(found.accounts) !== Boolean(group.accounts) || Boolean(found.linked) !== Boolean(group.linked)) {
+      rememberGroup({
+        ...group, name: found.name || group.name, admits: Boolean(found.admits),
+        accounts: Boolean(found.accounts), linked: Boolean(found.linked),
+      });
       learnt = true;
     }
   }
@@ -1203,7 +1210,10 @@ export async function refreshGroup(group) {
     return false;
   }
   if (!found) return false;
-  rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+  rememberGroup({
+    ...group, name: found.name || group.name, admits: Boolean(found.admits),
+    accounts: Boolean(found.accounts), linked: Boolean(found.linked),
+  });
   return true;
 }
 
