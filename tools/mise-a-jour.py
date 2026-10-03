@@ -27,6 +27,8 @@ def table(name):
     m = re.search(r"(create table if not exists public\." + name + r" \(.*?\n\);\nalter table public\." + name + r" enable row level security;\n)", bis, flags=re.S); assert m, name; return m.group(1)
 def accounts_column():
     m = re.search(r"(alter table public\.marque_points_group_key\n  add column if not exists user_id uuid;\ncreate index if not exists marque_points_group_key_user[^;]*;\n)", bis); assert m; return m.group(1)
+def accounts_required_column():
+    m = re.search(r"(alter table public\.marque_points_group\n  add column if not exists accounts_required[^;]*;\n)", bis); assert m; return m.group(1)
 def trigger(name):
     m = re.search(r"(drop trigger if exists " + name + r" on [^;]*;\ncreate trigger " + name + r"\n[^;]*;\n)", bis); assert m, name; return m.group(1)
 def alter(column):
@@ -53,11 +55,14 @@ out = "\n".join([
 --      groupe ; et un sondage clos ne prend plus de votes ;
 --   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
 --      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
---      chacun peut supprimer son compte et son adresse.
+--      chacun peut supprimer son compte et son adresse ;
+--   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
+--      plus ce qui est partagé, n'y partage plus et n'y invite plus.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
 """,
+"-- 6 et 7. Les comptes, et les groupes qui en exigent un : les colonnes d'abord,\n-- que les fonctions ci-dessous lisent.\n" + accounts_column() + "\n" + accounts_required_column(),
 "-- 1. Deux jours pour une invitation.\n" + function('marque_points_invite'),
 "-- 2. « Lien seulement », et 3. l'organisateur.\n" + alter('listed') + "\n" + alter('owner_hash'),
 "-- 4. Les votes fondus case par case.\n" + function('marque_points_merge_votes'),
@@ -76,8 +81,8 @@ function('marque_points_agenda'),
 "-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;\n-- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.\n" + "\n".join(
     [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda']]
     + [revoke('marque_points_merge_votes')]) + "\n",
-"-- 6. Les comptes : quelles clés sont à quel compte, et les secrets d'organisateur.\n"
-+ accounts_column() + "\n" + table('marque_points_account') + "\n" + table('marque_points_account_owner')
+"-- 6. Les comptes : les secrets d'organisateur.\n"
++ table('marque_points_account') + "\n" + table('marque_points_account_owner')
 + "\n" + table('marque_points_account_cut'),
 function('marque_points_account_cut_mark'),
 trigger('marque_points_account_cut_mark'),
@@ -86,10 +91,14 @@ function('marque_points_account_owner_put'),
 function('marque_points_account_restore'),
 function('marque_points_account_leave'),
 function('marque_points_account_delete'),
+"-- 7. Exiger un compte dans un groupe.\n" + function('marque_points_group_of'),
+function('marque_points_group_keys'),
+function('marque_points_set_accounts'),
 "-- Pour les comptes connectés seulement, pas pour la clé publique de la page.\n" + "\n".join(
     [revoke(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]
     + [grant(n) for n in ['marque_points_account_link', 'marque_points_account_owner_put', 'marque_points_account_restore', 'marque_points_account_leave', 'marque_points_account_delete']]
-    + [revoke('marque_points_account_cut_mark')]) + "\n",
+    + [revoke('marque_points_account_cut_mark')]
+    + [grant(n) for n in ['marque_points_group_of', 'marque_points_group_keys', 'marque_points_set_accounts']]) + "\n",
 ])
 (root / 'supabase/mise-a-jour.sql').write_text(out)
 import sys

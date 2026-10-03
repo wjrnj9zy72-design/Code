@@ -34,6 +34,7 @@ const USERS = new Map(); // e-mail → id du compte
 const ACCOUNTS = new Map(); // id du compte → prénom
 const OWNED = new Map(); // `${compte}|${doc}` → secret d'organisateur
 const CUT = new Map(); // `${compte}|${groupe}` → quand une clé du compte y a été coupée
+const REQUIRED = new Set(); // groupes qui exigent un compte
 const REVOKED = new Set(); // comptes déconnectés partout : leur jeton de renouvellement ne sert plus
 const port = Number(process.env.PORT) || 8123;
 const old = process.env.OLD === '1';
@@ -155,6 +156,11 @@ createServer(async (req, res) => {
     }
   }
   const lot = (id) => { const row = rows.get(id); return row?.code ? row : null; };
+  // Une clé qui n'est à aucun compte, dans un groupe qui en exige un : fermée.
+  const closed = (key) => {
+    const group = GROUPS.get(key);
+    return Boolean(group && REQUIRED.has(group.id) && !KEYS.find((one) => one.key === key)?.user);
+  };
 
   if (fn === 'marque_points_get') {
     const row = rows.get(at.p_id);
@@ -167,7 +173,7 @@ createServer(async (req, res) => {
       if (process.env.REPLACE !== '1' && GONE.has(at.p_id)) return raise('document supprime');
       // Starting to share takes a group key; contributing takes none.
       const group = GROUPS.get(at.p_key);
-      if (!group) return raise('cle de groupe invalide');
+      if (!group || closed(at.p_key)) return raise('cle de groupe invalide');
       // « Lien seulement » : fixé à la première écriture, comme dans le SQL.
       rows.set(at.p_id, {
         data: at.p_data, code: null, tries: 0, group: group.id, listed: !at.p_data?.linkOnly,
@@ -230,11 +236,23 @@ createServer(async (req, res) => {
 
   if (fn === 'marque_points_group_of') {
     const group = GROUPS.get(at.p_key);
-    return send(200, group ? { ...group, admits: ADMITS.has(at.p_key) } : null);
+    return send(200, group ? {
+      ...group, admits: ADMITS.has(at.p_key), accounts: REQUIRED.has(group.id),
+      linked: Boolean(KEYS.find((one) => one.key === at.p_key)?.user),
+    } : null);
+  }
+  if (fn === 'marque_points_set_accounts') {
+    const group = GROUPS.get(at.p_key);
+    if (!group || !ADMITS.has(at.p_key)) return raise('cette cle ne fait pas entrer');
+    const bearer = /^Bearer tok-([0-9a-f-]{36})-/.exec(String(req.headers.authorization ?? ''))?.[1];
+    if (at.p_on && (!bearer || KEYS.find((one) => one.key === at.p_key)?.user !== bearer)) return send(200, { status: 'account' });
+    if (at.p_on) REQUIRED.add(group.id);
+    else REQUIRED.delete(group.id);
+    return send(200, { status: 'ok' });
   }
   if (fn === 'marque_points_invite') {
     const group = GROUPS.get(at.p_key);
-    if (!group) return raise('cle de groupe invalide');
+    if (!group || closed(at.p_key)) return raise('cle de groupe invalide');
     const code = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
     const uses = Math.max(1, Math.min(at.p_uses ?? 1, 200));
     INVITES.set(code, { group, at: Date.now(), uses });
@@ -330,6 +348,7 @@ createServer(async (req, res) => {
           person: row.person ?? null,
           who: person?.name ?? null,
           link: Boolean(person?.token),
+          account: Boolean(row.user),
           at: row.at,
         };
       }));
@@ -417,7 +436,7 @@ createServer(async (req, res) => {
   }
   if (fn === 'marque_points_group_docs') {
     const group = GROUPS.get(at.p_key);
-    if (!group) return send(200, []);
+    if (!group || closed(at.p_key)) return send(200, []);
     return send(200, [...rows.entries()]
       .filter(([, row]) => !row.code && row.group === group.id && row.listed !== false)
       .map(([id, row]) => ({ id, updatedAt: row.data?.updatedAt ?? null })));

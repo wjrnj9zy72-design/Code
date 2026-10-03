@@ -19,10 +19,21 @@
 --      groupe ; et un sondage clos ne prend plus de votes ;
 --   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
 --      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
---      chacun peut supprimer son compte et son adresse.
+--      chacun peut supprimer son compte et son adresse ;
+--   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
+--      plus ce qui est partagé, n'y partage plus et n'y invite plus.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
+
+-- 6 et 7. Les comptes, et les groupes qui en exigent un : les colonnes d'abord,
+-- que les fonctions ci-dessous lisent.
+alter table public.marque_points_group_key
+  add column if not exists user_id uuid;
+create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
+
+alter table public.marque_points_group
+  add column if not exists accounts_required boolean not null default false;
 
 -- 1. Deux jours pour une invitation.
 create or replace function public.marque_points_invite(
@@ -48,7 +59,8 @@ begin
   select g.id, g.name into v_group, v_name
     from public.marque_points_group_key k
     join public.marque_points_group g on g.id = k.group_id
-   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not g.accounts_required or k.user_id is not null);
   if v_group is null then
     raise exception 'cle de groupe invalide';
   end if;
@@ -146,8 +158,11 @@ begin
 
     -- Rien sous cet identifiant : c'est un partage qui commence, donc il faut
     -- dire dans quel groupe.
-    select group_id into v_group from public.marque_points_group_key
-     where key_hash = md5(coalesce(p_key, '') || key_salt);
+    select k.group_id into v_group
+      from public.marque_points_group_key k
+      join public.marque_points_group grp on grp.id = k.group_id
+     where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+       and (not grp.accounts_required or k.user_id is not null);
     if v_group is null then
       raise exception 'cle de groupe invalide';
     end if;
@@ -262,7 +277,9 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'updatedAt', g.data->'updatedAt')), '[]'::jsonb)
     from public.marque_points_games g
     join public.marque_points_group_key k on k.group_id = g.group_id
+    join public.marque_points_group grp on grp.id = k.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null)
      and g.code_hash is null
      and g.listed;
 $$;
@@ -318,11 +335,7 @@ grant execute on function public.marque_points_group_docs(text) to anon, authent
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
 
--- 6. Les comptes : quelles clés sont à quel compte, et les secrets d'organisateur.
-alter table public.marque_points_group_key
-  add column if not exists user_id uuid;
-create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
-
+-- 6. Les comptes : les secrets d'organisateur.
 create table if not exists public.marque_points_account (
   user_id uuid primary key,
   name text not null default '',
@@ -522,6 +535,79 @@ begin
 end;
 $$;
 
+-- 7. Exiger un compte dans un groupe.
+create or replace function public.marque_points_group_of(p_key text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object('id', g.id, 'name', g.name, 'admits', k.admits,
+                            'accounts', g.accounts_required, 'linked', k.user_id is not null)
+    from public.marque_points_group_key k
+    join public.marque_points_group g on g.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+   limit 1;
+$$;
+
+create or replace function public.marque_points_group_keys(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if v_group is null then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', k.id, 'label', k.label, 'admits', k.admits,
+             'mine', k.key_hash = md5(coalesce(p_key, '') || k.key_salt),
+             'person', k.person_id,
+             'who', (select p.name from public.marque_points_person p where p.id = k.person_id),
+             'link', (select p.token_hash is not null from public.marque_points_person p where p.id = k.person_id),
+             'account', k.user_id is not null,
+             'at', (extract(epoch from k.created_at) * 1000)::bigint)
+           order by k.created_at)
+      from public.marque_points_group_key k
+     where k.group_id = v_group
+  ), '[]'::jsonb);
+end;
+$$;
+
+create or replace function public.marque_points_set_accounts(p_key text, p_on boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_user uuid;
+begin
+  select k.group_id, k.user_id into v_group, v_user
+    from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits;
+  if not found then
+    raise exception 'cette cle ne fait pas entrer';
+  end if;
+  if coalesce(p_on, false) and (auth.uid() is null or v_user is distinct from auth.uid()) then
+    return jsonb_build_object('status', 'account');
+  end if;
+  update public.marque_points_group set accounts_required = coalesce(p_on, false) where id = v_group;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- Pour les comptes connectés seulement, pas pour la clé publique de la page.
 revoke all on function public.marque_points_account_link(text, text) from public, anon;
 revoke all on function public.marque_points_account_owner_put(text, text) from public, anon;
@@ -534,3 +620,6 @@ grant execute on function public.marque_points_account_restore(jsonb, text) to a
 grant execute on function public.marque_points_account_leave(text) to authenticated;
 grant execute on function public.marque_points_account_delete() to authenticated;
 revoke all on function public.marque_points_account_cut_mark() from public, anon, authenticated;
+grant execute on function public.marque_points_group_of(text) to anon, authenticated;
+grant execute on function public.marque_points_group_keys(text) to anon, authenticated;
+grant execute on function public.marque_points_set_accounts(text, boolean) to anon, authenticated;

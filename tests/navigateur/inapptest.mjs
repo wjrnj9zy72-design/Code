@@ -61,8 +61,13 @@ check('mais rien n’est bloqué : on peut quand même demander',
 /* --- dans Safari : pas d'avertissement ------------------------------------ */
 
 const safari = await device('safari', { userAgent: SAFARI, hash });
-await safari.waitForSelector('#join-form');
+// Safari on an iPhone leads with installing; joining here is one tap below.
+await safari.waitForSelector('.install-first');
 check('dans un vrai navigateur, aucun avertissement',
+  (await safari.locator('.banner--warn').count()) === 0);
+await safari.click('[data-join-here]');
+await safari.waitForSelector('#join-form');
+check('et rejoindre ici reste possible, sans avertissement',
   (await safari.locator('.banner--warn').count()) === 0);
 
 /* --- et dans l'onglet Groupes d'un appareil sans groupe ------------------- */

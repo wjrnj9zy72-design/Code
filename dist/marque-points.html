@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="d237cc59" />
+    <meta name="app-build" content="bc8f81e4" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1959,6 +1959,19 @@ const STRINGS = {
     'install.howTitle': 'Installer l’app',
     'install.howIosAfter': 'L’app installée s’ouvre vide : connectez-vous-y avec le même compte (Réglages → Compte) pour retrouver vos groupes. Sans compte, il faudra une nouvelle invitation.',
     'install.howAndroidAfter': 'L’app installée retrouve ce qui est déjà dans Chrome : rien d’autre à faire.',
+    'gate.accountsCount': '{count} {count|appareil|appareils} sur {total} {count|a|ont} un compte.',
+    'gate.accountsOffHint': 'Quand tout le monde en aura un, vous pourrez l’exiger : un appareil sans compte ne verra plus ce que le groupe partage, et ne pourra plus y partager ni inviter. Il votera encore par un lien, comme un visiteur.',
+    'gate.accountsOnHint': 'Ce groupe exige un compte : un appareil sans compte n’y voit plus ce qui est partagé, n’y partage plus et n’y invite plus.',
+    'gate.accountsOn': 'Exiger un compte',
+    'gate.accountsOff': 'Ne plus exiger de compte',
+    'gate.accountsConfirmOn': 'Exiger un compte dans ce groupe ? Les appareils sans compte ne verront plus ce que le groupe partage tant qu’ils ne se seront pas connectés. Vous devez être connecté vous-même.',
+    'gate.accountsConfirmOff': 'Ne plus exiger de compte dans ce groupe ? Les appareils sans compte verront de nouveau tout.',
+    'gate.accountsDoneOn': 'Ce groupe exige désormais un compte.',
+    'gate.accountsDoneOff': 'Ce groupe n’exige plus de compte.',
+    'gate.accountsNeedMine': 'Pour exiger un compte, connectez-vous d’abord sur cet appareil : Réglages → Compte.',
+    'gate.hasAccount': 'compte',
+    'gate.noAccount': 'sans compte',
+    'account.needed': '{names} {count|demande|demandent} un compte : connectez-vous (un code par e-mail, sans mot de passe) pour voir de nouveau ce que le groupe partage, et y partager.',
     'menu.open': 'Ouvrir',
     'menu.notOrganiser': 'Seul l’organisateur de ce sondage peut le déplacer, l’archiver ou le supprimer.',
     'delete.notOrganiser': 'Pas supprimé : seul l’organisateur de ce sondage peut le supprimer.',
@@ -3027,6 +3040,19 @@ const STRINGS = {
     'install.howTitle': 'Install the app',
     'install.howIosAfter': 'The installed app opens empty: sign in there with the same account (Settings → Account) to get your groups back. Without an account, a new invitation will be needed.',
     'install.howAndroidAfter': 'The installed app finds what is already in Chrome: nothing else to do.',
+    'gate.accountsCount': '{count} {count|device|devices} out of {total} {count|has|have} an account.',
+    'gate.accountsOffHint': 'Once everyone has one, you can require it: a device with no account will no longer see what the group shares, nor share or invite there. It will still vote through a link, like a visitor.',
+    'gate.accountsOnHint': 'This group requires an account: a device with no account no longer sees what is shared, nor shares or invites there.',
+    'gate.accountsOn': 'Require an account',
+    'gate.accountsOff': 'Stop requiring an account',
+    'gate.accountsConfirmOn': 'Require an account in this group? Devices with no account will no longer see what the group shares until they sign in. You must be signed in yourself.',
+    'gate.accountsConfirmOff': 'Stop requiring an account in this group? Devices with no account will see everything again.',
+    'gate.accountsDoneOn': 'This group now requires an account.',
+    'gate.accountsDoneOff': 'This group no longer requires an account.',
+    'gate.accountsNeedMine': 'To require an account, sign in on this device first: Settings → Account.',
+    'gate.hasAccount': 'account',
+    'gate.noAccount': 'no account',
+    'account.needed': '{names} {count|requires|require} an account: sign in (a code by e-mail, no password) to see what the group shares again, and share there.',
     'menu.open': 'Open',
     'menu.notOrganiser': 'Only this poll’s organiser can move, archive or delete it.',
     'delete.notOrganiser': 'Not deleted: only this poll’s organiser can delete it.',
@@ -9126,6 +9152,16 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
     /** A fresh key for each of the account's groups not here yet, and its secrets. */
     async accountRestore(token, have = [], label = '') {
       return call('marque_points_account_restore', { p_have: have, p_label: label }, token);
+    },
+
+    /**
+     * Require an account in a group, or stop requiring it — an admitting key's
+     * call. Requiring takes being signed in, with that key the account's:
+     * 'account' says it is not, 'ok' that it is done.
+     */
+    async setAccounts(key, on, token = null) {
+      const answer = await call('marque_points_set_accounts', { p_key: key, p_on: Boolean(on) }, token);
+      return answer?.status || 'unknown';
     },
 
     /** Delete the account: its address, its name, its secrets, its marks. */
@@ -15999,7 +16035,10 @@ async function joinGroup(key) {
   if (!clean || !state.remote) return null;
   const group = await state.remote.groupOf(clean);
   if (!group) return null;
-  rememberGroup({ id: group.id, name: group.name, key: clean, admits: Boolean(group.admits) });
+  rememberGroup({
+    id: group.id, name: group.name, key: clean, admits: Boolean(group.admits),
+    accounts: Boolean(group.accounts), linked: Boolean(group.linked),
+  });
   return group;
 }
 
@@ -16026,8 +16065,12 @@ async function verifyGroups() {
       learnt = true;
       continue;
     }
-    if (found.name !== group.name || Boolean(found.admits) !== group.admits) {
-      rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+    if (found.name !== group.name || Boolean(found.admits) !== group.admits
+        || Boolean(found.accounts) !== Boolean(group.accounts) || Boolean(found.linked) !== Boolean(group.linked)) {
+      rememberGroup({
+        ...group, name: found.name || group.name, admits: Boolean(found.admits),
+        accounts: Boolean(found.accounts), linked: Boolean(found.linked),
+      });
       learnt = true;
     }
   }
@@ -16223,7 +16266,10 @@ async function refreshGroup(group) {
     return false;
   }
   if (!found) return false;
-  rememberGroup({ ...group, name: found.name || group.name, admits: Boolean(found.admits) });
+  rememberGroup({
+    ...group, name: found.name || group.name, admits: Boolean(found.admits),
+    accounts: Boolean(found.accounts), linked: Boolean(found.linked),
+  });
   return true;
 }
 
@@ -17584,7 +17630,17 @@ function syncAccount({ restore = true, force = false } = {}) {
         const mark = `${group.id}|${group.key.slice(0, 8)}|${name}`;
         if (keys.has(mark)) continue;
         const answer = await state.remote.accountLink(token, group.key, name).catch(() => null);
-        if (answer?.status === 'ok') keys.add(mark);
+        if (answer?.status === 'ok') {
+          keys.add(mark);
+          // Its key is the account's now: a group that requires one opens.
+          if (!group.linked) {
+            state.prefs = { ...state.prefs, groups: groups().map((one) => (one.id === group.id ? { ...one, linked: true } : one)) };
+            savePrefs(state.prefs);
+            // What it shares comes now, not at the next round of catching up.
+            state.syncedAt = 0;
+            learnt = true;
+          }
+        }
       }
       for (const [id, secret] of Object.entries(state.prefs.organiser || {})) {
         if (owners.has(id)) continue;
@@ -17750,6 +17806,29 @@ function bindAccount() {
     if (!(await ask(t('account.signOutAllConfirm'), { confirmLabel: t('account.signOutAll') }))) return;
     await signOut(true);
   });
+}
+
+/* ------------------------------------------------- groups needing one --- */
+
+/**
+ * The groups that require an account and whose key here is no account's: they
+ * show nothing of what they share until this device signs in.
+ */
+function groupsNeedingAccount() {
+  return groups().filter((group) => group.accounts && !group.linked);
+}
+
+/** On Home and on Groups: sign in, or the group stays closed. */
+function accountNeededHtml() {
+  const closed = groupsNeedingAccount();
+  if (!closed.length || !state.remote) return '';
+  return `
+    <section class="banner banner--warn stack stack--tight account-needed">
+      <p class="small">${escapeHtml(t('account.needed', { names: closed.map((group) => group.name).join(', '), count: closed.length }))}</p>
+      <div class="row">
+        <button type="button" class="button button--small button--primary" data-goto="#/settings">${escapeHtml(t(account() ? 'account.sync' : 'install.signIn'))}</button>
+      </div>
+    </section>`;
 }
 
 /* --------------------------------------------------------------- privacy --- */
@@ -18702,7 +18781,21 @@ function devicesHtml(group) {
   const rows = gate().devices[group.id];
   if (!rows) return `<p class="muted small">${escapeHtml(t('gate.loading'))}</p>`;
 
-  return `<div class="stack stack--tight">${rows
+  // How many devices have an account: what tells whether everyone has moved
+  // over, before requiring one.
+  const withAccount = rows.filter((row) => row.account).length;
+  const accounts = `
+    <div class="card stack stack--tight accounts-switch">
+      <p class="small">${escapeHtml(t('gate.accountsCount', { count: withAccount, total: rows.length }))}</p>
+      <p class="muted small">${escapeHtml(t(group.accounts ? 'gate.accountsOnHint' : 'gate.accountsOffHint'))}</p>
+      <div class="row">
+        <button type="button" class="button button--small ${group.accounts ? 'button--ghost' : ''}"
+                data-accounts="${escapeHtml(group.id)}" data-on="${group.accounts ? 'no' : 'yes'}">
+          ${escapeHtml(t(group.accounts ? 'gate.accountsOff' : 'gate.accountsOn'))}
+        </button>
+      </div>
+    </div>`;
+  return `<div class="stack stack--tight">${accounts}${rows
     .map(
       (row) => `
         <div class="knock">
@@ -18713,6 +18806,7 @@ function devicesHtml(group) {
                 row.mine ? t('gate.thisDevice') : '',
                 row.admits ? t('gate.admitsToo') : '',
                 row.link ? t('back.hasLink') : '',
+                row.account ? t('gate.hasAccount') : t('gate.noAccount'),
               ]
                 .filter(Boolean)
                 .join(' · '),
@@ -19291,6 +19385,8 @@ function overviewView() {
     ${groupChipsHtml()}
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
+    ${accountNeededHtml()}
+
     ${installReminderHtml()}
 
     ${eventsHtml()}
@@ -19422,6 +19518,7 @@ function groupsView() {
   }
   return `
     ${flashHtml()}
+    ${accountNeededHtml()}
     ${
       // Knocking at a group asks for a first name: better to meet the field
       // here than to be sent to the settings by an error.
@@ -19705,6 +19802,34 @@ function bindOverview() {
 
   // Who may let people in, decided from the app: the same thing the guide used to
   // ask for an `update` in the SQL editor for.
+  view.querySelectorAll('[data-accounts]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.accounts);
+      if (!group) return;
+      const on = button.dataset.on === 'yes';
+      const sure = await ask(t(on ? 'gate.accountsConfirmOn' : 'gate.accountsConfirmOff'),
+        { confirmLabel: t(on ? 'gate.accountsOn' : 'gate.accountsOff'), danger: on });
+      if (!sure) return;
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        // Requiring one takes this device signed in, its key the account's:
+        // the account learns the key first.
+        if (on) await syncAccount({ restore: false, force: true });
+        status = await state.remote.setAccounts(group.key, on, on ? await accountToken() : null);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      await refreshGroup(group);
+      forgetGate(group.id);
+      await loadGate(group);
+      flash(t(status === 'ok' ? (on ? 'gate.accountsDoneOn' : 'gate.accountsDoneOff') : 'gate.accountsNeedMine'), status === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-admits]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.admits);

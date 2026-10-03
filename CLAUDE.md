@@ -69,7 +69,8 @@ guide en français.
   clés sont marquées au compte (`group_key.user_id`, jamais une clé en clair) et
   ses secrets d'organisateur gardés : un nouvel appareil reçoit une clé neuve par
   groupe. Les visiteurs d'un lien votent sans compte. Seules les clés qui « font
-  entrer » gèrent le groupe.
+  entrer » gèrent le groupe. Étape 3 = interrupteur par groupe « Exiger un
+  compte » (`accounts_required`), actionné par qui fait entrer, connecté.
 - **Un prénom n'est pas un compte** : dans un sondage, on peut répondre pour
   n'importe quel prénom. Accepté (alourdirait tout) ; option légère si un jour
   besoin : « voir et annuler » (journal des modifications, l'organisateur annule).

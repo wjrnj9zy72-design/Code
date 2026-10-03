@@ -425,6 +425,16 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
       return call('marque_points_account_restore', { p_have: have, p_label: label }, token);
     },
 
+    /**
+     * Require an account in a group, or stop requiring it — an admitting key's
+     * call. Requiring takes being signed in, with that key the account's:
+     * 'account' says it is not, 'ok' that it is done.
+     */
+    async setAccounts(key, on, token = null) {
+      const answer = await call('marque_points_set_accounts', { p_key: key, p_on: Boolean(on) }, token);
+      return answer?.status || 'unknown';
+    },
+
     /** Delete the account: its address, its name, its secrets, its marks. */
     async accountDelete(token) {
       return call('marque_points_account_delete', {}, token);

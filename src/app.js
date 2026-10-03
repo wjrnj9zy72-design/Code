@@ -75,7 +75,9 @@ import {
   openAttachDialog, openGatherDialog, openRelateDialog,
 } from './view-groups.js';
 import { bindFlows, unblockedHtml, openActivityPicker, openActivityDialog } from './view-flows.js';
-import { accountHtml, bindAccount, syncAccount, leaveWithAccount, privacyView } from './view-account.js';
+import {
+  accountHtml, bindAccount, syncAccount, leaveWithAccount, privacyView, accountNeededHtml, accountToken,
+} from './view-account.js';
 import {
   bindInstall, installFirstHtml, installOfferHtml, installReminderHtml, phoneToInstall, startInstall,
 } from './view-install.js';
@@ -777,7 +779,21 @@ function devicesHtml(group) {
   const rows = gate().devices[group.id];
   if (!rows) return `<p class="muted small">${escapeHtml(t('gate.loading'))}</p>`;
 
-  return `<div class="stack stack--tight">${rows
+  // How many devices have an account: what tells whether everyone has moved
+  // over, before requiring one.
+  const withAccount = rows.filter((row) => row.account).length;
+  const accounts = `
+    <div class="card stack stack--tight accounts-switch">
+      <p class="small">${escapeHtml(t('gate.accountsCount', { count: withAccount, total: rows.length }))}</p>
+      <p class="muted small">${escapeHtml(t(group.accounts ? 'gate.accountsOnHint' : 'gate.accountsOffHint'))}</p>
+      <div class="row">
+        <button type="button" class="button button--small ${group.accounts ? 'button--ghost' : ''}"
+                data-accounts="${escapeHtml(group.id)}" data-on="${group.accounts ? 'no' : 'yes'}">
+          ${escapeHtml(t(group.accounts ? 'gate.accountsOff' : 'gate.accountsOn'))}
+        </button>
+      </div>
+    </div>`;
+  return `<div class="stack stack--tight">${accounts}${rows
     .map(
       (row) => `
         <div class="knock">
@@ -788,6 +804,7 @@ function devicesHtml(group) {
                 row.mine ? t('gate.thisDevice') : '',
                 row.admits ? t('gate.admitsToo') : '',
                 row.link ? t('back.hasLink') : '',
+                row.account ? t('gate.hasAccount') : t('gate.noAccount'),
               ]
                 .filter(Boolean)
                 .join(' · '),
@@ -1366,6 +1383,8 @@ function overviewView() {
     ${groupChipsHtml()}
     ${nothingYet ? `<p class="lead">${escapeHtml(t('overview.what'))}</p>` : ''}
 
+    ${accountNeededHtml()}
+
     ${installReminderHtml()}
 
     ${eventsHtml()}
@@ -1497,6 +1516,7 @@ function groupsView() {
   }
   return `
     ${flashHtml()}
+    ${accountNeededHtml()}
     ${
       // Knocking at a group asks for a first name: better to meet the field
       // here than to be sent to the settings by an error.
@@ -1780,6 +1800,34 @@ function bindOverview() {
 
   // Who may let people in, decided from the app: the same thing the guide used to
   // ask for an `update` in the SQL editor for.
+  view.querySelectorAll('[data-accounts]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const group = groups().find((item) => item.id === button.dataset.accounts);
+      if (!group) return;
+      const on = button.dataset.on === 'yes';
+      const sure = await ask(t(on ? 'gate.accountsConfirmOn' : 'gate.accountsConfirmOff'),
+        { confirmLabel: t(on ? 'gate.accountsOn' : 'gate.accountsOff'), danger: on });
+      if (!sure) return;
+      button.disabled = true;
+      let status = 'unknown';
+      try {
+        // Requiring one takes this device signed in, its key the account's:
+        // the account learns the key first.
+        if (on) await syncAccount({ restore: false, force: true });
+        status = await state.remote.setAccounts(group.key, on, on ? await accountToken() : null);
+      } catch {
+        flash(t('groups.unsure'), 'error');
+        render();
+        return;
+      }
+      await refreshGroup(group);
+      forgetGate(group.id);
+      await loadGate(group);
+      flash(t(status === 'ok' ? (on ? 'gate.accountsDoneOn' : 'gate.accountsDoneOff') : 'gate.accountsNeedMine'), status === 'ok' ? 'info' : 'error');
+      render();
+    });
+  });
+
   view.querySelectorAll('[data-admits]').forEach((button) => {
     button.addEventListener('click', async () => {
       const group = groups().find((item) => item.id === button.dataset.admits);
