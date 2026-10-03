@@ -87,7 +87,12 @@ test('the update erases no data', async () => {
   const statements = update.replace(/--.*$/gm, '');
   // The functions it installs clean up after themselves (expired invitations),
   // which is theirs to do when they run — not the update's, when it is pasted.
-  const outside = statements.replace(/\$\$[\s\S]*?\$\$/g, '');
+  // A trigger is code too: `after delete on` says when it runs, and dropping
+  // one to create it again replaces code, not data.
+  const outside = statements
+    .replace(/\$\$[\s\S]*?\$\$/g, '')
+    .replace(/\bcreate\s+trigger\b[^;]*;/gi, '')
+    .replace(/\bdrop\s+trigger\s+if\s+exists\b[^;]*;/gi, '');
   assert.equal(/\b(delete|truncate)\b/i.test(outside), false, 'no delete or truncate at the top level');
   // Dropping a function replaces code, not data — and an older signature has
   // to go, or two functions of one name leave the database unable to choose.

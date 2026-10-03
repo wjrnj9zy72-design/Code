@@ -61,9 +61,15 @@ guide en français.
 
 ## Décisions déjà prises (ne pas rediscuter sans qu'on le demande)
 
-- **Pas de comptes.** Un appareil entre dans un groupe par nom + code à 6 chiffres
-  (invitation valable 2 jours) ; il reçoit une clé de groupe, gardée sur
-  l'appareil, jamais exportée. Seules les clés qui « font entrer » gèrent le groupe.
+- **Comptes facultatifs** (depuis septembre 2026 ; étape 1 d'un passage en
+  trois : facultatifs → proposés à l'invitation → obligatoires pour les membres).
+  Un appareil entre toujours dans un groupe par nom + code à 6 chiffres
+  (invitation valable 2 jours) et reçoit une clé, gardée sur l'appareil, jamais
+  exportée. Connecté (e-mail + code, Supabase Auth, `src/view-account.js`), ses
+  clés sont marquées au compte (`group_key.user_id`, jamais une clé en clair) et
+  ses secrets d'organisateur gardés : un nouvel appareil reçoit une clé neuve par
+  groupe. Les visiteurs d'un lien votent sans compte. Seules les clés qui « font
+  entrer » gèrent le groupe.
 - **Un prénom n'est pas un compte** : dans un sondage, on peut répondre pour
   n'importe quel prénom. Accepté (alourdirait tout) ; option légère si un jour
   besoin : « voir et annuler » (journal des modifications, l'organisateur annule).

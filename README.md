@@ -485,6 +485,44 @@ de décider : des **notes** et des **croquis**, chacun sur sa carte.
 - Partagé comme le reste, archivé, copié vers un autre groupe. Pas encore de
   schémas (boîtes et flèches) ni de photos.
 
+## Les comptes (facultatifs)
+
+**Réglages → Compte** : son adresse e-mail, un code à six chiffres reçu par
+e-mail, et l'on est connecté — sans mot de passe. Le compte garde ce qu'un
+appareil seul perdrait : de quels groupes il est, et ses droits d'organisateur.
+Sur un autre appareil, ou dans un navigateur qui a tout effacé, la même
+connexion rend tout : une clé neuve pour chaque groupe (qui fait entrer si
+l'ancienne le faisait), les secrets d'organisateur, le prénom.
+
+- La base ne garde **aucune clé en clair** : elle marque les clés des appareils
+  au nom du compte (`group_key.user_id`), et en fabrique une neuve pour un
+  nouvel appareil, comme le lien de retour. **Quitter** un groupe, connecté,
+  l'en sort partout.
+- **Couper un appareil** qui était à un compte sort ce compte du groupe
+  (`marque_points_account_cut`, posé par un déclencheur sur la suppression
+  d'une clé) : le téléphone perdu ne se redonne pas de clé en se connectant,
+  même si un autre appareil de la personne reste. Seul un appareil admis de
+  nouveau (clé plus récente que la coupure) ramène le compte.
+- **Se déconnecter** met fin à la session chez Supabase ; **Se déconnecter de
+  tous les appareils** à toutes (le téléphone perdu, d'ici une heure).
+- La session vit à part des préférences (`marque-points:account:v1`) : rien
+  ne l'emporte dans un export.
+- Synchronisé à l'ouverture de l'app, en rejoignant un groupe, et par
+  **Synchroniser** — seulement ce qui est nouveau (une clé, un secret), pas
+  tout à chaque fois. Se déconnecter laisse tout sur l'appareil.
+- Les visiteurs d'un lien de sondage n'ont besoin de rien.
+- **Supprimer mon compte** (Réglages → Compte) efface l'adresse (dans
+  Supabase Auth), le prénom, les secrets gardés et les marques sur les clés ;
+  l'appareil reste dans ses groupes, sans compte. C'est le droit à
+  l'effacement.
+- **Confidentialité** (`#/confidentialite`, depuis Réglages → Compte) : ce que
+  l'app garde, où, qui le voit, combien de temps, et comment le faire
+  effacer. L'adresse de contact se règle dans `src/config.js` (`CONTACT`) ;
+  vide, la page renvoie à l'organisateur du groupe.
+- Côté Supabase : le modèle d'e-mail doit porter le code (`{{ .Token }}`) et,
+  pour plus que quelques e-mails par heure, un service d'envoi (SMTP) — voir
+  docs/DEPLOIEMENT.md, étape 9.
+
 ## Supprimer d'un glissement
 
 Ce qui se supprime dans une liste de choses se glisse vers la gauche, au doigt

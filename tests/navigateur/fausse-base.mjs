@@ -28,6 +28,13 @@ const KEYS = [
 ];
 const REQUESTS = []; // { id, group, name, label, ticket, state, at }
 const PERSONS = []; // { id, group, name, token }
+// Les comptes (Supabase Auth) : un code par adresse, un jeton par connexion.
+const CODES = new Map(); // e-mail → code à six chiffres
+const USERS = new Map(); // e-mail → id du compte
+const ACCOUNTS = new Map(); // id du compte → prénom
+const OWNED = new Map(); // `${compte}|${doc}` → secret d'organisateur
+const CUT = new Map(); // `${compte}|${groupe}` → quand une clé du compte y a été coupée
+const REVOKED = new Set(); // comptes déconnectés partout : leur jeton de renouvellement ne sert plus
 const port = Number(process.env.PORT) || 8123;
 const old = process.env.OLD === '1';
 
@@ -43,12 +50,110 @@ createServer(async (req, res) => {
   };
   const raise = (message) => send(400, { code: 'P0001', message });
   if (req.method === 'OPTIONS') return send(204);
+  // Pour les tests : le code que l'e-mail aurait porté.
+  if (req.url.startsWith('/__code?')) {
+    return send(200, { code: CODES.get(new URL(req.url, 'http://x').searchParams.get('email')) ?? null });
+  }
   if (req.headers.apikey !== KEY) return send(401, { message: 'Invalid API key' });
 
   let body = '';
   for await (const chunk of req) body += chunk;
   const at = body ? JSON.parse(body) : {};
   const fn = req.url.split('/').pop();
+
+  if (req.url.startsWith('/auth/v1/')) {
+    if (old) return send(404, { message: 'not found' });
+    const session = (id, email) => ({
+      access_token: `tok-${id}-${Math.random().toString(36).slice(2, 8)}`, refresh_token: `ref-${id}`,
+      expires_in: 3600, user: { id, email },
+    });
+    if (req.url.startsWith('/auth/v1/otp')) {
+      const email = String(at.email ?? '').trim().toLowerCase();
+      if (!/@/.test(email)) return send(400, { msg: 'invalid email' });
+      CODES.set(email, String(Math.floor(100000 + Math.random() * 900000)));
+      return send(200, {});
+    }
+    if (req.url.startsWith('/auth/v1/verify')) {
+      const email = String(at.email ?? '').trim().toLowerCase();
+      if (!CODES.get(email) || CODES.get(email) !== String(at.token)) return send(403, { msg: 'Token has expired or is invalid' });
+      CODES.delete(email);
+      if (!USERS.has(email)) USERS.set(email, `00000000-0000-4000-8000-${String(USERS.size + 1).padStart(12, '0')}`);
+      REVOKED.delete(USERS.get(email));
+      return send(200, session(USERS.get(email), email));
+    }
+    if (req.url.startsWith('/auth/v1/logout')) {
+      const id = /^Bearer tok-([0-9a-f-]{36})-/.exec(String(req.headers.authorization ?? ''))?.[1];
+      if (id && req.url.includes('scope=global')) REVOKED.add(id);
+      return send(204);
+    }
+    if (req.url.startsWith('/auth/v1/token')) {
+      const id = String(at.refresh_token ?? '').replace(/^ref-/, '');
+      if (REVOKED.has(id)) return send(400, { msg: 'Invalid Refresh Token: Refresh Token Revoked' });
+      const email = [...USERS].find(([, uid]) => uid === id)?.[0];
+      if (!email) return send(400, { msg: 'Invalid Refresh Token' });
+      return send(200, session(id, email));
+    }
+    return send(404, { message: 'not found' });
+  }
+
+  if (fn.startsWith('marque_points_account_')) {
+    if (old) return send(404, { code: 'PGRST202', message: `Could not find the function public.${fn}` });
+    const bearer = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
+    const user = /^tok-([0-9a-f-]{36})-/.exec(bearer)?.[1];
+    if (!user) return raise('connexion requise');
+    if (fn === 'marque_points_account_link') {
+      const row = KEYS.find((one) => one.key === at.p_key);
+      if (!row) return send(200, { status: 'unknown' });
+      row.user = user;
+      if ((CUT.get(`${user}|${row.group}`) ?? Infinity) < row.at) CUT.delete(`${user}|${row.group}`);
+      if (String(at.p_name ?? '').trim()) ACCOUNTS.set(user, String(at.p_name).trim().slice(0, 40));
+      return send(200, { status: 'ok', id: row.group });
+    }
+    if (fn === 'marque_points_account_owner_put') {
+      const held = rows.get(at.p_id);
+      if (!held || !held.owner || held.owner !== at.p_secret) return send(200, { status: 'unknown' });
+      OWNED.set(`${user}|${at.p_id}`, at.p_secret);
+      return send(200, { status: 'ok' });
+    }
+    if (fn === 'marque_points_account_restore') {
+      const have = new Set(Array.isArray(at.p_have) ? at.p_have : []);
+      const mine = KEYS.filter((one) => one.user === user && !have.has(one.group) && !CUT.has(`${user}|${one.group}`));
+      const groups = [];
+      for (const groupId of new Set(mine.map((one) => one.group))) {
+        const group = [...GROUPS.values()].find((g) => g.id === groupId);
+        const admits = mine.some((one) => one.group === groupId && one.admits);
+        const key = `cle-compte-${Math.random().toString(36).slice(2, 10)}`;
+        GROUPS.set(key, group);
+        if (admits) ADMITS.add(key);
+        KEYS.push({
+          id: `key_${Math.random().toString(36).slice(2, 10)}`, group: groupId,
+          label: [ACCOUNTS.get(user), String(at.p_label ?? '')].filter(Boolean).join(' · ').slice(0, 80),
+          admits, key, user, at: Date.now(),
+        });
+        groups.push({ id: groupId, name: group?.name ?? '', key, admits });
+      }
+      const owners = {};
+      for (const [pair, secret] of OWNED) {
+        const [who, doc] = pair.split('|');
+        if (who === user && rows.has(doc)) owners[doc] = secret;
+      }
+      return send(200, { status: 'ok', name: ACCOUNTS.get(user) ?? '', groups, owners });
+    }
+    if (fn === 'marque_points_account_delete') {
+      for (const one of KEYS) if (one.user === user) one.user = null;
+      for (const pair of [...OWNED.keys()]) if (pair.startsWith(`${user}|`)) OWNED.delete(pair);
+      for (const pair of [...CUT.keys()]) if (pair.startsWith(`${user}|`)) CUT.delete(pair);
+      ACCOUNTS.delete(user);
+      for (const [email, id] of [...USERS]) if (id === user) USERS.delete(email);
+      return send(200, { status: 'ok' });
+    }
+    if (fn === 'marque_points_account_leave') {
+      const row = KEYS.find((one) => one.key === at.p_key);
+      if (!row) return send(200, { status: 'unknown' });
+      for (const one of KEYS) if (one.group === row.group && one.user === user) one.user = null;
+      return send(200, { status: 'ok' });
+    }
+  }
   const lot = (id) => { const row = rows.get(id); return row?.code ? row : null; };
 
   if (fn === 'marque_points_get') {
@@ -305,6 +410,7 @@ createServer(async (req, res) => {
       return send(200, { status: 'last' });
     }
     const [cut] = KEYS.splice(index, 1);
+    if (cut.user) CUT.set(`${cut.user}|${cut.group}`, Date.now());
     GROUPS.delete(cut.key);
     ADMITS.delete(cut.key);
     return send(200, { status: 'ok' });

@@ -33,6 +33,12 @@ do $$ begin
 end $$;
 grant usage on schema public to anon, authenticated;
 create extension if not exists pgcrypto;
+-- Et l'identité du compte connecté, que Supabase tire du jeton ; ici, d'un
+-- réglage que les contrôles posent eux-mêmes (set request.jwt.claim.sub).
+create schema if not exists auth;
+create table if not exists auth.users (id uuid primary key, email text);
+create or replace function auth.uid() returns uuid language sql stable as
+  $f$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
 SQL
 
 GUIDE="$RACINE/docs/DEPLOIEMENT.md"
@@ -54,7 +60,9 @@ for controle in "$ICI"/*.sql; do
     done
   fi
   sortie="$(psql_ "-d essai_$nom -f $TMP/$nom.sql" 2>&1)"
-  if [ $? -eq 0 ]; then
+  # Un contrôle dit « ÉCHEC » dans un NOTICE, sans erreur SQL : c'est un échec
+  # quand même, et il ne doit pas passer pour un contrôle de moins.
+  if [ $? -eq 0 ] && ! echo "$sortie" | grep -q 'ÉCHEC'; then
     echo "$nom : $(echo "$sortie" | grep -c 'OK [0-9]') contrôle(s) OK"
   else
     ECHECS=$((ECHECS + 1)); echo "$nom : ÉCHEC"; echo "$sortie" | grep -E 'ÉCHEC|ERROR' | head -3

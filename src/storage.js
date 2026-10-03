@@ -102,3 +102,24 @@ export function savePrefs(prefs) {
   const stored = loadPrefs();
   return write(PREFS_KEY, { ...stored, ...prefs });
 }
+
+/**
+ * The signed-in account's session, apart from the preferences: nothing that
+ * copies or exports those should ever carry it.
+ */
+const ACCOUNT_KEY = 'marque-points:account:v1';
+
+export function loadAccount() {
+  const value = read(ACCOUNT_KEY, null);
+  return value && typeof value === 'object' && value.refresh ? value : null;
+}
+
+export function saveAccount(session) {
+  if (session) return write(ACCOUNT_KEY, session);
+  try {
+    localStorage.removeItem(ACCOUNT_KEY);
+  } catch {
+    // Nothing to forget where nothing could be kept.
+  }
+  return true;
+}

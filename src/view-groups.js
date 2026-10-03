@@ -32,6 +32,7 @@ import { bindSwipes } from './swipe.js';
 import { setLink } from './remote.js';
 import { canSeal, newCode, readCode, seal, unseal } from './lock.js';
 import { t } from './i18n.js';
+import { syncAccount } from './view-account.js';
 
 /* ------------------------------------------------------------- the chain --- */
 
@@ -232,9 +233,12 @@ export function groups() {
 }
 
 export function rememberGroup(group) {
+  const known = groups().some((held) => held.id === group.id && held.key === group.key);
   const others = groups().filter((held) => held.id !== group.id);
   state.prefs = { ...state.prefs, groups: [...others, group] };
   savePrefs(state.prefs);
+  // A group joined here, while signed in: the account learns it at once.
+  if (!known) void syncAccount({ restore: false, force: true });
 }
 
 export function forgetGroup(id) {

@@ -74,7 +74,7 @@ const TABS = ['#/', '#/agenda', '#/groups', '#/settings', '#/lists', '#/polls', 
 const routesOf = (docs) => [
   ...TABS,
   `#/list/${docs.list.id}`, `#/poll/${docs.poll.id}`, `#/poll/${docs.event.id}`, `#/spend/${docs.spend.id}`,
-  `#/game/${docs.game.id}`, `#/idea/${docs.board.id}`, '#/group/grp_famille', '#/person/Alice', '#/stats',
+  `#/game/${docs.game.id}`, `#/idea/${docs.board.id}`, '#/group/grp_famille', '#/person/Alice', '#/stats', '#/confidentialite',
   '#/lists/new', '#/polls/new', '#/agenda/new', '#/spends/new', '#/new', '#/ideas/new',
 ];
 

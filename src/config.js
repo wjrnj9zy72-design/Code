@@ -15,6 +15,13 @@ export const REMOTE = {
 };
 
 /**
+ * Who to write to about one's data — an e-mail address, shown on the privacy
+ * page (#/confidentialite). Empty, the page sends people to their group's
+ * organiser instead.
+ */
+export const CONTACT = '';
+
+/**
  * A copy of the app served from somewhere else — a file on a phone, say — can
  * be pointed at the same database without being rebuilt.
  */

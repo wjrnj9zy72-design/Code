@@ -16,7 +16,10 @@
 --      en retard n'efface plus les votes arrivés entre-temps ;
 --   5. ce qui est supprimé ne revient plus : un téléphone qui gardait un
 --      sondage supprimé ne peut plus le recréer, ni le ranger dans un autre
---      groupe ; et un sondage clos ne prend plus de votes.
+--      groupe ; et un sondage clos ne prend plus de votes ;
+--   6. les comptes, facultatifs : se connecter par e-mail retrouve ses
+--      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
+--      chacun peut supprimer son compte et son adresse.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -314,3 +317,220 @@ grant execute on function public.marque_points_delete(text, text, text) to anon,
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
+
+-- 6. Les comptes : quelles clés sont à quel compte, et les secrets d'organisateur.
+alter table public.marque_points_group_key
+  add column if not exists user_id uuid;
+create index if not exists marque_points_group_key_user on public.marque_points_group_key (user_id);
+
+create table if not exists public.marque_points_account (
+  user_id uuid primary key,
+  name text not null default '',
+  updated_at timestamptz not null default now()
+);
+alter table public.marque_points_account enable row level security;
+
+create table if not exists public.marque_points_account_owner (
+  user_id uuid not null,
+  doc_id text not null,
+  secret text not null,
+  primary key (user_id, doc_id)
+);
+alter table public.marque_points_account_owner enable row level security;
+
+create table if not exists public.marque_points_account_cut (
+  user_id uuid not null,
+  group_id text not null,
+  cut_at timestamptz not null default now(),
+  primary key (user_id, group_id)
+);
+alter table public.marque_points_account_cut enable row level security;
+
+create or replace function public.marque_points_account_cut_mark()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.user_id is not null then
+    insert into public.marque_points_account_cut (user_id, group_id)
+    values (old.user_id, old.group_id)
+    on conflict (user_id, group_id) do update set cut_at = now();
+  end if;
+  return old;
+end;
+$$;
+
+drop trigger if exists marque_points_account_cut_mark on public.marque_points_group_key;
+create trigger marque_points_account_cut_mark
+  after delete on public.marque_points_group_key
+  for each row execute function public.marque_points_account_cut_mark();
+
+create or replace function public.marque_points_account_link(p_key text, p_name text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_group text;
+  v_since timestamptz;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  update public.marque_points_group_key k
+     set user_id = v_user
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+  returning k.group_id, k.created_at into v_group, v_since;
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  -- Une clé admise après la coupure ramène le compte ; une clé d'avant, non.
+  delete from public.marque_points_account_cut
+   where user_id = v_user and group_id = v_group and cut_at < v_since;
+  if btrim(coalesce(p_name, '')) <> '' then
+    insert into public.marque_points_account (user_id, name)
+    values (v_user, left(btrim(p_name), 40))
+    on conflict (user_id) do update set name = excluded.name, updated_at = now();
+  end if;
+  return jsonb_build_object('status', 'ok', 'id', v_group);
+end;
+$$;
+
+create or replace function public.marque_points_account_owner_put(p_id text, p_secret text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  if not exists (select 1 from public.marque_points_games
+                  where id = p_id and owner_hash = md5(coalesce(p_secret, '') || p_id)) then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  insert into public.marque_points_account_owner (user_id, doc_id, secret)
+  values (v_user, p_id, p_secret)
+  on conflict (user_id, doc_id) do update set secret = excluded.secret;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+create or replace function public.marque_points_account_restore(p_have jsonb default '[]'::jsonb, p_label text default '')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_name text;
+  v_groups jsonb := '[]'::jsonb;
+  v_row record;
+  v_key text;
+  v_salt text;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  select name into v_name from public.marque_points_account where user_id = v_user;
+  for v_row in
+    select k.group_id, g.name as group_name, bool_or(k.admits) as admits, max(k.person_id) as person_id
+      from public.marque_points_group_key k
+      join public.marque_points_group g on g.id = k.group_id
+     where k.user_id = v_user
+       and not (to_jsonb(k.group_id) <@ coalesce(p_have, '[]'::jsonb))
+       and not exists (select 1 from public.marque_points_account_cut c
+                        where c.user_id = v_user and c.group_id = k.group_id)
+     group by k.group_id, g.name
+  loop
+    v_key := replace(gen_random_uuid()::text, '-', '');
+    v_salt := md5(gen_random_uuid()::text);
+    insert into public.marque_points_group_key (id, group_id, label, key_hash, key_salt, admits, person_id, user_id)
+    values (replace(gen_random_uuid()::text, '-', ''), v_row.group_id,
+            left(btrim(coalesce(v_name, '') || ' · ' || coalesce(btrim(p_label), '')), 80),
+            md5(v_key || v_salt), v_salt, v_row.admits, v_row.person_id, v_user);
+    v_groups := v_groups || jsonb_build_object('id', v_row.group_id, 'name', v_row.group_name,
+                                               'key', v_key, 'admits', v_row.admits);
+  end loop;
+  return jsonb_build_object(
+    'status', 'ok',
+    'name', coalesce(v_name, ''),
+    'groups', v_groups,
+    'owners', coalesce((select jsonb_object_agg(o.doc_id, o.secret)
+                          from public.marque_points_account_owner o
+                          join public.marque_points_games d on d.id = o.doc_id
+                         where o.user_id = v_user), '{}'::jsonb));
+end;
+$$;
+
+create or replace function public.marque_points_account_leave(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_group text;
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  select k.group_id into v_group from public.marque_points_group_key k
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  update public.marque_points_group_key set user_id = null
+   where group_id = v_group and user_id = v_user;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+create or replace function public.marque_points_account_delete()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then
+    raise exception 'connexion requise';
+  end if;
+  update public.marque_points_group_key set user_id = null where user_id = v_user;
+  delete from public.marque_points_account_owner where user_id = v_user;
+  delete from public.marque_points_account_cut where user_id = v_user;
+  delete from public.marque_points_account where user_id = v_user;
+  -- L'adresse elle-même vit chez Supabase Auth. Si la base refusait d'y
+  -- toucher, le reste est effacé quand même, et l'app le dit.
+  begin
+    delete from auth.users where id = v_user;
+  exception when insufficient_privilege then
+    return jsonb_build_object('status', 'partial');
+  end;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+-- Pour les comptes connectés seulement, pas pour la clé publique de la page.
+revoke all on function public.marque_points_account_link(text, text) from public, anon;
+revoke all on function public.marque_points_account_owner_put(text, text) from public, anon;
+revoke all on function public.marque_points_account_restore(jsonb, text) from public, anon;
+revoke all on function public.marque_points_account_leave(text) from public, anon;
+revoke all on function public.marque_points_account_delete() from public, anon;
+grant execute on function public.marque_points_account_link(text, text) to authenticated;
+grant execute on function public.marque_points_account_owner_put(text, text) to authenticated;
+grant execute on function public.marque_points_account_restore(jsonb, text) to authenticated;
+grant execute on function public.marque_points_account_leave(text) to authenticated;
+grant execute on function public.marque_points_account_delete() to authenticated;
+revoke all on function public.marque_points_account_cut_mark() from public, anon, authenticated;
