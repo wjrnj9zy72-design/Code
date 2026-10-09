@@ -786,6 +786,27 @@ export function keptElsewhere(changed, { store = false } = {}) {
  * database answers that the thing was deleted, keeping it would only fail
  * again at every change — so it leaves this device too, and the page says why.
  */
+/**
+ * Send a list, an account of spends or a game — after taking in what the
+ * database already has. It keeps whatever it is sent, so a copy written
+ * straight away would erase the lines someone else added since this device
+ * last looked. `adopt` merges a stored copy in and says whether it brought
+ * anything; `find` hands back the merged one.
+ */
+export async function pushMerged(changed, { valid, adopt, find }) {
+  let outgoing = changed;
+  try {
+    const stored = await state.remote.get(changed.id);
+    if (valid(stored) && adopt(stored)) {
+      outgoing = find(changed.id) || changed;
+      if (!isBusy()) render();
+    }
+  } catch {
+    // Unreadable just now: this copy goes up, and the next look merges.
+  }
+  await state.remote.put(outgoing, keyFor(outgoing), organiserSecret(outgoing.id));
+}
+
 export function pushFailed(changed) {
   return (error) => {
     if (wasDeleted(error)) dropDeleted(changed.id);
@@ -897,7 +918,7 @@ export function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidSpend, adopt: adoptSpend, find: getSpend }).catch(pushFailed(changed));
   }
   return ok;
 }

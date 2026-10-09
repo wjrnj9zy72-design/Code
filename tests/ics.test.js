@@ -191,3 +191,19 @@ test('an event is made with its last day', () => {
   assert.equal(event.until, '2026-07-15');
   assert.ok(icsFor([pollEvent(event)]).includes('DTEND;VALUE=DATE:20260716'));
 });
+
+test('an event at eleven at night ends the next day, never at hour twenty-four', () => {
+  const lines = vevent({ uid: 'x', day: '2026-12-31', at: '23:30', summary: 'Réveillon', stamp: STAMP });
+  assert.ok(lines.includes('DTSTART:20261231T233000'));
+  assert.ok(lines.includes('DTEND:20270101T003000'));
+  assert.ok(vevent({ uid: 'x', day: '2026-10-09', at: '20:00', summary: 'Dîner', stamp: STAMP }).includes('DTEND:20261009T210000'));
+});
+
+test('a day or an hour that is not one cannot break the feed', () => {
+  assert.deepEqual(vevent({ uid: 'x', day: '2026-10-09\r\nEND:VCALENDAR', summary: 'x', stamp: STAMP }), []);
+  const lines = vevent({ uid: 'x', day: '2026-10-09', at: '20:00\nX', summary: 'x', stamp: STAMP });
+  assert.ok(lines.includes('DTSTART;VALUE=DATE:20261009'));
+  assert.equal(icsEscape('a\rb'), 'a\\nb');
+  const poll = { ...setPollDate(createPoll({ question: 'Q', options: ['a'] }), 'a'), date: 42 };
+  assert.deepEqual(agendaFor({ polls: [poll] }), []);
+});

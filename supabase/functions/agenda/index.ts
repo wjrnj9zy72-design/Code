@@ -4,7 +4,7 @@
 // avec la vérification du JWT **désactivée** : un agenda qui s'abonne ne peut
 // envoyer aucun en-tête. Voir docs/DEPLOIEMENT.md, étape 8.
 //
-// Le fichier fait 342 lignes. Si l'éditeur en affiche moins une fois collé,
+// Le fichier fait 363 lignes. Si l'éditeur en affiche moins une fois collé,
 // le collage est incomplet : refaites un « tout sélectionner » dans l'éditeur,
 // puis recollez. Le plus sûr est de copier depuis la version brute du fichier
 // sur GitHub (bouton « Raw »), qui est du texte et rien d'autre.
@@ -31,8 +31,12 @@ function icsEscape(text) {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
+
+/** A day as the app writes one, `AAAA-MM-JJ`, and an hour, `HH:MM`. */
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const HOUR = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * Lines are folded at 75 octets — octets, not characters: an accented letter
@@ -71,6 +75,19 @@ function dayAfter(day) {
   return `${next.getUTCFullYear()}${pad(next.getUTCMonth() + 1)}${pad(next.getUTCDate())}`;
 }
 
+/**
+ * An hour later, as iCalendar writes a local instant: `AAAAMMJJTHHMM00`. Past
+ * eleven at night it is the next day — iCalendar has no hour 24.
+ */
+function hourLater(day, at) {
+  const [year, month, date] = String(day).split('-').map(Number);
+  const [hour, minute] = String(at).split(':').map(Number);
+  const end = new Date(Date.UTC(year, month - 1, date, hour + 1, minute));
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${end.getUTCFullYear()}${pad(end.getUTCMonth() + 1)}${pad(end.getUTCDate())}`
+    + `T${pad(end.getUTCHours())}${pad(end.getUTCMinutes())}00`;
+}
+
 /** An instant, in the UTC form iCalendar uses for DTSTAMP. */
 function stampNow(at) {
   return new Date(at).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
@@ -84,6 +101,11 @@ function stampNow(at) {
  * at eight; carrying a time zone would only be right until someone travels.
  */
 function vevent({ uid, day, at = null, until = null, summary, description = '', stamp = Date.now() }) {
+  // Whatever the documents hold goes into the file: a day or an hour that is
+  // not one would break the line it lands on, or the whole feed.
+  if (!DAY.test(String(day ?? ''))) return [];
+  if (!HOUR.test(String(at ?? ''))) at = null;
+  if (!DAY.test(String(until ?? ''))) until = null;
   const lines = [
     'BEGIN:VEVENT',
     `UID:${icsEscape(uid)}`,
@@ -102,9 +124,8 @@ function vevent({ uid, day, at = null, until = null, summary, description = '', 
     lines.push(`DTEND;VALUE=DATE:${dayAfter(last)}`);
   } else if (at) {
     const [hour, minute] = String(at).split(':');
-    const end = String(Number(hour) + 1).padStart(2, '0');
     lines.push(`DTSTART:${stampDay(day)}T${hour}${minute}00`);
-    lines.push(`DTEND:${stampDay(day)}T${end}${minute}00`);
+    lines.push(`DTEND:${hourLater(day, at)}`);
   } else {
     lines.push(`DTSTART;VALUE=DATE:${stampDay(day)}`);
     lines.push(`DTEND;VALUE=DATE:${dayAfter(day)}`);
@@ -225,7 +246,7 @@ function listEvents(list, { stamp } = {}) {
       docId: list.id,
       day: item.due,
       at: null,
-      summary: item.text,
+      summary: String(item.text ?? ''),
       description: [list.name, list.people?.find((person) => person.id === item.who)?.name]
         .filter(Boolean)
         .join(' · '),
@@ -245,7 +266,7 @@ function agendaFor({ lists = [], polls = [] } = {}, groupId = '') {
   const events = [
     ...polls.filter((poll) => mine(poll) && live(poll)).map((poll) => pollEvent(poll)).filter(Boolean),
     ...lists.filter((list) => mine(list) && live(list)).flatMap((list) => listEvents(list)),
-  ];
+  ].filter((event) => DAY.test(String(event.day ?? '')));
   return events.sort((a, b) => a.day.localeCompare(b.day) || a.summary.localeCompare(b.summary));
 }
 

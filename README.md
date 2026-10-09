@@ -536,7 +536,8 @@ l'ancienne le faisait), les secrets d'organisateur, le prénom.
   pour une clé qui fait entrer) : la liste dit combien d'appareils ont un
   compte et lesquels ; quand tout le monde a basculé, l'interrupteur ferme le
   groupe aux clés sans compte (`marque_points_group.accounts_required` :
-  `group_docs`, `invite` et la création par `put` refusent). Il faut être
+  `group_docs`, `invite`, la création par `put`, `delete`, `calendar`,
+  `forget_calendar`, `put_set` et `forget_set` refusent). Il faut être
   connecté soi-même pour l'actionner, sinon on s'enfermerait dehors. Un
   appareil sans compte voit « … demande un compte » sur l'accueil ; connecté,
   sa clé est marquée et tout revient. Réversible.

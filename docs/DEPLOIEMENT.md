@@ -628,6 +628,7 @@ declare
   v_group text;
   v_unlock jsonb;
   v_drop jsonb;
+  v_next jsonb;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
@@ -721,8 +722,7 @@ begin
      and jsonb_typeof(v_unlock->(o.value->>'id')) = 'string'
      and encode(sha256(convert_to(v_unlock->>(o.value->>'id'), 'UTF8')), 'hex') = o.value->>'by';
 
-  update public.marque_points_games
-     set data = v_stored
+  v_next := v_stored
            || jsonb_build_object(
                 'votes', (select coalesce(jsonb_object_agg(c.key, c.value), '{}'::jsonb)
                             from jsonb_each(public.marque_points_merge_votes(v_stored->'votes', p_data->'votes')) c
@@ -747,8 +747,16 @@ begin
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
-                                      coalesce((p_data->>'updatedAt')::numeric, 0))),
-         updated_at = now()
+                                      coalesce((p_data->>'updatedAt')::numeric, 0)));
+  -- Ce qu'apporte un visiteur s'ajoute à ce qui est là : la limite vaut pour
+  -- le tout, sinon des envois répétés enfleraient le sondage sans fin, jusqu'à
+  -- ce que son organisateur lui-même ne puisse plus l'enregistrer.
+  if pg_column_size(v_next) > 200000 then
+    raise exception 'donnee trop volumineuse';
+  end if;
+
+  update public.marque_points_games
+     set data = v_next, updated_at = now()
    where id = p_id and code_hash is null;
 end;
 $$;
@@ -775,9 +783,12 @@ begin
     return; -- rien à supprimer, rien à refuser
   end if;
 
+  -- Dans un groupe qui exige un compte, une clé sans compte n'y efface plus rien.
   if v_group is null or v_group is distinct from (
-    select group_id from public.marque_points_group_key
-     where key_hash = md5(coalesce(p_key, '') || key_salt)
+    select k.group_id from public.marque_points_group_key k
+      join public.marque_points_group grp on grp.id = k.group_id
+     where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+       and (not grp.accounts_required or k.user_id is not null)
   ) then
     raise exception 'cle de groupe invalide';
   end if;
@@ -793,7 +804,8 @@ begin
 end;
 $$;
 
--- Un lot : la clé d'un groupe suffit, et il se range dans ce groupe.
+-- Un lot : la clé d'un groupe suffit (avec un compte, si le groupe en exige
+-- un), et il se range dans ce groupe.
 create or replace function public.marque_points_put_set(
   p_id text, p_data jsonb, p_code text, p_key text
 )
@@ -806,8 +818,10 @@ declare
   v_salt text := md5(gen_random_uuid()::text);
   v_group text;
 begin
-  select group_id into v_group from public.marque_points_group_key
-   where key_hash = md5(coalesce(p_key, '') || key_salt);
+  select k.group_id into v_group from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null);
   if v_group is null then
     raise exception 'cle de groupe invalide';
   end if;
@@ -826,22 +840,28 @@ begin
 end;
 $$;
 
+-- Retirer un lot : avec une clé de son groupe, pas de n'importe lequel. Un lot
+-- d'avant les groupes n'en a pas : n'importe quelle clé le retire, comme avant.
 create or replace function public.marque_points_forget_set(p_id text, p_key text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_group text;
 begin
-  if not exists (
-    select 1 from public.marque_points_group_key
-     where key_hash = md5(coalesce(p_key, '') || key_salt)
-  ) then
+  select k.group_id into v_group from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null);
+  if v_group is null then
     raise exception 'cle de groupe invalide';
   end if;
 
   delete from public.marque_points_games
-   where id = p_id and code_hash is not null;
+   where id = p_id and code_hash is not null
+     and (group_id is null or group_id = v_group);
   if not found then
     return jsonb_build_object('status', 'unknown');
   end if;
@@ -945,7 +965,7 @@ begin
 
   -- Ménage : ce qui est mort ne doit pas occuper un code.
   delete from public.marque_points_invite
-   where expires_at < now() or uses <= 0 or tries >= 10;
+   where expires_at < now() or uses <= 0;
 
   v_code := public.marque_points_fresh_code();
   insert into public.marque_points_invite (code, group_id, expires_at, uses)
@@ -1309,7 +1329,9 @@ create unique index if not exists marque_points_group_calendar
   on public.marque_points_group (calendar) where calendar is not null;
 
 -- Le jeton de ce groupe, fabriqué la première fois qu'on le demande. N'importe
--- quelle clé du groupe peut l'obtenir : l'agenda est celui de tout le monde.
+-- quelle clé du groupe peut l'obtenir : l'agenda est celui de tout le monde —
+-- sauf, dans un groupe qui exige un compte, une clé sans compte : l'agenda
+-- montre ce que le groupe partage.
 create or replace function public.marque_points_calendar(p_key text)
 returns jsonb
 language plpgsql
@@ -1318,13 +1340,18 @@ set search_path = public
 as $$
 declare
   v_group text;
+  v_open boolean;
   v_token text;
 begin
-  select k.group_id into v_group
+  select k.group_id, (not grp.accounts_required or k.user_id is not null) into v_group, v_open
     from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
    where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
   if v_group is null then
     return jsonb_build_object('status', 'unknown');
+  end if;
+  if not v_open then
+    return jsonb_build_object('status', 'account');
   end if;
 
   select g.calendar into v_token from public.marque_points_group g where g.id = v_group;
@@ -1340,6 +1367,8 @@ $$;
 
 -- Couper l'adresse : les agendas déjà abonnés cessent de recevoir quoi que ce
 -- soit. En redemander une en fabrique une autre, sans rapport avec l'ancienne.
+-- C'est l'affaire d'une clé qui fait entrer : sinon n'importe quel appareil
+-- couperait l'agenda de tout le groupe.
 create or replace function public.marque_points_forget_calendar(p_key text)
 returns jsonb
 language plpgsql
@@ -1351,7 +1380,10 @@ declare
 begin
   select k.group_id into v_group
     from public.marque_points_group_key k
-   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits
+     and (not grp.accounts_required or k.user_id is not null);
   if v_group is null then
     return jsonb_build_object('status', 'unknown');
   end if;
@@ -1365,8 +1397,9 @@ $$;
 -- les sondages de ce groupe, et rien de plus. Les parties n'ont pas de date à
 -- donner, et n'ont donc rien à faire ici.
 --
--- Un jeton inventé est compté comme un code d'invitation inventé : au bout de
--- vingt essais ratés en dix minutes, la fonction ne répond plus qu'« occupé ».
+-- Pas de plafond d'essais : un jeton de trente-deux caractères tirés au hasard
+-- ne se devine pas, et un plafond commun à tous les groupes laissait quelques
+-- agendas abonnés à une adresse coupée faire taire ceux de tout le monde.
 create or replace function public.marque_points_agenda(p_token text)
 returns jsonb
 language plpgsql
@@ -1375,23 +1408,12 @@ set search_path = public
 as $$
 declare
   v_group public.marque_points_group;
-  v_misses integer;
 begin
-  delete from public.marque_points_join_miss where at < now() - interval '1 hour';
-
-  select count(*) into v_misses
-    from public.marque_points_join_miss
-   where name = '' and at > now() - interval '10 minutes';
-  if v_misses >= 20 then
-    return jsonb_build_object('status', 'busy');
-  end if;
-
   select g.* into v_group
     from public.marque_points_group g
    where g.calendar is not null and g.calendar = coalesce(p_token, '');
 
   if not found then
-    insert into public.marque_points_join_miss (name) values ('');
     return jsonb_build_object('status', 'unknown');
   end if;
 
@@ -2657,13 +2679,15 @@ Elle est **fabriquée à la première demande** et reste la même ensuite.
   qui a coché quoi, ni aucune clé.
 - **Qui tient l'adresse voit ces dates**, sans rien d'autre à fournir : c'est
   une adresse à envoyer à la famille, pas à publier. Elle se coupe depuis l'app
-  (*Couper l'adresse*), ce qui arrête d'un coup tous les agendas abonnés ; en
+  (*Couper l'adresse*, sur un appareil qui fait entrer), ce qui arrête d'un
+  coup tous les agendas abonnés ; en
   redemander une en fabrique une autre, sans rapport avec la première.
 - Les archives et les modèles n'y sont pas : l'agenda est pour ce qui vient.
 - **La synchronisation ne va que dans un sens.** Ce qui est écrit dans l'agenda
   de quelqu'un ne revient jamais dans l'app.
-- Un jeton inventé est freiné comme un code d'invitation inventé : vingt essais
-  ratés en dix minutes, et la fonction répond « occupé » un moment.
+- Un jeton ne se devine pas (trente-deux caractères tirés au hasard) : il n'y a
+  donc pas de plafond d'essais, qui laisserait des agendas abonnés à une adresse
+  coupée faire taire ceux des autres groupes.
 
 > Ce que je n'ai pas pu éprouver : **le déploiement lui-même**, ni aucun agenda
 > réel. La fonction et son SQL sont vérifiés ici — sur PostgreSQL 16 pour la

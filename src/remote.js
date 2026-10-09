@@ -241,17 +241,20 @@ export function createRemote(config, fetchImpl = globalThis.fetch) {
      * The group's calendar address, made the first time it is asked for.
      *
      * One per group, and any key of the group may have it: the calendar is
-     * everyone's. Returns { status: 'ok', token, name } | { status: 'unknown' }.
+     * everyone's — except a key without an account, in a group that asks for
+     * one. Returns { status: 'ok', token, name } | { status: 'account' }
+     * | { status: 'unknown' }.
      */
     async calendar(key) {
       const answer = await call('marque_points_calendar', { p_key: key });
       if (answer?.status === 'ok' && typeof answer.token === 'string') {
         return { status: 'ok', token: answer.token, name: answer.name || '' };
       }
+      if (answer?.status === 'account') return { status: 'account' };
       return { status: 'unknown' };
     },
 
-    /** Cut the calendar address: every subscribed calendar stops. 'ok' | 'unknown'. */
+    /** Cut the calendar address, for a key that admits: every subscribed calendar stops. 'ok' | 'unknown'. */
     async forgetCalendar(key) {
       const answer = await call('marque_points_forget_calendar', { p_key: key });
       return answer?.status === 'ok' ? 'ok' : 'unknown';

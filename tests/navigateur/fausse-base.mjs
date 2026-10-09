@@ -249,7 +249,7 @@ createServer(async (req, res) => {
   if (fn === 'marque_points_delete') {
     const held = rows.get(at.p_id);
     if (!held || held.code) return send(204);
-    if (GROUPS.get(at.p_key)?.id !== held.group) return raise('cle de groupe invalide');
+    if (GROUPS.get(at.p_key)?.id !== held.group || closed(at.p_key)) return raise('cle de groupe invalide');
     if (held.owner && at.p_owner !== held.owner) return raise("reserve a l'organisateur");
     rows.delete(at.p_id);
     GONE.add(at.p_id);
@@ -418,6 +418,7 @@ createServer(async (req, res) => {
   if (fn === 'marque_points_calendar') {
     const group = GROUPS.get(at.p_key);
     if (!group) return send(200, { status: 'unknown' });
+    if (closed(at.p_key)) return send(200, { status: 'account' });
     if (!CALENDARS.has(group.id)) {
       CALENDARS.set(group.id, Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join(''));
     }
@@ -425,7 +426,7 @@ createServer(async (req, res) => {
   }
   if (fn === 'marque_points_forget_calendar') {
     const group = GROUPS.get(at.p_key);
-    if (!group) return send(200, { status: 'unknown' });
+    if (!group || !ADMITS.has(at.p_key) || closed(at.p_key)) return send(200, { status: 'unknown' });
     CALENDARS.delete(group.id);
     return send(200, { status: 'ok' });
   }
@@ -468,7 +469,7 @@ createServer(async (req, res) => {
 
   if (fn === 'marque_points_put_set') {
     const group = GROUPS.get(at.p_key);
-    if (!group) return raise('cle de groupe invalide');
+    if (!group || closed(at.p_key)) return raise('cle de groupe invalide');
     if (!/^[0-9]{6}$/.test(String(at.p_code ?? ''))) return raise('code invalide');
     if (rows.has(at.p_id)) return raise('duplicate key value violates unique constraint');
     rows.set(at.p_id, { data: at.p_data, code: at.p_code, tries: 0, group: group.id });
@@ -486,8 +487,10 @@ createServer(async (req, res) => {
     return send(200, { status: 'ok', set: row.data });
   }
   if (fn === 'marque_points_forget_set') {
-    if (!GROUPS.has(at.p_key)) return raise('cle de groupe invalide');
-    if (!lot(at.p_id)) return send(200, { status: 'unknown' });
+    const group = GROUPS.get(at.p_key);
+    if (!group || closed(at.p_key)) return raise('cle de groupe invalide');
+    const held = lot(at.p_id);
+    if (!held || (held.group && held.group !== group.id)) return send(200, { status: 'unknown' });
     rows.delete(at.p_id);
     return send(200, { status: 'ok' });
   }
