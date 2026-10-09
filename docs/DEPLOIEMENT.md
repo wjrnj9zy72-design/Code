@@ -447,8 +447,8 @@ alter table public.marque_points_games
 -- L'organisateur : qui a créé un sondage garde seul la main sur ce qui le
 -- règle — la date retenue, la clôture, la question, les choix, la liste des
 -- personnes, sa suppression. Les autres, membres du groupe ou visiteurs d'un
--- lien, votent, s'ajoutent eux-mêmes et ajoutent des choix ; rien d'autre ne
--- passe. La base ne
+-- lien, votent, s'ajoutent eux-mêmes, ajoutent des choix et retirent ceux
+-- qu'ils ont ajoutés ; rien d'autre ne passe. La base ne
 -- garde qu'une empreinte du secret de l'organisateur, jamais le secret.
 alter table public.marque_points_games
   add column if not exists owner_hash text;
@@ -626,6 +626,8 @@ declare
   v_stored jsonb;
   v_owner text;
   v_group text;
+  v_unlock jsonb;
+  v_drop jsonb;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
@@ -633,6 +635,10 @@ begin
   if pg_column_size(p_data) > 200000 then
     raise exception 'donnee trop volumineuse';
   end if;
+  -- Les secrets qui prouvent qu'un choix retiré était bien le sien : lus
+  -- ci-dessous, gardés nulle part.
+  v_unlock := p_data->'unlock';
+  p_data := p_data - 'unlock';
 
   select data, owner_hash into v_stored, v_owner
     from public.marque_points_games
@@ -704,10 +710,25 @@ begin
     return; -- clos : les votes sont arrêtés, pour l'app comme pour la base
   end if;
 
+  -- Un choix qu'il a lui-même ajouté, il peut le retirer : il en montre le
+  -- secret, dont le choix porte l'empreinte (by). Les autres restent.
+  select coalesce(jsonb_object_agg(o.value->>'id', (extract(epoch from now()) * 1000)::bigint), '{}'::jsonb)
+    into v_drop
+    from jsonb_array_elements(case when jsonb_typeof(v_stored->'options') = 'array'
+                                   then v_stored->'options' else '[]'::jsonb end) o
+   where jsonb_typeof(v_unlock) = 'object'
+     and jsonb_typeof(o.value->'by') = 'string'
+     and jsonb_typeof(v_unlock->(o.value->>'id')) = 'string'
+     and encode(sha256(convert_to(v_unlock->>(o.value->>'id'), 'UTF8')), 'hex') = o.value->>'by';
+
   update public.marque_points_games
      set data = v_stored
            || jsonb_build_object(
-                'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+                'votes', (select coalesce(jsonb_object_agg(c.key, c.value), '{}'::jsonb)
+                            from jsonb_each(public.marque_points_merge_votes(v_stored->'votes', p_data->'votes')) c
+                           where not v_drop ? split_part(c.key, '|', 2)),
+                'removed', (case when jsonb_typeof(v_stored->'removed') = 'object'
+                                 then v_stored->'removed' else '{}'::jsonb end) || v_drop,
                 'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
                   select jsonb_agg(n.value)
                     from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
@@ -715,8 +736,14 @@ begin
                      select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
                       where o.value->>'id' = n.value->>'id')
                 ), '[]'::jsonb),
-                'options', public.marque_points_add_options(v_stored->'options', p_data->'options',
-                             coalesce(v_stored->'removed', '{}'::jsonb)),
+                'options', public.marque_points_add_options(
+                             (select coalesce(jsonb_agg(o.value order by o.ord), '[]'::jsonb)
+                                from jsonb_array_elements(case when jsonb_typeof(v_stored->'options') = 'array'
+                                                               then v_stored->'options' else '[]'::jsonb end)
+                                     with ordinality o(value, ord)
+                               where not v_drop ? (o.value->>'id')),
+                             p_data->'options',
+                             coalesce(v_stored->'removed', '{}'::jsonb) || v_drop),
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
@@ -2765,8 +2792,8 @@ privée), la même chose : vos groupes et vos sondages y apparaissent.
   supprime. Les autres — membres du groupe comme visiteurs d'un lien — voient
   la grille, la jauge et la date retenue (qu'ils peuvent ajouter à leur
   agenda), votent, peuvent s'ajouter eux-mêmes à la liste et proposer un
-  choix de plus (tant que la date n'est pas retenue) ; ils ne renomment ni ne
-  retirent rien. La base l'impose aussi : elle ne garde du secret de
+  choix de plus (tant que la date n'est pas retenue) et retirer ceux qu'ils ont
+  ajoutés ; ils ne renomment rien et ne retirent rien d'autre. La base l'impose aussi : elle ne garde du secret de
   l'organisateur qu'une empreinte, et reprend tel quel ce qu'il a réglé quand
   quelqu'un d'autre écrit — même avec la clé du groupe. Revers : le secret
   vit sur l'appareil qui a créé le sondage ; un autre de vos appareils y est

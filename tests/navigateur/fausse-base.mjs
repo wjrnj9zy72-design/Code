@@ -9,6 +9,7 @@
  * Lancée par lancer.sh, une neuve pour chaque suite : elle garde tout en mémoire.
  */
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 
 const rows = new Map(); // id → { data, code, tries, group }
 const INVITES = new Map(); // code → { group, at }
@@ -201,6 +202,7 @@ createServer(async (req, res) => {
     };
     if (!held.owner || at.p_owner === held.owner) {
       let data = at.p_data;
+      if (data && 'unlock' in data) { data = { ...data }; delete data.unlock; }
       // REPLACE=1 : la base d'avant, qui remplace — pour vérifier que l'app seule suffit.
       if (process.env.REPLACE !== '1' && held.data?.kind === 'poll' && data?.kind === 'poll') {
         data = {
@@ -219,13 +221,25 @@ createServer(async (req, res) => {
     if (held.data?.kind !== 'poll') return send(204);
     if (held.data.closedAt) return send(204); // clos : plus de votes
     const known = new Set((held.data.people || []).map((person) => person.id));
+    // Ses propres choix, qu'il retire en en montrant le secret.
+    const unlock = at.p_data?.unlock || {};
+    const drop = {};
+    for (const option of held.data.options || []) {
+      const secret = unlock[option.id];
+      if (typeof secret === 'string' && typeof option.by === 'string'
+          && createHash('sha256').update(secret).digest('hex') === option.by) drop[option.id] = Date.now();
+    }
+    const removed = { ...held.data.removed, ...drop };
+    const votes = mergeVotes(held.data.votes, at.p_data?.votes);
+    for (const key of Object.keys(votes)) if (drop[key.split('|')[1]]) delete votes[key];
     rows.set(at.p_id, {
       ...held,
       data: {
         ...held.data,
-        votes: mergeVotes(held.data.votes, at.p_data?.votes),
+        votes,
+        removed,
         people: [...(held.data.people || []), ...(at.p_data?.people || []).filter((person) => !known.has(person.id))],
-        options: addOptions(held.data.options, at.p_data?.options, held.data.removed),
+        options: addOptions((held.data.options || []).filter((option) => !drop[option.id]), at.p_data?.options, removed),
         peopleAt: Math.max(held.data.peopleAt || 0, at.p_data?.peopleAt || 0),
         updatedAt: Math.max(held.data.updatedAt || 0, at.p_data?.updatedAt || 0),
       },

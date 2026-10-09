@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="7a1fbe07" />
+    <meta name="app-build" content="0931db7e" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -1302,6 +1302,7 @@ body:not(.solo) .view {
 /* Picking a day for a poll's choices, under the box of choices. */
 .add-day { max-width: 16em; }
 .choice-day { margin-right: 0.3em; }
+.choice-drop { padding: 0 0.5em; min-height: 0; margin-left: 0.2em; }
 
 /* The first opening: what the app is for, a name, and where to begin. */
 .welcome h2 { margin: 0; }
@@ -2432,6 +2433,7 @@ const STRINGS = {
     'polls.answeringAs': 'Vous répondez pour {name} : seule sa colonne se coche. Touchez un autre prénom plus haut pour changer.',
     'polls.addChoice': 'Ajouter un choix',
     'polls.kindDay': '📅 Un jour',
+    'polls.dropMine': 'Retirer « {choice} », ajouté par vous',
     'polls.kindOther': '✏️ Autre chose',
     'polls.pickDay': 'Choisir le jour',
     'polls.otherPlaceholder': 'Un lieu, une activité…',
@@ -3507,6 +3509,7 @@ const STRINGS = {
     'polls.answeringAs': 'You are answering for {name}: only that column can be ticked. Tap another name above to change.',
     'polls.addChoice': 'Add a choice',
     'polls.kindDay': '📅 A day',
+    'polls.dropMine': 'Remove “{choice}”, added by you',
     'polls.kindOther': '✏️ Something else',
     'polls.pickDay': 'Pick the day',
     'polls.otherPlaceholder': 'A place, an activity…',
@@ -9901,7 +9904,13 @@ function pollView(poll, { solo = false } = {}) {
                            ${dayOfOption(poll, row.option) ? '<span class="choice-day" aria-hidden="true">📅</span>' : ''}
                            ${
                              guest
-                               ? escapeHtml(row.option.text)
+                               ? `${escapeHtml(row.option.text)}${
+                                   ownsChoice(row.option) && !closed
+                                     ? ` <button type="button" class="button button--small button--ghost choice-drop"
+                                                 data-drop-option="${escapeHtml(row.option.id)}"
+                                                 aria-label="${escapeHtml(t('polls.dropMine', { choice: row.option.text }))}">✕</button>`
+                                     : ''
+                                 }`
                                : `<button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
                                     ${escapeHtml(row.option.text)}
                                   </button>`
@@ -10379,6 +10388,10 @@ async function pushPoll(changed) {
   } catch {
     // Unreadable just now: the database merges on its side all the same.
   }
+  // A guest taking back a choice of their own sends the secret that proves it
+  // was theirs; the database keeps it nowhere.
+  const unlock = isOrganiser(outgoing) ? {} : choiceUnlocks(outgoing);
+  if (Object.keys(unlock).length) outgoing = { ...outgoing, unlock };
   await state.remote.put(outgoing, keyFor(outgoing), organiserSecret(outgoing.id));
 }
 
@@ -10577,13 +10590,23 @@ function bindPoll(poll) {
   // render(), which runs after this and puts the grid back where it was.
   showMyColumn();
 
-  view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
+  // A guest's own choices carry the fingerprint that lets them take them back.
+  const added = async (next) => (isOrganiser(poll) ? next : claimChoices(poll, next));
+
+  view.querySelector('#add-choice')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const field = view.querySelector('#new-choice');
     const next = addOptions(poll, field.value);
     if (next === poll) return;
-    replacePoll(next);
+    replacePoll(await added(next));
     view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-drop-option]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!(await ask(t('polls.confirmRemoveChoice'), { confirmLabel: t('action.delete'), danger: true }))) return;
+      replacePoll(removeOption(poll, button.dataset.dropOption));
+    });
   });
 
   view.querySelectorAll('[data-choice-kind]').forEach((button) => {
@@ -10594,10 +10617,10 @@ function bindPoll(poll) {
     });
   });
 
-  view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {
+  view.querySelector('#new-choice-day')?.addEventListener('change', async (event) => {
     const line = choiceOfDay(event.target.value, getLanguage());
     if (!line || poll.options.some((option) => option.text === line)) return;
-    replacePoll(addOptions(poll, line));
+    replacePoll(await added(addOptions(poll, line)));
   });
 
   view.querySelectorAll('[data-option]').forEach((button) => {
@@ -15880,6 +15903,42 @@ function restoreOrganiserSecrets(found) {
     savePrefs(state.prefs);
   }
   return restored;
+}
+
+/**
+ * A choice a guest adds stays theirs to take back — a slip of the thumb, an
+ * idea dropped — and only theirs. Each one gets a secret of its own, kept on
+ * this device; the choice carries only its fingerprint (`by`), which the
+ * database checks the secret against before letting it go.
+ */
+async function claimChoices(before, after) {
+  const known = new Set(before.options.map((option) => option.id));
+  const fresh = after.options.filter((option) => !known.has(option.id));
+  if (!fresh.length || !globalThis.crypto?.subtle) return after;
+  const secrets = { ...state.prefs.chooser };
+  const marks = {};
+  for (const option of fresh) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const secret = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret)));
+    secrets[option.id] = secret;
+    marks[option.id] = [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  state.prefs = { ...state.prefs, chooser: secrets };
+  savePrefs(state.prefs);
+  return { ...after, options: after.options.map((option) => (marks[option.id] ? { ...option, by: marks[option.id] } : option)) };
+}
+
+/** Whether this device added that choice, and may take it back. */
+function ownsChoice(option) {
+  return Boolean(option?.by && state.prefs.chooser?.[option.id]);
+}
+
+/** The secrets proving the choices this poll dropped were this device's own. */
+function choiceUnlocks(poll) {
+  const held = state.prefs.chooser || {};
+  return Object.fromEntries(Object.keys(poll.removed || {}).filter((id) => held[id]).map((id) => [id, held[id]]));
 }
 
 function isOrganiser(poll) {

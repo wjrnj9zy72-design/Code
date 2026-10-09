@@ -1283,6 +1283,7 @@ body:not(.solo) .view {
 /* Picking a day for a poll's choices, under the box of choices. */
 .add-day { max-width: 16em; }
 .choice-day { margin-right: 0.3em; }
+.choice-drop { padding: 0 0.5em; min-height: 0; margin-left: 0.2em; }
 
 /* The first opening: what the app is for, a name, and where to begin. */
 .welcome h2 { margin: 0; }

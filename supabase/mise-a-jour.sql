@@ -22,7 +22,8 @@
 --      chacun peut supprimer son compte et son adresse ;
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
 --      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
---   8. qui répond à un sondage par un lien peut y ajouter des choix.
+--   8. qui répond à un sondage par un lien peut y ajouter des choix, et
+--      retirer ceux qu'il a ajoutés.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -157,6 +158,8 @@ declare
   v_stored jsonb;
   v_owner text;
   v_group text;
+  v_unlock jsonb;
+  v_drop jsonb;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
@@ -164,6 +167,10 @@ begin
   if pg_column_size(p_data) > 200000 then
     raise exception 'donnee trop volumineuse';
   end if;
+  -- Les secrets qui prouvent qu'un choix retiré était bien le sien : lus
+  -- ci-dessous, gardés nulle part.
+  v_unlock := p_data->'unlock';
+  p_data := p_data - 'unlock';
 
   select data, owner_hash into v_stored, v_owner
     from public.marque_points_games
@@ -235,10 +242,25 @@ begin
     return; -- clos : les votes sont arrêtés, pour l'app comme pour la base
   end if;
 
+  -- Un choix qu'il a lui-même ajouté, il peut le retirer : il en montre le
+  -- secret, dont le choix porte l'empreinte (by). Les autres restent.
+  select coalesce(jsonb_object_agg(o.value->>'id', (extract(epoch from now()) * 1000)::bigint), '{}'::jsonb)
+    into v_drop
+    from jsonb_array_elements(case when jsonb_typeof(v_stored->'options') = 'array'
+                                   then v_stored->'options' else '[]'::jsonb end) o
+   where jsonb_typeof(v_unlock) = 'object'
+     and jsonb_typeof(o.value->'by') = 'string'
+     and jsonb_typeof(v_unlock->(o.value->>'id')) = 'string'
+     and encode(sha256(convert_to(v_unlock->>(o.value->>'id'), 'UTF8')), 'hex') = o.value->>'by';
+
   update public.marque_points_games
      set data = v_stored
            || jsonb_build_object(
-                'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+                'votes', (select coalesce(jsonb_object_agg(c.key, c.value), '{}'::jsonb)
+                            from jsonb_each(public.marque_points_merge_votes(v_stored->'votes', p_data->'votes')) c
+                           where not v_drop ? split_part(c.key, '|', 2)),
+                'removed', (case when jsonb_typeof(v_stored->'removed') = 'object'
+                                 then v_stored->'removed' else '{}'::jsonb end) || v_drop,
                 'people', coalesce(v_stored->'people', '[]'::jsonb) || coalesce((
                   select jsonb_agg(n.value)
                     from jsonb_array_elements(coalesce(p_data->'people', '[]'::jsonb)) n
@@ -246,8 +268,14 @@ begin
                      select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
                       where o.value->>'id' = n.value->>'id')
                 ), '[]'::jsonb),
-                'options', public.marque_points_add_options(v_stored->'options', p_data->'options',
-                             coalesce(v_stored->'removed', '{}'::jsonb)),
+                'options', public.marque_points_add_options(
+                             (select coalesce(jsonb_agg(o.value order by o.ord), '[]'::jsonb)
+                                from jsonb_array_elements(case when jsonb_typeof(v_stored->'options') = 'array'
+                                                               then v_stored->'options' else '[]'::jsonb end)
+                                     with ordinality o(value, ord)
+                               where not v_drop ? (o.value->>'id')),
+                             p_data->'options',
+                             coalesce(v_stored->'removed', '{}'::jsonb) || v_drop),
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),

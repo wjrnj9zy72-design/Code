@@ -68,6 +68,25 @@ begin
     raise notice 'OK 4 quater : un choix retiré par l''organisateur ne revient pas';
   else raise notice 'ÉCHEC 4 quater : %', v_doc->'options'; end if;
 
+  -- 4 quinquies. un visiteur retire le choix qu'il a ajouté, en en montrant le secret
+  perform public.marque_points_put(v_id, (v_doc || jsonb_build_object(
+    'options', (v_doc->'options') || jsonb_build_array(jsonb_build_object('id','o6','text','au parc',
+                 'by', encode(sha256(convert_to('secret-du-choix-o6', 'UTF8')), 'hex'))),
+    'votes', (v_doc->'votes') || '{"w3|o6":{"v":"yes","at":8}}'::jsonb, 'updatedAt', 8)), null, null);
+  v_doc := public.marque_points_get(v_id);
+  perform public.marque_points_put(v_id, v_doc || jsonb_build_object(
+    'options', '[]'::jsonb, 'unlock', '{"o1":"devine","o6":"faux"}'::jsonb), null, null);
+  if jsonb_array_length(public.marque_points_get(v_id)->'options') = 4 then
+    raise notice 'OK 4 quinquies a : sans le bon secret, rien ne part';
+  else raise notice 'ÉCHEC 4 quinquies a : %', public.marque_points_get(v_id)->'options'; end if;
+  perform public.marque_points_put(v_id, v_doc || jsonb_build_object(
+    'unlock', '{"o6":"secret-du-choix-o6"}'::jsonb), null, null);
+  v_doc := public.marque_points_get(v_id);
+  if jsonb_array_length(v_doc->'options') = 3 and (v_doc->'removed') ? 'o6'
+     and not (v_doc->'votes') ? 'w3|o6' and not v_doc ? 'unlock' then
+    raise notice 'OK 4 quinquies b : avec son secret, son choix part, et ses coches avec ; le secret n''est pas gardé';
+  else raise notice 'ÉCHEC 4 quinquies b : %', v_doc; end if;
+
   -- 5. un membre du groupe, avec la clé mais sans le secret : même régime
   perform public.marque_points_put(v_id, v_doc || '{"date":"2026-10-10","closedAt":5}'::jsonb, v_key, null);
   v_doc := public.marque_points_get(v_id);
