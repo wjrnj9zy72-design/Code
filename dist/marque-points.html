@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="9c88fb9f" />
+    <meta name="app-build" content="7a1fbe07" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -817,7 +817,8 @@ table.scores .meta-cell { color: var(--muted); }
   .segmented--kinds .segmented__option { padding: 8px 1px; font-size: 0.64rem; }
 }
 
-.segmented__option[aria-current="true"] {
+.segmented__option[aria-current="true"],
+.segmented__option[aria-pressed="true"] {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
@@ -1300,6 +1301,7 @@ body:not(.solo) .view {
 
 /* Picking a day for a poll's choices, under the box of choices. */
 .add-day { max-width: 16em; }
+.choice-day { margin-right: 0.3em; }
 
 /* The first opening: what the app is for, a name, and where to begin. */
 .welcome h2 { margin: 0; }
@@ -2393,7 +2395,7 @@ const STRINGS = {
     'polls.question': 'La question',
     'polls.questionPlaceholder': 'Quel soir pour la raclette ?',
     'polls.choices': 'Les choix (un par ligne)',
-    'polls.addDay': 'Ajouter un jour',
+    'polls.addDay': '📅 Ajouter un jour',
     'polls.dateByHand': 'Fixer la date à la main',
     'polls.retainHint': 'Le plus de monde : « {choice} » ({yes} sur {total}). Retenir ce jour le met dans les agendas et clôt le sondage.',
     'polls.retainTie': 'Égalité en tête : choisissez le jour à retenir. Il ira dans les agendas et le sondage sera clos.',
@@ -2429,6 +2431,10 @@ const STRINGS = {
     'polls.tapHint': 'Choisissez votre prénom, puis cochez les dates où vous êtes disponible.',
     'polls.answeringAs': 'Vous répondez pour {name} : seule sa colonne se coche. Touchez un autre prénom plus haut pour changer.',
     'polls.addChoice': 'Ajouter un choix',
+    'polls.kindDay': '📅 Un jour',
+    'polls.kindOther': '✏️ Autre chose',
+    'polls.pickDay': 'Choisir le jour',
+    'polls.otherPlaceholder': 'Un lieu, une activité…',
     'polls.addChoices': 'Ajoutez les choix ci-dessous.',
     'polls.addPeople': 'Ajoutez d’abord les personnes à qui vous demandez.',
     'polls.choiceTitle': 'Modifier le choix',
@@ -3464,7 +3470,7 @@ const STRINGS = {
     'polls.question': 'The question',
     'polls.questionPlaceholder': 'Which evening for the raclette?',
     'polls.choices': 'The choices (one per line)',
-    'polls.addDay': 'Add a day',
+    'polls.addDay': '📅 Add a day',
     'polls.dateByHand': 'Set the day by hand',
     'polls.retainHint': 'Most people: “{choice}” ({yes} of {total}). Keeping this day puts it in the agendas and closes the poll.',
     'polls.retainTie': 'A tie at the top: pick the day to keep. It goes in the agendas and the poll closes.',
@@ -3500,6 +3506,10 @@ const STRINGS = {
     'polls.tapHint': 'Choose your name, then tick the dates you can make.',
     'polls.answeringAs': 'You are answering for {name}: only that column can be ticked. Tap another name above to change.',
     'polls.addChoice': 'Add a choice',
+    'polls.kindDay': '📅 A day',
+    'polls.kindOther': '✏️ Something else',
+    'polls.pickDay': 'Pick the day',
+    'polls.otherPlaceholder': 'A place, an activity…',
     'polls.addChoices': 'Add the choices below.',
     'polls.addPeople': 'Start by adding the people you are asking.',
     'polls.choiceTitle': 'Edit the choice',
@@ -9888,6 +9898,7 @@ function pollView(poll, { solo = false } = {}) {
                      (row) => `
                        <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
                          <th scope="row">
+                           ${dayOfOption(poll, row.option) ? '<span class="choice-day" aria-hidden="true">📅</span>' : ''}
                            ${
                              guest
                                ? escapeHtml(row.option.text)
@@ -9917,17 +9928,7 @@ function pollView(poll, { solo = false } = {}) {
       // as there is still something to choose: not once the day is set.
       closed || (guest && (fixed || poll.date))
         ? ''
-        : `<form id="add-choice" class="card stack stack--tight">
-             <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
-             <div class="row row--tight">
-               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
-               <button type="submit" class="button button--primary">+</button>
-             </div>
-             <label class="small add-day">
-               ${escapeHtml(t('polls.addDay'))}
-               <input type="date" id="new-choice-day" />
-             </label>
-           </form>`
+        : addChoiceHtml(poll)
     }
 
     ${guest || poll.date || fixed || poll.whenFor ? '' : `<details class="details" id="poll-date-by-hand">
@@ -10013,6 +10014,44 @@ function dateCardHtml(poll, fixed) {
           : ''
       }
     </section>`;
+}
+
+/**
+ * Which kind of choice the form below the grid adds, per poll: a day, picked
+ * on a calendar, or anything else — a place, an activity — typed. Two clear
+ * ways in rather than one box that may or may not be read as a day. Until
+ * someone picks, a poll about days offers a day, and any other poll a word.
+ */
+const choiceKinds = {};
+
+function choiceKindOf(poll) {
+  return choiceKinds[poll.id] || (!poll.options.length || seeksDay(poll) ? 'day' : 'other');
+}
+
+function addChoiceHtml(poll) {
+  const kind = choiceKindOf(poll);
+  const option = (value, label) => `
+    <button type="button" class="segmented__option" data-choice-kind="${value}"
+            aria-pressed="${kind === value ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `
+    <form id="add-choice" class="card stack stack--tight">
+      <div class="segmented" role="group" aria-label="${escapeHtml(t('polls.addChoice'))}">
+        ${option('day', t('polls.kindDay'))}
+        ${option('other', t('polls.kindOther'))}
+      </div>
+      ${
+        kind === 'day'
+          ? `<label class="small add-day">
+               ${escapeHtml(t('polls.pickDay'))}
+               <input type="date" id="new-choice-day" />
+             </label>`
+          : `<label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
+             <div class="row row--tight">
+               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.otherPlaceholder'))}" autocomplete="off" />
+               <button type="submit" class="button button--primary" aria-label="${escapeHtml(t('polls.addChoice'))}">+</button>
+             </div>`
+      }
+    </form>`;
 }
 
 /** The day a choice names, read from the day it was written. */
@@ -10545,6 +10584,14 @@ function bindPoll(poll) {
     if (next === poll) return;
     replacePoll(next);
     view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-choice-kind]').forEach((button) => {
+    button.addEventListener('click', () => {
+      choiceKinds[poll.id] = button.dataset.choiceKind;
+      render();
+      view.querySelector('#new-choice, #new-choice-day')?.focus();
+    });
   });
 
   view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {

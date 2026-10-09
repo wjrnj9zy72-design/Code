@@ -798,7 +798,8 @@ table.scores .meta-cell { color: var(--muted); }
   .segmented--kinds .segmented__option { padding: 8px 1px; font-size: 0.64rem; }
 }
 
-.segmented__option[aria-current="true"] {
+.segmented__option[aria-current="true"],
+.segmented__option[aria-pressed="true"] {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
@@ -1281,6 +1282,7 @@ body:not(.solo) .view {
 
 /* Picking a day for a poll's choices, under the box of choices. */
 .add-day { max-width: 16em; }
+.choice-day { margin-right: 0.3em; }
 
 /* The first opening: what the app is for, a name, and where to begin. */
 .welcome h2 { margin: 0; }
