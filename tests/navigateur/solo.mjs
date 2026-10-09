@@ -53,7 +53,7 @@ check('pas de bouton Retour', (await her.locator('#view [data-goto]').count()) =
   String(await her.locator('#view [data-goto]').count()));
 check('pas de section Données (partager, clore, supprimer…)',
   (await her.locator('#poll-delete, #poll-close, #poll-share, #poll-people, #poll-rename, #poll-archive').count()) === 0);
-check('pas d’ajout de choix, ni de renommage', (await her.locator('#add-choice, [data-option]').count()) === 0);
+check('date retenue : pas d’ajout de choix, ni de renommage', (await her.locator('#add-choice, [data-option]').count()) === 0);
 check('pas de réglage de la date', (await her.locator('#poll-day, #poll-date-save').count()) === 0);
 check('mais la date retenue se lit', /Date retenue : ven\. 9 oct\. · 19:00/.test((await her.locator('#view').textContent()).replace(/\s+/g, ' ')));
 check('et s’emporte dans son agenda', (await her.locator('#poll-ics').count()) === 1);

@@ -1,4 +1,4 @@
-/** L'organisateur règle ; les membres du groupe et les visiteurs votent, et rien d'autre. */
+/** L'organisateur règle ; les membres du groupe et les visiteurs votent et ajoutent des choix, rien d'autre. */
 import { chromium } from 'playwright';
 const CONFIG = JSON.stringify({ url: 'http://127.0.0.1:8123', key: 'test-anon-key' });
 const MIFA = { id: 'grp_famille', name: 'Mifa', key: 'la-cle-famille', admits: true };
@@ -19,7 +19,7 @@ async function device(label, prefs) {
   await page.waitForSelector('.app-bar');
   return page;
 }
-const OWNER_ONLY = '#poll-day, #poll-date-save, #poll-close, #poll-delete, #poll-rename, #poll-archive, #poll-people, #poll-share, #poll-text, #add-choice, [data-option], [data-copy-to-group]';
+const OWNER_ONLY = '#poll-day, #poll-date-save, #poll-close, #poll-delete, #poll-rename, #poll-archive, #poll-people, #poll-share, #poll-text, [data-option], [data-copy-to-group]';
 
 // --- Gui crée le sondage dans Mifa : il en est l'organisateur
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });

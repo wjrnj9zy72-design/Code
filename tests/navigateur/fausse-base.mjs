@@ -191,6 +191,14 @@ createServer(async (req, res) => {
       }
       return out;
     };
+    // Les choix d'une autre copie qui manquent, à la suite, sauf les supprimés,
+    // comme marque_points_add_options.
+    const addOptions = (kept, more, removed = {}) => {
+      const base = Array.isArray(kept) ? kept : [];
+      const known = new Set(base.map((option) => option.id));
+      return [...base, ...(Array.isArray(more) ? more : []).filter((option) =>
+        typeof option?.id === 'string' && typeof option?.text === 'string' && !known.has(option.id) && !(option.id in (removed || {})))];
+    };
     if (!held.owner || at.p_owner === held.owner) {
       let data = at.p_data;
       // REPLACE=1 : la base d'avant, qui remplace — pour vérifier que l'app seule suffit.
@@ -198,6 +206,7 @@ createServer(async (req, res) => {
         data = {
           ...data,
           votes: mergeVotes(held.data.votes, data.votes),
+          options: addOptions(data.options, held.data.options, { ...held.data.removed, ...data.removed }),
           people: (data.peopleAt || 0) >= (held.data.peopleAt || 0) ? (data.people || []) : (held.data.people || []),
           peopleAt: Math.max(held.data.peopleAt || 0, data.peopleAt || 0),
           updatedAt: Math.max(held.data.updatedAt || 0, data.updatedAt || 0),
@@ -206,7 +215,7 @@ createServer(async (req, res) => {
       rows.set(at.p_id, { ...held, data });
       return send(204);
     }
-    // Quelqu'un d'autre que l'organisateur : ses votes, et les personnes qu'il ajoute.
+    // Quelqu'un d'autre que l'organisateur : ses votes, et les personnes et les choix qu'il ajoute.
     if (held.data?.kind !== 'poll') return send(204);
     if (held.data.closedAt) return send(204); // clos : plus de votes
     const known = new Set((held.data.people || []).map((person) => person.id));
@@ -216,6 +225,7 @@ createServer(async (req, res) => {
         ...held.data,
         votes: mergeVotes(held.data.votes, at.p_data?.votes),
         people: [...(held.data.people || []), ...(at.p_data?.people || []).filter((person) => !known.has(person.id))],
+        options: addOptions(held.data.options, at.p_data?.options, held.data.removed),
         peopleAt: Math.max(held.data.peopleAt || 0, at.p_data?.peopleAt || 0),
         updatedAt: Math.max(held.data.updatedAt || 0, at.p_data?.updatedAt || 0),
       },

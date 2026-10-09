@@ -175,7 +175,8 @@ joue avec vous sans rien voir du reste, et sans pouvoir rien partager.
 > - **« Lien seulement »** : un document que seuls ceux qui ont le lien voient,
 >   absent des onglets et de l'agenda de vos groupes ;
 > - **l'organisateur** : qui crée un sondage garde seul la main sur la date,
->   la clôture, la question, les choix et la suppression ; les autres votent ;
+>   la clôture, la question, les choix et la suppression ; les autres votent,
+>   et peuvent proposer des choix en plus ;
 > - **les votes se fondent** au lieu d'être remplacés : une copie en retard
 >   n'efface plus ceux arrivés entre-temps ;
 > - **ce qui est supprimé ne revient plus** : le téléphone d'un invité qui
@@ -446,7 +447,8 @@ alter table public.marque_points_games
 -- L'organisateur : qui a créé un sondage garde seul la main sur ce qui le
 -- règle — la date retenue, la clôture, la question, les choix, la liste des
 -- personnes, sa suppression. Les autres, membres du groupe ou visiteurs d'un
--- lien, votent et s'ajoutent eux-mêmes ; rien d'autre ne passe. La base ne
+-- lien, votent, s'ajoutent eux-mêmes et ajoutent des choix ; rien d'autre ne
+-- passe. La base ne
 -- garde qu'une empreinte du secret de l'organisateur, jamais le secret.
 alter table public.marque_points_games
   add column if not exists owner_hash text;
@@ -585,6 +587,30 @@ as $$
     ) cells;
 $$;
 
+-- Les choix d'un sondage, augmentés de ceux d'une autre copie : ceux qui
+-- manquent s'ajoutent à la suite, sauf s'ils ont été supprimés. Rien n'est
+-- retiré ni renommé ; un choix mal formé est ignoré, pour ne pas rendre le
+-- sondage illisible dans l'app.
+create or replace function public.marque_points_add_options(p_kept jsonb, p_more jsonb, p_removed jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = public
+as $$
+  select (case when jsonb_typeof(p_kept) = 'array' then p_kept else '[]'::jsonb end)
+         || coalesce((
+           select jsonb_agg(n.value order by n.ord)
+             from jsonb_array_elements(case when jsonb_typeof(p_more) = 'array' then p_more else '[]'::jsonb end)
+                  with ordinality n(value, ord)
+            where jsonb_typeof(n.value->'id') = 'string'
+              and jsonb_typeof(n.value->'text') = 'string'
+              and not coalesce(p_removed, '{}'::jsonb) ? (n.value->>'id')
+              and not exists (
+                select 1 from jsonb_array_elements(case when jsonb_typeof(p_kept) = 'array' then p_kept else '[]'::jsonb end) o
+                 where o.value->>'id' = n.value->>'id')
+         ), '[]'::jsonb);
+$$;
+
 create or replace function public.marque_points_put(
   p_id text,
   p_data jsonb,
@@ -646,9 +672,12 @@ begin
       -- …mais un sondage se fond, il ne se remplace pas : la copie qui arrive
       -- peut ignorer un vote arrivé entre-temps, et l'écraser le perdrait.
       -- Les personnes suivent la copie qui y a touché en dernier, comme dans
-      -- l'app.
+      -- l'app. Un choix ajouté entre-temps par un visiteur reste, à moins que
+      -- la copie qui arrive ne l'ait supprimé.
       p_data := p_data || jsonb_build_object(
         'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+        'options', public.marque_points_add_options(p_data->'options', v_stored->'options',
+                     coalesce(v_stored->'removed', '{}'::jsonb) || coalesce(p_data->'removed', '{}'::jsonb)),
         'people', case
                     when coalesce((p_data->>'peopleAt')::numeric, 0) >= coalesce((v_stored->>'peopleAt')::numeric, 0)
                       then coalesce(p_data->'people', '[]'::jsonb)
@@ -666,8 +695,8 @@ begin
   end if;
 
   -- …et sinon, seulement en votant. Tout le reste est repris tel qu'il était :
-  -- la date, la clôture, la question, les choix. Les personnes ne peuvent que
-  -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
+  -- la date, la clôture, la question. Les personnes et les choix ne peuvent
+  -- que s'ajouter — ceux qui y sont gardent leur nom, et personne n'en retire.
   if v_stored->>'kind' is distinct from 'poll' then
     return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
   end if;
@@ -686,6 +715,8 @@ begin
                      select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
                       where o.value->>'id' = n.value->>'id')
                 ), '[]'::jsonb),
+                'options', public.marque_points_add_options(v_stored->'options', p_data->'options',
+                             coalesce(v_stored->'removed', '{}'::jsonb)),
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
@@ -1738,6 +1769,7 @@ $$;
 -- nom : tous les appareils dehors, et le groupe à lui.
 revoke all on function public.marque_points_fresh_code() from public, anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
+revoke all on function public.marque_points_add_options(jsonb, jsonb, jsonb) from public, anon, authenticated;
 revoke all on function public.marque_points_new_group(text) from public, anon, authenticated;
 revoke all on function public.marque_points_new_group_key(text) from public, anon, authenticated;
 
@@ -2732,8 +2764,9 @@ privée), la même chose : vos groupes et vos sondages y apparaissent.
   la date, clôt, change la question ou les choix, gère les personnes et
   supprime. Les autres — membres du groupe comme visiteurs d'un lien — voient
   la grille, la jauge et la date retenue (qu'ils peuvent ajouter à leur
-  agenda), votent, et peuvent s'ajouter eux-mêmes à la liste ; rien d'autre ne
-  leur est montré. La base l'impose aussi : elle ne garde du secret de
+  agenda), votent, peuvent s'ajouter eux-mêmes à la liste et proposer un
+  choix de plus (tant que la date n'est pas retenue) ; ils ne renomment ni ne
+  retirent rien. La base l'impose aussi : elle ne garde du secret de
   l'organisateur qu'une empreinte, et reprend tel quel ce qu'il a réglé quand
   quelqu'un d'autre écrit — même avec la clé du groupe. Revers : le secret
   vit sur l'appareil qui a créé le sondage ; un autre de vos appareils y est

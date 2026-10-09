@@ -9896,7 +9896,9 @@ function pollView(poll, { solo = false } = {}) {
     }
 
     ${
-      closed || guest
+      // A guest adds choices too — another evening, another place — as long
+      // as there is still something to choose: not once the day is set.
+      closed || (guest && (fixed || poll.date))
         ? ''
         : `<form id="add-choice" class="card stack stack--tight">
              <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>

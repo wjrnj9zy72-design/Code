@@ -79,8 +79,8 @@ guide en français.
   **« Lien seulement »** : dans aucun onglet ni agenda de groupe, seulement par lien.
 - **Organisateur d'un sondage** : secret aléatoire sur l'appareil créateur
   (`prefs.organiser`), empreinte dans la base (`owner_hash`). Lui seul règle
-  date, clôture, question, choix, suppression ; les autres votent et
-  s'ajoutent. Le secret voyage dans l'export et revient par l'import.
+  date, clôture, question, choix (renommer, retirer), suppression ; les autres
+  votent, s'ajoutent et ajoutent des choix (pas une fois la date retenue). Le secret voyage dans l'export et revient par l'import.
 - **Sondages** : on coche seulement « dispo » (pas de non/peut-être), jauge
   horizontale ; votes fusionnés case par case (`{v, at}`), dans l'app et dans la
   base ; un sondage clos ne prend plus de votes. Visiteurs : vue seule
