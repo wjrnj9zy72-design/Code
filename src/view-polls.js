@@ -33,7 +33,7 @@ import { createList } from './lists.js';
 import {
   createPoll, addOptions, renameOption, removeOption, setVote, voteOf, nextValue, setClosed, tally,
   mergePolls, isValidPoll, addPollPerson, renamePollPerson, removePollPerson, archivePoll,
-  setPollDate, setEventName, isEvent, dayOfChoice, choiceOfDay,
+  setPollDate, setEventName, isEvent, dayOfChoice, choiceOfDay, seeksDay,
 } from './polls.js';
 import { createSpend, addSpend, mergeSpends, isValidSpend } from './spends.js';
 import { recentPeople, withMeFirst } from './people.js';
@@ -351,6 +351,7 @@ export function pollView(poll, { solo = false } = {}) {
                      (row) => `
                        <tr class="${leaders.includes(row.option.id) ? 'votes__leader' : ''}">
                          <th scope="row">
+                           ${dayOfOption(poll, row.option) ? '<span class="choice-day" aria-hidden="true">📅</span>' : ''}
                            ${
                              guest
                                ? escapeHtml(row.option.text)
@@ -380,17 +381,7 @@ export function pollView(poll, { solo = false } = {}) {
       // as there is still something to choose: not once the day is set.
       closed || (guest && (fixed || poll.date))
         ? ''
-        : `<form id="add-choice" class="card stack stack--tight">
-             <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
-             <div class="row row--tight">
-               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.addChoice'))}" autocomplete="off" />
-               <button type="submit" class="button button--primary">+</button>
-             </div>
-             <label class="small add-day">
-               ${escapeHtml(t('polls.addDay'))}
-               <input type="date" id="new-choice-day" />
-             </label>
-           </form>`
+        : addChoiceHtml(poll)
     }
 
     ${guest || poll.date || fixed || poll.whenFor ? '' : `<details class="details" id="poll-date-by-hand">
@@ -476,6 +467,44 @@ function dateCardHtml(poll, fixed) {
           : ''
       }
     </section>`;
+}
+
+/**
+ * Which kind of choice the form below the grid adds, per poll: a day, picked
+ * on a calendar, or anything else — a place, an activity — typed. Two clear
+ * ways in rather than one box that may or may not be read as a day. Until
+ * someone picks, a poll about days offers a day, and any other poll a word.
+ */
+const choiceKinds = {};
+
+function choiceKindOf(poll) {
+  return choiceKinds[poll.id] || (!poll.options.length || seeksDay(poll) ? 'day' : 'other');
+}
+
+function addChoiceHtml(poll) {
+  const kind = choiceKindOf(poll);
+  const option = (value, label) => `
+    <button type="button" class="segmented__option" data-choice-kind="${value}"
+            aria-pressed="${kind === value ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  return `
+    <form id="add-choice" class="card stack stack--tight">
+      <div class="segmented" role="group" aria-label="${escapeHtml(t('polls.addChoice'))}">
+        ${option('day', t('polls.kindDay'))}
+        ${option('other', t('polls.kindOther'))}
+      </div>
+      ${
+        kind === 'day'
+          ? `<label class="small add-day">
+               ${escapeHtml(t('polls.pickDay'))}
+               <input type="date" id="new-choice-day" />
+             </label>`
+          : `<label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>
+             <div class="row row--tight">
+               <input type="text" id="new-choice" placeholder="${escapeHtml(t('polls.otherPlaceholder'))}" autocomplete="off" />
+               <button type="submit" class="button button--primary" aria-label="${escapeHtml(t('polls.addChoice'))}">+</button>
+             </div>`
+      }
+    </form>`;
 }
 
 /** The day a choice names, read from the day it was written. */
@@ -1008,6 +1037,14 @@ export function bindPoll(poll) {
     if (next === poll) return;
     replacePoll(next);
     view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-choice-kind]').forEach((button) => {
+    button.addEventListener('click', () => {
+      choiceKinds[poll.id] = button.dataset.choiceKind;
+      render();
+      view.querySelector('#new-choice, #new-choice-day')?.focus();
+    });
   });
 
   view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {

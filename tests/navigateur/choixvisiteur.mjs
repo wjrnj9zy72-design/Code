@@ -19,7 +19,7 @@ async function device(label, prefs) {
   await page.waitForSelector('.app-bar');
   return page;
 }
-const choices = (page) => page.locator('.votes tbody th').allTextContents().then((all) => all.map((s) => s.trim()));
+const choices = (page) => page.locator('.votes tbody th').allTextContents().then((all) => all.map((s) => s.replace(/\s+/g, ' ').trim()));
 
 // Gui crée le sondage et le partage.
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });
@@ -44,38 +44,49 @@ check('mais pas de quoi renommer ou retirer ceux qui y sont', (await her.locator
 await her.fill('#solo-me', 'Mme Durand');
 await her.click('#solo-me-form button[type=submit]');
 await her.waitForTimeout(600);
-await her.fill('#new-choice', 'dimanche');
+// Un sondage sur des soirs : le formulaire propose d'abord un jour, au calendrier.
+check('un sondage sur des jours propose d’abord un jour', (await her.locator('#new-choice-day').count()) === 1
+  && (await her.getAttribute('[data-choice-kind="day"]', 'aria-pressed')) === 'true');
+await her.fill('#new-choice-day', '2026-10-11');
+await her.waitForTimeout(800);
+const withDay = await choices(her);
+check('le jour choisi s’ajoute, marqué 📅', withDay.some((c) => c.startsWith('📅') && /dimanche 11 octobre/i.test(c)), withDay.join(' | '));
+await her.click('[data-choice-kind="other"]');
+check('« Autre chose » ouvre une case de texte', (await her.locator('#new-choice').count()) === 1 && (await her.locator('#new-choice-day').count()) === 0);
+await her.fill('#new-choice', 'au parc');
 await her.click('#add-choice button[type=submit]');
 await her.waitForTimeout(800);
-check('son choix s’ajoute chez elle', (await choices(her)).includes('dimanche'), (await choices(her)).join(' | '));
-await her.locator('.votes tbody tr').nth(2).locator('td.votes__mine .vote').click();
+check('son choix s’ajoute chez elle', (await choices(her)).includes('au parc'), (await choices(her)).join(' | '));
+check('les deux sortes se distinguent dans la grille', (await choices(her)).filter((c) => c.startsWith('📅')).length === 1, (await choices(her)).join(' | '));
+await her.locator('.votes tbody tr').nth(3).locator('td.votes__mine .vote').click();
 await her.waitForTimeout(800);
 check('et elle peut le cocher', (await her.locator('td.votes__mine .vote--yes').count()) === 1);
 
 // Chez Gui : le choix et la coche arrivent ; c'est lui qui peut le corriger.
-const arrived = await gui.waitForFunction(() => [...document.querySelectorAll('.votes tbody th')].some((th) => th.textContent.trim() === 'dimanche'), null, { timeout: 15000 }).then(() => true).catch(() => false);
+const arrived = await gui.waitForFunction(() => [...document.querySelectorAll('.votes tbody th')].some((th) => th.textContent.trim() === 'au parc'), null, { timeout: 15000 }).then(() => true).catch(() => false);
 check('le choix arrive chez l’organisateur', arrived, (await choices(gui)).join(' | '));
 await gui.waitForTimeout(800);
 check('avec sa coche', (await gui.locator('.vote--yes').count()) === 1);
-check('l’organisateur peut le corriger', (await gui.locator('[data-option]', { hasText: 'dimanche' }).count()) === 1);
+check('l’organisateur peut le corriger', (await gui.locator('[data-option]', { hasText: 'au parc' }).count()) === 1);
 
 // Gui ajoute un choix à son tour, sur une copie qui avait déjà le sien : rien ne se perd.
-await gui.fill('#new-choice', 'lundi');
+await gui.click('[data-choice-kind="other"]');
+await gui.fill('#new-choice', 'chez Paul');
 await gui.click('#add-choice button[type=submit]');
 await gui.waitForTimeout(1200);
 await her.reload(); await her.waitForSelector('.votes', { timeout: 15000 }); await her.waitForTimeout(1500);
 const now = await choices(her);
-check('les choix des deux restent', ['vendredi', 'samedi', 'dimanche', 'lundi'].every((c) => now.includes(c)), now.join(' | '));
+check('les choix des deux restent', ['vendredi', 'samedi', 'au parc', 'chez Paul'].every((c) => now.includes(c)), now.join(' | '));
 
 // Gui retire le choix de la visiteuse : il ne revient pas par sa copie.
-await gui.locator('[data-option]', { hasText: 'dimanche' }).click();
+await gui.locator('[data-option]', { hasText: 'au parc' }).click();
 await gui.click('#choice-delete');
 await gui.click('.dialog--ask[open] [data-answer="yes"]');
 await gui.waitForTimeout(1200);
-await her.locator('.votes tbody tr').first().locator('td.votes__mine .vote').click(); // sa copie, encore avec dimanche, repart
+await her.locator('.votes tbody tr').first().locator('td.votes__mine .vote').click(); // sa copie, encore avec « au parc », repart
 await her.waitForTimeout(1500);
 await gui.click('#sync').catch(() => {}); await gui.waitForTimeout(1500);
-check('un choix retiré par l’organisateur ne revient pas', !(await choices(gui)).includes('dimanche'), (await choices(gui)).join(' | '));
+check('un choix retiré par l’organisateur ne revient pas', !(await choices(gui)).includes('au parc'), (await choices(gui)).join(' | '));
 
 // La date retenue : plus rien à proposer.
 await gui.evaluate(() => document.querySelector('#poll-date-by-hand')?.setAttribute('open', ''));
