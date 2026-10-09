@@ -777,6 +777,42 @@ export function restoreOrganiserSecrets(found) {
   return restored;
 }
 
+/**
+ * A choice a guest adds stays theirs to take back — a slip of the thumb, an
+ * idea dropped — and only theirs. Each one gets a secret of its own, kept on
+ * this device; the choice carries only its fingerprint (`by`), which the
+ * database checks the secret against before letting it go.
+ */
+export async function claimChoices(before, after) {
+  const known = new Set(before.options.map((option) => option.id));
+  const fresh = after.options.filter((option) => !known.has(option.id));
+  if (!fresh.length || !globalThis.crypto?.subtle) return after;
+  const secrets = { ...state.prefs.chooser };
+  const marks = {};
+  for (const option of fresh) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const secret = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret)));
+    secrets[option.id] = secret;
+    marks[option.id] = [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  state.prefs = { ...state.prefs, chooser: secrets };
+  savePrefs(state.prefs);
+  return { ...after, options: after.options.map((option) => (marks[option.id] ? { ...option, by: marks[option.id] } : option)) };
+}
+
+/** Whether this device added that choice, and may take it back. */
+export function ownsChoice(option) {
+  return Boolean(option?.by && state.prefs.chooser?.[option.id]);
+}
+
+/** The secrets proving the choices this poll dropped were this device's own. */
+export function choiceUnlocks(poll) {
+  const held = state.prefs.chooser || {};
+  return Object.fromEntries(Object.keys(poll.removed || {}).filter((id) => held[id]).map((id) => [id, held[id]]));
+}
+
 export function isOrganiser(poll) {
   return !poll?.owned || Boolean(organiserSecret(poll.id));
 }

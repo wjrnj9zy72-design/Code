@@ -58,7 +58,8 @@ out = "\n".join([
 --      chacun peut supprimer son compte et son adresse ;
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
 --      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
---   8. qui répond à un sondage par un lien peut y ajouter des choix.
+--   8. qui répond à un sondage par un lien peut y ajouter des choix, et
+--      retirer ceux qu'il a ajoutés.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.

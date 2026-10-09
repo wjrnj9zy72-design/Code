@@ -19,7 +19,11 @@ async function device(label, prefs) {
   await page.waitForSelector('.app-bar');
   return page;
 }
-const choices = (page) => page.locator('.votes tbody th').allTextContents().then((all) => all.map((s) => s.replace(/\s+/g, ' ').trim()));
+const choices = (page) => page.locator('.votes tbody th').evaluateAll((cells) => cells.map((th) => {
+  const copy = th.cloneNode(true);
+  copy.querySelectorAll('.choice-drop').forEach((button) => button.remove());
+  return copy.textContent.replace(/\s+/g, ' ').trim();
+}));
 
 // Gui crée le sondage et le partage.
 const gui = await device('Gui', { me: 'Gui', groups: [MIFA] });
@@ -68,6 +72,19 @@ check('le choix arrive chez l’organisateur', arrived, (await choices(gui)).joi
 await gui.waitForTimeout(800);
 check('avec sa coche', (await gui.locator('.vote--yes').count()) === 1);
 check('l’organisateur peut le corriger', (await gui.locator('[data-option]', { hasText: 'au parc' }).count()) === 1);
+
+// Elle retire un choix à elle ; ceux des autres n'ont pas de quoi être retirés.
+check('elle peut retirer ses choix, et seulement les siens', (await her.locator('[data-drop-option]').count()) === 2,
+  String(await her.locator('[data-drop-option]').count()));
+await her.fill('#new-choice', 'pétanque');
+await her.click('#add-choice button[type=submit]');
+await her.waitForTimeout(800);
+await her.locator('.votes tbody tr', { hasText: 'pétanque' }).locator('[data-drop-option]').click();
+await her.click('.dialog--ask[open] [data-answer="yes"]');
+await her.waitForTimeout(1200);
+check('son choix retiré disparaît chez elle', !(await choices(her)).includes('pétanque'), (await choices(her)).join(' | '));
+await gui.click('#sync').catch(() => {}); await gui.waitForTimeout(1500);
+check('et chez l’organisateur', !(await choices(gui)).includes('pétanque') && (await choices(gui)).includes('au parc'), (await choices(gui)).join(' | '));
 
 // Gui ajoute un choix à son tour, sur une copie qui avait déjà le sien : rien ne se perd.
 await gui.click('[data-choice-kind="other"]');

@@ -19,7 +19,7 @@ import { boardCardHtml, boardTitle, getBoard } from './view-ideas.js';
 import { ask, download, fileName, makeDialog, showCopyDialog } from './view-games.js';
 import {
   NAME_KEPT, groups, hiddenByGroupHtml, inGroupHtml, isOrganiser, keyFor, landing, myName,
-  organise, organiserSecret, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
+  organise, organiserSecret, claimChoices, ownsChoice, choiceUnlocks, resetGroupChoice, shownDocs, startSharing, willBeInHtml,
   removeEverywhere,
 } from './view-groups.js';
 import { markForActivity, activityOnClose } from './flows.js';
@@ -354,7 +354,13 @@ export function pollView(poll, { solo = false } = {}) {
                            ${dayOfOption(poll, row.option) ? '<span class="choice-day" aria-hidden="true">📅</span>' : ''}
                            ${
                              guest
-                               ? escapeHtml(row.option.text)
+                               ? `${escapeHtml(row.option.text)}${
+                                   ownsChoice(row.option) && !closed
+                                     ? ` <button type="button" class="button button--small button--ghost choice-drop"
+                                                 data-drop-option="${escapeHtml(row.option.id)}"
+                                                 aria-label="${escapeHtml(t('polls.dropMine', { choice: row.option.text }))}">✕</button>`
+                                     : ''
+                                 }`
                                : `<button type="button" class="line__text" data-option="${escapeHtml(row.option.id)}">
                                     ${escapeHtml(row.option.text)}
                                   </button>`
@@ -832,6 +838,10 @@ async function pushPoll(changed) {
   } catch {
     // Unreadable just now: the database merges on its side all the same.
   }
+  // A guest taking back a choice of their own sends the secret that proves it
+  // was theirs; the database keeps it nowhere.
+  const unlock = isOrganiser(outgoing) ? {} : choiceUnlocks(outgoing);
+  if (Object.keys(unlock).length) outgoing = { ...outgoing, unlock };
   await state.remote.put(outgoing, keyFor(outgoing), organiserSecret(outgoing.id));
 }
 
@@ -1030,13 +1040,23 @@ export function bindPoll(poll) {
   // render(), which runs after this and puts the grid back where it was.
   showMyColumn();
 
-  view.querySelector('#add-choice')?.addEventListener('submit', (event) => {
+  // A guest's own choices carry the fingerprint that lets them take them back.
+  const added = async (next) => (isOrganiser(poll) ? next : claimChoices(poll, next));
+
+  view.querySelector('#add-choice')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const field = view.querySelector('#new-choice');
     const next = addOptions(poll, field.value);
     if (next === poll) return;
-    replacePoll(next);
+    replacePoll(await added(next));
     view.querySelector('#new-choice')?.focus();
+  });
+
+  view.querySelectorAll('[data-drop-option]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!(await ask(t('polls.confirmRemoveChoice'), { confirmLabel: t('action.delete'), danger: true }))) return;
+      replacePoll(removeOption(poll, button.dataset.dropOption));
+    });
   });
 
   view.querySelectorAll('[data-choice-kind]').forEach((button) => {
@@ -1047,10 +1067,10 @@ export function bindPoll(poll) {
     });
   });
 
-  view.querySelector('#new-choice-day')?.addEventListener('change', (event) => {
+  view.querySelector('#new-choice-day')?.addEventListener('change', async (event) => {
     const line = choiceOfDay(event.target.value, getLanguage());
     if (!line || poll.options.some((option) => option.text === line)) return;
-    replacePoll(addOptions(poll, line));
+    replacePoll(await added(addOptions(poll, line)));
   });
 
   view.querySelectorAll('[data-option]').forEach((button) => {
