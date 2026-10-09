@@ -2117,6 +2117,7 @@ const STRINGS = {
       'Couper l’adresse de l’agenda ? Les agendas déjà abonnés cessent de recevoir quoi que ce soit. Vous pourrez en fabriquer une autre, sans rapport avec celle-ci.',
     'agenda.cutDone': 'Adresse coupée. Les agendas abonnés ne reçoivent plus rien.',
     'agenda.none': 'Cette base ne sait pas encore servir d’agenda. Voir le guide, étape 8.',
+    'agenda.needsAccount': 'Ce groupe exige un compte : connectez-vous (Réglages → Compte) pour obtenir son agenda.',
     'lists.dueOn': 'le {day}',
     'lists.lateOn': 'en retard depuis le {day}',
     'lists.due': 'Pour quand ?',
@@ -3204,6 +3205,7 @@ const STRINGS = {
       'Cut the calendar address? Calendars already subscribed stop receiving anything. You can make another one, unrelated to this.',
     'agenda.cutDone': 'Address cut. Subscribed calendars receive nothing more.',
     'agenda.none': 'This database cannot serve a calendar yet. See the guide, step 8.',
+    'agenda.needsAccount': 'This group asks for an account: sign in (Settings → Account) to get its calendar.',
     'lists.dueOn': 'on {day}',
     'lists.lateOn': 'overdue since {day}',
     'lists.due': 'For when?',
@@ -7904,8 +7906,12 @@ function icsEscape(text) {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
+
+/** A day as the app writes one, `AAAA-MM-JJ`, and an hour, `HH:MM`. */
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const HOUR = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * Lines are folded at 75 octets — octets, not characters: an accented letter
@@ -7944,6 +7950,19 @@ function dayAfter(day) {
   return `${next.getUTCFullYear()}${pad(next.getUTCMonth() + 1)}${pad(next.getUTCDate())}`;
 }
 
+/**
+ * An hour later, as iCalendar writes a local instant: `AAAAMMJJTHHMM00`. Past
+ * eleven at night it is the next day — iCalendar has no hour 24.
+ */
+function hourLater(day, at) {
+  const [year, month, date] = String(day).split('-').map(Number);
+  const [hour, minute] = String(at).split(':').map(Number);
+  const end = new Date(Date.UTC(year, month - 1, date, hour + 1, minute));
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${end.getUTCFullYear()}${pad(end.getUTCMonth() + 1)}${pad(end.getUTCDate())}`
+    + `T${pad(end.getUTCHours())}${pad(end.getUTCMinutes())}00`;
+}
+
 /** An instant, in the UTC form iCalendar uses for DTSTAMP. */
 function stampNow(at) {
   return new Date(at).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
@@ -7957,6 +7976,11 @@ function stampNow(at) {
  * at eight; carrying a time zone would only be right until someone travels.
  */
 function vevent({ uid, day, at = null, until = null, summary, description = '', stamp = Date.now() }) {
+  // Whatever the documents hold goes into the file: a day or an hour that is
+  // not one would break the line it lands on, or the whole feed.
+  if (!DAY.test(String(day ?? ''))) return [];
+  if (!HOUR.test(String(at ?? ''))) at = null;
+  if (!DAY.test(String(until ?? ''))) until = null;
   const lines = [
     'BEGIN:VEVENT',
     `UID:${icsEscape(uid)}`,
@@ -7975,9 +7999,8 @@ function vevent({ uid, day, at = null, until = null, summary, description = '', 
     lines.push(`DTEND;VALUE=DATE:${dayAfter(last)}`);
   } else if (at) {
     const [hour, minute] = String(at).split(':');
-    const end = String(Number(hour) + 1).padStart(2, '0');
     lines.push(`DTSTART:${stampDay(day)}T${hour}${minute}00`);
-    lines.push(`DTEND:${stampDay(day)}T${end}${minute}00`);
+    lines.push(`DTEND:${hourLater(day, at)}`);
   } else {
     lines.push(`DTSTART;VALUE=DATE:${stampDay(day)}`);
     lines.push(`DTEND;VALUE=DATE:${dayAfter(day)}`);
@@ -8098,7 +8121,7 @@ function listEvents(list, { stamp } = {}) {
       docId: list.id,
       day: item.due,
       at: null,
-      summary: item.text,
+      summary: String(item.text ?? ''),
       description: [list.name, list.people?.find((person) => person.id === item.who)?.name]
         .filter(Boolean)
         .join(' · '),
@@ -8118,7 +8141,7 @@ function agendaFor({ lists = [], polls = [] } = {}, groupId = '') {
   const events = [
     ...polls.filter((poll) => mine(poll) && live(poll)).map((poll) => pollEvent(poll)).filter(Boolean),
     ...lists.filter((list) => mine(list) && live(list)).flatMap((list) => listEvents(list)),
-  ];
+  ].filter((event) => DAY.test(String(event.day ?? '')));
   return events.sort((a, b) => a.day.localeCompare(b.day) || a.summary.localeCompare(b.summary));
 }
 
@@ -9039,17 +9062,20 @@ function createRemote(config, fetchImpl = globalThis.fetch) {
      * The group's calendar address, made the first time it is asked for.
      *
      * One per group, and any key of the group may have it: the calendar is
-     * everyone's. Returns { status: 'ok', token, name } | { status: 'unknown' }.
+     * everyone's — except a key without an account, in a group that asks for
+     * one. Returns { status: 'ok', token, name } | { status: 'account' }
+     * | { status: 'unknown' }.
      */
     async calendar(key) {
       const answer = await call('marque_points_calendar', { p_key: key });
       if (answer?.status === 'ok' && typeof answer.token === 'string') {
         return { status: 'ok', token: answer.token, name: answer.name || '' };
       }
+      if (answer?.status === 'account') return { status: 'account' };
       return { status: 'unknown' };
     },
 
-    /** Cut the calendar address: every subscribed calendar stops. 'ok' | 'unknown'. */
+    /** Cut the calendar address, for a key that admits: every subscribed calendar stops. 'ok' | 'unknown'. */
     async forgetCalendar(key) {
       const answer = await call('marque_points_forget_calendar', { p_key: key });
       return answer?.status === 'ok' ? 'ok' : 'unknown';
@@ -10391,6 +10417,27 @@ function keptElsewhere(changed, { store = false } = {}) {
  * database answers that the thing was deleted, keeping it would only fail
  * again at every change — so it leaves this device too, and the page says why.
  */
+/**
+ * Send a list, an account of spends or a game — after taking in what the
+ * database already has. It keeps whatever it is sent, so a copy written
+ * straight away would erase the lines someone else added since this device
+ * last looked. `adopt` merges a stored copy in and says whether it brought
+ * anything; `find` hands back the merged one.
+ */
+async function pushMerged(changed, { valid, adopt, find }) {
+  let outgoing = changed;
+  try {
+    const stored = await state.remote.get(changed.id);
+    if (valid(stored) && adopt(stored)) {
+      outgoing = find(changed.id) || changed;
+      if (!isBusy()) render();
+    }
+  } catch {
+    // Unreadable just now: this copy goes up, and the next look merges.
+  }
+  await state.remote.put(outgoing, keyFor(outgoing), organiserSecret(outgoing.id));
+}
+
 function pushFailed(changed) {
   return (error) => {
     if (wasDeleted(error)) dropDeleted(changed.id);
@@ -10502,7 +10549,7 @@ function persistSpend(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidSpend, adopt: adoptSpend, find: getSpend }).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -11482,7 +11529,7 @@ function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidGame, adopt: adoptGame, find: getGame }).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -11511,7 +11558,7 @@ function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidList, adopt: adoptList, find: getList }).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -19161,9 +19208,15 @@ function groupsHtml() {
                       <button type="button" class="button button--small button--ghost" data-calendar="${escapeHtml(group.id)}">
                         ${escapeHtml(t('agenda.group'))}
                       </button>
-                      <button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
-                        ${escapeHtml(t('agenda.cut'))}
-                      </button>
+                      ${
+                        // Cutting the address stops everyone's calendar: the
+                        // database leaves it to a key that lets people in.
+                        group.admits
+                          ? `<button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
+                               ${escapeHtml(t('agenda.cut'))}
+                             </button>`
+                          : ''
+                      }
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -20392,7 +20445,7 @@ async function showCalendar(group) {
     return;
   }
   if (answer.status !== 'ok') {
-    flash(t('agenda.none'), 'error');
+    flash(t(answer.status === 'account' ? 'agenda.needsAccount' : 'agenda.none'), 'error');
     render();
     return;
   }

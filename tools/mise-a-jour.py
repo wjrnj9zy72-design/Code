@@ -59,7 +59,13 @@ out = "\n".join([
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
 --      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
 --   8. qui répond à un sondage par un lien peut y ajouter des choix, et
---      retirer ceux qu'il a ajoutés.
+--      retirer ceux qu'il a ajoutés ;
+--   9. l'agenda d'un groupe ne se tait plus parce qu'un autre agenda frappe à
+--      une adresse coupée ; un groupe qui exige un compte ferme aussi son
+--      agenda, la suppression et les lots aux clés sans compte ; seule une clé
+--      qui fait entrer coupe l'agenda ; un lot ne se retire qu'avec une clé de
+--      son groupe ; un sondage ne grossit plus sans fin sous les envois des
+--      visiteurs.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -81,8 +87,13 @@ function('marque_points_put'),
 function('marque_points_delete'),
 function('marque_points_group_docs'),
 function('marque_points_agenda'),
+"-- 9. L'agenda, et ce qu'un groupe qui exige un compte ferme aussi.\n" + function('marque_points_calendar'),
+function('marque_points_forget_calendar'),
+function('marque_points_put_set'),
+function('marque_points_forget_set'),
 "-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;\n-- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.\n" + "\n".join(
-    [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda']]
+    [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda',
+                         'marque_points_calendar', 'marque_points_forget_calendar', 'marque_points_put_set', 'marque_points_forget_set']]
     + [revoke('marque_points_merge_votes'), revoke('marque_points_add_options')]) + "\n",
 "-- 6. Les comptes : les secrets d'organisateur.\n"
 + table('marque_points_account') + "\n" + table('marque_points_account_owner')

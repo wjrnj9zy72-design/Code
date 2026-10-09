@@ -23,7 +23,13 @@
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
 --      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
 --   8. qui répond à un sondage par un lien peut y ajouter des choix, et
---      retirer ceux qu'il a ajoutés.
+--      retirer ceux qu'il a ajoutés ;
+--   9. l'agenda d'un groupe ne se tait plus parce qu'un autre agenda frappe à
+--      une adresse coupée ; un groupe qui exige un compte ferme aussi son
+--      agenda, la suppression et les lots aux clés sans compte ; seule une clé
+--      qui fait entrer coupe l'agenda ; un lot ne se retire qu'avec une clé de
+--      son groupe ; un sondage ne grossit plus sans fin sous les envois des
+--      visiteurs.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -69,7 +75,7 @@ begin
 
   -- Ménage : ce qui est mort ne doit pas occuper un code.
   delete from public.marque_points_invite
-   where expires_at < now() or uses <= 0 or tries >= 10;
+   where expires_at < now() or uses <= 0;
 
   v_code := public.marque_points_fresh_code();
   insert into public.marque_points_invite (code, group_id, expires_at, uses)
@@ -160,6 +166,7 @@ declare
   v_group text;
   v_unlock jsonb;
   v_drop jsonb;
+  v_next jsonb;
 begin
   if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
     raise exception 'identifiant invalide';
@@ -253,8 +260,7 @@ begin
      and jsonb_typeof(v_unlock->(o.value->>'id')) = 'string'
      and encode(sha256(convert_to(v_unlock->>(o.value->>'id'), 'UTF8')), 'hex') = o.value->>'by';
 
-  update public.marque_points_games
-     set data = v_stored
+  v_next := v_stored
            || jsonb_build_object(
                 'votes', (select coalesce(jsonb_object_agg(c.key, c.value), '{}'::jsonb)
                             from jsonb_each(public.marque_points_merge_votes(v_stored->'votes', p_data->'votes')) c
@@ -279,8 +285,16 @@ begin
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
-                                      coalesce((p_data->>'updatedAt')::numeric, 0))),
-         updated_at = now()
+                                      coalesce((p_data->>'updatedAt')::numeric, 0)));
+  -- Ce qu'apporte un visiteur s'ajoute à ce qui est là : la limite vaut pour
+  -- le tout, sinon des envois répétés enfleraient le sondage sans fin, jusqu'à
+  -- ce que son organisateur lui-même ne puisse plus l'enregistrer.
+  if pg_column_size(v_next) > 200000 then
+    raise exception 'donnee trop volumineuse';
+  end if;
+
+  update public.marque_points_games
+     set data = v_next, updated_at = now()
    where id = p_id and code_hash is null;
 end;
 $$;
@@ -305,9 +319,12 @@ begin
     return; -- rien à supprimer, rien à refuser
   end if;
 
+  -- Dans un groupe qui exige un compte, une clé sans compte n'y efface plus rien.
   if v_group is null or v_group is distinct from (
-    select group_id from public.marque_points_group_key
-     where key_hash = md5(coalesce(p_key, '') || key_salt)
+    select k.group_id from public.marque_points_group_key k
+      join public.marque_points_group grp on grp.id = k.group_id
+     where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+       and (not grp.accounts_required or k.user_id is not null)
   ) then
     raise exception 'cle de groupe invalide';
   end if;
@@ -347,23 +364,12 @@ set search_path = public
 as $$
 declare
   v_group public.marque_points_group;
-  v_misses integer;
 begin
-  delete from public.marque_points_join_miss where at < now() - interval '1 hour';
-
-  select count(*) into v_misses
-    from public.marque_points_join_miss
-   where name = '' and at > now() - interval '10 minutes';
-  if v_misses >= 20 then
-    return jsonb_build_object('status', 'busy');
-  end if;
-
   select g.* into v_group
     from public.marque_points_group g
    where g.calendar is not null and g.calendar = coalesce(p_token, '');
 
   if not found then
-    insert into public.marque_points_join_miss (name) values ('');
     return jsonb_build_object('status', 'unknown');
   end if;
 
@@ -381,6 +387,125 @@ begin
 end;
 $$;
 
+-- 9. L'agenda, et ce qu'un groupe qui exige un compte ferme aussi.
+create or replace function public.marque_points_calendar(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+  v_open boolean;
+  v_token text;
+begin
+  select k.group_id, (not grp.accounts_required or k.user_id is not null) into v_group, v_open
+    from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt);
+  if v_group is null then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  if not v_open then
+    return jsonb_build_object('status', 'account');
+  end if;
+
+  select g.calendar into v_token from public.marque_points_group g where g.id = v_group;
+  if v_token is null then
+    v_token := replace(gen_random_uuid()::text, '-', '');
+    update public.marque_points_group set calendar = v_token where id = v_group;
+  end if;
+
+  return jsonb_build_object('status', 'ok', 'token', v_token,
+    'name', (select name from public.marque_points_group where id = v_group));
+end;
+$$;
+
+create or replace function public.marque_points_forget_calendar(p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group
+    from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and k.admits
+     and (not grp.accounts_required or k.user_id is not null);
+  if v_group is null then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+
+  update public.marque_points_group set calendar = null where id = v_group;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
+create or replace function public.marque_points_put_set(
+  p_id text, p_data jsonb, p_code text, p_key text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_salt text := md5(gen_random_uuid()::text);
+  v_group text;
+begin
+  select k.group_id into v_group from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null);
+  if v_group is null then
+    raise exception 'cle de groupe invalide';
+  end if;
+  if p_id is null or length(p_id) < 8 or length(p_id) > 128 then
+    raise exception 'identifiant invalide';
+  end if;
+  if p_code is null or p_code !~ '^[0-9]{6}$' then
+    raise exception 'code invalide';
+  end if;
+  if pg_column_size(p_data) > 200000 then
+    raise exception 'lot trop volumineux';
+  end if;
+
+  insert into public.marque_points_games (id, data, updated_at, code_hash, code_salt, tries, group_id)
+  values (p_id, p_data, now(), md5(p_code || v_salt), v_salt, 0, v_group);
+end;
+$$;
+
+create or replace function public.marque_points_forget_set(p_id text, p_key text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group text;
+begin
+  select k.group_id into v_group from public.marque_points_group_key k
+    join public.marque_points_group grp on grp.id = k.group_id
+   where k.key_hash = md5(coalesce(p_key, '') || k.key_salt)
+     and (not grp.accounts_required or k.user_id is not null);
+  if v_group is null then
+    raise exception 'cle de groupe invalide';
+  end if;
+
+  delete from public.marque_points_games
+   where id = p_id and code_hash is not null
+     and (group_id is null or group_id = v_group);
+  if not found then
+    return jsonb_build_object('status', 'unknown');
+  end if;
+  return jsonb_build_object('status', 'ok');
+end;
+$$;
+
 -- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;
 -- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.
 grant execute on function public.marque_points_invite(text, integer, integer) to anon, authenticated;
@@ -388,6 +513,10 @@ grant execute on function public.marque_points_put(text, jsonb, text, text) to a
 grant execute on function public.marque_points_delete(text, text, text) to anon, authenticated;
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
+grant execute on function public.marque_points_calendar(text) to anon, authenticated;
+grant execute on function public.marque_points_forget_calendar(text) to anon, authenticated;
+grant execute on function public.marque_points_put_set(text, jsonb, text, text) to anon, authenticated;
+grant execute on function public.marque_points_forget_set(text, text) to anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
 revoke all on function public.marque_points_add_options(jsonb, jsonb, jsonb) from public, anon, authenticated;
 

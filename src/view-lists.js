@@ -8,10 +8,10 @@
 import {
   askForText, escapeHtml, flash, flashHtml, formatDate, formatDay, groupChipsHtml, kindsHtml, navigate, render,
   state, view,
-  attachedHtml, chainButtonsHtml,
+  attachedHtml, chainButtonsHtml, adoptGame,
 } from './app.js';
 import {
-  actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, openSignatureDialog, pushFailed, shareBarHtml, signed,
+  actionsHtml, eventLinkHtml, eventTagHtml, keptElsewhere, openSignatureDialog, pushFailed, pushMerged, shareBarHtml, signed,
   signedByHtml,
   whenAbsent,
 } from './view-polls.js';
@@ -22,7 +22,7 @@ import {
   removeEverywhere,
 } from './view-groups.js';
 import { listFlowsHtml } from './view-flows.js';
-import { recentNames } from './model.js';
+import { recentNames, isValidGame } from './model.js';
 import {
   createList, addItems, renameItem, assignItem, toggleItem, removeItem, reuseList, addListPerson,
   renameListPerson, removeListPerson, shareOut, progress, mergeLists, isValidList, setItemDue,
@@ -346,7 +346,7 @@ export function persist(changed) {
   if (state.remote && changed?.shared) {
     // A failure here must never cost the player their round: the local copy is
     // already written, and the next change pushes again.
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidGame, adopt: adoptGame, find: getGame }).catch(pushFailed(changed));
   }
   return ok;
 }
@@ -375,7 +375,7 @@ export function persistList(changed) {
   if (!ok && !keptElsewhere(changed)) flash(t('home.storageWarning'), 'error');
   if (state.store && changed) void state.store.save(changed);
   if (state.remote && changed?.shared) {
-    state.remote.put(changed, keyFor(changed), organiserSecret(changed.id)).catch(pushFailed(changed));
+    pushMerged(changed, { valid: isValidList, adopt: adoptList, find: getList }).catch(pushFailed(changed));
   }
   return ok;
 }

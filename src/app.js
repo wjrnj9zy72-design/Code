@@ -919,9 +919,15 @@ function groupsHtml() {
                       <button type="button" class="button button--small button--ghost" data-calendar="${escapeHtml(group.id)}">
                         ${escapeHtml(t('agenda.group'))}
                       </button>
-                      <button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
-                        ${escapeHtml(t('agenda.cut'))}
-                      </button>
+                      ${
+                        // Cutting the address stops everyone's calendar: the
+                        // database leaves it to a key that lets people in.
+                        group.admits
+                          ? `<button type="button" class="button button--small button--ghost" data-cut-calendar="${escapeHtml(group.id)}">
+                               ${escapeHtml(t('agenda.cut'))}
+                             </button>`
+                          : ''
+                      }
                       <button type="button" class="button button--small button--ghost" data-leave="${escapeHtml(group.id)}">
                         ${escapeHtml(t('groups.leave'))}
                       </button>
@@ -2150,7 +2156,7 @@ async function showCalendar(group) {
     return;
   }
   if (answer.status !== 'ok') {
-    flash(t('agenda.none'), 'error');
+    flash(t(answer.status === 'account' ? 'agenda.needsAccount' : 'agenda.none'), 'error');
     render();
     return;
   }
@@ -3383,7 +3389,7 @@ export async function pullGame(id) {
  * people scoring the same evening on two phones would otherwise lose whichever
  * round was written second.
  */
-function adoptGame(stored) {
+export function adoptGame(stored) {
   const local = getGame(stored.id);
   const merged = local ? mergeGames(local, stored) : stored;
   if (local && merged === local) return false;
