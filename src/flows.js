@@ -16,7 +16,7 @@
  */
 
 import { addItems } from './lists.js';
-import { createPoll, createEvent, addOptions, tally, goers, choiceOfDay, voteOf } from './polls.js';
+import { createPoll, createEvent, addOptions, tally, goers, choiceOfDay, voteOf, optionDay } from './polls.js';
 import { addSpend } from './spends.js';
 import { cardsInOrder } from './ideas.js';
 import { addPerson } from './people.js';
@@ -260,18 +260,28 @@ export function markForActivity(poll, yes = true) {
  */
 export function activityFromChoice(event, poll, option) {
   const keen = (poll.people || []).filter((person) => voteOf(poll, person.id, option.id) === 'yes').map((person) => person.name);
-  return activityFor(event, { name: oneLine(option.text), names: keen.length ? keen : null, from: { doc: poll.id, part: option.id } });
+  return activityFor(event, {
+    name: oneLine(option.text), date: optionDay(option), names: keen.length ? keen : null, from: { doc: poll.id, part: option.id },
+  });
 }
 
 /**
  * What closing a poll marked for an activity makes at once: its one clear
- * winner, when the event has no activity from it yet. A tie makes nothing —
+ * winner — one per day, when its choices are pinned to days —, unless the
+ * event already has an activity from it. A tie makes nothing for that day —
  * the choices stay offered, for someone to pick.
  */
-export function activityOnClose(poll, all) {
+export function activitiesOnClose(poll, all) {
   const { event, choices } = choiceActivities(poll, all);
-  if (!event || choices.length !== 1 || choices[0].made) return null;
-  return activityFromChoice(event, poll, choices[0].option);
+  if (!event) return [];
+  const byDay = new Map();
+  for (const choice of choices) {
+    const day = optionDay(choice.option) || '';
+    byDay.set(day, [...(byDay.get(day) || []), choice]);
+  }
+  return [...byDay.values()]
+    .filter((group) => group.length === 1 && !group[0].made)
+    .map(([choice]) => activityFromChoice(event, poll, choice.option));
 }
 
 /** The polls of an event still choosing an activity: open, marked. */

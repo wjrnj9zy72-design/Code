@@ -257,7 +257,7 @@ export function programmeHtml(event, { guest = false } = {}) {
 }
 
 /** Day chips for an event's days, one picked; `none` offers « à caler ». */
-function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' } = {}) {
+export function dayChipsHtml(event, picked, { none = true, attr = 'data-activity-day' } = {}) {
   const chip = (value, label) => `<button type="button" class="chip ${value === picked ? 'chip--on' : ''}" ${attr}="${escapeHtml(value)}"
       aria-pressed="${value === picked ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
   return `<div class="row row--chips" role="group">
@@ -309,8 +309,8 @@ export function openActivityPicker() {
 }
 
 /** A new activity: what, which day of the event — or later —, and when. */
-export function openActivityDialog(event, { name = '', from = null, names = null } = {}) {
-  let day = '';
+export function openActivityDialog(event, { name = '', date = null, from = null, names = null } = {}) {
+  let day = date || '';
   const dialog = makeDialog();
   const draw = () => {
     const typed = dialog.querySelector('#activity-name')?.value ?? name;
@@ -446,7 +446,8 @@ export function pollActivitiesHtml(poll) {
   return `
     <section class="card stack stack--tight flows" data-flows-for="${escapeHtml(poll.id)}">
       ${offersHtml(t('activity.organise', { name: documentTitle(event) }),
-        open.map((one) => offerButton('data-flow-choice-activity', one.option.id, one.option.text)))}
+        open.map((one) => offerButton('data-flow-choice-activity', one.option.id,
+          one.option.day ? `${one.option.text} · ${formatDayLong(one.option.day)}` : one.option.text)))}
     </section>`;
 }
 
@@ -545,7 +546,7 @@ export function bindFlows(root) {
       const one = choices.find((choice) => choice.option.id === node.dataset.flowChoiceActivity);
       if (!event || !one) return;
       const keen = activityFromChoice(event, poll, one.option);
-      openActivityDialog(event, { name: one.option.text, from: keen.from, names: keen.people.map((person) => person.name) });
+      openActivityDialog(event, { name: one.option.text, date: keen.date, from: keen.from, names: keen.people.map((person) => person.name) });
     });
   });
   bindLongPress(root);
