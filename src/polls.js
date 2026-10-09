@@ -139,15 +139,61 @@ export function archivePoll(poll, yes = true) {
   return at === (poll.archivedAt || null) ? poll : touch(poll, { archivedAt: at });
 }
 
-/** Add choices, one per line — a poll is usually pasted, not typed. */
-export function addOptions(poll, text) {
+/**
+ * Add choices, one per line — a poll is usually pasted, not typed. `day`
+ * pins them all to one day of the event the poll is part of: « Kayak » on the
+ * Saturday, « Rando » on the Sunday.
+ */
+export function addOptions(poll, text, { day = null } = {}) {
   const now = Date.now();
+  const pinned = isDayText(day) ? { day: String(day) } : {};
   const fresh = String(text || '')
     .split('\n')
     .map((line) => line.replace(/^\s*(?:[-*•–—]+|\d+\s*[.)])\s+/, '').trim())
     .filter(Boolean)
-    .map((line) => ({ id: uid('o'), text: line, createdAt: now, updatedAt: now }));
+    .map((line) => ({ id: uid('o'), text: line, ...pinned, createdAt: now, updatedAt: now }));
   return fresh.length ? touch(poll, { options: [...poll.options, ...fresh] }) : poll;
+}
+
+const isDayText = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+
+/** The day a choice is pinned to, or null: a choice open to any day. */
+export function optionDay(option) {
+  return isDayText(option?.day) ? option.day : null;
+}
+
+/** Whether any choice of the poll is pinned to a day. */
+export function hasOptionDays(poll) {
+  return (poll?.options || []).some((option) => optionDay(option));
+}
+
+/** Pin a choice to a day, or unpin it with null. */
+export function setOptionDay(poll, optionId, day) {
+  const kept = isDayText(day) ? String(day) : null;
+  let changed = false;
+  const options = poll.options.map((option) => {
+    if (option.id !== optionId || optionDay(option) === kept) return option;
+    changed = true;
+    const { day: _old, ...rest } = option;
+    return { ...rest, ...(kept ? { day: kept } : {}), updatedAt: later(option.updatedAt) };
+  });
+  return changed ? touch(poll, { options }) : poll;
+}
+
+/**
+ * The choices grouped by the day they are pinned to, days in order and the
+ * unpinned last. One group of everything when no choice has a day.
+ */
+export function optionsByDay(poll) {
+  const groups = new Map();
+  for (const option of poll.options) {
+    const day = optionDay(option) || '';
+    if (!groups.has(day)) groups.set(day, []);
+    groups.get(day).push(option);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === b ? 0 : !a ? 1 : !b ? -1 : a < b ? -1 : 1))
+    .map(([day, options]) => ({ day: day || null, options }));
 }
 
 export function renameOption(poll, optionId, text) {
@@ -259,12 +305,19 @@ export function tally(poll) {
   // Level on the count, the order the choices were written in decides: a
   // stable sort keeps it, so the gauge does not shuffle equal evenings.
   const ranked = [...rows].sort((a, b) => b.yes - a.yes);
-  const best = ranked[0];
+  // Nobody leads a poll nobody is available for. Choices pinned to days lead
+  // day by day: the Saturday's kayak does not compete with the Sunday's hike.
+  const leaders = [];
+  for (const { options } of optionsByDay(poll)) {
+    const ids = new Set(options.map((option) => option.id));
+    const group = rows.filter((row) => ids.has(row.option.id));
+    const best = Math.max(0, ...group.map((row) => row.yes));
+    if (best > 0) leaders.push(...group.filter((row) => row.yes === best).map((row) => row.option.id));
+  }
   return {
     rows,
     ranked,
-    // Nobody leads a poll nobody is available for.
-    leaders: best && best.yes > 0 ? rows.filter((row) => row.yes === best.yes).map((row) => row.option.id) : [],
+    leaders,
     answered: poll.people.filter((person) =>
       poll.options.some((option) => voteOf(poll, person.id, option.id)),
     ).length,

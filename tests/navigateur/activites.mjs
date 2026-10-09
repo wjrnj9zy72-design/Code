@@ -25,6 +25,7 @@ idees = editCardText(made.board, made.cardId, 'Paddle');
 let quoi = attach({ ...addOptions(createPoll({ question: 'Quelle activité ?', names: ['Gui'] }), 'Karaoké\nBowling'), ...g }, annecy.id);
 quoi = setClosed(setVote(quoi, quoi.people[0].id, quoi.options[0].id, 'yes'), true);
 quoi = { ...quoi, forActivity: true };
+const sorties = { ...attach({ ...createPoll({ question: 'Que faire là-bas ?', names: ['Gui'] }), ...g }, annecy.id), forActivity: true };
 
 const seed = {
   'marque-points:prefs:v1': { me: 'Gui', groups: [{ id: 'grp_famille', name: 'Mifa', key: 'la-cle-famille', admits: true }],
@@ -193,6 +194,53 @@ check('le sondage ne propose plus rien', (await page.locator('[data-flow-choice-
 await page.goto(`${B}#/poll/${annecy.id}`);
 await page.waitForSelector('.programme');
 check('le programme a l’activité, plus le vote', /à caler Ciné/.test(await text('.programme')) && !/en vote/.test(await text('.programme')), await text('.programme'));
+
+/* --- 8. un jour par choix : un gagnant par jour ------------------------- */
+
+// Ajouté seulement ici : ouvert et 🎯, il serait « en vote » au programme plus haut.
+await page.evaluate((poll) => {
+  const prefs = JSON.parse(localStorage.getItem('marque-points:prefs:v1'));
+  prefs.organiser = { ...prefs.organiser, [poll.id]: 'd'.repeat(32) };
+  localStorage.setItem('marque-points:prefs:v1', JSON.stringify(prefs));
+  const all = JSON.parse(localStorage.getItem('marque-points:polls:v1'));
+  localStorage.setItem('marque-points:polls:v1', JSON.stringify([...all, { ...poll, owned: true }]));
+}, sorties);
+await page.goto(`${B}#/poll/${sorties.id}`);
+await page.reload();
+await page.waitForSelector('#add-choice');
+check('les choix se calent sur les jours de l’événement', (await page.locator('#add-choice [data-choice-day]').count()) === 4);
+const ajoute = async (jour, quoi) => {
+  await page.click(`#add-choice [data-choice-day="${jour}"]`);
+  await page.waitForSelector(`#add-choice [data-choice-day="${jour}"].chip--on`);
+  await page.fill('#new-choice', quoi);
+  await page.press('#new-choice', 'Enter');
+  await page.waitForFunction((q) => [...document.querySelectorAll('.votes tbody th')].some((th) => th.textContent.includes(q)), quoi);
+};
+await ajoute(d2, 'Kayak');
+await ajoute(d2, 'Rando');
+await ajoute(d3, 'Lac');
+check('le jour choisi reste pour le choix suivant', await page.locator(`#add-choice [data-choice-day="${d3}"].chip--on`).count() === 1);
+const grille = await text('.votes tbody');
+check('la grille range les choix par jour', (await page.locator('.votes tr.votes__day').count()) === 2 && /Kayak.*Rando.*Lac/.test(grille), grille);
+let sondage = await byTitle('Que faire là-bas ?');
+check('chaque choix garde son jour', sondage.options.map((o) => o.day).join() === [d2, d2, d3].join(), JSON.stringify(sondage.options));
+const votant = sondage.people[0];
+const [choixKayak, , choixLac] = sondage.options;
+await page.click(`[data-vote="${votant.id}|${choixKayak.id}"]`);
+await page.click(`[data-vote="${votant.id}|${choixLac.id}"]`);
+await page.waitForSelector('.votes__leader');
+check('un gagnant par jour', (await page.locator('.votes tr.votes__leader').count()) === 2);
+await page.click(`[data-option="${choixLac.id}"]`);
+await page.waitForSelector('dialog[open] [data-choice-day]');
+check('l’organisateur change le jour d’un choix', (await page.locator(`dialog[open] [data-choice-day="${d3}"].chip--on`).count()) === 1);
+await page.click('dialog[open] #choice-cancel');
+await page.click('#poll-close');
+await page.waitForFunction((id) => JSON.parse(localStorage.getItem('marque-points:polls:v1')).filter((p) => p.from?.doc === id).length === 2, sorties.id);
+const faits = (await polls()).filter((p) => p.from?.doc === sorties.id);
+const kayakFait = faits.find((p) => p.title === 'Kayak');
+const lacFait = faits.find((p) => p.title === 'Lac');
+check('clos : chaque gagnant au programme, à son jour', kayakFait?.date === d2 && lacFait?.date === d3 && lacFait.parent === annecy.id,
+  JSON.stringify([kayakFait?.date, lacFait?.date]));
 
 check('aucune erreur', errors.length === 0, errors.join(' | '));
 await browser.close();

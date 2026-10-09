@@ -6,9 +6,11 @@ import {
   partsCount,
 } from '../src/dashboard.js';
 import {
-  activityFor, ideaActivities, choiceActivities, whenPoll, markForActivity, activityOnClose, activityFromChoice, activityVotes,
+  activityFor, ideaActivities, choiceActivities, whenPoll, markForActivity, activitiesOnClose, activityFromChoice, activityVotes,
 } from '../src/flows.js';
-import { createEvent, createPoll, addOptions, setVote, setClosed, dayOfChoice, setPollDate } from '../src/polls.js';
+import {
+  createEvent, createPoll, addOptions, setVote, setClosed, dayOfChoice, setPollDate, setOptionDay, optionsByDay, tally, mergePolls,
+} from '../src/polls.js';
 import { createList } from '../src/lists.js';
 import { createBoard, addCard, editCardText } from '../src/ideas.js';
 
@@ -105,19 +107,55 @@ test('l’étiquette 🎯 : clos avec un gagnant net, le sondage devient une act
   assert.deepEqual(activityVotes(annecy, [annecy, quoi]).map((p) => p.id), [quoi.id], 'en vote, au programme');
   quoi = setVote(setVote(quoi, gui.id, karaoke.id, 'yes'), alice.id, karaoke.id, 'yes');
   quoi = setVote(quoi, paul.id, bowling.id, 'yes');
-  assert.equal(activityOnClose(quoi, [annecy, quoi]), null, 'ouvert, rien');
+  assert.deepEqual(activitiesOnClose(quoi, [annecy, quoi]), [], 'ouvert, rien');
   quoi = setClosed(quoi, true);
   assert.deepEqual(activityVotes(annecy, [annecy, quoi]), [], 'clos, il n’est plus en vote');
-  const made = activityOnClose(quoi, [annecy, quoi]);
+  const [made, ...more] = activitiesOnClose(quoi, [annecy, quoi]);
+  assert.equal(more.length, 0);
   assert.equal(made.title, 'Karaoké');
   assert.equal(made.parent, annecy.id);
   assert.deepEqual(made.people.map((p) => p.name), ['Gui', 'Alice'], 'avec ceux qui l’ont voulu');
   assert.deepEqual(made.from, { doc: quoi.id, part: karaoke.id });
-  assert.equal(activityOnClose(quoi, [annecy, quoi, made]), null, 'jamais deux fois');
+  assert.deepEqual(activitiesOnClose(quoi, [annecy, quoi, made]), [], 'jamais deux fois');
 
   let egal = markForActivity(attach({ ...addOptions(createPoll({ question: 'Et dimanche ?', names: ['Gui', 'Alice'] }), 'Lac\nMarché'), ...g }, annecy.id));
   egal = setClosed(setVote(setVote(egal, egal.people[0].id, egal.options[0].id, 'yes'), egal.people[1].id, egal.options[1].id, 'yes'), true);
-  assert.equal(activityOnClose(egal, [annecy, egal]), null, 'une égalité ne crée rien d’office');
+  assert.deepEqual(activitiesOnClose(egal, [annecy, egal]), [], 'une égalité ne crée rien d’office');
   assert.equal(choiceActivities(egal, [annecy, egal]).choices.length, 2, 'les deux restent proposés');
   assert.deepEqual(activityFromChoice(annecy, egal, egal.options[1]).people.map((p) => p.name), ['Alice']);
+});
+
+test('des choix calés chacun sur un jour : un gagnant par jour, à son jour', () => {
+  const annecy = weekend();
+  let quoi = createPoll({ question: 'Quoi pendant le week-end ?', names: ['Gui', 'Alice', 'Paul'] });
+  quoi = addOptions(quoi, 'Kayak\nRando', { day: '2026-10-10' });
+  quoi = addOptions(quoi, 'Lac\nMarché', { day: '2026-10-11' });
+  quoi = addOptions(quoi, 'Karaoké', { day: 'n’importe quand' });
+  quoi = markForActivity(attach({ ...quoi, ...g }, annecy.id));
+  const [kayak, rando, lac, marche, karaoke] = quoi.options;
+  assert.equal(karaoke.day, undefined, 'un jour illisible n’est pas un jour');
+  assert.deepEqual(optionsByDay(quoi).map((group) => [group.day, group.options.length]),
+    [['2026-10-10', 2], ['2026-10-11', 2], [null, 1]], 'par jour, les choix sans jour à la fin');
+
+  const [gui, alice, paul] = quoi.people;
+  quoi = setVote(setVote(quoi, gui.id, kayak.id, 'yes'), alice.id, kayak.id, 'yes');
+  quoi = setVote(quoi, paul.id, rando.id, 'yes');
+  quoi = setVote(setVote(quoi, gui.id, lac.id, 'yes'), paul.id, marche.id, 'yes');
+  assert.deepEqual(tally(quoi).leaders.sort(), [kayak.id, lac.id, marche.id].sort(),
+    'le kayak mène le samedi, le lac et le marché sont à égalité le dimanche');
+
+  quoi = setClosed(quoi, true);
+  const made = activitiesOnClose(quoi, [annecy, quoi]);
+  assert.equal(made.length, 1, 'l’égalité du dimanche ne crée rien d’office');
+  assert.equal(made[0].title, 'Kayak');
+  assert.equal(made[0].date, '2026-10-10', 'au jour de son choix');
+  assert.deepEqual(made[0].people.map((p) => p.name), ['Gui', 'Alice']);
+  assert.equal(activityFromChoice(annecy, quoi, lac).date, '2026-10-11');
+
+  const moved = setOptionDay(quoi, rando.id, '2026-10-11');
+  assert.equal(moved.options[1].day, '2026-10-11');
+  assert.equal(setOptionDay(moved, rando.id, '2026-10-11'), moved, 'rien ne change, même objet');
+  const loose = setOptionDay(moved, rando.id, null);
+  assert.equal('day' in loose.options[1], false, 'décalé : plus de jour');
+  assert.equal(mergePolls(quoi, loose).options[1].day, undefined, 'le jour suit la dernière écriture du choix');
 });
