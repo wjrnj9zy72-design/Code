@@ -21,7 +21,8 @@
 --      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
 --      chacun peut supprimer son compte et son adresse ;
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
---      plus ce qui est partagé, n'y partage plus et n'y invite plus.
+--      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
+--   8. qui répond à un sondage par un lien peut y ajouter des choix.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -120,6 +121,27 @@ alter table public.marque_points_gone enable row level security;
 drop function if exists public.marque_points_put(text, jsonb, text);
 drop function if exists public.marque_points_delete(text, text);
 
+-- 8. Les choix qu'ajoutent les visiteurs.
+create or replace function public.marque_points_add_options(p_kept jsonb, p_more jsonb, p_removed jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = public
+as $$
+  select (case when jsonb_typeof(p_kept) = 'array' then p_kept else '[]'::jsonb end)
+         || coalesce((
+           select jsonb_agg(n.value order by n.ord)
+             from jsonb_array_elements(case when jsonb_typeof(p_more) = 'array' then p_more else '[]'::jsonb end)
+                  with ordinality n(value, ord)
+            where jsonb_typeof(n.value->'id') = 'string'
+              and jsonb_typeof(n.value->'text') = 'string'
+              and not coalesce(p_removed, '{}'::jsonb) ? (n.value->>'id')
+              and not exists (
+                select 1 from jsonb_array_elements(case when jsonb_typeof(p_kept) = 'array' then p_kept else '[]'::jsonb end) o
+                 where o.value->>'id' = n.value->>'id')
+         ), '[]'::jsonb);
+$$;
+
 create or replace function public.marque_points_put(
   p_id text,
   p_data jsonb,
@@ -181,9 +203,12 @@ begin
       -- …mais un sondage se fond, il ne se remplace pas : la copie qui arrive
       -- peut ignorer un vote arrivé entre-temps, et l'écraser le perdrait.
       -- Les personnes suivent la copie qui y a touché en dernier, comme dans
-      -- l'app.
+      -- l'app. Un choix ajouté entre-temps par un visiteur reste, à moins que
+      -- la copie qui arrive ne l'ait supprimé.
       p_data := p_data || jsonb_build_object(
         'votes', public.marque_points_merge_votes(v_stored->'votes', p_data->'votes'),
+        'options', public.marque_points_add_options(p_data->'options', v_stored->'options',
+                     coalesce(v_stored->'removed', '{}'::jsonb) || coalesce(p_data->'removed', '{}'::jsonb)),
         'people', case
                     when coalesce((p_data->>'peopleAt')::numeric, 0) >= coalesce((v_stored->>'peopleAt')::numeric, 0)
                       then coalesce(p_data->'people', '[]'::jsonb)
@@ -201,8 +226,8 @@ begin
   end if;
 
   -- …et sinon, seulement en votant. Tout le reste est repris tel qu'il était :
-  -- la date, la clôture, la question, les choix. Les personnes ne peuvent que
-  -- s'ajouter — celles qui y sont gardent leur nom, et personne n'en retire.
+  -- la date, la clôture, la question. Les personnes et les choix ne peuvent
+  -- que s'ajouter — ceux qui y sont gardent leur nom, et personne n'en retire.
   if v_stored->>'kind' is distinct from 'poll' then
     return; -- un organisateur ne se pose que sur un sondage ; rien d'autre à céder
   end if;
@@ -221,6 +246,8 @@ begin
                      select 1 from jsonb_array_elements(coalesce(v_stored->'people', '[]'::jsonb)) o
                       where o.value->>'id' = n.value->>'id')
                 ), '[]'::jsonb),
+                'options', public.marque_points_add_options(v_stored->'options', p_data->'options',
+                             coalesce(v_stored->'removed', '{}'::jsonb)),
                 'peopleAt', greatest(coalesce((v_stored->>'peopleAt')::numeric, 0),
                                      coalesce((p_data->>'peopleAt')::numeric, 0)),
                 'updatedAt', greatest(coalesce((v_stored->>'updatedAt')::numeric, 0),
@@ -334,6 +361,7 @@ grant execute on function public.marque_points_delete(text, text, text) to anon,
 grant execute on function public.marque_points_group_docs(text) to anon, authenticated;
 grant execute on function public.marque_points_agenda(text) to anon, authenticated;
 revoke all on function public.marque_points_merge_votes(jsonb, jsonb) from public, anon, authenticated;
+revoke all on function public.marque_points_add_options(jsonb, jsonb, jsonb) from public, anon, authenticated;
 
 -- 6. Les comptes : les secrets d'organisateur.
 create table if not exists public.marque_points_account (

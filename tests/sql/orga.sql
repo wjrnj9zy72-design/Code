@@ -38,6 +38,36 @@ begin
     raise notice 'OK 4 : un visiteur peut s''ajouter et voter';
   else raise notice 'ÉCHEC 4 : %', v_doc; end if;
 
+  -- 4 bis. un visiteur ajoute un choix, sans toucher aux autres
+  perform public.marque_points_put(v_id, (v_doc || jsonb_build_object(
+    'options', '[{"id":"o1","text":"RENOMMÉ"},{"id":"o3","text":"dimanche"},{"id":"o4"},"pas un choix"]'::jsonb,
+    'votes', (v_doc->'votes') || '{"w3|o3":{"v":"yes","at":4}}'::jsonb, 'updatedAt', 4)), null, null);
+  v_doc := public.marque_points_get(v_id);
+  if jsonb_array_length(v_doc->'options') = 3 and v_doc->'options'->0->>'text' = 'vendredi'
+     and v_doc->'options'->1->>'text' = 'samedi' and v_doc->'options'->2->>'text' = 'dimanche'
+     and (v_doc->'votes') ? 'w3|o3' then
+    raise notice 'OK 4 bis : un visiteur ajoute un choix, sans renommer ni retirer, et rien de mal formé';
+  else raise notice 'ÉCHEC 4 bis : %', v_doc->'options'; end if;
+
+  -- 4 ter. l'organisateur écrit d'une copie qui n'a pas encore ce choix : il reste
+  perform public.marque_points_put(v_id, v_doc || jsonb_build_object(
+    'options', '[{"id":"o1","text":"vendredi"},{"id":"o2","text":"samedi"},{"id":"o5","text":"lundi"}]'::jsonb), v_key, v_secret);
+  v_doc := public.marque_points_get(v_id);
+  if jsonb_array_length(v_doc->'options') = 4 and v_doc->'options'->3->>'id' = 'o3' then
+    raise notice 'OK 4 ter : le choix du visiteur ne se perd pas sous une copie en retard';
+  else raise notice 'ÉCHEC 4 ter : %', v_doc->'options'; end if;
+
+  -- 4 quater. l'organisateur le retire : ni sa copie, ni celle du visiteur ne le ramènent
+  perform public.marque_points_put(v_id, v_doc || jsonb_build_object(
+    'options', '[{"id":"o1","text":"vendredi"},{"id":"o2","text":"samedi"},{"id":"o5","text":"lundi"}]'::jsonb,
+    'removed', '{"o3":7}'::jsonb), v_key, v_secret);
+  perform public.marque_points_put(v_id, v_doc || '{"removed":{}}'::jsonb, null, null);
+  v_doc := public.marque_points_get(v_id);
+  if jsonb_array_length(v_doc->'options') = 3 and not exists (
+       select 1 from jsonb_array_elements(v_doc->'options') o where o.value->>'id' = 'o3') then
+    raise notice 'OK 4 quater : un choix retiré par l''organisateur ne revient pas';
+  else raise notice 'ÉCHEC 4 quater : %', v_doc->'options'; end if;
+
   -- 5. un membre du groupe, avec la clé mais sans le secret : même régime
   perform public.marque_points_put(v_id, v_doc || '{"date":"2026-10-10","closedAt":5}'::jsonb, v_key, null);
   v_doc := public.marque_points_get(v_id);

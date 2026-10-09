@@ -6,7 +6,7 @@
     <!-- Kept in step with sw.js by tools/bundle.js, and shown in the app so
          anyone can tell which copy of it they are looking at. -->
     <meta name="app-version" content="v10" />
-    <meta name="app-build" content="bc8f81e4" />
+    <meta name="app-build" content="9c88fb9f" />
     <!-- viewport-fit=cover : sans lui, iOS ne remplit jamais env(safe-area-inset-*),
          et la barre du bas colle contre la zone de la barre d'accueil au lieu de
          s'arrêter au-dessus. -->
@@ -9913,7 +9913,9 @@ function pollView(poll, { solo = false } = {}) {
     }
 
     ${
-      closed || guest
+      // A guest adds choices too — another evening, another place — as long
+      // as there is still something to choose: not once the day is set.
+      closed || (guest && (fixed || poll.date))
         ? ''
         : `<form id="add-choice" class="card stack stack--tight">
              <label class="visually-hidden" for="new-choice">${escapeHtml(t('polls.addChoice'))}</label>

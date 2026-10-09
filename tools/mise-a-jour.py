@@ -57,7 +57,8 @@ out = "\n".join([
 --      groupes et ses droits d'organisateur sur tout nouvel appareil ; et
 --      chacun peut supprimer son compte et son adresse ;
 --   7. un groupe peut exiger un compte : sans compte, un appareil n'y voit
---      plus ce qui est partagé, n'y partage plus et n'y invite plus.
+--      plus ce qui est partagé, n'y partage plus et n'y invite plus ;
+--   8. qui répond à un sondage par un lien peut y ajouter des choix.
 --
 -- Généré depuis docs/DEPLOIEMENT.md, étape 2 bis ; un test vérifie que les
 -- deux disent la même chose. Modifiez le guide, pas ce fichier seul.
@@ -74,13 +75,14 @@ out = "\n".join([
 drop function if exists public.marque_points_put(text, jsonb, text);
 drop function if exists public.marque_points_delete(text, text);
 """,
+"-- 8. Les choix qu'ajoutent les visiteurs.\n" + function('marque_points_add_options'),
 function('marque_points_put'),
 function('marque_points_delete'),
 function('marque_points_group_docs'),
 function('marque_points_agenda'),
 "-- Les mêmes droits qu'avant, sur les nouvelles versions, rien de plus ;\n-- et la fonte des votes n'est qu'un outil de l'écriture, pas une porte.\n" + "\n".join(
     [grant(n) for n in ['marque_points_invite', 'marque_points_put', 'marque_points_delete', 'marque_points_group_docs', 'marque_points_agenda']]
-    + [revoke('marque_points_merge_votes')]) + "\n",
+    + [revoke('marque_points_merge_votes'), revoke('marque_points_add_options')]) + "\n",
 "-- 6. Les comptes : les secrets d'organisateur.\n"
 + table('marque_points_account') + "\n" + table('marque_points_account_owner')
 + "\n" + table('marque_points_account_cut'),
